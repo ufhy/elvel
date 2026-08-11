@@ -1,8 +1,9 @@
 /**
- * A class-based event: the instance is the payload.
+ * OrderShipped
  *
- * `eventName` keeps wildcard patterns (`order.*`) working regardless of what a
- * build step does to the class name.
+ * A class-based event is a plain data holder: the instance *is* the payload.
+ * `eventName` is declared so wildcard listeners and any build step that renames
+ * classes both keep working.
  */
 export class OrderShipped {
   static readonly eventName = 'order.shipped'
