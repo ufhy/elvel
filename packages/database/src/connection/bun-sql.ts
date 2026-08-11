@@ -1,3 +1,4 @@
+import { isAbsolute, join } from 'node:path'
 import type { EventDispatcher } from '@elysian/contracts'
 import type { Grammar } from '../query/grammar.ts'
 import { MariaDbGrammar, MySqlGrammar } from '../query/grammars/mysql.ts'
@@ -7,8 +8,10 @@ import { type Connection, QueryExecuted, type Row } from './connection.ts'
 
 export type ConnectionConfig = {
   driver: 'sqlite' | 'mysql' | 'mariadb' | 'postgres'
-  /** SQLite only: file path, or `:memory:`. */
+  /** SQLite only: file path, or `:memory:`. Relative paths resolve from `basePath`. */
   database?: string
+  /** Application root, so a relative sqlite path does not depend on the cwd. */
+  basePath?: string
   url?: string
   host?: string
   port?: number
@@ -100,7 +103,13 @@ export class BunSqlConnection implements Connection {
     }
 
     if (config.driver === 'sqlite') {
-      return { adapter: 'sqlite', filename: config.database ?? ':memory:' }
+      return {
+        adapter: 'sqlite',
+        filename: BunSqlConnection.sqlitePath(config),
+        // Laravel expects `touch database/database.sqlite`; creating the file is
+        // friendlier and still explicit, since the path is configured.
+        create: true
+      }
     }
 
     if (config.url) return { adapter: config.driver, url: config.url, ...shared }
@@ -114,6 +123,21 @@ export class BunSqlConnection implements Connection {
       database: config.database,
       ...shared
     }
+  }
+
+  /**
+   * Resolve the sqlite file. A relative path is relative to the application, not
+   * to whatever directory the process happens to be started from — running
+   * `bun run playground migrate` from the repo root must hit the same file.
+   */
+  static sqlitePath(config: ConnectionConfig): string {
+    const database = config.database ?? ':memory:'
+
+    if (database === ':memory:' || database.startsWith('sqlite:') || isAbsolute(database)) {
+      return database
+    }
+
+    return config.basePath ? join(config.basePath, database) : database
   }
 
   async select<T = Row>(sql: string, bindings: unknown[] = []): Promise<T[]> {

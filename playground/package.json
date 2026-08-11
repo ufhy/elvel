@@ -12,6 +12,7 @@
     "@elysian/console": "workspace:*",
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
+    "@elysian/database": "workspace:*",
     "@elysian/events": "workspace:*",
     "@elysian/log": "workspace:*",
     "@elysian/support": "workspace:*",

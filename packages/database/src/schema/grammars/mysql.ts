@@ -1,0 +1,119 @@
+import type { Blueprint, ColumnAttributes } from '../blueprint.ts'
+import { type Modifier, SchemaGrammar } from '../grammar.ts'
+
+export class MySqlSchemaGrammar extends SchemaGrammar {
+  protected override quote = '`'
+
+  /** Verbatim from Laravel's MySqlGrammar: unsigned first, position last. */
+  protected modifiers: Modifier[] = [
+    'unsigned',
+    'collate',
+    'nullable',
+    'default',
+    'onUpdate',
+    'increment',
+    'comment',
+    'after',
+    'first'
+  ]
+
+  typeFor(column: ColumnAttributes): string {
+    switch (column.type) {
+      case 'bigInteger':
+        return 'bigint'
+      case 'integer':
+        return 'int'
+      case 'mediumInteger':
+        return 'mediumint'
+      case 'smallInteger':
+        return 'smallint'
+      case 'tinyInteger':
+        return 'tinyint'
+      case 'boolean':
+        return 'tinyint(1)'
+      case 'string':
+        return `varchar(${column.length ?? 255})`
+      case 'char':
+        return `char(${column.length ?? 255})`
+      case 'uuid':
+        return 'char(36)'
+      case 'enum':
+        return `enum(${(column.allowed ?? []).map((value) => `'${value}'`).join(', ')})`
+      case 'text':
+        return 'text'
+      case 'mediumText':
+        return 'mediumtext'
+      case 'longText':
+        return 'longtext'
+      case 'json':
+      case 'jsonb':
+        return 'json'
+      case 'decimal':
+        return `decimal(${column.total ?? 8}, ${column.places ?? 2})`
+      case 'float':
+        return `double(${column.total ?? 8}, ${column.places ?? 2})`
+      case 'double':
+        return 'double'
+      case 'date':
+        return 'date'
+      case 'dateTime':
+        return 'datetime'
+      case 'timestamp':
+        return 'timestamp'
+      case 'time':
+        return 'time'
+      case 'binary':
+        return 'blob'
+      default: {
+        const exhaustive: never = column.type
+        throw new Error(`Unsupported column type [${exhaustive}] for mysql.`)
+      }
+    }
+  }
+
+  protected override modifyUnsigned(column: ColumnAttributes): string {
+    return column.unsigned ? ' unsigned' : ''
+  }
+
+  protected modifyIncrement(blueprint: Blueprint, column: ColumnAttributes): string {
+    if (!this.serials.includes(column.type) || !column.autoIncrement) return ''
+
+    const hasExplicitPrimary = blueprint.commands.some((command) => command.name === 'primary')
+
+    return hasExplicitPrimary ? ' auto_increment' : ' auto_increment primary key'
+  }
+
+  protected override compileDropIndex(blueprint: Blueprint, index: string): string {
+    return `alter table ${this.wrapTable(blueprint.table)} drop index ${this.wrap(index)}`
+  }
+
+  protected override compileDropPrimary(blueprint: Blueprint): string {
+    return `alter table ${this.wrapTable(blueprint.table)} drop primary key`
+  }
+
+  protected override compileDropForeign(blueprint: Blueprint, index: string): string {
+    return `alter table ${this.wrapTable(blueprint.table)} drop foreign key ${this.wrap(index)}`
+  }
+
+  compileTableExists() {
+    return {
+      sql: 'select table_name from information_schema.tables where table_schema = database() and table_name = ?',
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileColumnListing(_table: string) {
+    return {
+      sql: 'select column_name as name from information_schema.columns where table_schema = database() and table_name = ?',
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileEnableForeignKeys(): string {
+    return 'SET FOREIGN_KEY_CHECKS = 1'
+  }
+
+  compileDisableForeignKeys(): string {
+    return 'SET FOREIGN_KEY_CHECKS = 0'
+  }
+}

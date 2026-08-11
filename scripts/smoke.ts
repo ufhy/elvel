@@ -81,6 +81,7 @@ check('config files loaded', app.config.get<string>('app.name') !== undefined)
 check('view binding registered', app.bound('view'))
 check('events binding registered', app.bound('events'))
 check('log binding registered', app.bound('log'))
+check('db binding registered', app.bound('db'))
 check('artisan binding registered', app.bound('artisan'))
 check('routes mounted', app.router.routes.length >= 8, `${app.router.routes.length} routes`)
 
@@ -197,6 +198,51 @@ check('the level threshold drops quieter records', !logged.levels.includes('debu
 check('records above the threshold are kept', logged.levels.join(',') === 'info,error')
 check('placeholders interpolate from context', logged.messages.includes('User 7 signed in'))
 check('withContext sticks to every record', logged.context.request_id === 'fixed-for-the-test')
+
+section('Database')
+
+// The playground is configured for sqlite; use a throwaway in-memory connection
+// so the smoke test never touches the checked-in database file.
+app.config.set('database.connections.smoke', { driver: 'sqlite', database: ':memory:' })
+
+const smokeSchema = await app.make('db').schema('smoke')
+await smokeSchema.create('smoke_users', (table) => {
+  table.id()
+  table.string('email').unique()
+  table.boolean('active').default(true)
+  table.timestamps()
+})
+
+check('schema builder creates a table', await smokeSchema.hasTable('smoke_users'))
+check(
+  'columns match the blueprint',
+  (await smokeSchema.getColumnListing('smoke_users')).join(',') ===
+    'id,email,active,created_at,updated_at'
+)
+
+const smokeUsers = await app.make('db').table('smoke_users', 'smoke')
+const insertedId = await smokeUsers.insertGetId({ email: 'ada@example.com' })
+
+check('insertGetId returns the new key', insertedId === 1)
+check('defaults are applied', (await smokeUsers.where('id', 1).value<number>('active')) === 1)
+check('count reads back', (await smokeUsers.count()) === 1)
+
+let duplicateRejected = false
+try {
+  await smokeUsers.insert({ email: 'ada@example.com' })
+} catch {
+  duplicateRejected = true
+}
+check('the unique index is enforced', duplicateRejected)
+
+// `artisan` is resolved further down; use the container directly here.
+const statusOutput = plain(
+  await captureOutput(() => app.make('artisan').run(['migrate:status', '--database', 'smoke']))
+)
+check(
+  'migrate:status works before the tracking table exists',
+  statusOutput.includes('MIGRATION') && statusOutput.includes('no')
+)
 
 // ---------------------------------------------------------------- exceptions
 

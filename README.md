@@ -32,6 +32,10 @@ bun run artisan make:view pages.about
 bun run artisan make:component Alert
 bun run artisan make:provider Route
 bun run artisan make:command SendReports
+bun run artisan migrate
+bun run artisan migrate:rollback --step=2
+bun run artisan migrate:status
+bun run artisan make:migration create_posts_table
 bun run artisan make:event OrderShipped
 bun run artisan make:listener RecordShipments --event OrderShipped
 ```
@@ -43,6 +47,7 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elysian/contracts` | Interfaces only. Breaks dependency cycles between packages. |
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
+| `@elysian/database` | Connections, query builder, schema builder and migrator on Bun.SQL. |
 | `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
@@ -145,6 +150,71 @@ so a file write cannot slow a request.
 `config/logging.ts` also carries an opt-in access log (`LOG_REQUESTS=true`) that
 attaches a request id and reports method, path, status and duration.
 
+## Database
+
+No ORM dependency. Bun 1.3 ships native SQL for **sqlite, postgres, mysql and
+mariadb**, with pooling, transactions and savepoints, so the data layer has no
+third-party driver at all. Drizzle was evaluated and dropped: since the query
+builder, schema builder and migrator are ours, its remaining value was a schema
+DSL that would duplicate migrations as a second source of truth — and
+`drizzle-kit` is forward-only, with no rollback.
+
+`Bun.SQL` sits behind a `Connection` interface, so a Node driver (`pg`,
+`mysql2`, `node:sqlite`) would be an added file rather than a rewrite.
+
+```ts
+const users = await db().table('users')
+
+await users.where('votes', '>', 10).orderByDesc('votes').limit(5).get()
+await users.upsert({ email: 'ada@example.com', votes: 1 }, ['email'])
+await connection.transaction(async (tx) => { /* rolled back on throw */ })
+```
+
+Dialect differences are handled rather than assumed away, and the details come
+from Laravel's source:
+
+- **placeholders** — PDO normalises them and Bun.SQL does not, so `parameter()`
+  is per-dialect: postgres emits `$1..$n`, the others `?`
+- **upsert** — `on conflict (…) do update` for postgres/sqlite, `on duplicate
+  key update` for mysql, which has no conflict target
+- **auto-increment** — sqlite collapses every integer width to `integer` and
+  inlines `primary key autoincrement`; postgres uses `bigserial`; mysql appends
+  `auto_increment primary key`
+- **modifier order** — verbatim per grammar, because SQL rejects the wrong one:
+  sqlite puts `increment` first, mysql puts `unsigned` first and position last
+- **truncate** — sqlite deletes rows and resets `sqlite_sequence`, postgres
+  restarts identity, mysql truncates
+
+An empty `whereIn` compiles to `0 = 1` rather than invalid SQL, and where
+operators are validated against a known list instead of interpolated.
+
+### Migrations
+
+```ts
+export default class extends Migration {
+  async up({ schema }: MigrationContext) {
+    await schema.create('posts', (table) => {
+      table.id()
+      table.foreignId('user_id').constrained().cascadeOnDelete()
+      table.string('title')
+      table.timestamps()
+    })
+  }
+
+  async down({ schema }: MigrationContext) {
+    await schema.dropIfExists('posts')
+  }
+}
+```
+
+`down()` is required, which is the whole reason `drizzle-kit` was not used. The
+tracking table matches Laravel's (`id`, `migration`, `batch`), `migrate` records
+one batch per run (`--step` gives each migration its own), and
+`migrate:rollback` reverses the newest batch newest-first. On sqlite and postgres
+each migration runs in a transaction, so a failure halfway leaves no table
+behind; mysql implicitly commits DDL, so wrapping there is skipped rather than
+faked.
+
 ## Bootstrap order
 
 Fixed, and it mirrors `Illuminate\Foundation\Http\Kernel`:
@@ -170,8 +240,8 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 276 unit + integration tests
-bun run smoke    # 73 checks against the real playground app
+bun run test     # 415 unit + integration tests
+bun run smoke    # 81 checks against the real playground app
 ```
 
 ### playground/
@@ -198,7 +268,7 @@ integration tests; the playground is for end-to-end checks and manual poking.
 
 ### Test coverage
 
-`bun test --coverage` reports **79% of functions / 92% of lines**. Every package
+`bun test --coverage` reports **74% of functions / 86% of lines**. Every package
 has unit tests except `contracts` (interfaces only, no runtime) and
 `create-elysian` (covered end to end by the smoke test).
 
@@ -214,16 +284,16 @@ Deliberately not unit-tested:
 
 ## Roadmap
 
-Milestone 1 and step 4 (events + log) are done. Next, in dependency order:
+Milestone 1, events + log, and the database layer (connections, query builder,
+schema builder, migrator) are done. Next, in dependency order:
 
-1. `database` — connections, query builder, and a migrator with `up()`/`down()`.
-   Drizzle executes the SQL; `drizzle-kit` is not the migrator, because it is
-   forward-only and has no rollback.
-2. `database` — Eloquent: models, casts, scopes, relations, eager loading.
+1. `database` — Eloquent: models, casts, scopes, relations, eager loading.
    Note lazy loading cannot be synchronous on Bun: `await user.posts()`.
-3. `validation` — two phases. TypeBox handles shape/type/format synchronously
+2. `validation` — two phases. TypeBox handles shape/type/format synchronously
    (it has no async path and no `refine`); a RuleRunner of ours handles
    `unique`/`exists` and the ~24 cross-field rules.
-4. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
-5. `auth` — better-auth adapter (`mount(auth.handler)` + macro) plus Gate/Policy
-6. `cache`, `queue`, `scheduler`, `mail`, `storage`
+3. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
+4. `auth` — better-auth through `createAdapterFactory` over our own query
+   builder, so its `createSchema` emits our migration format rather than a
+   second schema; plus Gate/Policy
+5. `cache`, `queue`, `scheduler`, `mail`, `storage`

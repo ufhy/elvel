@@ -8,6 +8,11 @@ export class MySqlGrammar extends Grammar {
     return 'mysql'
   }
 
+  /** MySQL rejects `default values`; the empty column list is the idiom. */
+  protected override compileInsertDefaults(table: string): string {
+    return `insert into ${this.wrapTable(table)} () values ()`
+  }
+
   protected override compileLock(lock: 'update' | 'share'): string {
     return lock === 'update' ? 'for update' : 'lock in share mode'
   }

@@ -234,13 +234,15 @@ export abstract class Grammar {
     table: string,
     rows: Array<Record<string, unknown>>
   ): { sql: string; bindings: unknown[] } {
-    if (rows.length === 0) {
-      return { sql: `insert into ${this.wrapTable(table)} default values`, bindings: [] }
-    }
-
     // Every row must list the same columns, so a caller cannot silently drop a
     // value in a batch insert.
-    const columns = Object.keys(rows[0] as Record<string, unknown>)
+    const columns = rows.length === 0 ? [] : Object.keys(rows[0] as Record<string, unknown>)
+
+    // `insert into t () values ()` is a syntax error in sqlite and postgres, so
+    // a row with no columns has to become an explicit defaults insert.
+    if (columns.length === 0) {
+      return { sql: this.compileInsertDefaults(table), bindings: [] }
+    }
     const bindings: unknown[] = []
 
     const tuples = rows.map((row) => {
@@ -256,6 +258,11 @@ export abstract class Grammar {
     const sql = `insert into ${this.wrapTable(table)} (${this.columnize(columns)}) values ${tuples.join(', ')}`
 
     return { sql, bindings }
+  }
+
+  /** `insert into t default values` — MySQL spells this differently. */
+  protected compileInsertDefaults(table: string): string {
+    return `insert into ${this.wrapTable(table)} default values`
   }
 
   compileUpdate(

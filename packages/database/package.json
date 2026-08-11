@@ -5,14 +5,17 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./stubs/*": "./stubs/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@elysian/console": "workspace:*",
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elysian/support": "workspace:*",
+    "picocolors": "^1.1.1"
   }
 }

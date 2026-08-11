@@ -6,3 +6,5 @@ node_modules
 bun.lock
 
 storage/logs/*.log
+database/*.sqlite
+database/*.sqlite-*

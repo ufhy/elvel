@@ -70,9 +70,11 @@
       "name": "@elysian/database",
       "version": "0.0.1",
       "dependencies": {
+        "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
         "@elysian/support": "workspace:*",
+        "picocolors": "^1.1.1",
       },
     },
     "packages/events": {
@@ -119,6 +121,7 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/database": "workspace:*",
         "@elysian/events": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/support": "workspace:*",

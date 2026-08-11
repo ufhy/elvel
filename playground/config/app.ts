@@ -1,5 +1,6 @@
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
+import { DatabaseServiceProvider } from '@elysian/database'
 import { EventServiceProvider } from '@elysian/events'
 import { LogServiceProvider } from '@elysian/log'
 import { ViewServiceProvider } from '@elysian/view'
@@ -23,5 +24,11 @@ export default {
    *
    * Application providers live in `bootstrap/app.ts` so they boot after these.
    */
-  providers: [EventServiceProvider, LogServiceProvider, ConsoleServiceProvider, ViewServiceProvider]
+  providers: [
+    EventServiceProvider,
+    LogServiceProvider,
+    ConsoleServiceProvider,
+    DatabaseServiceProvider,
+    ViewServiceProvider
+  ]
 }

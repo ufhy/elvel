@@ -117,6 +117,7 @@ const FRAMEWORK_PACKAGES = [
   'console',
   'contracts',
   'core',
+  'database',
   'events',
   'log',
   'support',
