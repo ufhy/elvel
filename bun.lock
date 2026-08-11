@@ -11,6 +11,7 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/database": "workspace:*",
         "@elysian/events": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/support": "workspace:*",
@@ -63,6 +64,15 @@
       "dependencies": {
         "@clack/prompts": "^1.7.0",
         "picocolors": "^1.1.1",
+      },
+    },
+    "packages/database": {
+      "name": "@elysian/database",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+        "@elysian/support": "workspace:*",
       },
     },
     "packages/events": {
@@ -154,6 +164,8 @@
     "@elysian/contracts": ["@elysian/contracts@workspace:packages/contracts"],
 
     "@elysian/core": ["@elysian/core@workspace:packages/core"],
+
+    "@elysian/database": ["@elysian/database@workspace:packages/database"],
 
     "@elysian/events": ["@elysian/events@workspace:packages/events"],
 
