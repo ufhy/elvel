@@ -8,6 +8,11 @@
     "moduleDetection": "force",
     "types": ["bun"],
 
+    // Automatic JSX runtime: components need no per-file `import { Html }`.
+    // @kitajs/html compiles JSX straight to strings — no virtual DOM.
+    "jsx": "react-jsx",
+    "jsxImportSource": "@kitajs/html",
+
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,

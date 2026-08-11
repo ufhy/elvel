@@ -88,19 +88,31 @@ section('HTTP')
 
 const landing = await app.handle(new Request('http://localhost/'))
 const landingHtml = await landing.text()
-check('GET / is 200 text/html', landing.status === 200 && landingHtml.startsWith('<!DOCTYPE html>'))
-check('layout component renders the title slot', landingHtml.includes('<title>Welcome'))
-check('page body lands in the default slot', landingHtml.includes('<section class="hero">'))
+check(
+  'GET / is 200 text/html',
+  landing.status === 200 && landing.headers.get('content-type')?.includes('text/html') === true
+)
+check('renderer prepends the doctype', landingHtml.startsWith('<!DOCTYPE html>'))
+check('layout renders the title prop', landingHtml.includes('<title>Welcome'))
+check('page body arrives as children', landingHtml.includes('<section class="hero">'))
 
 const exercise = await app.handle(new Request('http://localhost/exercise/view'))
 const exerciseHtml = await exercise.text()
-check('view receives data', exerciseHtml.includes('<h1>Exercise</h1>'))
+check('view receives typed props', exerciseHtml.includes('<h1>Exercise</h1>'))
 check(
-  '@each iterates',
+  'array props map to elements',
   ['alpha', 'beta', 'gamma'].every((item) => exerciseHtml.includes(`<li>${item}</li>`))
 )
-check('@if branches', exerciseHtml.includes('More than two items.'))
-check('shared globals reach templates', exerciseHtml.includes('in local'))
+check('conditionals render', exerciseHtml.includes('More than two items.'))
+check('layout reads config() directly', exerciseHtml.includes('local'))
+check(
+  'safe escapes untrusted input',
+  exerciseHtml.includes('&lt;script&gt;alert(1)&lt;/script&gt;') &&
+    !exerciseHtml.includes('<script>alert(1)</script>')
+)
+
+const asyncView = await app.handle(new Request('http://localhost/exercise/async'))
+check('async components resolve', (await asyncView.text()).includes('Hello Elysian'))
 
 const raw = (await (await app.handle(new Request('http://localhost/exercise/render'))).json()) as {
   html: string
@@ -224,9 +236,10 @@ section('Generators')
 const generated = [
   app.appPath('Http', 'Controllers', 'SmokeThingController.ts'),
   app.appPath('Http', 'Controllers', 'nested', 'SmokeNestedController.ts'),
-  app.resourcePath('views', 'smoke', 'probe.edge'),
+  app.resourcePath('views', 'smoke', 'probe.tsx'),
   app.appPath('Providers', 'SmokeServiceProvider.ts'),
-  app.appPath('Console', 'Commands', 'SmokeJob.ts')
+  app.appPath('Console', 'Commands', 'SmokeJob.ts'),
+  app.resourcePath('views', 'components', 'SmokeAlert.tsx')
 ]
 
 try {
@@ -244,8 +257,19 @@ try {
 
   await captureOutput(() => artisan.run(['make:view', 'smoke.probe']))
   const viewSource = await Bun.file(generated[2] as string).text()
-  check('make:view resolves dots to directories', viewSource.includes('@component('))
-  check('view title uses the last segment only', viewSource.includes("title: 'Probe'"))
+  check('make:view writes a .tsx component', viewSource.includes('export function Probe('))
+  check('view class name uses the last segment only', viewSource.includes('ProbeProps'))
+  check(
+    'layout import depth matches the nesting',
+    viewSource.includes("from '../components/layout.tsx'")
+  )
+
+  await captureOutput(() => artisan.run(['make:component', 'SmokeAlert']))
+  const componentSource = await Bun.file(generated[5] as string).text()
+  check(
+    'make:component writes a component',
+    componentSource.includes('export function SmokeAlert(')
+  )
 
   await captureOutput(() => artisan.run(['make:provider', 'Smoke']))
   const providerSource = await Bun.file(generated[3] as string).text()
@@ -298,9 +322,11 @@ try {
   check('.env is written from the example', await Bun.file(join(scaffoldTarget, '.env')).exists())
 
   const scaffoldedView = await Bun.file(
-    join(scaffoldTarget, 'resources/views/pages/landing.edge')
+    join(scaffoldTarget, 'resources/views/pages/landing.tsx')
   ).text()
-  check('Edge braces survive substitution', scaffoldedView.includes('@component('))
+  check('view components are copied verbatim', scaffoldedView.includes('export function Landing('))
+  const scaffoldedTsconfig = await Bun.file(join(scaffoldTarget, 'tsconfig.json')).text()
+  check('scaffolded tsconfig wires the JSX runtime', scaffoldedTsconfig.includes('@kitajs/html'))
 } finally {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }

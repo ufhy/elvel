@@ -1,35 +1,25 @@
 import { staticPlugin } from '@elysiajs/static'
 import { ServiceProvider } from '@elysian/core'
-import { EdgeViewFactory } from './factory.ts'
+import { JsxViewFactory } from './factory.ts'
 
 declare module '@elysian/contracts' {
   interface ContainerBindings {
-    view: EdgeViewFactory
+    view: JsxViewFactory
   }
 }
 
 export class ViewServiceProvider extends ServiceProvider {
   register(): void {
-    this.app.singleton('view', (app) => {
-      return new EdgeViewFactory({
-        path: this.config('view.path', app.resourcePath('views')),
-        disks: this.config('view.disks', {}),
-        cache: this.config('view.cache', app.isProduction()),
-        globals: {
-          app_name: app.config.get('app.name', 'Elysian'),
-          app_env: app.environment(),
-          app_url: app.config.get('app.url', ''),
-          config: (key: string, fallback?: unknown) => app.config.get(key, fallback),
-          ...this.config<Record<string, unknown>>('view.globals', {})
-        }
-      })
-    })
+    this.app.singleton(
+      'view',
+      () =>
+        new JsxViewFactory({
+          doctype: this.config<boolean>('view.doctype', true)
+        })
+    )
   }
 
   override async boot(): Promise<void> {
-    // Resolve eagerly so a bad views path fails at boot, not on first request.
-    this.app.make('view')
-
     if (this.config<boolean>('view.serveStatic', true) === false) return
 
     const production = this.app.isProduction()

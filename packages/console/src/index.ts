@@ -1,6 +1,7 @@
 export { Command, type CommandRunner } from './command.ts'
 export { AboutCommand } from './commands/about.ts'
 export { MakeCommandCommand } from './commands/make-command.ts'
+export { MakeComponentCommand } from './commands/make-component.ts'
 export { MakeControllerCommand } from './commands/make-controller.ts'
 export { MakeProviderCommand } from './commands/make-provider.ts'
 export { MakeViewCommand } from './commands/make-view.ts'

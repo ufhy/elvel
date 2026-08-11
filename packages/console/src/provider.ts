@@ -1,6 +1,7 @@
 import { ServiceProvider } from '@elysian/core'
 import { AboutCommand } from './commands/about.ts'
 import { MakeCommandCommand } from './commands/make-command.ts'
+import { MakeComponentCommand } from './commands/make-component.ts'
 import { MakeControllerCommand } from './commands/make-controller.ts'
 import { MakeProviderCommand } from './commands/make-provider.ts'
 import { MakeViewCommand } from './commands/make-view.ts'
@@ -28,6 +29,7 @@ export class ConsoleServiceProvider extends ServiceProvider {
       AboutCommand,
       MakeControllerCommand,
       MakeViewCommand,
+      MakeComponentCommand,
       MakeProviderCommand,
       MakeCommandCommand
     )

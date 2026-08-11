@@ -29,6 +29,7 @@ bun run artisan about
 bun run artisan route:list
 bun run artisan make:controller Post -r
 bun run artisan make:view pages.about
+bun run artisan make:component Alert
 bun run artisan make:provider Route
 bun run artisan make:command SendReports
 ```
@@ -41,7 +42,7 @@ bun run artisan make:command SendReports
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
-| `@elysian/view` | Edge.js view factory, `view()` helper, static file serving. |
+| `@elysian/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `create-elysian` | Application skeleton scaffolder. |
 
 ## Design decisions
@@ -61,10 +62,34 @@ deduplicates its routes.
 resolve from the running application, like Laravel's helpers. Decorating the
 Elysia context instead would force every route to carry those types.
 
-**Views are Edge.js, not a Blade compiler.** Edge is the closest thing Node has
-to Blade and is maintained standalone by the AdonisJS team. Note Edge 6 has no
-`@layout`/`@section`/`@extends` — layouts are components with slots, and its
-compile cache is in-memory only (there is no `storage/framework/views`).
+**Views are typed JSX, not a template language.** `@kitajs/html` compiles JSX
+straight to strings — no virtual DOM, ~2-3x faster than React/Preact/Hono JSX at
+about half the memory. A view is a function, so `tsc` is the template checker and
+Bun's module cache is the compile cache: no view paths, no compiled-view
+directory, and a renamed prop is a compile error instead of a blank page.
+
+Components are passed by reference, never by name:
+
+```ts
+// app/Http/Controllers/PageController.ts  — stays .ts, no JSX syntax here
+import { view } from '@elysian/view'
+import { Landing } from '../../../resources/views/pages/landing.tsx'
+
+.get('/', () => view(Landing, { title: 'Welcome' }))
+```
+
+Only files containing JSX syntax need `.tsx`; a `.ts` file with a JSX literal is
+a syntax error in both `tsc` and Bun. Layouts are components and the page body
+arrives as `children` (typed as `Children` from `@kitajs/html`). `view()`
+prepends `<!DOCTYPE html>` when the markup opens with `<html`, since JSX has no
+doctype node.
+
+**Escaping is opt-in.** Mark interpolated user input with `safe` —
+`<span safe>{comment}</span>` — and it is HTML-escaped at render time. The
+matching compile-time checker, `@kitajs/ts-html-plugin`, **cannot be wired into
+`bun run verify` today**: its CLI reads `typescript.sys`, which TypeScript 7
+removed from the default export, so it crashes under both Bun and Node. Until
+that is fixed, `safe` is a runtime guarantee and a review responsibility.
 
 **Workspace linking, never `file:` dependencies.** Bun hardlinks `file:`
 dependencies into its store; an editor that writes by replacing a file detaches
@@ -94,16 +119,16 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 44 unit + integration tests
-bun run smoke    # 52 checks against the real playground app
+bun run test     # 47 unit + integration tests
+bun run smoke    # 58 checks against the real playground app
 ```
 
 ### playground/
 
 `playground/` is a tracked workspace member — the same skeleton `bun run create`
-produces, plus an `ExerciseController`, an `exercise.edge` view, and a `Ping`
-command that exist purely to give the smoke test something real to assert
-against.
+produces, plus an `ExerciseController`, an `exercise.tsx` view (with an async
+component and a deliberately unsafe-looking prop), and a `Ping` command that
+exist purely to give the smoke test something real to assert against.
 
 ```bash
 bun run playground:dev              # serve it with --watch
@@ -122,8 +147,8 @@ integration tests; the playground is for end-to-end checks and manual poking.
 
 ### Test coverage
 
-`bun test --coverage` currently reports ~51% of functions. The gaps are known and
-tracked: `Collection`, `Macroable`, `parseEnvFile`, and the generators have no
+`bun test --coverage` currently reports roughly half of all functions. The gaps
+are known: `Collection`, `Macroable`, `parseEnvFile`, and the generators have no
 unit tests — the generators and the scaffolder are covered by the smoke test
 instead, which catches behaviour but not edge cases.
 

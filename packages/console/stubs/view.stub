@@ -1,5 +1,20 @@
-{{-- Edge 6 has no @layout/@section: layouts are components with slots. --}}
-@component('components/layout', { title: '{{ studly }}' })
-  <h1>{{ studly }}</h1>
-  <p>Edit this view in <code>resources/views</code>.</p>
-@endcomponent
+import { Layout } from '{{ layoutImport }}'
+
+export type {{ class }}Props = {
+  title: string
+}
+
+/**
+ * {{ class }} page.
+ *
+ * Props are checked wherever this is rendered — `view({{ class }}, { title })`
+ * will not compile with a missing or misspelled prop.
+ */
+export function {{ class }}({ title }: {{ class }}Props) {
+  return (
+    <Layout title={title}>
+      <h1 safe>{title}</h1>
+      <p>Edit this view in <code>resources/views</code>.</p>
+    </Layout>
+  )
+}

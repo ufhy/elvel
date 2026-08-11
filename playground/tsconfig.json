@@ -7,6 +7,10 @@
     "moduleDetection": "force",
     "types": ["bun"],
 
+    // Automatic JSX runtime: components need no per-file `import { Html }`.
+    "jsx": "react-jsx",
+    "jsxImportSource": "@kitajs/html",
+
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -19,6 +23,6 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"]
 }

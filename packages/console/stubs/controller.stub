@@ -1,12 +1,19 @@
 import { controller } from '@elysian/core'
-import { view } from '@elysian/view'
 
 /**
  * {{ class }}
  *
  * A controller is an Elysia instance: handlers keep full context inference and
  * the instance name lets Elysia deduplicate the routes if it is mounted twice.
+ *
+ * To render a view, import the component and hand it to `view()` — the props
+ * are typechecked at the call site:
+ *
+ *   import { view } from '@elysian/view'
+ *   import { {{ studly }} } from '../../../resources/views/pages/{{ kebab }}.tsx'
+ *
+ *   .get('/', () => view({{ studly }}, { title: '{{ studly }}' }))
  */
-export default controller('{{ kebab }}').get('/{{ plural }}', () =>
-  view('{{ plural }}.index', { title: '{{ studly }}' })
-)
+export default controller('{{ kebab }}').get('/{{ plural }}', () => ({
+  data: []
+}))

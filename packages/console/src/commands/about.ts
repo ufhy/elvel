@@ -31,7 +31,7 @@ export class AboutCommand extends Command {
     this.line(pc.bold('  Runtime'))
     this.output.pairs([
       ['Registered Routes', String(this.app.router.routes.length)],
-      ['View Engine', this.app.bound('view') ? 'Edge' : 'not installed']
+      ['View Engine', this.app.bound('view') ? 'JSX (@kitajs/html)' : 'not installed']
     ])
     this.line()
 

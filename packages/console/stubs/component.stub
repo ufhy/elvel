@@ -1,0 +1,15 @@
+import type { Children } from '@kitajs/html'
+
+export type {{ class }}Props = {
+  children?: Children
+}
+
+/**
+ * {{ class }} component.
+ *
+ * Mark any interpolated user input with `safe` so it is HTML-escaped:
+ * `<span safe>{userInput}</span>`.
+ */
+export function {{ class }}({ children }: {{ class }}Props) {
+  return <div class="{{ kebab }}">{children}</div>
+}

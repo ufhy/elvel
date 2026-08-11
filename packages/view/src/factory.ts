@@ -1,75 +1,31 @@
-import type { ViewFactory } from '@elysian/contracts'
-import { Edge } from 'edge.js'
+import type { ViewComponent, ViewFactory } from '@elysian/contracts'
+
+const DOCTYPE = '<!DOCTYPE html>'
 
 export type ViewFactoryOptions = {
-  /** Primary views directory, e.g. `resources/views`. */
-  path: string
-  /** Extra named disks: `{ emails: '.../resources/emails' }` -> `emails::welcome`. */
-  disks?: Record<string, string>
   /**
-   * Cache compiled templates. Edge's cache is in-memory only (there is no
-   * on-disk compiled-view directory like Laravel's `storage/framework/views`),
-   * so this is a per-process cache — enable it in production, leave it off
-   * locally so template edits show up on reload.
+   * Prepend `<!DOCTYPE html>` when the rendered markup starts with `<html`.
+   * JSX has no doctype node, so without this every full page would have to
+   * carry the string by hand.
    */
-  cache?: boolean
-  /** Values available in every template. */
-  globals?: Record<string, unknown>
+  doctype?: boolean
 }
 
 /**
- * View factory backed by Edge.js.
+ * View renderer for `@kitajs/html` components.
  *
- * Edge is the closest thing Node has to Blade — same directive feel
- * (`@if`, `@each`, `@include`, `@component` with named slots), built by the
- * AdonisJS team as a standalone package. We wrap it rather than write a Blade
- * compiler: the compiler is Eloquent-sized work for a solved problem.
+ * There is no template engine, no view path, and no compile cache: a view is a
+ * TypeScript function, so Bun's own module cache is the compile cache and
+ * `tsc` is the template checker. Props are checked at every call site.
  */
-export class EdgeViewFactory implements ViewFactory {
-  private readonly edge: Edge
+export class JsxViewFactory implements ViewFactory {
+  constructor(private readonly options: ViewFactoryOptions = {}) {}
 
-  constructor(options: ViewFactoryOptions) {
-    this.edge = Edge.create({ cache: options.cache ?? false })
-    this.edge.mount(options.path)
+  async render<Props>(component: ViewComponent<Props>, props: Props): Promise<string> {
+    const markup = await component(props)
 
-    for (const [name, directory] of Object.entries(options.disks ?? {})) {
-      this.edge.mount(name, directory)
-    }
+    if (this.options.doctype === false) return markup
 
-    for (const [key, value] of Object.entries(options.globals ?? {})) {
-      this.edge.global(key, value)
-    }
-  }
-
-  /**
-   * Render a template. Dot notation is accepted so `view('pages.landing')`
-   * resolves `resources/views/pages/landing.edge`, matching Laravel.
-   */
-  render(template: string, data: Record<string, unknown> = {}): Promise<string> {
-    return this.edge.render(this.normalize(template), data)
-  }
-
-  share(key: string, value: unknown): this {
-    this.edge.global(key, value)
-    return this
-  }
-
-  mount(name: string, directory: string): this {
-    this.edge.mount(name, directory)
-    return this
-  }
-
-  /** Escape hatch for custom tags/plugins — the underlying Edge instance. */
-  get engine(): Edge {
-    return this.edge
-  }
-
-  private normalize(template: string): string {
-    const [disk, path] = template.includes('::')
-      ? (template.split('::') as [string, string])
-      : [undefined, template]
-
-    const normalized = path.replace(/\./g, '/')
-    return disk === undefined ? normalized : `${disk}::${normalized}`
+    return markup.trimStart().toLowerCase().startsWith('<html') ? `${DOCTYPE}${markup}` : markup
   }
 }

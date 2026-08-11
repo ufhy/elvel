@@ -10,10 +10,12 @@ export class AppServiceProvider extends ServiceProvider {
   }
 
   /**
-   * Everything is registered by now. Resolve services, share view data, mount
-   * Elysia plugins.
+   * Everything is registered. Resolve services and mount Elysia plugins.
+   *
+   * Views need nothing here: there is no template scope to share data into, so
+   * a component imports whatever it needs directly.
    */
   override boot(): void {
-    this.app.make('view').share('year', new Date().getFullYear())
+    //
   }
 }

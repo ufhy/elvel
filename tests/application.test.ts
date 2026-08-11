@@ -59,17 +59,42 @@ describe('bootstrap', () => {
 })
 
 describe('http', () => {
-  test('renders an Edge view through the layout component', async () => {
+  test('renders a JSX view through the layout component', async () => {
     const response = await app.handle(new Request('http://localhost/'))
     const html = await response.text()
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
+    // JSX has no doctype node — the renderer prepends it for full documents
+    expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(html).toContain('<title>Greeting</title>')
     expect(html).toContain('<h1>Hello World</h1>')
-    // @each inside the slot, and globals shared by the view provider
     expect(html).toContain('<li>a</li>')
+    // A layout reads shared values by importing config(), not via template scope
     expect(html).toContain('Fixture/testing')
+  })
+
+  test('the safe attribute escapes interpolated input', async () => {
+    const html = await (await app.handle(new Request('http://localhost/escaped'))).text()
+
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;')
+    expect(html).not.toContain('<b>x</b>')
+  })
+
+  test('components without required props render', async () => {
+    const html = await (await app.handle(new Request('http://localhost/bare'))).text()
+
+    expect(html).toBe('<p>no props</p>')
+    // Not a full document, so no doctype is prepended
+    expect(html.startsWith('<!DOCTYPE')).toBe(false)
+  })
+
+  test('render() returns markup as a string', async () => {
+    const body = (await (await app.handle(new Request('http://localhost/string'))).json()) as {
+      html: string
+    }
+
+    expect(body.html).toBe('<p>no props</p>')
   })
 
   test('returns JSON for plain object handlers', async () => {

@@ -11,10 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@elysiajs/static": "^1.4.10",
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
-    "@elysiajs/static": "^1.4.10",
-    "edge.js": "^6.5.1"
+    "@kitajs/html": "^4.2.13"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"

@@ -83,12 +83,21 @@ export interface ServiceProviderConstructor {
 }
 
 /**
- * View factory — `view('pages.landing', { ... })`.
+ * A view is a function returning markup — exactly what a `@kitajs/html`
+ * component compiles to. Async components are allowed, hence the union.
+ */
+export type ViewComponent<Props = {}> = (props: Props) => string | Promise<string>
+
+/**
+ * View renderer.
+ *
+ * Views are passed as components, not as string names: that is what lets
+ * TypeScript check the props at the call site. There is no `share()` — with JSX
+ * there is no template scope to inject globals into, so shared data is imported
+ * like any other value (`config()`, a helper, a plain module).
  */
 export interface ViewFactory {
-  render(template: string, data?: Record<string, unknown>): Promise<string>
-  share(key: string, value: unknown): this
-  mount(name: string, directory: string): this
+  render<Props>(component: ViewComponent<Props>, props: Props): Promise<string>
 }
 
 /**
