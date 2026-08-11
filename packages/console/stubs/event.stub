@@ -1,0 +1,12 @@
+/**
+ * {{ class }}
+ *
+ * A class-based event is a plain data holder: the instance *is* the payload.
+ * `eventName` is declared so wildcard listeners and any build step that renames
+ * classes both keep working.
+ */
+export class {{ class }} {
+  static readonly eventName = '{{ dotted }}'
+
+  constructor(readonly payload: unknown) {}
+}

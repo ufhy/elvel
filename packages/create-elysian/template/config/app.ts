@@ -1,5 +1,7 @@
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
+import { EventServiceProvider } from '@elysian/events'
+import { LogServiceProvider } from '@elysian/log'
 import { ViewServiceProvider } from '@elysian/view'
 
 export default {
@@ -16,8 +18,10 @@ export default {
   host: env('HOST', ''),
 
   /**
-   * Framework service providers. Application providers live in
-   * `bootstrap/app.ts` so they boot after these.
+   * Framework service providers, in boot order. Events and logging come first:
+   * everything after them may emit events or write logs while booting.
+   *
+   * Application providers live in `bootstrap/app.ts` so they boot after these.
    */
-  providers: [ConsoleServiceProvider, ViewServiceProvider]
+  providers: [EventServiceProvider, LogServiceProvider, ConsoleServiceProvider, ViewServiceProvider]
 }

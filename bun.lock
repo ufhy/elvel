@@ -11,6 +11,8 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/events": "workspace:*",
+        "@elysian/log": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/view": "workspace:*",
         "@kitajs/html": "^4.2.13",
@@ -63,6 +65,27 @@
         "picocolors": "^1.1.1",
       },
     },
+    "packages/events": {
+      "name": "@elysian/events",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+    },
+    "packages/log": {
+      "name": "@elysian/log",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+        "@elysian/support": "workspace:*",
+        "picocolors": "^1.1.1",
+      },
+      "peerDependencies": {
+        "elysia": ">=1.4.0",
+      },
+    },
     "packages/support": {
       "name": "@elysian/support",
       "version": "0.0.1",
@@ -86,6 +109,8 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/events": "workspace:*",
+        "@elysian/log": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/view": "workspace:*",
         "@kitajs/html": "^4.2.13",
@@ -129,6 +154,10 @@
     "@elysian/contracts": ["@elysian/contracts@workspace:packages/contracts"],
 
     "@elysian/core": ["@elysian/core@workspace:packages/core"],
+
+    "@elysian/events": ["@elysian/events@workspace:packages/events"],
+
+    "@elysian/log": ["@elysian/log@workspace:packages/log"],
 
     "@elysian/support": ["@elysian/support@workspace:packages/support"],
 

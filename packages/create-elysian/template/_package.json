@@ -12,6 +12,8 @@
     "@elysian/console": "{{ dep_console }}",
     "@elysian/contracts": "{{ dep_contracts }}",
     "@elysian/core": "{{ dep_core }}",
+    "@elysian/events": "{{ dep_events }}",
+    "@elysian/log": "{{ dep_log }}",
     "@elysian/support": "{{ dep_support }}",
     "@elysian/view": "{{ dep_view }}",
     "@kitajs/html": "^4.2.13",

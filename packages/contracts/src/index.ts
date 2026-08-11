@@ -100,6 +100,97 @@ export interface ViewFactory {
   render<Props>(component: ViewComponent<Props>, props: Props): Promise<string>
 }
 
+// ------------------------------------------------------------------- events
+
+/** A class-based event: `dispatch(new UserRegistered(user))`. */
+export type EventConstructor<E extends object = object> = abstract new (...args: any[]) => E
+
+/**
+ * How an event is addressed. A constructor keeps listeners typed; a string
+ * supports loose events and `'user.*'` wildcard patterns.
+ */
+export type EventKey<E extends object = object> = EventConstructor<E> | string
+
+export type Listener<Payload = any> = (payload: Payload) => unknown | Promise<unknown>
+
+/** Wildcard listeners receive the resolved event name alongside the payload. */
+export type WildcardListener = (event: string, payload: unknown) => unknown | Promise<unknown>
+
+export interface EventSubscriber {
+  subscribe(dispatcher: EventDispatcher): void
+}
+
+export interface EventDispatcher {
+  /** Class events keep their payload typed. */
+  listen<E extends object>(event: EventConstructor<E>, listener: Listener<E>): void
+  /**
+   * String events are the loose path: an exact name calls `(payload)`, while a
+   * pattern such as `'order.*'` calls `(eventName, payload)`. The signature is
+   * intentionally permissive because one overload has to serve both.
+   */
+  listen(event: string | string[], listener: (...args: any[]) => unknown | Promise<unknown>): void
+
+  hasListeners(event: EventKey): boolean
+
+  subscribe(subscriber: EventSubscriber): void
+
+  /** Dispatch and return every listener's response. */
+  dispatch<E extends object>(event: E): Promise<unknown[] | null>
+  dispatch(event: string, payload?: unknown): Promise<unknown[] | null>
+
+  /** Dispatch until the first non-null response, and return it. */
+  until<E extends object>(event: E): Promise<unknown>
+  until(event: string, payload?: unknown): Promise<unknown>
+
+  push(event: string, payload?: unknown): void
+  flush(event: string): Promise<void>
+  forget(event: EventKey): void
+  forgetPushed(): void
+}
+
+// ---------------------------------------------------------------------- log
+
+/** RFC 5424 levels, as Laravel exposes them. */
+export type LogLevel =
+  | 'emergency'
+  | 'alert'
+  | 'critical'
+  | 'error'
+  | 'warning'
+  | 'notice'
+  | 'info'
+  | 'debug'
+
+export type LogContext = Record<string, unknown>
+
+export type LogRecord = {
+  level: LogLevel
+  message: string
+  context: LogContext
+  channel: string
+  time: Date
+}
+
+/** A single log channel. */
+export interface LoggerContract {
+  log(level: LogLevel, message: string, context?: LogContext): void
+  emergency(message: string, context?: LogContext): void
+  alert(message: string, context?: LogContext): void
+  critical(message: string, context?: LogContext): void
+  error(message: string, context?: LogContext): void
+  warning(message: string, context?: LogContext): void
+  notice(message: string, context?: LogContext): void
+  info(message: string, context?: LogContext): void
+  debug(message: string, context?: LogContext): void
+  withContext(context: LogContext): this
+  withoutContext(keys?: string[]): this
+}
+
+/** Writes a formatted record somewhere: a file, stdout, a remote service. */
+export interface LogDriver {
+  write(record: LogRecord): void | Promise<void>
+}
+
 /**
  * A console command. Mirrors Artisan's signature-driven contract.
  */

@@ -3,6 +3,8 @@ import { AboutCommand } from './commands/about.ts'
 import { MakeCommandCommand } from './commands/make-command.ts'
 import { MakeComponentCommand } from './commands/make-component.ts'
 import { MakeControllerCommand } from './commands/make-controller.ts'
+import { MakeEventCommand } from './commands/make-event.ts'
+import { MakeListenerCommand } from './commands/make-listener.ts'
 import { MakeProviderCommand } from './commands/make-provider.ts'
 import { MakeViewCommand } from './commands/make-view.ts'
 import { RouteListCommand } from './commands/route-list.ts'
@@ -31,7 +33,9 @@ export class ConsoleServiceProvider extends ServiceProvider {
       MakeViewCommand,
       MakeComponentCommand,
       MakeProviderCommand,
-      MakeCommandCommand
+      MakeCommandCommand,
+      MakeEventCommand,
+      MakeListenerCommand
     )
 
     // Application commands — discovered, not registered by hand.

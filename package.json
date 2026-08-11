@@ -26,6 +26,8 @@
     "@elysian/console": "workspace:*",
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
+    "@elysian/events": "workspace:*",
+    "@elysian/log": "workspace:*",
     "@elysian/support": "workspace:*",
     "@elysian/view": "workspace:*",
     "@kitajs/html": "^4.2.13",

@@ -32,6 +32,8 @@ bun run artisan make:view pages.about
 bun run artisan make:component Alert
 bun run artisan make:provider Route
 bun run artisan make:command SendReports
+bun run artisan make:event OrderShipped
+bun run artisan make:listener RecordShipments --event OrderShipped
 ```
 
 ## Packages
@@ -41,6 +43,8 @@ bun run artisan make:command SendReports
 | `@elysian/contracts` | Interfaces only. Breaks dependency cycles between packages. |
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
+| `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
+| `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
 | `@elysian/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `create-elysian` | Application skeleton scaffolder. |
@@ -96,6 +100,51 @@ dependencies into its store; an editor that writes by replacing a file detaches
 the copy, and the app then runs stale code while TypeScript sees two identities
 of the same module. Apps scaffolded inside this repo become workspace members.
 
+## Events and logging
+
+Both follow `Illuminate\Events\Dispatcher` and `Illuminate\Log\LogManager`
+semantics, read from the source rather than guessed:
+
+```ts
+// A class event is its own payload, and its listener's argument is typed.
+class OrderShipped {
+  static readonly eventName = 'order.shipped'   // survives class renaming
+  constructor(readonly orderId: number) {}
+}
+
+events().listen(OrderShipped, (event) => event.orderId)   // typed
+events().listen('order.*', (name, payload) => {})         // wildcard
+await dispatch(new OrderShipped(42))
+```
+
+- a listener returning `false` stops propagation; `until()` returns the first
+  non-null response and skips the rest
+- wildcard matches are cached per event name and invalidated when a new pattern
+  is registered
+- `push()`/`flush()` defer through a synthetic `<event>_pushed` event
+- classes in `app/Listeners` with a `subscribe` method are discovered
+  automatically; `EventFake` records dispatches for tests and `NullDispatcher`
+  swallows them while keeping registration observable
+
+Queued listeners are **absent on purpose** until the queue package exists —
+there is no fallback that runs them synchronously and calls it queued.
+
+```ts
+log().info('User {id} signed in', { id: 7 })    // {placeholders} interpolate
+log().channel('daily').warning('Disk filling')
+log().shareContext({ request_id: id })          // sticks to every channel
+log().extend('pino', (config) => new PinoDriver(config))
+```
+
+Channels pair a driver with a minimum level, using the same eight RFC 5424
+levels and Monolog's severity numbers, so a `level` behaves as it does in
+Laravel. A typo in a level or a stack that includes itself fails at boot rather
+than at 3am. Logging is fire-and-forget: `log().info()` never awaits its driver,
+so a file write cannot slow a request.
+
+`config/logging.ts` also carries an opt-in access log (`LOG_REQUESTS=true`) that
+attaches a request id and reports method, path, status and duration.
+
 ## Bootstrap order
 
 Fixed, and it mirrors `Illuminate\Foundation\Http\Kernel`:
@@ -106,7 +155,9 @@ env -> config -> exceptions -> register providers -> boot providers -> routes
 
 Framework providers come from `config/app.ts`; application providers are passed
 to `Application.configure().withProviders()` so they register last and can
-override framework bindings.
+override framework bindings. Events and logging are registered first, as
+Laravel's base providers are, because everything booting after them may emit
+events or write logs.
 
 ## Development
 
@@ -119,8 +170,8 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 195 unit + integration tests
-bun run smoke    # 58 checks against the real playground app
+bun run test     # 276 unit + integration tests
+bun run smoke    # 73 checks against the real playground app
 ```
 
 ### playground/
@@ -147,7 +198,7 @@ integration tests; the playground is for end-to-end checks and manual poking.
 
 ### Test coverage
 
-`bun test --coverage` reports **81% of functions / 92% of lines**. Every package
+`bun test --coverage` reports **79% of functions / 92% of lines**. Every package
 has unit tests except `contracts` (interfaces only, no runtime) and
 `create-elysian` (covered end to end by the smoke test).
 
@@ -163,17 +214,16 @@ Deliberately not unit-tested:
 
 ## Roadmap
 
-Milestone 1 is done. Next, in dependency order:
+Milestone 1 and step 4 (events + log) are done. Next, in dependency order:
 
-1. `events` + `log`
-2. `database` — connections, query builder, and a migrator with `up()`/`down()`.
+1. `database` — connections, query builder, and a migrator with `up()`/`down()`.
    Drizzle executes the SQL; `drizzle-kit` is not the migrator, because it is
    forward-only and has no rollback.
-3. `database` — Eloquent: models, casts, scopes, relations, eager loading.
+2. `database` — Eloquent: models, casts, scopes, relations, eager loading.
    Note lazy loading cannot be synchronous on Bun: `await user.posts()`.
-4. `validation` — two phases. TypeBox handles shape/type/format synchronously
+3. `validation` — two phases. TypeBox handles shape/type/format synchronously
    (it has no async path and no `refine`); a RuleRunner of ours handles
    `unique`/`exists` and the ~24 cross-field rules.
-5. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
-6. `auth` — better-auth adapter (`mount(auth.handler)` + macro) plus Gate/Policy
-7. `cache`, `queue`, `scheduler`, `mail`, `storage`
+4. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
+5. `auth` — better-auth adapter (`mount(auth.handler)` + macro) plus Gate/Policy
+6. `cache`, `queue`, `scheduler`, `mail`, `storage`

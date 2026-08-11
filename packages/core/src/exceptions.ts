@@ -44,6 +44,22 @@ export class ExceptionHandler implements ExceptionHandlerContract {
 
   report(error: unknown): void {
     if (this.app.environment() === 'testing') return
+
+    // Prefer the log manager when the log package is installed, so reports obey
+    // the configured channels. Core cannot depend on it, hence the duck test.
+    if (this.app.bound('log')) {
+      const logger = this.app.make('log' as never) as {
+        error(message: string, context?: Record<string, unknown>): void
+      }
+
+      logger.error(ExceptionHandler.messageOf(error), {
+        exception: error instanceof Error ? error.name : typeof error,
+        stack: error instanceof Error ? error.stack : undefined
+      })
+
+      return
+    }
+
     console.error(error)
   }
 
@@ -91,7 +107,7 @@ export class ExceptionHandler implements ExceptionHandlerContract {
    * Read a message off anything throwable. Plugins throw plain objects as often
    * as Errors, and `String(object)` would render "[object Object]".
    */
-  private static messageOf(error: unknown): string {
+  static messageOf(error: unknown): string {
     if (error instanceof Error) return error.message
 
     if (typeof error === 'object' && error !== null) {

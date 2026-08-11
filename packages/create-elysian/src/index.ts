@@ -24,7 +24,7 @@ const RENAMES: Record<string, string> = {
   _gitignore: '.gitignore'
 }
 
-/** Substitution runs on these extensions only — Edge templates use `{{ }}` too. */
+/** Substitution runs on these extensions only, never on binaries or CSS. */
 const SUBSTITUTABLE = new Set(['.json', '.ts', '.md', '.example', '.txt', ''])
 
 type Replacements = Record<string, string>
@@ -113,7 +113,15 @@ async function main(): Promise<number> {
   return 0
 }
 
-const FRAMEWORK_PACKAGES = ['console', 'contracts', 'core', 'support', 'view'] as const
+const FRAMEWORK_PACKAGES = [
+  'console',
+  'contracts',
+  'core',
+  'events',
+  'log',
+  'support',
+  'view'
+] as const
 
 /** Locate the framework checkout root, if we are scaffolding from inside one. */
 async function findMonorepoRoot(): Promise<string | undefined> {

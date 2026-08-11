@@ -79,6 +79,8 @@ const app = (await import('../playground/bootstrap/app.ts')).default
 section('Bootstrap')
 check('config files loaded', app.config.get<string>('app.name') !== undefined)
 check('view binding registered', app.bound('view'))
+check('events binding registered', app.bound('events'))
+check('log binding registered', app.bound('log'))
 check('artisan binding registered', app.bound('artisan'))
 check('routes mounted', app.router.routes.length >= 8, `${app.router.routes.length} routes`)
 
@@ -143,6 +145,59 @@ check(
   asset.status === 200 && (asset.headers.get('content-type') ?? '').includes('text/css')
 )
 
+// ---------------------------------------------------------------- signals
+
+section('Events')
+
+// The listener logs on purpose; capture so the checks stay readable.
+let dispatchResponse!: Response
+await captureOutput(async () => {
+  dispatchResponse = await app.handle(new Request('http://localhost/signal/dispatch'))
+})
+
+const dispatched = (await dispatchResponse.json()) as {
+  responses: unknown[]
+  recorded: number[]
+}
+
+check('a discovered listener runs without manual wiring', dispatched.recorded.includes(42))
+check('listener responses come back to the caller', dispatched.responses.includes('recorded:42'))
+
+const wildcard = (await (
+  await app.handle(new Request('http://localhost/signal/wildcard'))
+).json()) as { seen: string[] }
+
+check(
+  'wildcard patterns match by name',
+  wildcard.seen.includes('probe.one') && wildcard.seen.includes('probe.two')
+)
+check('wildcard patterns do not over-match', !wildcard.seen.includes('unrelated.three'))
+
+const halting = (await (
+  await app.handle(new Request('http://localhost/signal/halting'))
+).json()) as { order: string[]; responses: unknown[]; until: unknown }
+
+check(
+  'returning false stops propagation',
+  halting.order.length === 1 && halting.order[0] === 'first'
+)
+check('until() returns the first non-null response', halting.until === 'answer')
+
+section('Logging')
+
+const logged = (await (await app.handle(new Request('http://localhost/signal/log'))).json()) as {
+  channel: string
+  levels: string[]
+  messages: string[]
+  context: Record<string, unknown>
+}
+
+check('extend() registers a custom driver', logged.channel === 'probe')
+check('the level threshold drops quieter records', !logged.levels.includes('debug'))
+check('records above the threshold are kept', logged.levels.join(',') === 'info,error')
+check('placeholders interpolate from context', logged.messages.includes('User 7 signed in'))
+check('withContext sticks to every record', logged.context.request_id === 'fixed-for-the-test')
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')
@@ -186,7 +241,7 @@ check(
   'framework commands registered',
   ['serve', 'route:list', 'about'].every((name) => commandNames.includes(name))
 )
-check('generators registered', commandNames.filter((name) => name?.startsWith('make:')).length >= 4)
+check('generators registered', commandNames.filter((name) => name?.startsWith('make:')).length >= 7)
 check('application commands are discovered', commandNames.includes('ping'))
 
 const pingOutput = plain(
@@ -239,7 +294,9 @@ const generated = [
   app.resourcePath('views', 'smoke', 'probe.tsx'),
   app.appPath('Providers', 'SmokeServiceProvider.ts'),
   app.appPath('Console', 'Commands', 'SmokeJob.ts'),
-  app.resourcePath('views', 'components', 'SmokeAlert.tsx')
+  app.resourcePath('views', 'components', 'SmokeAlert.tsx'),
+  app.appPath('Events', 'SmokeHappened.ts'),
+  app.appPath('Listeners', 'RecordSmoke.ts')
 ]
 
 try {
@@ -281,6 +338,22 @@ try {
   await captureOutput(() => artisan.run(['make:command', 'SmokeJob']))
   const commandSource = await Bun.file(generated[4] as string).text()
   check('make:command derives a signature', commandSource.includes("signature = 'smoke:job"))
+
+  await captureOutput(() => artisan.run(['make:event', 'SmokeHappened']))
+  const eventSource = await Bun.file(generated[6] as string).text()
+  check(
+    'make:event writes a class with a stable eventName',
+    eventSource.includes("eventName = 'smoke.happened'")
+  )
+
+  await captureOutput(() =>
+    artisan.run(['make:listener', 'RecordSmoke', '--event', 'SmokeHappened'])
+  )
+  const listenerSource = await Bun.file(generated[7] as string).text()
+  check(
+    'make:listener subscribes to the given event',
+    listenerSource.includes("listen('smoke.happened'")
+  )
 
   const refused = plain(await captureOutput(() => artisan.run(['make:view', 'smoke.probe'])))
   check('existing files are not overwritten', refused.includes('already exists'))

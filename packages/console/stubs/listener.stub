@@ -1,0 +1,21 @@
+import type { EventDispatcher, EventSubscriber } from '@elysian/events'
+
+/**
+ * {{ class }}
+ *
+ * Anything in `app/Listeners` exporting a class with a `subscribe` method is
+ * discovered and registered by EventServiceProvider — no manual wiring.
+ *
+ * Return `false` from a handler to stop the event reaching later listeners.
+ */
+export class {{ class }} implements EventSubscriber {
+  subscribe(events: EventDispatcher): void {
+    events.listen('{{ dotted }}', (payload) => {
+      this.handle(payload)
+    })
+  }
+
+  handle(payload: unknown): void {
+    //
+  }
+}
