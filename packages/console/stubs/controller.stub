@@ -1,0 +1,12 @@
+import { controller } from '@elysian/core'
+import { view } from '@elysian/view'
+
+/**
+ * {{ class }}
+ *
+ * A controller is an Elysia instance: handlers keep full context inference and
+ * the instance name lets Elysia deduplicate the routes if it is mounted twice.
+ */
+export default controller('{{ kebab }}').get('/{{ plural }}', () =>
+  view('{{ plural }}.index', { title: '{{ studly }}' })
+)

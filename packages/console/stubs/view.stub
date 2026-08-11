@@ -1,0 +1,5 @@
+{{-- Edge 6 has no @layout/@section: layouts are components with slots. --}}
+@component('components/layout', { title: '{{ studly }}' })
+  <h1>{{ studly }}</h1>
+  <p>Edit this view in <code>resources/views</code>.</p>
+@endcomponent

@@ -1,0 +1,16 @@
+{
+  "name": "create-elysian",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "create-elysian": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "picocolors": "^1.1.1"
+  }
+}

@@ -1,0 +1,6 @@
+@component('components/layout', { title })
+  <h1>Hello {{ who }}</h1>
+  @each(item in items)
+    <li>{{ item }}</li>
+  @end
+@endcomponent

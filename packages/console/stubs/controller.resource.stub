@@ -1,0 +1,41 @@
+import { controller } from '@elysian/core'
+import { t } from 'elysia'
+
+/**
+ * {{ class }} — resource controller.
+ *
+ * Validation schemas live next to the route they guard. When the validation
+ * package lands, the `body` schemas below become FormRequest references.
+ */
+export default controller('{{ kebab }}', '/{{ plural }}')
+  .get('/', () => {
+    return { data: [] }
+  })
+  .get('/:id', ({ params }) => {
+    return { data: { id: params.id } }
+  })
+  .post(
+    '/',
+    ({ body, status }) => {
+      return status(201, { data: body })
+    },
+    {
+      body: t.Object({
+        name: t.String({ minLength: 1, error: 'The name field is required.' })
+      })
+    }
+  )
+  .put(
+    '/:id',
+    ({ params, body }) => {
+      return { data: { id: params.id, ...body } }
+    },
+    {
+      body: t.Object({
+        name: t.Optional(t.String({ minLength: 1 }))
+      })
+    }
+  )
+  .delete('/:id', ({ status }) => {
+    return status(204, null)
+  })

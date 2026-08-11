@@ -1,0 +1,9 @@
+APP_NAME="{{ name }}"
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://localhost:3000
+
+PORT=3000
+HOST=
+
+VIEW_CACHE=false

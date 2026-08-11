@@ -1,0 +1,17 @@
+@component('components/layout', { title })
+  <h1>{{ title }}</h1>
+
+  <ul class="items">
+    @each(item in items)
+      <li>{{ item }}</li>
+    @end
+  </ul>
+
+  @if(items.length > 2)
+    <p class="hint">More than two items.</p>
+  @else
+    <p class="hint">Two or fewer.</p>
+  @end
+
+  <p class="hint">Rendered by {{ app_name }} in {{ app_env }}.</p>
+@endcomponent

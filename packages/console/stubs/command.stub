@@ -1,0 +1,19 @@
+import { Command } from '@elysian/console'
+
+export class {{ class }} extends Command {
+  static override signature = '{{ kebab }} {name : The thing to act on} {--force : Skip confirmation}'
+
+  static override description = 'Describe what {{ class }} does'
+
+  async handle(): Promise<number> {
+    const name = this.argument('name')
+
+    if (!this.flag('force') && !(await this.confirm(`Continue with ${name}?`, true))) {
+      this.warn('Aborted.')
+      return 1
+    }
+
+    this.success(`Done: ${name}`)
+    return 0
+  }
+}

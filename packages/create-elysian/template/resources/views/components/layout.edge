@@ -1,0 +1,29 @@
+{{--
+  Layout component.
+
+  Edge 6 has no @layout/@section directives — layouts are components and the
+  page body arrives through the default `main` slot.
+--}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title ?? app_name }} — {{ app_name }}</title>
+    <link rel="stylesheet" href="/css/app.css" />
+    @stack('head')
+  </head>
+  <body>
+    <main class="shell">
+      {{{ await $slots.main() }}}
+    </main>
+
+    <footer class="footer">
+      <span>{{ app_name }}</span>
+      <span class="dot">·</span>
+      <span>{{ app_env }}</span>
+    </footer>
+
+    @stack('scripts')
+  </body>
+</html>
