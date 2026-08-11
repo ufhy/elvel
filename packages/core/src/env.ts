@@ -51,8 +51,9 @@ export class Env {
    * Existing values win — a real environment variable always beats a file.
    */
   static async load(basePath: string, environment?: string): Promise<void> {
-    const files = ['.env']
-    if (environment) files.push(`.env.${environment}`)
+    // Most specific first: values are never overwritten once set, so
+    // `.env.production` must be read before `.env` to be able to win.
+    const files = environment ? [`.env.${environment}`, '.env'] : ['.env']
 
     for (const file of files) {
       const handle = Bun.file(join(basePath, file))

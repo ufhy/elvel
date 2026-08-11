@@ -119,7 +119,7 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 47 unit + integration tests
+bun run test     # 195 unit + integration tests
 bun run smoke    # 58 checks against the real playground app
 ```
 
@@ -147,10 +147,19 @@ integration tests; the playground is for end-to-end checks and manual poking.
 
 ### Test coverage
 
-`bun test --coverage` currently reports roughly half of all functions. The gaps
-are known: `Collection`, `Macroable`, `parseEnvFile`, and the generators have no
-unit tests — the generators and the scaffolder are covered by the smoke test
-instead, which catches behaviour but not edge cases.
+`bun test --coverage` reports **81% of functions / 92% of lines**. Every package
+has unit tests except `contracts` (interfaces only, no runtime) and
+`create-elysian` (covered end to end by the smoke test).
+
+Deliberately not unit-tested:
+
+- `output.ts` and `about.ts` — terminal formatting; the smoke test asserts the
+  text that matters, and pinning colour codes would test `picocolors`.
+- `serve.ts` — its `handle()` never resolves by design; the smoke test binds a
+  real socket instead.
+- `command.ts` accessors — exercised through the kernel and generator tests
+  rather than in isolation.
+- `str.ts` inflection edge cases beyond the common forms.
 
 ## Roadmap
 

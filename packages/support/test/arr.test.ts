@@ -36,3 +36,75 @@ describe('Arr dot access', () => {
     })
   })
 })
+
+describe('Arr mutation helpers', () => {
+  test('wrap normalises to an array', () => {
+    expect(Arr.wrap('a')).toEqual(['a'])
+    expect(Arr.wrap(['a'])).toEqual(['a'])
+    expect(Arr.wrap(null)).toEqual([])
+    expect(Arr.wrap(undefined)).toEqual([])
+    // Falsy but present values are kept
+    expect(Arr.wrap(0)).toEqual([0])
+    expect(Arr.wrap(false)).toEqual([false])
+  })
+
+  test('forget removes a nested key and leaves siblings', () => {
+    const target: Record<string, unknown> = { app: { name: 'x', debug: true } }
+    Arr.forget(target, 'app.debug')
+
+    expect(target).toEqual({ app: { name: 'x' } })
+  })
+
+  test('forget on a missing path is a no-op', () => {
+    const target: Record<string, unknown> = { app: { name: 'x' } }
+    Arr.forget(target, 'nope.deeper')
+
+    expect(target).toEqual({ app: { name: 'x' } })
+  })
+
+  test('only and except are complements and do not mutate', () => {
+    const source = { a: 1, b: 2, c: 3 }
+
+    expect(Arr.only(source, ['a', 'c'])).toEqual({ a: 1, c: 3 })
+    expect(Arr.except(source, ['a', 'c'])).toEqual({ b: 2 })
+    expect(source).toEqual({ a: 1, b: 2, c: 3 })
+  })
+
+  test('only skips keys that are absent', () => {
+    const source: Record<string, number> = { a: 1 }
+
+    expect(Arr.only(source, ['a', 'missing']) as Record<string, number>).toEqual({ a: 1 })
+  })
+
+  test('dot keeps arrays and dates whole, and empty objects as leaves', () => {
+    const date = new Date(0)
+    const flat = Arr.dot({ list: [1, 2], when: date, empty: {}, deep: { a: 1 } })
+
+    expect(flat).toEqual({ list: [1, 2], when: date, empty: {}, 'deep.a': 1 })
+  })
+
+  test('flatten respects depth', () => {
+    expect(Arr.flatten([1, [2, [3]]])).toEqual([1, 2, 3])
+    expect(Arr.flatten([1, [2, [3]]], 1)).toEqual([1, 2, [3]])
+  })
+
+  test('unique, first, last', () => {
+    expect(Arr.unique([1, 1, 2])).toEqual([1, 2])
+    expect(Arr.first([1, 2])).toBe(1)
+    expect(Arr.first([1, 2], (value) => value > 1)).toBe(2)
+    expect(Arr.first([], (value) => value === 1)).toBeUndefined()
+    expect(Arr.last([1, 2])).toBe(2)
+    expect(Arr.last([])).toBeUndefined()
+  })
+
+  test('groupBy and sortBy', () => {
+    expect(Arr.groupBy(['apple', 'avocado', 'beet'], (word) => word[0] as string)).toEqual({
+      a: ['apple', 'avocado'],
+      b: ['beet']
+    })
+
+    const source = [3, 1, 2]
+    expect(Arr.sortBy(source, (value) => value)).toEqual([1, 2, 3])
+    expect(source).toEqual([3, 1, 2])
+  })
+})

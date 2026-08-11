@@ -80,12 +80,28 @@ export class ExceptionHandler implements ExceptionHandlerContract {
     if (error instanceof HttpException) return error.message
 
     if (status !== 500) {
-      const raw = error instanceof Error ? error.message : String(error)
-      return ExceptionHandler.humanize(raw)
+      return ExceptionHandler.humanize(ExceptionHandler.messageOf(error))
     }
 
     if (debug && error instanceof Error) return error.message
     return 'Server Error'
+  }
+
+  /**
+   * Read a message off anything throwable. Plugins throw plain objects as often
+   * as Errors, and `String(object)` would render "[object Object]".
+   */
+  private static messageOf(error: unknown): string {
+    if (error instanceof Error) return error.message
+
+    if (typeof error === 'object' && error !== null) {
+      const candidate = error as { message?: unknown; code?: unknown }
+      if (typeof candidate.message === 'string') return candidate.message
+      if (typeof candidate.code === 'string') return candidate.code
+      return ''
+    }
+
+    return String(error)
   }
 
   /**
