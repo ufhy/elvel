@@ -1,6 +1,15 @@
 import { controller, NotFoundException } from '@elysian/core'
-import { disk, download, fileResponse, isCloudDisk, PathOutsideDiskError } from '@elysian/storage'
+import { validateRequest } from '@elysian/http'
+import {
+  disk,
+  download,
+  fileResponse,
+  isCloudDisk,
+  PathOutsideDiskError,
+  storage
+} from '@elysian/storage'
 import { t } from 'elysia'
+import { UploadAvatarRequest } from '../Requests/UploadAvatarRequest.ts'
 
 /**
  * Generated with `bun run playground make:controller FileController`, then
@@ -11,6 +20,32 @@ import { t } from 'elysia'
  * network with `artisan serve` + curl.
  */
 export default controller('file')
+  /**
+   * The same upload, checked by phase two before anything is stored.
+   *
+   * Returns what the rules saw — the sniffed type and the real dimensions — so
+   * the smoke test can prove the bytes were read rather than the headers
+   * believed.
+   */
+  .post(
+    '/check/files/avatar',
+    async (context) => {
+      const data = (await validateRequest(UploadAvatarRequest, { body: context.body })) as {
+        avatar: File
+        caption?: string
+      }
+
+      return {
+        stored: await storage().disk('local').putFile('avatars', data.avatar),
+        name: data.avatar.name,
+        claimed: data.avatar.type,
+        kilobytes: Math.round((data.avatar.size / 1024) * 100) / 100,
+        caption: data.caption ?? null
+      }
+    },
+    { body: t.Object({ avatar: t.File(), caption: t.Optional(t.String()) }) }
+  )
+
   /** A real multipart upload. Elysia hands the file over as a `File`. */
   .post(
     '/check/files',

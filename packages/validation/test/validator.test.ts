@@ -453,6 +453,24 @@ describe('idempotence', () => {
   })
 })
 
+describe('size messages', () => {
+  test('every size rule renders its own number', async () => {
+    const cases: Array<[string, string]> = [
+      ['max:5', 'The title field must not be greater than 5 characters.'],
+      ['min:20', 'The title field must be at least 20 characters.'],
+      ['between:1,3', 'The title field must be between 1 and 3 characters.'],
+      ['size:4', 'The title field must be 4 characters.']
+    ]
+
+    for (const [rule, expected] of cases) {
+      const validator = new Validator({ title: 'far too long' }, { title: rule })
+      await validator.passes()
+
+      expect(validator.errors.first()).toBe(expected)
+    }
+  })
+})
+
 describe('wildcards', () => {
   test('a rule per element, named by its own path', async () => {
     const messages = await errors(
@@ -641,5 +659,141 @@ describe('distinct', () => {
       'orders.0.lines.1',
       'orders.1.lines.0'
     ])
+  })
+})
+
+describe('file rules', () => {
+  /** A real PNG: signature, then an IHDR chunk carrying the dimensions. */
+  function png(width: number, height: number, name = 'photo.png'): File {
+    const bytes = new Uint8Array(24)
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    const header = new DataView(bytes.buffer)
+    header.setUint32(8, 13)
+    bytes.set([0x49, 0x48, 0x44, 0x52], 12)
+    header.setUint32(16, width)
+    header.setUint32(20, height)
+
+    return new File([bytes], name, { type: 'image/png' })
+  }
+
+  function gif(width: number, height: number, name = 'anim.gif'): File {
+    const bytes = new Uint8Array(16)
+    bytes.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+    const header = new DataView(bytes.buffer)
+    header.setUint16(6, width, true)
+    header.setUint16(8, height, true)
+
+    return new File([bytes], name, { type: 'image/gif' })
+  }
+
+  test('file wants an upload, not a field named like one', async () => {
+    expect(await errors({ avatar: png(1, 1) }, { avatar: 'file' })).toEqual({})
+    expect(Object.keys(await errors({ avatar: 'photo.png' }, { avatar: 'file' }))).toEqual([
+      'avatar'
+    ])
+  })
+
+  test('image reads the bytes, not the claimed type', async () => {
+    expect(await errors({ avatar: png(4, 4) }, { avatar: 'image' })).toEqual({})
+
+    // A text file renamed and re-labelled: every claim says image/png.
+    const liar = new File([new TextEncoder().encode('<?php echo 1;')], 'photo.png', {
+      type: 'image/png'
+    })
+
+    expect(Object.keys(await errors({ avatar: liar }, { avatar: 'image' }))).toEqual(['avatar'])
+  })
+
+  test('mimes accepts a matching extension family', async () => {
+    expect(await errors({ avatar: png(1, 1) }, { avatar: 'mimes:png,jpg' })).toEqual({})
+    expect(Object.keys(await errors({ avatar: gif(1, 1) }, { avatar: 'mimes:png,jpg' }))).toEqual([
+      'avatar'
+    ])
+  })
+
+  test('mimes names the types in its message', async () => {
+    const messages = await errors({ avatar: gif(1, 1) }, { avatar: 'mimes:png,jpg' })
+
+    expect(messages.avatar?.[0]).toContain('png, jpg')
+  })
+
+  test('an executable extension is refused unless asked for by name', async () => {
+    const script = new File([new TextEncoder().encode('#!/bin/sh')], 'run.sh', {
+      type: 'text/plain'
+    })
+
+    expect(Object.keys(await errors({ file: script }, { file: 'mimes:txt' }))).toEqual(['file'])
+  })
+
+  test('extensions checks the name, and says so by ignoring the content', async () => {
+    // A PNG called `.jpg` passes `extensions:jpg` and fails `mimes:jpg` — the two
+    // rules answer different questions on purpose.
+    const misnamed = png(1, 1, 'photo.jpg')
+
+    expect(await errors({ avatar: misnamed }, { avatar: 'extensions:jpg' })).toEqual({})
+    expect(Object.keys(await errors({ avatar: misnamed }, { avatar: 'mimes:jpg' }))).toEqual([
+      'avatar'
+    ])
+  })
+
+  test('mimetypes takes a media type directly', async () => {
+    expect(await errors({ avatar: png(1, 1) }, { avatar: 'mimetypes:image/png' })).toEqual({})
+    expect(
+      Object.keys(await errors({ avatar: png(1, 1) }, { avatar: 'mimetypes:application/pdf' }))
+    ).toEqual(['avatar'])
+  })
+
+  test('size rules on a file are kilobytes', async () => {
+    const file = new File([new Uint8Array(4096)], 'blob.bin')
+
+    // 4KB: under a 8KB ceiling, over a 2KB one.
+    expect(await errors({ upload: file }, { upload: 'max:8' })).toEqual({})
+
+    const messages = await errors({ upload: file }, { upload: 'max:2' })
+    expect(messages.upload?.[0]).toBe('The upload field must not be greater than 2 kilobytes.')
+  })
+
+  test('dimensions reads width and height out of the file', async () => {
+    expect(
+      await errors({ avatar: png(100, 50) }, { avatar: 'dimensions:width=100,height=50' })
+    ).toEqual({})
+
+    const messages = await errors({ avatar: png(100, 50) }, { avatar: 'dimensions:min_width=200' })
+    expect(messages.avatar?.[0]).toContain('invalid image dimensions')
+  })
+
+  test('dimensions understands a ratio, with room for rounding', async () => {
+    // 1600x900 is 16:9, and an exact float comparison would reject it.
+    expect(await errors({ avatar: png(1600, 900) }, { avatar: 'dimensions:ratio=16/9' })).toEqual(
+      {}
+    )
+    expect(
+      Object.keys(await errors({ avatar: png(1600, 1000) }, { avatar: 'dimensions:ratio=16/9' }))
+    ).toEqual(['avatar'])
+  })
+
+  test('a GIF is measured the same way', async () => {
+    expect(await errors({ avatar: gif(320, 240) }, { avatar: 'dimensions:width=320' })).toEqual({})
+  })
+
+  test('a file rule on something that is not a file fails rather than throwing', async () => {
+    for (const rule of [
+      'image',
+      'mimes:png',
+      'mimetypes:image/png',
+      'extensions:png',
+      'dimensions:width=1'
+    ]) {
+      expect(Object.keys(await errors({ avatar: 'nope' }, { avatar: rule }))).toEqual(['avatar'])
+    }
+  })
+
+  test('uploads work under a wildcard, like anything else', async () => {
+    const messages = await errors(
+      { photos: [png(10, 10), new File(['x'], 'notes.txt', { type: 'text/plain' })] },
+      { 'photos.*': 'image' }
+    )
+
+    expect(Object.keys(messages)).toEqual(['photos.1'])
   })
 })

@@ -5,7 +5,7 @@
  * means characters for a string, items for an array, and a magnitude for a
  * number — collapsing them produces sentences that are subtly wrong.
  */
-export type SizeMessages = { numeric: string; string: string; array: string }
+export type SizeMessages = { numeric: string; string: string; array: string; file: string }
 
 export const MESSAGES: Record<string, string | SizeMessages> = {
   accepted: 'The :attribute field must be accepted.',
@@ -16,6 +16,12 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   alpha_dash: 'The :attribute field must only contain letters, numbers, dashes, and underscores.',
   alpha_num: 'The :attribute field must only contain letters and numbers.',
   array: 'The :attribute field must be an array.',
+  file: 'The :attribute field must be a file.',
+  image: 'The :attribute field must be an image.',
+  mimes: 'The :attribute field must be a file of type: :values.',
+  mimetypes: 'The :attribute field must be a file of type: :values.',
+  extensions: 'The :attribute field must have one of the following extensions: :values.',
+  dimensions: 'The :attribute field has invalid image dimensions.',
   list: 'The :attribute field must be a list.',
   required_array_keys: 'The :attribute field must contain entries for: :values.',
   contains: 'The :attribute field is missing a required value.',
@@ -23,7 +29,8 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   between: {
     numeric: 'The :attribute field must be between :min and :max.',
     string: 'The :attribute field must be between :min and :max characters.',
-    array: 'The :attribute field must have between :min and :max items.'
+    array: 'The :attribute field must have between :min and :max items.',
+    file: 'The :attribute field must be between :min and :max kilobytes.'
   },
   boolean: 'The :attribute field must be true or false.',
   confirmed: 'The :attribute field confirmation does not match.',
@@ -42,12 +49,14 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   gt: {
     numeric: 'The :attribute field must be greater than :value.',
     string: 'The :attribute field must be greater than :value characters.',
-    array: 'The :attribute field must have more than :value items.'
+    array: 'The :attribute field must have more than :value items.',
+    file: 'The :attribute field must be greater than :value kilobytes.'
   },
   gte: {
     numeric: 'The :attribute field must be greater than or equal to :value.',
     string: 'The :attribute field must be greater than or equal to :value characters.',
-    array: 'The :attribute field must have :value items or more.'
+    array: 'The :attribute field must have :value items or more.',
+    file: 'The :attribute field must be greater than or equal to :value kilobytes.'
   },
   in: 'The selected :attribute is invalid.',
   in_array: 'The :attribute field must exist in :other.',
@@ -58,22 +67,26 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   lt: {
     numeric: 'The :attribute field must be less than :value.',
     string: 'The :attribute field must be less than :value characters.',
-    array: 'The :attribute field must have less than :value items.'
+    array: 'The :attribute field must have less than :value items.',
+    file: 'The :attribute field must be less than :value kilobytes.'
   },
   lte: {
     numeric: 'The :attribute field must be less than or equal to :value.',
     string: 'The :attribute field must be less than or equal to :value characters.',
-    array: 'The :attribute field must not have more than :value items.'
+    array: 'The :attribute field must not have more than :value items.',
+    file: 'The :attribute field must not be greater than :value kilobytes.'
   },
   max: {
     numeric: 'The :attribute field must not be greater than :max.',
     string: 'The :attribute field must not be greater than :max characters.',
-    array: 'The :attribute field must not have more than :max items.'
+    array: 'The :attribute field must not have more than :max items.',
+    file: 'The :attribute field must not be greater than :max kilobytes.'
   },
   min: {
     numeric: 'The :attribute field must be at least :min.',
     string: 'The :attribute field must be at least :min characters.',
-    array: 'The :attribute field must have at least :min items.'
+    array: 'The :attribute field must have at least :min items.',
+    file: 'The :attribute field must be at least :min kilobytes.'
   },
   missing: 'The :attribute field must be missing.',
   not_in: 'The selected :attribute is invalid.',
@@ -96,7 +109,8 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   size: {
     numeric: 'The :attribute field must be :size.',
     string: 'The :attribute field must be :size characters.',
-    array: 'The :attribute field must contain :size items.'
+    array: 'The :attribute field must contain :size items.',
+    file: 'The :attribute field must be :size kilobytes.'
   },
   starts_with: 'The :attribute field must start with one of the following: :values.',
   string: 'The :attribute field must be a string.',
@@ -118,10 +132,12 @@ export function humanizeAttribute(attribute: string): string {
     .replaceAll('_', ' ')
 }
 
-export type ValueType = 'numeric' | 'string' | 'array'
+export type ValueType = 'numeric' | 'string' | 'array' | 'file'
 
 /** Which size message applies, decided by the value rather than by the rule. */
 export function typeOf(value: unknown, hasNumericRule = false): ValueType {
+  // Before the array check: a File is an object, and its size is in kilobytes.
+  if (typeof File !== 'undefined' && value instanceof File) return 'file'
   if (Array.isArray(value)) return 'array'
   if (typeof value === 'number' || hasNumericRule) return 'numeric'
 

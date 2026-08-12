@@ -390,7 +390,10 @@ export class Validator {
       index: index ?? '',
       position: Number.isNaN(numericIndex) ? (index ?? '') : String(numericIndex + 1),
       min: String(first ?? ''),
-      max: String(second ?? ''),
+      // `between:1,5` puts the ceiling second; `max:5` puts it first. Reading only
+      // the second parameter rendered "must not be greater than  characters" for
+      // every `max` rule, which shipped until a file test asked for the number.
+      max: String(second ?? first ?? ''),
       size: String(first ?? ''),
       digits: String(first ?? ''),
       decimal: String(first ?? ''),

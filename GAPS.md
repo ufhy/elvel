@@ -132,11 +132,27 @@ and names the provider — running it in the request would look like it worked.
 | Rules that need an HTTP request | `FormRequest` lives in `@elysian/http`, where the request and session are. The validator itself works with no HTTP at all, which is why it stays in this package. |
 | A wildcard in the *middle* of a `required_if` field reference | Rule keys expand (`items.*.price` runs once per element, nested wildcards included), but a rule that names *another* field — `required_if:items.*.kind,gift` — does not resolve the sibling relative to the element it is running for. Laravel resolves it against the same index; here the field is read as written. |
 | `Rule::forEach` | `distinct`, `array:a,b`, `list`, `required_array_keys` and `contains` are implemented on top of the expansion. What is missing is deciding the *rules* per element at runtime, which needs closure rules first. |
-| File rules (`file`, `image`, `mimes`, `dimensions`) | Belong with request handling, where an upload actually exists. |
+| `File::types()->min()` builder objects, `imageFile()` | `file`, `image`, `mimes`, `mimetypes`, `extensions` and `dimensions` are implemented as string rules over the web `File` a multipart body parses to. The fluent builder is sugar over the same strings. |
 | `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
 | `date_format`, timezone-aware comparisons | `Date.parse` covers ISO dates; a format parser is its own small project. |
 | `Rule::when`, closure rules, custom rule classes | `after()` covers the same ground for now. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |
+
+Four things to know about file rules:
+
+- **The bytes decide, not the headers.** `image` and `mimes` sniff the file's
+  signature; a script renamed `avatar.png` arrives claiming `image/png` and
+  nothing else about it disagrees. `extensions` is the opposite rule on purpose —
+  it checks the *name* and says nothing about the contents.
+- **Only a handful of formats can be sniffed** — PNG, JPEG, GIF, BMP, WebP. For
+  anything else `mimes` falls back to the type the client declared, which is a
+  claim; `mimetypes:` takes a media type directly, and the extension table is
+  deliberately short rather than pretending to cover everything.
+- **A size rule on an upload is kilobytes.** `max:2048` is 2MB, matching Laravel,
+  and the message says "kilobytes" rather than "characters".
+- **Executable extensions are refused unless named.** `mimes:txt` will not accept
+  `run.sh` or `x.phar`; `mimes:php` will. Laravel blocks the PHP family the same
+  way, widened here to the obvious shell and Windows cases.
 
 Three things to know about wildcard rules:
 

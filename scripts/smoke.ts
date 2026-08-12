@@ -457,6 +457,78 @@ const goodOrder = (await (
 // database write or a JSON response, where the difference is visible.
 check('validated() rebuilds the collection as an array', Array.isArray(goodOrder.validated.lines))
 
+/**
+ * File rules against a real `multipart/form-data` request.
+ *
+ * The one that matters is the liar: a script named `.png` and labelled
+ * `image/png` is indistinguishable from a real upload by anything except its
+ * bytes, and `image`/`mimes` read the bytes.
+ */
+function pngBytes(width: number, height: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(new ArrayBuffer(24))
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  const header = new DataView(bytes.buffer)
+  header.setUint32(8, 13)
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12)
+  header.setUint32(16, width)
+  header.setUint32(20, height)
+
+  return bytes
+}
+
+async function uploadAvatar(
+  file: File
+): Promise<Record<string, string[]> | Record<string, unknown>> {
+  const form = new FormData()
+  form.append('avatar', file)
+
+  let response!: Response
+  await captureOutput(async () => {
+    response = await app.handle(
+      new Request('http://localhost/check/files/avatar', { method: 'POST', body: form })
+    )
+  })
+
+  const body = (await response.json()) as { errors?: Record<string, string[]> }
+
+  return body.errors ?? body
+}
+
+const realUpload = (await uploadAvatar(
+  new File([pngBytes(64, 64)], 'avatar.png', { type: 'image/png' })
+)) as { stored?: string }
+
+check('a real image passes and is stored', typeof realUpload.stored === 'string')
+
+const liar = (await uploadAvatar(
+  new File([new TextEncoder().encode("<?php echo 'pwned';")], 'avatar.png', { type: 'image/png' })
+)) as Record<string, string[]>
+
+// Every claim on this file says image/png; only the bytes disagree.
+check(
+  'a script wearing a .png name is refused',
+  liar.avatar?.[0]?.includes('must be an image') === true
+)
+
+const tooSmall = (await uploadAvatar(
+  new File([pngBytes(4, 4)], 'avatar.png', { type: 'image/png' })
+)) as Record<string, string[]>
+
+check(
+  'dimensions are read out of the file',
+  tooSmall.avatar?.[0] === 'The avatar must be between 8 and 512 pixels wide.'
+)
+
+const tooBig = (await uploadAvatar(
+  new File([pngBytes(64, 64), new ArrayBuffer(70 * 1024)], 'avatar.png', { type: 'image/png' })
+)) as Record<string, string[]>
+
+// Kilobytes, not characters: `max:64` on an upload means 64KB.
+check(
+  'a size rule on a file is kilobytes',
+  tooBig.avatar?.[0] === 'The avatar field must not be greater than 64 kilobytes.'
+)
+
 section('HTTP: form requests, resources, session, CSRF')
 
 async function postJson(path: string, body: unknown, headers: Record<string, string> = {}) {

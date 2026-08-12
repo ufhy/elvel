@@ -1,4 +1,5 @@
 import { Arr } from '@elysian/support'
+import { extensionOf, isFile, kilobytes, looksExecutable, mediaTypesFor, sniff } from './files.ts'
 import type { Data, RuleContext, RuleHandler } from './types.ts'
 import { ExistsRule, UniqueRule } from './types.ts'
 import { valuesUnder } from './wildcards.ts'
@@ -94,6 +95,25 @@ export const SIZE_RULES = new Set(['size', 'between', 'min', 'max', 'gt', 'lt', 
 /** Rules the engine handles itself rather than dispatching. */
 export const NON_VALIDATING_RULES = new Set(['nullable', 'sometimes', 'bail', 'exclude'])
 
+/** `min_width=100` pairs, as `dimensions` takes them. */
+function namedParameters(params: string[]): Record<string, string> {
+  const named: Record<string, string> = {}
+
+  for (const param of params) {
+    const [key, value] = param.split('=')
+    if (key !== undefined && value !== undefined) named[key.trim()] = value.trim()
+  }
+
+  return named
+}
+
+/** `3/2` as a number. A bare `1.5` is accepted too, as Laravel's sscanf is. */
+function parseRatio(ratio: string): number {
+  const [numerator, denominator] = ratio.split('/')
+
+  return Number(numerator) / Number(denominator ?? 1)
+}
+
 /** An array, or a plain object: both arrive as "an array" over JSON or a form. */
 function isArrayLike(value: unknown): boolean {
   return Array.isArray(value) || (value !== null && typeof value === 'object')
@@ -124,6 +144,8 @@ const FALSY = new Set([false, 'false', 0, '0', 'no', 'off'])
 /** Numeric size for a value: magnitude, length, or item count. */
 export function sizeOf(value: unknown, treatAsNumeric = false): number {
   if (typeof value === 'number') return value
+  // Kilobytes, so `max:2048` on an upload means what everybody writing it means.
+  if (isFile(value)) return kilobytes(value)
   if (Array.isArray(value)) return value.length
   if (typeof value === 'string') {
     return treatAsNumeric && value.trim() !== '' && !Number.isNaN(Number(value))
@@ -291,6 +313,108 @@ export const RULES: Record<string, RuleHandler> = {
     if (params.length === 0) return true
 
     return Object.keys(value as object).every((key) => params.includes(key))
+  },
+
+  // ---------------------------------------------------------------- files
+
+  /** An upload arrived, rather than a field named like one. */
+  file: ({ value }) => isFile(value),
+
+  /**
+   * An image, decided by the file's **bytes** rather than its claimed type.
+   *
+   * `image:allow_svg` adds SVG, which is off by default because an SVG is a
+   * document that can carry script — Laravel made the same choice.
+   */
+  image: async ({ value, params }) => {
+    if (!isFile(value)) return false
+
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp']
+
+    if (params.includes('allow_svg')) {
+      // Nothing to sniff: an SVG is text, so the claim and the extension are all
+      // there is. Asking for it is opting into that.
+      if (mediaTypesFor(extensionOf(value)).includes('image/svg+xml')) return true
+    }
+
+    const sniffed = await sniff(value)
+
+    return sniffed !== undefined && allowed.includes(sniffed.type)
+  },
+
+  /**
+   * One of these extensions — checked against the content, not the name.
+   *
+   * `mimes:jpg` accepts a file called `photo.jpeg`, and refuses `photo.jpg` that
+   * is really a zip. An executable extension is refused unless it was asked for
+   * by name, which is Laravel's `shouldBlockPhpUpload` widened a little.
+   */
+  mimes: async ({ value, params }) => {
+    if (!isFile(value)) return false
+    if (looksExecutable(value) && !params.includes(extensionOf(value))) return false
+
+    const accepted = params.flatMap((extension) => mediaTypesFor(extension))
+    const sniffed = await sniff(value)
+
+    // Believe the bytes when they are legible; fall back to the declared type for
+    // formats this cannot read, and say so in the docs rather than pretending.
+    const actual = sniffed?.type ?? value.type
+
+    return accepted.includes(actual)
+  },
+
+  /** One of these media types exactly, for anything the extension map misses. */
+  mimetypes: async ({ value, params }) => {
+    if (!isFile(value)) return false
+
+    const sniffed = await sniff(value)
+
+    return params.includes(sniffed?.type ?? value.type)
+  },
+
+  /**
+   * One of these filename extensions.
+   *
+   * The **name**, deliberately: this is the rule for "must be called .csv", and
+   * it says nothing about the contents. Pair it with `mimes` when that matters.
+   */
+  extensions: ({ value, params }) => {
+    if (!isFile(value)) return false
+
+    return params.map((param) => param.toLowerCase()).includes(extensionOf(value))
+  },
+
+  /**
+   * `dimensions:min_width=100,ratio=3/2` — width, height and aspect ratio.
+   *
+   * The ratio tolerance is Laravel's, and it is not arbitrary: an exact
+   * comparison of two floats rejects a 1600x900 image for `16/9`.
+   */
+  dimensions: async ({ value, params }) => {
+    if (!isFile(value)) return false
+
+    const sniffed = await sniff(value)
+    if (!sniffed || sniffed.width === 0 || sniffed.height === 0) return false
+
+    const { width, height } = sniffed
+    const named = namedParameters(params)
+    const number = (key: string) => (named[key] === undefined ? undefined : Number(named[key]))
+
+    if (number('width') !== undefined && number('width') !== width) return false
+    if (number('height') !== undefined && number('height') !== height) return false
+    if ((number('min_width') ?? -Infinity) > width) return false
+    if ((number('max_width') ?? Infinity) < width) return false
+    if ((number('min_height') ?? -Infinity) > height) return false
+    if ((number('max_height') ?? Infinity) < height) return false
+
+    if (named.ratio !== undefined) {
+      const target = parseRatio(named.ratio)
+      const precision = 1 / (Math.max((width + height) / 2, height) + 1)
+
+      if (Math.abs(target - width / height) > precision) return false
+    }
+
+    return true
   },
 
   /** An array with sequential numeric keys — a list, not a map. */
