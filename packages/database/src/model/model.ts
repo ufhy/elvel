@@ -4,7 +4,17 @@ import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { ModelBuilder } from './builder.ts'
 import { type CastType, castFromDatabase, castToDatabase, formatDateTime } from './casts.ts'
-import { BelongsTo, BelongsToMany, HasMany, HasOne, type Relation } from './relations.ts'
+import {
+  BelongsTo,
+  BelongsToMany,
+  HasMany,
+  HasManyThrough,
+  HasOne,
+  MorphMany,
+  MorphOne,
+  MorphTo,
+  type Relation
+} from './relations.ts'
 
 export type ConnectionResolver = (name?: string) => Promise<Connection>
 
@@ -63,6 +73,12 @@ export class Model {
   /** Columns removed from `toObject()`/`toJSON()`. */
   static hidden: string[] = []
 
+  /** Accessor-backed keys added to `toObject()` — Laravel's `$appends`. */
+  static appends: string[] = []
+
+  /** Scopes applied to every query for this model. */
+  static globalScopes: Record<string, (query: ModelBuilder<Model>) => void> = {}
+
   static softDeletes = false
 
   static CREATED_AT = 'created_at'
@@ -93,6 +109,8 @@ export class Model {
 
   attributes: Row = {}
   original: Row = {}
+  /** Set by the last successful save, so `wasChanged()` can answer. */
+  private changes: Row = {}
   relations: Record<string, unknown> = {}
   exists = false
 
@@ -111,6 +129,9 @@ export class Model {
         if (property in target.relations) return target.relations[property]
         if (property in target.attributes) return target.getAttribute(property)
 
+        // An accessor may back a key that has no column at all.
+        if (target.hasAccessor(property)) return target.getAttribute(property)
+
         return undefined
       },
 
@@ -126,7 +147,8 @@ export class Model {
       has(target, property) {
         return (
           Reflect.has(target, property) ||
-          (typeof property === 'string' && property in target.attributes)
+          (typeof property === 'string' &&
+            (property in target.attributes || target.hasAccessor(property)))
         )
       },
 
@@ -249,6 +271,12 @@ export class Model {
     return this.query().onlyTrashed()
   }
 
+  /** Register a constraint applied to every query — Laravel's global scopes. */
+  static addGlobalScope(name: string, scope: (query: ModelBuilder<never>) => void): void {
+    // Copied rather than mutated so a subclass cannot alter its parent's scopes.
+    this.globalScopes = { ...this.globalScopes, [name]: scope as never }
+  }
+
   // --------------------------------------------------------------- attributes
 
   getKey(): unknown {
@@ -256,6 +284,11 @@ export class Model {
   }
 
   getAttribute(key: string): unknown {
+    // An accessor wins over the raw column: `getFullNameAttribute()` backs
+    // `user.full_name`, including for keys with no column at all.
+    const accessor = this.accessorFor(key)
+    if (accessor) return accessor.call(this, this.attributes[key])
+
     const value = this.attributes[key]
     const cast = this.self.casts[key]
 
@@ -270,6 +303,12 @@ export class Model {
   }
 
   setAttribute(key: string, value: unknown): this {
+    const mutator = this.mutatorFor(key)
+    if (mutator) {
+      mutator.call(this, value)
+      return this
+    }
+
     const cast = this.self.casts[key]
 
     this.attributes[key] = cast
@@ -279,6 +318,33 @@ export class Model {
         : value
 
     return this
+  }
+
+  hasAccessor(key: string): boolean {
+    return this.accessorFor(key) !== undefined
+  }
+
+  /** `full_name` -> `getFullNameAttribute` */
+  private accessorFor(key: string): ((value: unknown) => unknown) | undefined {
+    const method = `get${Model.studly(key)}Attribute`
+    const candidate = (this as unknown as Record<string, unknown>)[method]
+
+    return typeof candidate === 'function' ? (candidate as (value: unknown) => unknown) : undefined
+  }
+
+  private mutatorFor(key: string): ((value: unknown) => void) | undefined {
+    const method = `set${Model.studly(key)}Attribute`
+    const candidate = (this as unknown as Record<string, unknown>)[method]
+
+    return typeof candidate === 'function' ? (candidate as (value: unknown) => void) : undefined
+  }
+
+  static studly(value: string): string {
+    return value
+      .split(/[_\-\s]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join('')
   }
 
   private isDateColumn(key: string): boolean {
@@ -355,6 +421,22 @@ export class Model {
     return !this.isDirty(...keys)
   }
 
+  /** What the last save actually changed — Laravel's `getChanges`. */
+  getChanges(): Row {
+    return { ...this.changes }
+  }
+
+  wasChanged(...keys: string[]): boolean {
+    return keys.length === 0
+      ? Object.keys(this.changes).length > 0
+      : keys.some((key) => key in this.changes)
+  }
+
+  /** The value a key held when it was last synced. */
+  getOriginal(key?: string): unknown {
+    return key === undefined ? { ...this.original } : this.original[key]
+  }
+
   private static equivalent(original: unknown, current: unknown): boolean {
     if (original === current) return true
     if (original === null || current === null) return false
@@ -390,6 +472,8 @@ export class Model {
     const query = await this.baseQuery()
 
     await this.fireEvent('saving')
+
+    this.changes = this.getDirty()
 
     const saved = this.exists ? await this.performUpdate(query) : await this.performInsert(query)
 
@@ -462,6 +546,71 @@ export class Model {
 
   private touchUpdatedAt(): void {
     this.attributes[this.self.UPDATED_AT] = formatDateTime(new Date())
+  }
+
+  /** Run `callback` without touching `updated_at`. */
+  async withoutTimestamps<T>(callback: () => Promise<T>): Promise<T> {
+    const previous = this.self.timestamps
+
+    // Static, so a concurrent save on another instance of the same model would
+    // also skip timestamps; scope the callback tightly.
+    ;(this.self as { timestamps: boolean }).timestamps = false
+
+    try {
+      return await callback()
+    } finally {
+      ;(this.self as { timestamps: boolean }).timestamps = previous
+    }
+  }
+
+  /** An unsaved copy without the key or timestamps — Laravel's `replicate`. */
+  replicate(except: string[] = []): this {
+    const skip = new Set([
+      this.self.primaryKey,
+      this.self.CREATED_AT,
+      this.self.UPDATED_AT,
+      ...except
+    ])
+
+    const copy = new (this.constructor as new () => Model)() as this
+
+    for (const [key, value] of Object.entries(this.attributes)) {
+      if (!skip.has(key)) copy.attributes[key] = value
+    }
+
+    return copy
+  }
+
+  /** Same model and same key. */
+  is(other: Model | undefined | null): boolean {
+    return (
+      other instanceof Model &&
+      other.constructor === this.constructor &&
+      other.getKey() === this.getKey() &&
+      other.getKey() !== undefined
+    )
+  }
+
+  isNot(other: Model | undefined | null): boolean {
+    return !this.is(other)
+  }
+
+  /** Serialise only these attributes. */
+  only(...keys: string[]): Row {
+    const object = this.toObject()
+    const result: Row = {}
+
+    for (const key of keys.flat()) if (key in object) result[key] = object[key]
+
+    return result
+  }
+
+  except(...keys: string[]): Row {
+    const object = this.toObject()
+
+    for (const key of keys.flat()) delete object[key]
+
+    return object
   }
 
   async delete(): Promise<boolean> {
@@ -595,6 +744,46 @@ export class Model {
     )
   }
 
+  /**
+   * `comment.commentable()` — the type map is explicit because a string in the
+   * database cannot resolve to a class on its own.
+   */
+  morphTo(name: string, types: Record<string, ModelClass<Model>>): MorphTo {
+    return new MorphTo(this, name, types)
+  }
+
+  morphMany<R extends Model>(
+    related: ModelClass<R>,
+    name: string,
+    morphType = this.self.getTable()
+  ): MorphMany<R> {
+    return new MorphMany(related, this, name, morphType, this.self.primaryKey)
+  }
+
+  morphOne<R extends Model>(
+    related: ModelClass<R>,
+    name: string,
+    morphType = this.self.getTable()
+  ): MorphOne<R> {
+    return new MorphOne(related, this, name, morphType, this.self.primaryKey)
+  }
+
+  hasManyThrough<R extends Model>(
+    related: ModelClass<R>,
+    through: ModelClass<Model>,
+    firstKey?: string,
+    secondKey?: string
+  ): HasManyThrough<R> {
+    return new HasManyThrough(
+      related,
+      this,
+      through,
+      firstKey ?? this.foreignKeyName(),
+      secondKey ?? `${Model.snake(through.name)}_${through.primaryKey}`,
+      this.self.primaryKey
+    )
+  }
+
   /** `user_id` for a `User`. */
   foreignKeyName(): string {
     return `${Model.snake(this.self.name)}_${this.self.primaryKey}`
@@ -642,6 +831,12 @@ export class Model {
     const result: Row = {}
 
     for (const key of Object.keys(this.attributes)) {
+      if (this.self.hidden.includes(key)) continue
+      result[key] = this.getAttribute(key)
+    }
+
+    // Accessor-backed values that have no column of their own.
+    for (const key of this.self.appends) {
       if (this.self.hidden.includes(key)) continue
       result[key] = this.getAttribute(key)
     }

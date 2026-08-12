@@ -324,6 +324,17 @@ export class QueryBuilder<T extends Row = Row> {
     return this.query
   }
 
+  /** The connection this query runs on, needed to build correlated subqueries. */
+  get connectionRef(): Connection {
+    return this.connection
+  }
+
+  /** Change the table without rebuilding the query. */
+  fromTable(table: string): this {
+    this.query.from = table
+    return this
+  }
+
   toSql(): string {
     return this.connection.grammar.compileSelect(this.query).sql
   }

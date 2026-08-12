@@ -1,6 +1,7 @@
 import { Collection } from '@elysian/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
+import { raw } from '../query/expression.ts'
 import { formatDateTime } from './casts.ts'
 import type { Model, ModelClass } from './model.ts'
 
@@ -24,6 +25,13 @@ export class ModelBuilder<M extends Model> {
   private readonly pending: Array<(query: QueryBuilder<Row>) => void> = []
   private readonly eagerLoad = new Set<string>()
   private trashed: 'exclude' | 'include' | 'only' = 'exclude'
+  private readonly withoutScopes = new Set<string>()
+  private readonly aggregates: Array<{
+    relation: string
+    fn: string
+    column: string
+    alias: string
+  }> = []
 
   constructor(private readonly model: ModelClass<M>) {}
 
@@ -42,10 +50,26 @@ export class ModelBuilder<M extends Model> {
 
     for (const apply of this.pending) apply(query)
     this.applyTrashedScope(query)
-
     this.query = query
+    this.applyGlobalScopes()
+    this.applyAggregates(query)
 
     return query
+  }
+
+  /**
+   * Constraints every query for this model carries, minus any the caller removed.
+   *
+   * Applied after the pending calls so `withoutGlobalScope` can be expressed
+   * before the query exists.
+   */
+  private applyGlobalScopes(): void {
+    const scopes = (this.model as typeof Model).globalScopes
+
+    for (const [name, scope] of Object.entries(scopes)) {
+      if (this.withoutScopes.has('*') || this.withoutScopes.has(name)) continue
+      scope(this as never)
+    }
   }
 
   /** Synchronous access for callers already inside an awaited chain. */
@@ -198,6 +222,59 @@ export class ModelBuilder<M extends Model> {
     })
   }
 
+  whereColumn(first: string, operator: string, second: string): this {
+    return this.defer((query) => {
+      query.whereColumn(first, operator, second)
+    })
+  }
+
+  whereExists(callback: (query: QueryBuilder<Row>) => void): this {
+    return this.defer((query) => {
+      query.whereExists(callback as never)
+    })
+  }
+
+  orderByRaw(sql: string): this {
+    return this.defer((query) => {
+      query.orderBy(raw(sql))
+    })
+  }
+
+  /** Stream rows one at a time instead of materialising the whole result. */
+  async *lazy(size = 1000): AsyncGenerator<M> {
+    let page = 1
+
+    while (true) {
+      const models = await this.clone()
+        .offset((page - 1) * size)
+        .limit(size)
+        .get()
+
+      if (models.isEmpty()) return
+
+      for (const model of models) yield model
+      if (models.count() < size) return
+
+      page += 1
+    }
+  }
+
+  /** Exactly one result, or an error — Laravel's `sole`. */
+  async sole(): Promise<M> {
+    const models = await this.clone().limit(2).get()
+
+    if (models.isEmpty()) throw new ModelNotFoundError((this.model as typeof Model).name)
+    if (models.count() > 1) {
+      throw new Error(`Multiple results for ${(this.model as typeof Model).name}.`)
+    }
+
+    return models.first() as M
+  }
+
+  async firstWhere(column: string, value: unknown): Promise<M | undefined> {
+    return this.clone().where(column, value).first()
+  }
+
   when(condition: unknown, callback: (builder: this) => void): this {
     if (condition) callback(this)
     return this
@@ -220,6 +297,129 @@ export class ModelBuilder<M extends Model> {
     )
 
     return this
+  }
+
+  withoutGlobalScope(name: string): this {
+    this.withoutScopes.add(name)
+    return this
+  }
+
+  withoutGlobalScopes(): this {
+    this.withoutScopes.add('*')
+    return this
+  }
+
+  // ---------------------------------------------------------- relation filters
+
+  /**
+   * Restrict to models that have at least one related row — Laravel's `has`.
+   *
+   * Compiled as a correlated `exists` subquery rather than a join, so it never
+   * multiplies the parent rows.
+   */
+  has(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    return this.addRelationExists(relation, callback, false)
+  }
+
+  whereHas(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    return this.has(relation, callback)
+  }
+
+  doesntHave(relation: string): this {
+    return this.addRelationExists(relation, undefined, true)
+  }
+
+  whereDoesntHave(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    return this.addRelationExists(relation, callback, true)
+  }
+
+  private addRelationExists(
+    relation: string,
+    callback: ((query: ModelBuilder<never>) => void) | undefined,
+    negate: boolean
+  ): this {
+    return this.defer((query) => {
+      const probe = new (this.model as unknown as new () => Model)()
+      const constraint = probe
+        .resolveRelation(relation)
+        .existsConstraint((this.model as typeof Model).getTable())
+
+      // whereExists supplies its own nested builder; configure that one rather
+      // than returning a builder of our own, which it would ignore.
+      const build = (sub: QueryBuilder<Row>) => {
+        sub
+          .from(constraint.table)
+          .selectRaw('1')
+          .whereColumn(constraint.foreign, '=', constraint.local)
+
+        if (callback) {
+          const nested = new ModelBuilder(constraint.related as never)
+          callback(nested as never)
+          nested.applyTo(sub)
+        }
+      }
+
+      if (negate) query.whereNotExists(build as never)
+      else query.whereExists(build as never)
+    })
+  }
+
+  /** Copy this builder's pending constraints onto a raw query. */
+  private applyTo(query: QueryBuilder<Row>): void {
+    for (const apply of this.pending) apply(query)
+  }
+
+  // ------------------------------------------------------------- aggregates
+
+  /** `withCount('posts')` adds a `posts_count` column, without an extra query. */
+  withCount(...relations: string[]): this {
+    for (const relation of relations.flat()) {
+      this.aggregates.push({ relation, fn: 'count', column: '*', alias: `${relation}_count` })
+    }
+
+    return this
+  }
+
+  withSum(relation: string, column: string): this {
+    this.aggregates.push({ relation, fn: 'sum', column, alias: `${relation}_sum_${column}` })
+    return this
+  }
+
+  withMax(relation: string, column: string): this {
+    this.aggregates.push({ relation, fn: 'max', column, alias: `${relation}_max_${column}` })
+    return this
+  }
+
+  withMin(relation: string, column: string): this {
+    this.aggregates.push({ relation, fn: 'min', column, alias: `${relation}_min_${column}` })
+    return this
+  }
+
+  withAvg(relation: string, column: string): this {
+    this.aggregates.push({ relation, fn: 'avg', column, alias: `${relation}_avg_${column}` })
+    return this
+  }
+
+  private applyAggregates(query: QueryBuilder<Row>): void {
+    if (this.aggregates.length === 0) return
+
+    const grammar = query.connectionRef.grammar
+    const table = (this.model as typeof Model).getTable()
+    const probe = new (this.model as unknown as new () => Model)()
+
+    // Keep the model's own columns: adding a select would otherwise drop them.
+    query.select(`${table}.*`)
+
+    for (const aggregate of this.aggregates) {
+      const constraint = probe.resolveRelation(aggregate.relation).existsConstraint(table)
+      const column = aggregate.column === '*' ? '*' : grammar.wrap(aggregate.column)
+
+      query.selectRaw(
+        `(select ${aggregate.fn}(${column}) from ${grammar.wrapTable(constraint.table)}` +
+          ` where ${grammar.wrap(constraint.foreign)} = ${grammar.wrap(constraint.local)})` +
+          ` as ${grammar.wrap(aggregate.alias)}`
+      )
+    }
   }
 
   // --------------------------------------------------------------- soft deletes

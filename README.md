@@ -36,6 +36,10 @@ bun run artisan migrate
 bun run artisan migrate:rollback --step=2
 bun run artisan migrate:status
 bun run artisan make:migration create_posts_table
+bun run artisan make:model Post -mfs        # model + migration + factory + seeder
+bun run artisan db:seed
+bun run artisan db:show
+bun run artisan db:table users
 bun run artisan make:event OrderShipped
 bun run artisan make:listener RecordShipments --event OrderShipped
 ```
@@ -229,6 +233,42 @@ Saving follows `performUpdate`: only dirty columns are sent, and a clean model
 issues **no query at all**. Dirty comparison tolerates driver type drift, so a
 column that comes back as `5` and is reassigned `'5'` is not reported as changed.
 
+Also present: global scopes (`addGlobalScope` / `withoutGlobalScope`),
+`whereHas`/`has`/`doesntHave` as correlated `exists` subqueries so the parent
+rows are never multiplied, `withCount`/`withSum`/`withMax` as select subqueries,
+accessors and mutators (`getFullNameAttribute`), `appends`, `getChanges` /
+`wasChanged`, `replicate`, `is`/`isNot`, `only`/`except`, `withoutTimestamps`,
+`sole`, `firstWhere`, `lazy()`, morph relations (`morphTo`/`morphOne`/`morphMany`),
+`hasManyThrough`, and the full pivot surface (`attach`/`detach`/`sync`/
+`syncWithoutDetaching`/`toggle`/`updateExistingPivot`).
+
+`morphTo` eager loading issues one query per distinct type, which is the floor
+rather than a shortcoming: the rows point at different tables. Asking `whereHas`
+of a `morphTo` throws with an explanation instead of guessing a table.
+
+### Factories and seeders
+
+```ts
+class UserFactory extends Factory<User> {
+  readonly model = User
+
+  definition(index: number) {
+    return { name: `User ${index}`, email: `user${index}@example.com` }
+  }
+}
+
+await new UserFactory().count(3).state({ active: false }).create()
+```
+
+No fake-data generator is bundled. `definition()` receives a 0-based index, so
+unique values are derived from it rather than from a random source that collides
+with a unique index roughly one run in fifty. Factories bypass `fillable`, as
+Laravel's do.
+
+Seeders are composed explicitly with `call()` — there is no auto-discovery,
+because seed order matters and a directory listing is a poor way to express it. A
+seeder pulled in by two others still runs once.
+
 ### Testing against real servers
 
 `packages/database/test/dialects.test.ts` runs the same assertions against
@@ -312,7 +352,7 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 539 tests, including 64 against real Postgres and MySQL
+bun run test     # 582 tests, including 64 against real Postgres and MySQL
 bun run smoke    # 81 checks against the real playground app
 ```
 
@@ -354,10 +394,19 @@ Deliberately not unit-tested:
   rather than in isolation.
 - `str.ts` inflection edge cases beyond the common forms.
 
+## Known gaps
+
+[`GAPS.md`](GAPS.md) records what is deliberately missing in every finished
+package, and why — including one thing that was attempted and could not be made
+to work (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
+`@kitajs/ts-html-plugin`).
+
 ## Roadmap
 
-Milestone 1, events + log, and the database layer (connections, query builder,
-models, schema builder, migrator) are done. Next, in dependency order:
+Milestone 1, events + log, and the database layer are done — connections, query
+builder, models with relations and eager loading, schema builder, migrator,
+factories and seeders, verified against SQLite, Postgres and MySQL. Next, in
+dependency order:
 
 1. `validation` — two phases. TypeBox handles shape/type/format synchronously
    (it has no async path and no `refine`); a RuleRunner of ours handles

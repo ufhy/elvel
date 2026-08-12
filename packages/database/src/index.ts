@@ -1,13 +1,21 @@
 export { BunSqlConnection, type ConnectionConfig } from './connection/bun-sql.ts'
 export { type Connection, QueryExecuted, type Row } from './connection/connection.ts'
 export { ConnectionManager } from './connection/manager.ts'
+export { DbSeedCommand } from './console/db-seed.ts'
+export { DbShowCommand } from './console/db-show.ts'
+export { DbTableCommand } from './console/db-table.ts'
+export { MakeFactoryCommand } from './console/make-factory.ts'
 export { MakeMigrationCommand } from './console/make-migration.ts'
+export { MakeModelCommand } from './console/make-model.ts'
+export { MakeSeederCommand } from './console/make-seeder.ts'
 export { MigrateCommand } from './console/migrate.ts'
 export { MigrateFreshCommand } from './console/migrate-fresh.ts'
+export { MigrateInstallCommand } from './console/migrate-install.ts'
 export { MigrateRefreshCommand } from './console/migrate-refresh.ts'
 export { MigrateResetCommand } from './console/migrate-reset.ts'
 export { MigrateRollbackCommand } from './console/migrate-rollback.ts'
 export { MigrateStatusCommand } from './console/migrate-status.ts'
+export { Factory, type FactoryState } from './factory.ts'
 export { db, schema, table } from './helpers.ts'
 export { Migration, type MigrationContext, type MigrationFile } from './migrations/migration.ts'
 export {
@@ -28,7 +36,13 @@ export {
   BelongsTo,
   BelongsToMany,
   HasMany,
+  HasManyThrough,
   HasOne,
+  HasOneOrMany,
+  MorphMany,
+  MorphOne,
+  MorphOneOrMany,
+  MorphTo,
   Relation
 } from './model/relations.ts'
 export { DatabaseServiceProvider } from './provider.ts'
@@ -61,3 +75,4 @@ export { type Modifier, SchemaGrammar } from './schema/grammar.ts'
 export { MySqlSchemaGrammar } from './schema/grammars/mysql.ts'
 export { PostgresSchemaGrammar } from './schema/grammars/postgres.ts'
 export { SQLiteSchemaGrammar } from './schema/grammars/sqlite.ts'
+export { Seeder, type SeederContext, SeederRunner } from './seeder.ts'

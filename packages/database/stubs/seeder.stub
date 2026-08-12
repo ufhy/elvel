@@ -1,0 +1,9 @@
+import { Seeder, type SeederContext } from '@elysian/database'
+
+export class {{ class }} extends Seeder {
+  async run({ table, call, note }: SeederContext): Promise<void> {
+    // await call(OtherSeeder)
+    // await table('users').insert({ name: 'Ada' })
+    note('{{ class }} did nothing yet.')
+  }
+}

@@ -1,0 +1,13 @@
+import { Model } from '@elysian/database'
+
+export class {{ class }} extends Model {
+  static override table = '{{ table }}'
+
+  /** Columns mass assignment accepts. Everything else is refused. */
+  static override fillable: string[] = []
+
+  /**
+   * `declare` types the column without shadowing the attribute proxy at runtime.
+   */
+  declare id: number
+}

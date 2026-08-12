@@ -83,7 +83,11 @@ export abstract class GeneratorCommand extends Command {
     return relative(this.app.basePath(), path)
   }
 
-  private async readStub(): Promise<string> {
+  /**
+   * Resolve the stub contents. Overridable so a package outside @elysian/console
+   * can ship its own stubs directory.
+   */
+  protected async readStub(): Promise<string> {
     const published = Bun.file(this.app.basePath('stubs', this.stub()))
     if (await published.exists()) return published.text()
 

@@ -1,5 +1,6 @@
 import { Collection } from '@elysian/support'
 import type { Row } from '../connection/connection.ts'
+import type { QueryBuilder } from '../query/builder.ts'
 import type { ModelBuilder } from './builder.ts'
 import type { Model, ModelClass } from './model.ts'
 
@@ -25,6 +26,18 @@ export abstract class Relation<R extends Model> {
    * against a null foreign key would attach unrelated rows.
    */
   abstract eagerLoad(models: Model[], name: string): Promise<void>
+
+  /**
+   * How to correlate this relation in a subquery, which is what `whereHas` and
+   * `withCount` need: the child table, and the two columns that join it to the
+   * parent.
+   */
+  abstract existsConstraint(parentTable: string): {
+    table: string
+    foreign: string
+    local: string
+    related: ModelClass<R>
+  }
 
   protected keysOf(models: Model[], key: string): unknown[] {
     const keys = new Set<unknown>()
@@ -87,6 +100,15 @@ export abstract class HasOneOrMany<R extends Model> extends Relation<R> {
 
   async count(): Promise<number> {
     return this.query().count()
+  }
+
+  existsConstraint(parentTable: string) {
+    return {
+      table: (this.related as typeof Model).getTable(),
+      foreign: `${(this.related as typeof Model).getTable()}.${this.foreignKey}`,
+      local: `${parentTable}.${this.localKey}`,
+      related: this.related
+    }
   }
 
   async eagerLoad(models: Model[], name: string): Promise<void> {
@@ -167,6 +189,15 @@ export class BelongsTo<R extends Model> extends Relation<R> {
 
   dissociate(): Model {
     return this.parent.setAttribute(this.foreignKey, null)
+  }
+
+  existsConstraint(parentTable: string) {
+    return {
+      table: (this.related as typeof Model).getTable(),
+      foreign: `${(this.related as typeof Model).getTable()}.${this.ownerKey}`,
+      local: `${parentTable}.${this.foreignKey}`,
+      related: this.related
+    }
   }
 
   async eagerLoad(models: Model[], name: string): Promise<void> {
@@ -266,6 +297,57 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     await this.attach(ids)
   }
 
+  /** Attach what is missing, leaving existing rows alone. */
+  async syncWithoutDetaching(ids: unknown[]): Promise<void> {
+    await this.attach(ids)
+  }
+
+  /** Attach the missing ids and detach the present ones. */
+  async toggle(ids: unknown | unknown[]): Promise<void> {
+    const wanted = Array.isArray(ids) ? ids : [ids]
+    const current = new Set((await this.pivotIds()).map(String))
+
+    const toAttach = wanted.filter((id) => !current.has(String(id)))
+    const toDetach = wanted.filter((id) => current.has(String(id)))
+
+    if (toDetach.length > 0) await this.detach(toDetach)
+    if (toAttach.length > 0) await this.attach(toAttach)
+  }
+
+  /** Update extra columns on one pivot row. */
+  async updateExistingPivot(id: unknown, values: Row): Promise<number> {
+    const pivot = await this.pivotQuery()
+
+    return pivot.where(this.relatedPivotKey, id).update(values)
+  }
+
+  /** The related ids currently attached. */
+  async pivotIds(): Promise<unknown[]> {
+    const pivot = await this.pivotQuery()
+
+    return (await pivot.pluck(this.relatedPivotKey)).all()
+  }
+
+  private async pivotQuery(): Promise<QueryBuilder<Row>> {
+    const query = await ((this.related as typeof Model).query() as ModelBuilder<R>).base()
+
+    return query
+      .clone()
+      .from(this.pivotTable)
+      .where(this.foreignPivotKey, this.parent.attributes[this.parentKey])
+  }
+
+  existsConstraint(parentTable: string) {
+    // The pivot is the correlated table: a parent "has" the relation when a
+    // pivot row exists, regardless of whether the related row still does.
+    return {
+      table: this.pivotTable,
+      foreign: `${this.pivotTable}.${this.foreignPivotKey}`,
+      local: `${parentTable}.${this.parentKey}`,
+      related: this.related
+    }
+  }
+
   async eagerLoad(models: Model[], name: string): Promise<void> {
     const keys = this.keysOf(models, this.parentKey)
 
@@ -305,6 +387,290 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
 
     for (const model of models) {
       const key = model.attributes[this.parentKey]
+
+      model.setRelation(
+        name,
+        new Collection(key === null || key === undefined ? [] : (grouped.get(String(key)) ?? []))
+      )
+    }
+  }
+}
+
+/**
+ * `comment.commentable()` — the child stores both a key and a type.
+ *
+ * A morph is the one relation that cannot be eager-loaded in a single query:
+ * the rows point at different tables, so one query per distinct type is the
+ * floor, not a shortcoming of the implementation.
+ */
+export class MorphTo extends Relation<Model> {
+  constructor(
+    parent: Model,
+    private readonly morphName: string,
+    private readonly types: Record<string, ModelClass<Model>>,
+    private readonly typeColumn = `${morphName}_type`,
+    private readonly idColumn = `${morphName}_id`
+  ) {
+    // There is no single related class; resolution happens per row.
+    super(undefined as unknown as ModelClass<Model>, parent)
+  }
+
+  private classFor(type: unknown): ModelClass<Model> | undefined {
+    return typeof type === 'string' ? this.types[type] : undefined
+  }
+
+  query(): ModelBuilder<Model> {
+    const related = this.classFor(this.parent.attributes[this.typeColumn])
+
+    if (!related) {
+      throw new Error(
+        `Unknown morph type [${String(this.parent.attributes[this.typeColumn])}] for ${this.morphName}.`
+      )
+    }
+
+    return (related as typeof Model)
+      .query()
+      .where((related as typeof Model).primaryKey, this.parent.attributes[this.idColumn])
+  }
+
+  async get(): Promise<Model | undefined> {
+    if (this.parent.attributes[this.idColumn] == null) return undefined
+
+    return this.query().first()
+  }
+
+  existsConstraint(): never {
+    // `whereHas` on a morphTo would have to union across every type table.
+    throw new Error('whereHas/withCount are not supported on a morphTo relation.')
+  }
+
+  async eagerLoad(models: Model[], name: string): Promise<void> {
+    const byType = new Map<string, Model[]>()
+
+    for (const model of models) {
+      const type = model.attributes[this.typeColumn]
+      const id = model.attributes[this.idColumn]
+      if (typeof type !== 'string' || id === null || id === undefined) {
+        model.setRelation(name, undefined)
+        continue
+      }
+
+      const bucket = byType.get(type) ?? []
+      bucket.push(model)
+      byType.set(type, bucket)
+    }
+
+    // One query per distinct type, rather than one per row.
+    for (const [type, group] of byType) {
+      const related = this.classFor(type)
+
+      if (!related) {
+        for (const model of group) model.setRelation(name, undefined)
+        continue
+      }
+
+      const key = (related as typeof Model).primaryKey
+      const owners = await (related as typeof Model)
+        .query()
+        .whereIn(key, this.keysOf(group, this.idColumn))
+        .get()
+
+      const byKey = new Map<string, Model>()
+      for (const owner of owners.all()) byKey.set(String(owner.attributes[key]), owner)
+
+      for (const model of group) {
+        model.setRelation(name, byKey.get(String(model.attributes[this.idColumn])))
+      }
+    }
+  }
+}
+
+/** Shared behaviour for the one- and many-child morph relations. */
+export abstract class MorphOneOrMany<R extends Model> extends Relation<R> {
+  constructor(
+    related: ModelClass<R>,
+    parent: Model,
+    private readonly morphName: string,
+    private readonly morphType: string,
+    private readonly localKey = 'id'
+  ) {
+    super(related, parent)
+  }
+
+  private get typeColumn(): string {
+    return `${this.morphName}_type`
+  }
+
+  private get idColumn(): string {
+    return `${this.morphName}_id`
+  }
+
+  query(): ModelBuilder<R> {
+    return ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .where(this.typeColumn, this.morphType)
+      .where(this.idColumn, this.parent.attributes[this.localKey])
+  }
+
+  async create(attributes: Row): Promise<R> {
+    return (this.related as typeof Model).create({
+      ...attributes,
+      [this.typeColumn]: this.morphType,
+      [this.idColumn]: this.parent.attributes[this.localKey]
+    }) as Promise<R>
+  }
+
+  existsConstraint(parentTable: string) {
+    const table = (this.related as typeof Model).getTable()
+
+    return {
+      table,
+      foreign: `${table}.${this.idColumn}`,
+      local: `${parentTable}.${this.localKey}`,
+      related: this.related
+    }
+  }
+
+  async eagerLoad(models: Model[], name: string): Promise<void> {
+    const keys = this.keysOf(models, this.localKey)
+
+    if (keys.length === 0) {
+      for (const model of models) model.setRelation(name, new Collection<R>([]))
+      return
+    }
+
+    const children = await ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .where(this.typeColumn, this.morphType)
+      .whereIn(this.idColumn, keys)
+      .get()
+
+    const grouped = this.dictionary(children.all(), this.idColumn)
+
+    for (const model of models) {
+      const key = model.attributes[this.localKey]
+
+      model.setRelation(
+        name,
+        new Collection(key === null || key === undefined ? [] : (grouped.get(String(key)) ?? []))
+      )
+    }
+  }
+}
+
+/** `post.comments()` where the child stores `commentable_type` + `commentable_id`. */
+export class MorphMany<R extends Model> extends MorphOneOrMany<R> {
+  async get(): Promise<Collection<R>> {
+    return this.query().get()
+  }
+}
+
+/** The single-child morph. */
+export class MorphOne<R extends Model> extends MorphOneOrMany<R> {
+  async get(): Promise<R | undefined> {
+    return this.query().first()
+  }
+
+  override async eagerLoad(models: Model[], name: string): Promise<void> {
+    await super.eagerLoad(models, name)
+
+    for (const model of models) {
+      const value = model.getRelation(name)
+      model.setRelation(name, value instanceof Collection ? value.first() : value)
+    }
+  }
+}
+
+/**
+ * `country.posts()` — reach a grandchild through an intermediate table.
+ *
+ * Laravel's `hasManyThrough`. The join is explicit rather than inferred so the
+ * SQL stays inspectable.
+ */
+export class HasManyThrough<R extends Model> extends Relation<R> {
+  constructor(
+    related: ModelClass<R>,
+    parent: Model,
+    private readonly through: ModelClass<Model>,
+    private readonly firstKey: string,
+    private readonly secondKey: string,
+    private readonly localKey = 'id',
+    private readonly secondLocalKey = 'id'
+  ) {
+    super(related, parent)
+  }
+
+  private get throughTable(): string {
+    return (this.through as typeof Model).getTable()
+  }
+
+  private get relatedTable(): string {
+    return (this.related as typeof Model).getTable()
+  }
+
+  query(): ModelBuilder<R> {
+    return ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .select(`${this.relatedTable}.*`)
+      .join(
+        this.throughTable,
+        `${this.throughTable}.${this.secondLocalKey}`,
+        '=',
+        `${this.relatedTable}.${this.secondKey}`
+      )
+      .where(`${this.throughTable}.${this.firstKey}`, this.parent.attributes[this.localKey])
+  }
+
+  async get(): Promise<Collection<R>> {
+    return this.query().get()
+  }
+
+  existsConstraint(parentTable: string) {
+    // Correlate on the intermediate table: the grandchild alone cannot reach the
+    // parent's key.
+    return {
+      table: this.throughTable,
+      foreign: `${this.throughTable}.${this.firstKey}`,
+      local: `${parentTable}.${this.localKey}`,
+      related: this.through as unknown as ModelClass<R>
+    }
+  }
+
+  async eagerLoad(models: Model[], name: string): Promise<void> {
+    const keys = this.keysOf(models, this.localKey)
+
+    if (keys.length === 0) {
+      for (const model of models) model.setRelation(name, new Collection<R>([]))
+      return
+    }
+
+    const rows = await ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .select(
+        `${this.relatedTable}.*`,
+        `${this.throughTable}.${this.firstKey} as through_parent_key`
+      )
+      .join(
+        this.throughTable,
+        `${this.throughTable}.${this.secondLocalKey}`,
+        '=',
+        `${this.relatedTable}.${this.secondKey}`
+      )
+      .whereIn(`${this.throughTable}.${this.firstKey}`, keys)
+      .get()
+
+    const grouped = new Map<string, R[]>()
+
+    for (const row of rows.all()) {
+      const key = row.attributes.through_parent_key
+      delete row.attributes.through_parent_key
+      row.syncOriginal()
+
+      if (key === null || key === undefined) continue
+
+      const bucket = grouped.get(String(key)) ?? []
+      bucket.push(row)
+      grouped.set(String(key), bucket)
+    }
+
+    for (const model of models) {
+      const key = model.attributes[this.localKey]
 
       model.setRelation(
         name,

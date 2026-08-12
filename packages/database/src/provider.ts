@@ -1,8 +1,15 @@
 import { ServiceProvider } from '@elysian/core'
 import { ConnectionManager } from './connection/manager.ts'
+import { DbSeedCommand } from './console/db-seed.ts'
+import { DbShowCommand } from './console/db-show.ts'
+import { DbTableCommand } from './console/db-table.ts'
+import { MakeFactoryCommand } from './console/make-factory.ts'
 import { MakeMigrationCommand } from './console/make-migration.ts'
+import { MakeModelCommand } from './console/make-model.ts'
+import { MakeSeederCommand } from './console/make-seeder.ts'
 import { MigrateCommand } from './console/migrate.ts'
 import { MigrateFreshCommand } from './console/migrate-fresh.ts'
+import { MigrateInstallCommand } from './console/migrate-install.ts'
 import { MigrateRefreshCommand } from './console/migrate-refresh.ts'
 import { MigrateResetCommand } from './console/migrate-reset.ts'
 import { MigrateRollbackCommand } from './console/migrate-rollback.ts'
@@ -41,7 +48,14 @@ export class DatabaseServiceProvider extends ServiceProvider {
         MigrateRefreshCommand,
         MigrateFreshCommand,
         MigrateStatusCommand,
-        MakeMigrationCommand
+        MigrateInstallCommand,
+        MakeMigrationCommand,
+        MakeModelCommand,
+        MakeSeederCommand,
+        MakeFactoryCommand,
+        DbSeedCommand,
+        DbShowCommand,
+        DbTableCommand
       )
   }
 }

@@ -24,6 +24,10 @@ bun run artisan make:view pages.about      # page component
 bun run artisan make:component Alert       # shared component
 bun run artisan make:provider Route        # service provider
 bun run artisan make:command SendReports   # console command
+bun run artisan make:model Post -mfs       # model + migration + factory + seeder
+bun run artisan migrate                    # run migrations
+bun run artisan db:seed                    # run DatabaseSeeder
+bun run artisan db:show                    # tables and row counts
 ```
 
 ## Layout
@@ -35,6 +39,10 @@ app/
   Providers/            service providers
 bootstrap/app.ts        env -> config -> exceptions -> providers -> routes
 config/                 every file's default export becomes a config namespace
+app/Models/             models
+database/migrations/    migrations, ordered by their timestamp prefix
+database/seeders/       seeders, composed explicitly
+database/factories/     model factories
 resources/views/        JSX view components
 public/                 static assets served by @elysiajs/static
 routes/web.ts           route registration

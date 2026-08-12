@@ -753,3 +753,413 @@ describe('eager loading', () => {
     await expect(User.with('nope').get()).rejects.toThrow(/Relation \[nope\] is not defined/)
   })
 })
+
+describe('accessors and mutators', () => {
+  class Person extends Model {
+    static override table = 'users'
+    static override fillable = ['name', 'email']
+    static override appends = ['shouting']
+
+    declare name: string
+
+    getShoutingAttribute() {
+      return String(this.attributes.name ?? '').toUpperCase()
+    }
+
+    setEmailAttribute(value: unknown) {
+      // A mutator writes the raw attribute itself, so it can normalise.
+      this.attributes.email = String(value).toLowerCase().trim()
+    }
+  }
+
+  test('an accessor backs a key with no column', () => {
+    const person = new Person({ name: 'Ada' })
+
+    expect((person as unknown as { shouting: string }).shouting).toBe('ADA')
+  })
+
+  test('a mutator normalises on assignment', () => {
+    const person = new Person({ email: '  ADA@Example.COM ' })
+
+    expect(person.attributes.email).toBe('ada@example.com')
+  })
+
+  test('appends reach serialisation', () => {
+    expect(new Person({ name: 'Ada' }).toObject().shouting).toBe('ADA')
+  })
+})
+
+describe('change tracking after save', () => {
+  test('getChanges and wasChanged report the last save', async () => {
+    const user = await User.create({ name: 'Ada' })
+
+    expect(user.wasChanged('name')).toBe(true)
+
+    user.name = 'Grace'
+    await user.save()
+
+    expect(user.getChanges()).toHaveProperty('name', 'Grace')
+    expect(user.wasChanged('name')).toBe(true)
+    expect(user.wasChanged('email')).toBe(false)
+  })
+
+  test('getOriginal returns the pre-change value', async () => {
+    const user = await User.create({ name: 'Ada' })
+    user.name = 'Grace'
+
+    expect(user.getOriginal('name')).toBe('Ada')
+    expect(user.name).toBe('Grace')
+  })
+})
+
+describe('replicate, comparison and subsets', () => {
+  test('replicate drops the key and timestamps', async () => {
+    const user = await User.create({ name: 'Ada', votes: 3 })
+    const copy = user.replicate()
+
+    expect(copy.attributes.id).toBeUndefined()
+    expect(copy.attributes.created_at).toBeUndefined()
+    expect(copy.attributes.name).toBe('Ada')
+    expect(copy.exists).toBe(false)
+
+    await copy.save()
+    expect(await User.query().count()).toBe(2)
+  })
+
+  test('is compares model and key', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const same = await User.find(user.id)
+    const other = await User.create({ name: 'Grace' })
+
+    expect(user.is(same)).toBe(true)
+    expect(user.is(other)).toBe(false)
+    expect(user.isNot(other)).toBe(true)
+    expect(user.is(undefined)).toBe(false)
+  })
+
+  test('only and except pick from the serialised form', async () => {
+    const user = await User.create({ name: 'Ada', votes: 2 })
+
+    expect(Object.keys(user.only('name', 'votes')).sort()).toEqual(['name', 'votes'])
+    expect(user.except('created_at', 'updated_at')).not.toHaveProperty('created_at')
+  })
+
+  test('withoutTimestamps leaves updated_at alone', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const before = user.attributes.updated_at
+
+    await user.withoutTimestamps(async () => {
+      user.name = 'Grace'
+      await user.save()
+    })
+
+    expect(user.attributes.updated_at).toBe(before)
+    expect((await User.find(user.id))?.name).toBe('Grace')
+  })
+})
+
+describe('global scopes', () => {
+  class Published extends Model {
+    static override table = 'posts'
+    static override fillable = ['title', 'user_id', 'published']
+  }
+
+  test('apply to every query, and can be lifted', async () => {
+    await Post.create({ title: 'Draft' })
+    await Post.create({ title: 'Live' })
+
+    Published.addGlobalScope('live', (query) => {
+      query.where('title', 'Live')
+    })
+
+    try {
+      expect(await Published.query().count()).toBe(1)
+      expect(await Published.query().withoutGlobalScope('live').count()).toBe(2)
+      expect(await Published.query().withoutGlobalScopes().count()).toBe(2)
+    } finally {
+      Published.globalScopes = {}
+    }
+  })
+
+  test('a subclass cannot alter its parent scopes', () => {
+    class Parent extends Model {}
+    class Child extends Parent {}
+
+    Child.addGlobalScope('only-child', () => {})
+
+    expect(Object.keys(Child.globalScopes)).toEqual(['only-child'])
+    expect(Object.keys(Parent.globalScopes)).toEqual([])
+  })
+})
+
+describe('relation filters and aggregates', () => {
+  beforeEach(async () => {
+    const ada = await User.create({ name: 'Ada' })
+    await User.create({ name: 'Linus' })
+    await ada.posts().create({ title: 'A1' })
+    await ada.posts().create({ title: 'A2' })
+  })
+
+  test('has and doesntHave filter by relation existence', async () => {
+    expect((await User.query().has('posts').get()).pluck('name').all()).toEqual(['Ada'])
+    expect((await User.query().doesntHave('posts').get()).pluck('name').all()).toEqual(['Linus'])
+  })
+
+  test('whereHas accepts a constraint on the related query', async () => {
+    const withA1 = await User.query()
+      .whereHas('posts', (query) => {
+        query.where('title', 'A1')
+      })
+      .get()
+
+    const withZ = await User.query()
+      .whereHas('posts', (query) => {
+        query.where('title', 'nope')
+      })
+      .get()
+
+    expect(withA1.count()).toBe(1)
+    expect(withZ.count()).toBe(0)
+  })
+
+  test('has does not multiply the parent rows', async () => {
+    // A join would return Ada twice, once per post.
+    expect(await User.query().has('posts').count()).toBe(1)
+  })
+
+  test('withCount adds a count column without an extra query', async () => {
+    const users = await User.query().withCount('posts').orderBy('id').get()
+
+    expect(users.first()?.attributes.posts_count).toBe(2)
+    expect(users.all()[1]?.attributes.posts_count).toBe(0)
+    // The model's own columns survive the added select.
+    expect(users.first()?.name).toBe('Ada')
+  })
+
+  test('withMax and withSum aggregate the related column', async () => {
+    const users = await User.query().withMax('posts', 'id').orderBy('id').get()
+
+    expect(Number(users.first()?.attributes.posts_max_id)).toBeGreaterThan(0)
+  })
+})
+
+describe('retrieval helpers', () => {
+  beforeEach(async () => {
+    await User.create({ name: 'Ada' })
+    await User.create({ name: 'Linus' })
+  })
+
+  test('sole returns exactly one, or explains', async () => {
+    expect((await User.query().where('name', 'Ada').sole()).name).toBe('Ada')
+    await expect(User.query().sole()).rejects.toThrow(/Multiple results/)
+    await expect(User.query().where('name', 'nope').sole()).rejects.toThrow(ModelNotFoundError)
+  })
+
+  test('firstWhere is a shorthand', async () => {
+    expect((await User.query().firstWhere('name', 'Linus'))?.name).toBe('Linus')
+  })
+
+  test('lazy streams without materialising everything', async () => {
+    const seen: string[] = []
+
+    for await (const user of User.query().orderBy('id').lazy(1)) seen.push(user.name)
+
+    expect(seen).toEqual(['Ada', 'Linus'])
+  })
+})
+
+describe('polymorphic and through relations', () => {
+  class Image extends Model {
+    static override table = 'images'
+    static override fillable = ['url', 'imageable_type', 'imageable_id']
+
+    declare url: string
+
+    imageable() {
+      return this.morphTo('imageable', { users: User, posts: Post })
+    }
+  }
+
+  class Country extends Model {
+    static override table = 'countries'
+    static override fillable = ['name']
+
+    declare id: number
+    declare name: string
+
+    // countries -> users -> posts
+    articles() {
+      return this.hasManyThrough(Post, User, 'country_id', 'user_id')
+    }
+  }
+
+  beforeEach(async () => {
+    const schema = new SchemaBuilder(connection)
+
+    await schema.create('images', (table) => {
+      table.id()
+      table.string('url')
+      table.string('imageable_type')
+      table.foreignId('imageable_id')
+      table.timestamps()
+    })
+    await schema.create('countries', (table) => {
+      table.id()
+      table.string('name')
+      table.timestamps()
+    })
+    await schema.table('users', (table) => {
+      table.foreignId('country_id').nullable()
+    })
+  })
+
+  test('morphMany reads only its own type', async () => {
+    class UserWithImages extends User {
+      static override table = 'users'
+
+      images() {
+        return this.morphMany(Image, 'imageable', 'users')
+      }
+    }
+
+    const user = await UserWithImages.create({ name: 'Ada' })
+    const post = await Post.create({ title: 'A post' })
+
+    await user.images().create({ url: '/ada.png' })
+    await Image.create({ url: '/post.png', imageable_type: 'posts', imageable_id: post.id })
+
+    const images = await user.images().get()
+
+    expect(images.count()).toBe(1)
+    expect(images.first()?.url).toBe('/ada.png')
+  })
+
+  test('morphTo resolves the class from the type column', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const image = await Image.create({
+      url: '/ada.png',
+      imageable_type: 'users',
+      imageable_id: user.id
+    })
+
+    const owner = await image.imageable().get()
+
+    expect(owner).toBeInstanceOf(User)
+    expect((owner as User).name).toBe('Ada')
+  })
+
+  test('morphTo eager loads one query per distinct type', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const post = await Post.create({ title: 'A post' })
+
+    await Image.create({ url: '/a.png', imageable_type: 'users', imageable_id: user.id })
+    await Image.create({ url: '/b.png', imageable_type: 'posts', imageable_id: post.id })
+    await Image.create({ url: '/c.png', imageable_type: 'users', imageable_id: user.id })
+
+    const images = await Image.with('imageable').orderBy('id').get()
+    const owners = images.all().map((image) => image.getRelation('imageable'))
+
+    expect(owners[0]).toBeInstanceOf(User)
+    expect(owners[1]).toBeInstanceOf(Post)
+    expect(owners[2]).toBeInstanceOf(User)
+  })
+
+  test('an unknown morph type resolves to undefined rather than throwing', async () => {
+    await Image.create({ url: '/x.png', imageable_type: 'aliens', imageable_id: 1 })
+
+    const image = await Image.with('imageable').first()
+
+    expect(image?.getRelation('imageable')).toBeUndefined()
+  })
+
+  test('whereHas is refused on a morphTo, with an explanation', async () => {
+    await expect(Image.query().has('imageable').get()).rejects.toThrow(/not supported on a morphTo/)
+  })
+
+  test('hasManyThrough reaches the grandchild', async () => {
+    const country = await Country.create({ name: 'Ireland' })
+    const ada = await User.create({ name: 'Ada' })
+    await User.query().where('id', ada.id).update({ country_id: country.id })
+    await ada.posts().create({ title: 'From Ireland' })
+
+    const other = await User.create({ name: 'Nobody' })
+    await other.posts().create({ title: 'Elsewhere' })
+
+    const articles = await country.articles().get()
+
+    expect(articles.count()).toBe(1)
+    expect(articles.first()?.title).toBe('From Ireland')
+  })
+
+  test('hasManyThrough eager loads per parent', async () => {
+    const first = await Country.create({ name: 'Ireland' })
+    const second = await Country.create({ name: 'Finland' })
+
+    const ada = await User.create({ name: 'Ada' })
+    const linus = await User.create({ name: 'Linus' })
+    await User.query().where('id', ada.id).update({ country_id: first.id })
+    await User.query().where('id', linus.id).update({ country_id: second.id })
+
+    await ada.posts().create({ title: 'A' })
+    await ada.posts().create({ title: 'B' })
+    await linus.posts().create({ title: 'C' })
+
+    const countries = await Country.with('articles').orderBy('id').get()
+    const counts = countries
+      .all()
+      .map((country) => (country.getRelation('articles') as { count(): number }).count())
+
+    expect(counts).toEqual([2, 1])
+  })
+
+  test('has works through the intermediate table', async () => {
+    const withPosts = await Country.create({ name: 'Ireland' })
+    await Country.create({ name: 'Empty' })
+
+    const ada = await User.create({ name: 'Ada' })
+    await User.query().where('id', ada.id).update({ country_id: withPosts.id })
+
+    expect((await Country.query().has('articles').get()).pluck('name').all()).toEqual(['Ireland'])
+  })
+})
+
+describe('pivot completeness', () => {
+  test('toggle flips membership', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const maths = await Tag.create({ label: 'maths' })
+    const code = await Tag.create({ label: 'code' })
+
+    await user.tags().attach(maths.id)
+    await user.tags().toggle([maths.id, code.id])
+
+    expect((await user.tags().get()).pluck('label').all()).toEqual(['code'])
+  })
+
+  test('syncWithoutDetaching keeps what is already there', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const maths = await Tag.create({ label: 'maths' })
+    const code = await Tag.create({ label: 'code' })
+
+    await user.tags().attach(maths.id)
+    await user.tags().syncWithoutDetaching([code.id])
+
+    expect((await user.tags().get()).count()).toBe(2)
+  })
+
+  test('pivotIds reports what is attached', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+    await user.tags().attach(tag.id)
+
+    expect((await user.tags().pivotIds()).map(Number)).toEqual([tag.id])
+  })
+
+  test('has works across the pivot', async () => {
+    const withTags = await User.create({ name: 'Ada' })
+    await User.create({ name: 'Linus' })
+    const tag = await Tag.create({ label: 'maths' })
+    await withTags.tags().attach(tag.id)
+
+    expect((await User.query().has('tags').get()).pluck('name').all()).toEqual(['Ada'])
+  })
+})
