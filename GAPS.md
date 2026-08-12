@@ -153,9 +153,37 @@ Two things to know when using it:
   is a test for this arrangement, because it depends on Elysia not emitting an
   `await` for a synchronous hook.
 
+## @elysian/cache
+
+Four drivers — `array`, `file`, `database`, `redis` — behind one `Repository`, and
+one conformance suite that runs against all four (Redis included, against a real
+server). The same routes in the playground exercise every driver, because a cache
+that behaves differently per driver is worse than none.
+
+| Missing | Why |
+| --- | --- |
+| **JSON, not a binary format, for stored values** | A `Date` comes back as an ISO string and a class instance loses its identity on every driver except `array`, which stores values as they were given. The trade is deliberate: the payload stays readable in `redis-cli` and in the cache table, and every runtime we target can parse it. Cache plain data, or re-hydrate on read. |
+| `memcached`, `dynamodb`, `apc`, `octane` drivers | Nothing in this runtime needs them yet, and `extend()` takes a driver in ten lines. |
+| `flexible()` deferring until after the response | Laravel defers the refresh with `defer()`, which runs it once the response is sent. Ours starts it immediately and does not await it — the requester still does not wait, but the process does the work sooner. A real `defer()` belongs with the queue package. |
+| `funnel()` / `ConcurrencyLimiter` | `withoutOverlapping()` covers the common case (one at a time); a semaphore for *N* at a time is a separate primitive. |
+| Named rate limiters (`RateLimiter::for('uploads', …)`) and the `throttle` middleware | The limiter itself is complete; naming limits and applying them per route is HTTP work, and lands with the middleware in `@elysian/http`. |
+| Event classes (`CacheHit`, `KeyWritten`, …) | Events are dispatched as names — `cache.hit`, `cache.written`, `cache.forgotten`, `cache.flushed` — which is how the rest of the framework dispatches. A listener gets the same payload either way. |
+| Automatic pruning of the `database` store | `cache:prune` exists and deletes expired rows; nothing runs it on a schedule until the scheduler lands. The other drivers expire on their own. |
+| `many()` as one round trip on `file` and `array` | Both read key by key. Redis uses `MGET` and the database store one `where in`, which is where it matters. |
+
+Two behaviours worth knowing rather than discovering:
+
+- **Tagged entries linger.** Flushing a tag rotates its id, so every key written
+  under the old namespace becomes unreachable at once — but the entries stay until
+  their own TTL runs out. That is what lets tags work without an index of which
+  keys belong to which tag, and it is Laravel's design too.
+- **`flush()` on Redis scans this store's prefix** rather than issuing `FLUSHDB`,
+  which would take another application's keys with it. With no prefix configured
+  there is nothing to scan for, and it does flush the database.
+
 ## Not started
 
-`cache`, `queue`, `scheduler`, `mail`, `storage`, `notifications`.
+`queue`, `scheduler`, `mail`, `storage`, `notifications`.
 
 ## Watch list
 
@@ -178,6 +206,9 @@ uncovered, and why:
 - `create-elysian` — covered end to end by the smoke test rather than by units
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
+- the cache's `database` driver against Postgres and MySQL — the conformance
+  suite runs it on SQLite, and the upsert and `for update` paths it relies on are
+  covered for those dialects by the database package's own suite
 - better-auth **plugin** schemas against real servers — the adapter itself is
   covered on SQLite, Postgres 17 and MySQL 9 by `packages/auth/test/dialects.test.ts`,
   but only for the four core tables

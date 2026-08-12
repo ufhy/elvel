@@ -737,6 +737,165 @@ const afterSignOut = (await (
 ).json()) as { guest: boolean }
 check('the session is gone once signed out', afterSignOut.guest === true)
 
+// -------------------------------------------------------------------- cache
+
+section('Cache: every driver through the same routes')
+
+/**
+ * The point of running the same routes per store is that a cache which behaves
+ * differently per driver is worse than none: code written against the array store
+ * has to keep working against Redis.
+ */
+const stores = ['array', 'file', 'database']
+
+// Redis only when a server answers, as the dialect suites do.
+const redisReachable = await (async () => {
+  try {
+    const probe = app.make('cache').store('redis')
+
+    await probe.put('smoke:probe', 1, 5)
+    await probe.forget('smoke:probe')
+
+    return true
+  } catch {
+    console.log(`  ${pc.dim('skipping redis: no server reachable')}`)
+
+    return false
+  }
+})()
+
+if (redisReachable) stores.push('redis')
+
+for (const store of stores) {
+  await app.handle(
+    new Request(`http://localhost/check/cache/articles?store=${store}`, { method: 'DELETE' })
+  )
+
+  const first = (await (
+    await app.handle(new Request(`http://localhost/check/cache/articles?store=${store}`))
+  ).json()) as { titles: string[]; queried: boolean }
+
+  const second = (await (
+    await app.handle(new Request(`http://localhost/check/cache/articles?store=${store}`))
+  ).json()) as { titles: string[]; queried: boolean }
+
+  check(
+    `${store}: remember runs the query once`,
+    first.queried && !second.queried && second.titles.length === first.titles.length
+  )
+
+  const basics = (await (
+    await app.handle(new Request(`http://localhost/check/cache/basics?store=${store}`))
+  ).json()) as Record<string, unknown>
+
+  check(
+    `${store}: add writes only when absent`,
+    basics.added === true && basics.addedAgain === false
+  )
+  check(`${store}: increment counts`, basics.counter === 5)
+  check(
+    `${store}: structured values round-trip`,
+    JSON.stringify(basics.shape) === '{"nested":{"ok":true},"list":[1,2]}'
+  )
+  check(`${store}: pull reads and forgets`, basics.pulled === 'first' && basics.afterPull === null)
+  check(`${store}: a miss falls back`, basics.missing === 'fallback')
+
+  const tags = (await (
+    await app.handle(new Request(`http://localhost/check/cache/tags?store=${store}`))
+  ).json()) as { people: string | null; places: string | null }
+
+  check(
+    `${store}: flushing one tag leaves the others`,
+    tags.people === null && tags.places === 'tagged-places'
+  )
+
+  const lock = (await (
+    await app.handle(
+      new Request(`http://localhost/check/cache/lock?store=${store}`, { method: 'POST' })
+    )
+  ).json()) as { acquired: boolean; contenderTimedOut: boolean }
+
+  check(
+    `${store}: a lock is exclusive and times a contender out`,
+    lock.acquired && lock.contenderTimedOut
+  )
+}
+
+// Stale-while-revalidate, on the array store so the timing is not disk-bound.
+await app.handle(new Request('http://localhost/check/cache/flexible?reset=yes&store=array'))
+
+const fresh = (await (
+  await app.handle(new Request('http://localhost/check/cache/flexible?store=array'))
+).json()) as { age: number }
+check('flexible serves a fresh value immediately', fresh.age < 1000)
+
+await Bun.sleep(1100)
+
+const stale = (await (
+  await app.handle(new Request('http://localhost/check/cache/flexible?store=array'))
+).json()) as { age: number }
+check('a stale value is served rather than recomputed inline', stale.age > 1000)
+
+await Bun.sleep(200)
+
+const refreshed = (await (
+  await app.handle(new Request('http://localhost/check/cache/flexible?store=array'))
+).json()) as { age: number }
+check('and the refresh happened in the background', refreshed.age < 1000)
+
+await app.handle(new Request('http://localhost/check/cache/limit', { method: 'DELETE' }))
+
+const attempts: number[] = []
+for (let attempt = 0; attempt < 3; attempt += 1) {
+  attempts.push(
+    (await app.handle(new Request('http://localhost/check/cache/limit', { method: 'POST' }))).status
+  )
+}
+check(
+  'the rate limiter allows up to the limit',
+  attempts.slice(0, 2).every((code) => code === 200)
+)
+check('and answers 429 past it', attempts[2] === 429)
+
+const limited = (await (
+  await app.handle(new Request('http://localhost/check/cache/limit', { method: 'POST' }))
+).json()) as { retryAfter?: number }
+check('with a retry-after the client can use', (limited.retryAfter ?? 0) > 0)
+
+// The commands, on the real store.
+const cleared = plain(await captureOutput(() => app.make('artisan').run(['cache:clear'])))
+check('cache:clear flushes the default store', cleared.includes('flushed'))
+
+await app.make('cache').store().put('smoke:key', 'value', 60)
+const forgotten = plain(
+  await captureOutput(() => app.make('artisan').run(['cache:forget', 'smoke:key']))
+)
+check('cache:forget removes one key', forgotten.includes('Forgotten: smoke:key'))
+
+const missing = plain(
+  await captureOutput(() => app.make('artisan').run(['cache:forget', 'smoke:never']))
+)
+check('and says so when the key was not cached', missing.includes('Not cached'))
+
+await app.make('cache').store('database').put('smoke:pruned', 'value', 1)
+await Bun.sleep(1100)
+
+const pruned = plain(
+  await captureOutput(() => app.make('artisan').run(['cache:prune', '--store', 'database']))
+)
+check('cache:prune deletes expired rows', /Pruned [1-9]/.test(pruned))
+
+const nothingToPrune = plain(
+  await captureOutput(() => app.make('artisan').run(['cache:prune', '--store', 'array']))
+)
+check(
+  'and explains itself on a store that expires its own entries',
+  nothingToPrune.includes('nothing to prune')
+)
+
+// Leave nothing behind: the file store writes into storage/, and Redis is shared.
+for (const store of stores) await app.make('cache').store(store).flush()
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')

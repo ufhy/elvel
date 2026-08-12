@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia'
 import ArticleController from '../app/Http/Controllers/ArticleController.ts'
+import CacheController from '../app/Http/Controllers/CacheController.ts'
 import CheckController from '../app/Http/Controllers/CheckController.ts'
 import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
@@ -17,3 +18,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(CheckController)
   .use(ArticleController)
   .use(GuardController)
+  .use(CacheController)

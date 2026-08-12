@@ -1,0 +1,666 @@
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Application } from '@elysian/core'
+import { BunSqlConnection, ConnectionManager, SchemaBuilder } from '@elysian/database'
+import { encode, FOREVER } from '../src/payload.ts'
+import { RateLimiter } from '../src/rate-limiter.ts'
+import { Repository } from '../src/repository.ts'
+import { Lock, LockTimeoutError, type Store } from '../src/store.ts'
+import { ArrayStore } from '../src/stores/array.ts'
+import { DatabaseStore } from '../src/stores/database.ts'
+import { FileStore } from '../src/stores/file.ts'
+import { RedisStore } from '../src/stores/redis.ts'
+
+/**
+ * Every store is held to the same contract.
+ *
+ * A cache that behaves differently per driver is worse than no cache: code
+ * written against the array store in tests has to keep working against Redis in
+ * production. So the conformance block below runs unchanged for each driver, and
+ * only the driver-specific details get their own tests.
+ */
+
+type Candidate = {
+  name: string
+  make: () => Promise<{ store: Store; dispose: () => Promise<void> }>
+}
+
+const REDIS_URL = process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379'
+
+/** Is there a Redis to talk to? Skipped with a note when not. */
+const redisAvailable = await (async () => {
+  const store = new RedisStore({ url: REDIS_URL, prefix: 'probe:' })
+
+  try {
+    await store.put('ping', 1, 5)
+    await store.forget('ping')
+
+    return true
+  } catch {
+    console.log('  skipping redis store: no server at', REDIS_URL)
+
+    return false
+  } finally {
+    store.disconnect()
+  }
+})()
+
+const candidates: Candidate[] = [
+  {
+    name: 'array',
+    make: async () => ({ store: new ArrayStore('t:'), dispose: async () => undefined })
+  },
+  {
+    name: 'file',
+    make: async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'elysian-cache-'))
+
+      return {
+        store: new FileStore(directory, 't:'),
+        dispose: () => rm(directory, { recursive: true, force: true })
+      }
+    }
+  },
+  {
+    name: 'database',
+    make: async () => {
+      const app = new Application(process.cwd())
+      app.config.set('database.default', 'cache-test')
+      app.config.set('database.connections.cache-test', {
+        driver: 'sqlite',
+        database: ':memory:'
+      })
+
+      const db = new ConnectionManager(app)
+      const schema = await db.schema()
+
+      await schema.create('cache', (table) => {
+        table.string('key').primary()
+        table.text('value')
+        table.integer('expiration')
+      })
+      await schema.create('cache_locks', (table) => {
+        table.string('key').primary()
+        table.string('owner')
+        table.integer('expiration')
+      })
+
+      return {
+        store: new DatabaseStore(db, { prefix: 't:' }),
+        dispose: () => db.disconnectAll()
+      }
+    }
+  }
+]
+
+if (redisAvailable) {
+  candidates.push({
+    name: 'redis',
+    make: async () => {
+      // A prefix per run so two suites on one server never collide.
+      const store = new RedisStore({
+        url: REDIS_URL,
+        prefix: `t${Date.now().toString(36)}:`
+      })
+
+      return {
+        store,
+        dispose: async () => {
+          await store.flush()
+          store.disconnect()
+        }
+      }
+    }
+  })
+}
+
+test('the array, file and database stores are always tested', () => {
+  expect(candidates.map((candidate) => candidate.name)).toEqual(
+    expect.arrayContaining(['array', 'file', 'database'])
+  )
+})
+
+for (const candidate of candidates) {
+  describe(`store: ${candidate.name}`, () => {
+    let store: Store
+    let dispose: () => Promise<void>
+    let cache: Repository
+
+    beforeEach(async () => {
+      const made = await candidate.make()
+      store = made.store
+      dispose = made.dispose
+      cache = new Repository(store, { name: candidate.name })
+    })
+
+    afterEach(async () => {
+      await dispose()
+    })
+
+    test('a miss is null, and a hit returns what was written', async () => {
+      expect(await cache.get('absent')).toBeNull()
+
+      await cache.put('name', 'Ada', 60)
+      expect(await cache.get<string>('name')).toBe('Ada')
+    })
+
+    test('a fallback is returned on a miss, and may be a function', async () => {
+      expect(await cache.get<string>('absent', 'default')).toBe('default')
+      expect(await cache.get<string>('absent', () => 'computed')).toBe('computed')
+
+      // The fallback is not written: a miss with a default is still a miss.
+      expect(await cache.has('absent')).toBe(false)
+    })
+
+    test('objects and arrays round-trip', async () => {
+      await cache.put('user', { id: 1, tags: ['a', 'b'], nested: { ok: true } }, 60)
+
+      expect(await cache.get<Record<string, unknown>>('user')).toEqual({
+        id: 1,
+        tags: ['a', 'b'],
+        nested: { ok: true }
+      })
+    })
+
+    test('a past TTL forgets rather than writing something already dead', async () => {
+      await cache.put('name', 'Ada', 60)
+      await cache.put('name', 'Linus', -5)
+
+      expect(await cache.get('name')).toBeNull()
+    })
+
+    test('an expired entry reads as a miss', async () => {
+      // One second, then wait it out: the boundary is what the stores disagree on.
+      await cache.put('brief', 'gone', 1)
+      expect(await cache.get<string>('brief')).toBe('gone')
+
+      await Bun.sleep(1100)
+      expect(await cache.get('brief')).toBeNull()
+    })
+
+    test('forever survives a TTL sweep', async () => {
+      await cache.forever('permanent', 'here')
+
+      expect(await cache.get<string>('permanent')).toBe('here')
+    })
+
+    test('many reads several keys and reports the misses', async () => {
+      await cache.put('a', 1, 60)
+      await cache.put('c', 3, 60)
+
+      expect(await cache.many(['a', 'b', 'c'])).toEqual({ a: 1, b: null, c: 3 })
+    })
+
+    test('putMany writes them all', async () => {
+      await cache.putMany({ a: 1, b: 2 }, 60)
+
+      expect(await cache.many(['a', 'b'])).toEqual({ a: 1, b: 2 })
+    })
+
+    test('add writes only when the key is absent', async () => {
+      expect(await cache.add('once', 'first', 60)).toBe(true)
+      expect(await cache.add('once', 'second', 60)).toBe(false)
+      expect(await cache.get<string>('once')).toBe('first')
+    })
+
+    test('add takes over an expired key', async () => {
+      await cache.put('slot', 'old', 1)
+      await Bun.sleep(1100)
+
+      expect(await cache.add('slot', 'new', 60)).toBe(true)
+      expect(await cache.get<string>('slot')).toBe('new')
+    })
+
+    test('pull reads and forgets', async () => {
+      await cache.put('once', 'value', 60)
+
+      expect(await cache.pull<string>('once')).toBe('value')
+      expect(await cache.get('once')).toBeNull()
+    })
+
+    test('increment and decrement count', async () => {
+      expect(await cache.increment('hits')).toBe(1)
+      expect(await cache.increment('hits', 4)).toBe(5)
+      expect(await cache.decrement('hits', 2)).toBe(3)
+      expect(await cache.get<number>('hits')).toBe(3)
+    })
+
+    test('increment refuses a value that is not a number', async () => {
+      await cache.put('name', 'Ada', 60)
+
+      expect(await cache.increment('name')).toBe(false)
+    })
+
+    test('increment keeps the original expiry', async () => {
+      await cache.put('hits', 1, 1)
+      await cache.increment('hits')
+      await Bun.sleep(1100)
+
+      // Counting must not extend the window, or a rate limit never resets.
+      expect(await cache.get('hits')).toBeNull()
+    })
+
+    test('forget removes one key, flush removes them all', async () => {
+      await cache.putMany({ a: 1, b: 2 }, 60)
+
+      await cache.forget('a')
+      expect(await cache.get('a')).toBeNull()
+      expect(await cache.get<number>('b')).toBe(2)
+
+      await cache.flush()
+      expect(await cache.get('b')).toBeNull()
+    })
+
+    test('remember computes once and caches the result', async () => {
+      let calls = 0
+      const compute = () => {
+        calls += 1
+        return { computed: true }
+      }
+
+      expect(await cache.remember('report', 60, compute)).toEqual({ computed: true })
+      expect(await cache.remember('report', 60, compute)).toEqual({ computed: true })
+      expect(calls).toBe(1)
+    })
+
+    test('rememberForever caches with no expiry', async () => {
+      expect(await cache.rememberForever('forever', () => 7)).toBe(7)
+      expect(await cache.get<number>('forever')).toBe(7)
+    })
+
+    test('typed reads assert rather than coerce', async () => {
+      await cache.put('name', 'Ada', 60)
+      await cache.put('count', 42, 60)
+      await cache.put('flag', true, 60)
+      await cache.put('list', [1, 2], 60)
+
+      expect(await cache.string('name')).toBe('Ada')
+      expect(await cache.integer('count')).toBe(42)
+      expect(await cache.boolean('flag')).toBe(true)
+      expect(await cache.array('list')).toEqual([1, 2])
+
+      // A string where a number was promised is a bug, not something to coerce.
+      await expect(cache.integer('name')).rejects.toThrow(/not a number/)
+    })
+
+    test('a lock is held by one owner at a time', async () => {
+      const first = cache.lock('deploy', 10)
+      const second = cache.lock('deploy', 10)
+
+      expect(await first.acquire()).toBe(true)
+      expect(await second.acquire()).toBe(false)
+
+      expect(await first.release()).toBe(true)
+      expect(await second.acquire()).toBe(true)
+      await second.release()
+    })
+
+    test('only the owner may release a lock', async () => {
+      const held = cache.lock('deploy', 10)
+      await held.acquire()
+
+      // A different owner must not be able to release it.
+      const other = cache.lock('deploy', 10)
+      expect(await other.release()).toBe(false)
+      expect(await other.acquire()).toBe(false)
+
+      await held.release()
+    })
+
+    test('a lock with a callback releases afterwards, even on a throw', async () => {
+      const lock = cache.lock('job', 10)
+
+      await expect(
+        lock.get(async () => {
+          throw new Error('boom')
+        })
+      ).rejects.toThrow('boom')
+
+      // The finally in `get()` is what makes a failed job not wedge the lock.
+      expect(await cache.lock('job', 10).acquire()).toBe(true)
+    })
+
+    test('an expired lock can be taken over', async () => {
+      const brief = cache.lock('short', 1)
+      expect(await brief.acquire()).toBe(true)
+
+      await Bun.sleep(1100)
+
+      expect(await cache.lock('short', 10).acquire()).toBe(true)
+    })
+
+    test('block gives up with a timeout rather than waiting forever', async () => {
+      const held = cache.lock('busy', 10)
+      await held.acquire()
+
+      const waiting = cache.lock('busy', 10).betweenBlockedAttemptsSleepFor(20)
+
+      await expect(waiting.block(0.1)).rejects.toThrow(LockTimeoutError)
+
+      await held.release()
+    })
+
+    test('withoutOverlapping serialises two callers', async () => {
+      const order: string[] = []
+
+      const slow = cache.withoutOverlapping(
+        'section',
+        async () => {
+          order.push('first:start')
+          await Bun.sleep(60)
+          order.push('first:end')
+        },
+        { lockFor: 10, waitFor: 5 }
+      )
+
+      const quick = (async () => {
+        await Bun.sleep(10)
+
+        return cache.withoutOverlapping('section', () => order.push('second'), {
+          lockFor: 10,
+          waitFor: 5
+        })
+      })()
+
+      await Promise.all([slow, quick])
+
+      // The second caller must not interleave with the first.
+      expect(order).toEqual(['first:start', 'first:end', 'second'])
+    })
+
+    test('restoreLock releases a lock taken elsewhere', async () => {
+      const lock = cache.lock('handoff', 30)
+      await lock.acquire()
+
+      // The owner token is what makes a lock releasable from another process.
+      expect(await cache.restoreLock('handoff', lock.owner()).release()).toBe(true)
+      expect(await cache.lock('handoff', 30).acquire()).toBe(true)
+    })
+
+    test('tags scope a key, and flushing one leaves the others alone', async () => {
+      await cache.tags('people').put('ada', 1, 60)
+      await cache.tags('places').put('ada', 2, 60)
+
+      expect(await cache.tags('people').get<number>('ada')).toBe(1)
+      expect(await cache.tags('places').get<number>('ada')).toBe(2)
+      // The untagged key of the same name is a different entry again.
+      expect(await cache.get('ada')).toBeNull()
+
+      await cache.tags('people').flush()
+
+      expect(await cache.tags('people').get('ada')).toBeNull()
+      expect(await cache.tags('places').get<number>('ada')).toBe(2)
+    })
+
+    test('a key under two tags is reachable only through both', async () => {
+      await cache.tags('people', 'authors').put('ada', 'both', 60)
+
+      expect(await cache.tags('people', 'authors').get<string>('ada')).toBe('both')
+      expect(await cache.tags('people').get('ada')).toBeNull()
+    })
+
+    test('flushing either tag invalidates a key held under both', async () => {
+      await cache.tags('people', 'authors').put('ada', 'both', 60)
+      await cache.tags('authors').flush()
+
+      expect(await cache.tags('people', 'authors').get('ada')).toBeNull()
+    })
+
+    test('flexible serves a stale value and refreshes behind it', async () => {
+      let calls = 0
+      const compute = () => {
+        calls += 1
+        return `value-${calls}`
+      }
+
+      // Fresh for a second, alive for a minute.
+      expect(await cache.flexible('report', [1, 60], compute)).toBe('value-1')
+      expect(await cache.flexible('report', [1, 60], compute)).toBe('value-1')
+      expect(calls).toBe(1)
+
+      await Bun.sleep(1100)
+
+      // Stale: the old value comes back at once, and the refresh happens behind it.
+      expect(await cache.flexible('report', [1, 60], compute)).toBe('value-1')
+
+      await Bun.sleep(150)
+      expect(calls).toBe(2)
+      expect(await cache.get<string>('report')).toBe('value-2')
+    })
+
+    test('the rate limiter counts, denies and recovers', async () => {
+      const limiter = new RateLimiter(cache)
+
+      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe('ok')
+      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe('ok')
+      // Third attempt in the window is refused.
+      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe(false)
+
+      expect(await limiter.attempts('login')).toBe(2)
+      expect(await limiter.remaining('login', 2)).toBe(0)
+      expect(await limiter.availableIn('login')).toBeGreaterThan(0)
+
+      await Bun.sleep(1100)
+
+      // The window closed, so the counter starts again.
+      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe('ok')
+    })
+
+    test('clearing a limit forgets both the counter and its window', async () => {
+      const limiter = new RateLimiter(cache)
+
+      await limiter.hit('sms', 60)
+      await limiter.clear('sms')
+
+      expect(await limiter.attempts('sms')).toBe(0)
+      expect(await limiter.availableIn('sms')).toBe(0)
+    })
+
+    test('cache events report hits, misses and writes', async () => {
+      const seen: Array<{ event: string; key?: string }> = []
+
+      const watched = new Repository(store, {
+        name: candidate.name,
+        events: {
+          dispatch: (event: string, payload?: unknown) => {
+            seen.push({ event, key: (payload as { key?: string } | undefined)?.key })
+            return undefined
+          }
+        }
+      })
+
+      await watched.get('absent')
+      await watched.put('present', 1, 60)
+      await watched.get('present')
+      await watched.forget('present')
+
+      expect(seen.map((entry) => entry.event)).toEqual([
+        'cache.missed',
+        'cache.written',
+        'cache.hit',
+        'cache.forgotten'
+      ])
+    })
+  })
+}
+
+// ------------------------------------------------------------ driver specifics
+
+describe('FileStore layout', () => {
+  let directory: string
+
+  beforeEach(async () => {
+    directory = await mkdtemp(join(tmpdir(), 'elysian-cache-layout-'))
+  })
+
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  test('keys shard into two levels of directories', async () => {
+    const store = new FileStore(directory)
+    const hash = new Bun.CryptoHasher('sha1').update('config').digest('hex')
+
+    expect(store.path('config')).toBe(join(directory, hash.slice(0, 2), hash.slice(2, 4), hash))
+  })
+
+  test('the payload is a ten-digit expiry followed by the value', async () => {
+    const store = new FileStore(directory)
+    await store.put('answer', 42, 60)
+
+    const contents = await Bun.file(store.path('answer')).text()
+
+    expect(contents.slice(0, 10)).toMatch(/^\d{10}$/)
+    expect(contents.slice(10)).toBe(encode(42))
+    expect(Number(contents.slice(0, 10))).toBeLessThan(FOREVER)
+  })
+
+  test('forever writes the far-future sentinel', async () => {
+    const store = new FileStore(directory)
+    await store.forever('permanent', 1)
+
+    const contents = await Bun.file(store.path('permanent')).text()
+
+    expect(Number(contents.slice(0, 10))).toBe(FOREVER)
+  })
+
+  test('a corrupt payload reads as a miss instead of throwing', async () => {
+    const store = new FileStore(directory)
+    await store.put('broken', { a: 1 }, 60)
+
+    const path = store.path('broken')
+    const contents = await Bun.file(path).text()
+    await Bun.write(path, `${contents.slice(0, 10)}{not json`)
+
+    expect(await store.get('broken')).toBeNull()
+  })
+})
+
+describe('ArrayStore', () => {
+  test('flush drops the locks too', async () => {
+    const store = new ArrayStore()
+    const lock = store.lock('deploy', 60)
+
+    await lock.acquire()
+    await store.flush()
+
+    expect(await store.lock('deploy', 60).acquire()).toBe(true)
+  })
+})
+
+describe('DatabaseStore', () => {
+  let db: ConnectionManager
+  let store: DatabaseStore
+
+  beforeEach(async () => {
+    const app = new Application(process.cwd())
+    app.config.set('database.default', 'prune-test')
+    app.config.set('database.connections.prune-test', { driver: 'sqlite', database: ':memory:' })
+
+    db = new ConnectionManager(app)
+    const schema = await db.schema()
+
+    await schema.create('cache', (table) => {
+      table.string('key').primary()
+      table.text('value')
+      table.integer('expiration')
+    })
+    await schema.create('cache_locks', (table) => {
+      table.string('key').primary()
+      table.string('owner')
+      table.integer('expiration')
+    })
+
+    store = new DatabaseStore(db)
+  })
+
+  afterEach(async () => {
+    await db.disconnectAll()
+  })
+
+  test('prune deletes expired rows and leaves live ones', async () => {
+    await store.put('live', 1, 600)
+    await store.put('dead', 2, 1)
+
+    await Bun.sleep(1100)
+
+    expect(await store.prune()).toBe(1)
+    expect(await store.get<number>('live')).toBe(1)
+  })
+
+  test('the value column holds readable JSON', async () => {
+    await store.put('user', { id: 1 }, 60)
+
+    const row = await (await db.table('cache')).where('key', '=', 'user').first()
+
+    // Readable in a database client, which is half the point of this store.
+    expect(row?.value).toBe('{"id":1}')
+  })
+})
+
+describe('Repository TTL handling', () => {
+  test('a Date is converted to seconds from now', () => {
+    const inTwoMinutes = new Date(Date.now() + 120_000)
+
+    expect(Repository.secondsFrom(inTwoMinutes)).toBeGreaterThan(118)
+    expect(Repository.secondsFrom(inTwoMinutes)).toBeLessThanOrEqual(120)
+  })
+
+  test('null means forever', () => {
+    expect(Repository.secondsFrom(null)).toBe(0)
+  })
+
+  test('a Date honours an absolute expiry', async () => {
+    const cache = new Repository(new ArrayStore())
+
+    await cache.put('soon', 'value', new Date(Date.now() + 1000))
+    expect(await cache.get<string>('soon')).toBe('value')
+
+    await Bun.sleep(1100)
+    expect(await cache.get('soon')).toBeNull()
+  })
+
+  test('a store with no locks says so instead of pretending', () => {
+    const lockless: Store = {
+      prefix: '',
+      get: async () => null,
+      many: async () => ({}),
+      put: async () => true,
+      putMany: async () => true,
+      add: async () => true,
+      increment: async () => 1,
+      decrement: async () => 1,
+      forever: async () => true,
+      forget: async () => true,
+      flush: async () => true
+    }
+
+    expect(() => new Repository(lockless).lock('x')).toThrow(/does not support atomic locks/)
+  })
+})
+
+describe('Lock owners', () => {
+  test('each lock gets its own random owner', () => {
+    const store = new ArrayStore()
+
+    expect(store.lock('a').owner()).not.toBe(store.lock('a').owner())
+  })
+
+  test('a driver that cannot refresh says so', async () => {
+    class Bare extends Lock {
+      async acquire() {
+        return true
+      }
+      async release() {
+        return true
+      }
+      protected async currentOwner() {
+        return null
+      }
+    }
+
+    expect(() => new Bare('x', 10).refresh()).toThrow(/does not support refreshing/)
+  })
+})
