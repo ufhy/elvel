@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@elysian/auth": "workspace:*",
     "@elysian/console": "workspace:*",
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
@@ -20,6 +21,7 @@
     "@elysian/validation": "workspace:*",
     "@elysian/view": "workspace:*",
     "@kitajs/html": "^4.2.13",
+    "better-auth": "1.6.27",
     "elysia": "^1.4.29"
   },
   "devDependencies": {

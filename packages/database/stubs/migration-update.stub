@@ -1,0 +1,21 @@
+import { Migration, type MigrationContext } from '@elysian/database'
+
+/**
+ * {{ studly }}
+ *
+ * `down()` is not optional: a migration you cannot reverse is a one-way door —
+ * reverse every change `up()` makes, in the opposite order.
+ */
+export default class extends Migration {
+  async up({ schema }: MigrationContext): Promise<void> {
+    await schema.table('{{ table }}', (table) => {
+      // table.string('column').nullable()
+    })
+  }
+
+  async down({ schema }: MigrationContext): Promise<void> {
+    await schema.table('{{ table }}', (table) => {
+      // table.dropColumn('column')
+    })
+  }
+}

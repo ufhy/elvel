@@ -1,0 +1,30 @@
+import { Policy } from '@elysian/auth'
+import type { AuthUser } from '@elysian/auth'
+
+/**
+ * Abilities for {{ studly }}. The method name *is* the ability name:
+ * `authorize('update', model)` calls `update()`.
+ *
+ * A guest reaches nothing here unless the ability is listed in `allowGuests`.
+ */
+export class {{ class }} extends Policy {
+  viewAny(_user: AuthUser): boolean {
+    return true
+  }
+
+  view(_user: AuthUser, _{{ camel }}: unknown): boolean {
+    return true
+  }
+
+  create(_user: AuthUser): boolean {
+    return true
+  }
+
+  update(_user: AuthUser, _{{ camel }}: unknown): boolean {
+    return false
+  }
+
+  delete(_user: AuthUser, _{{ camel }}: unknown): boolean {
+    return false
+  }
+}

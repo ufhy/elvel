@@ -543,6 +543,200 @@ check('and is gone on the next one', gone.status === null)
 const forged = await postJson('/session/visit', { _token: tokenBody.token })
 check('a token without the matching session cookie is rejected', forged.status === 419)
 
+// --------------------------------------------------------------------- auth
+
+section('Auth: better-auth on our adapter, and the Gate')
+
+/** Sign in and return the better-auth cookie, ignoring any other. */
+async function signIn(email: string, password = 'secret123'): Promise<string> {
+  const response = await postJson('/api/auth/sign-in/email', { email, password })
+  const cookies = response.headers.getSetCookie?.() ?? [response.headers.get('set-cookie') ?? '']
+  const found = cookies.find((value) => value.startsWith('better-auth.session_token')) ?? ''
+
+  return found.split(';')[0] ?? ''
+}
+
+const signedUp = await postJson('/api/auth/sign-up/email', {
+  name: 'Ada Lovelace',
+  email: 'ada@example.com',
+  password: 'secret123'
+})
+check('better-auth signs a user up through our adapter', signedUp.status === 200)
+
+const users = await app.make('db').table('user')
+check('the user landed in our own table', (await users.count()) === 1)
+check(
+  'the password is hashed on the account, not on the user',
+  (await (await app.make('db').table('account')).count()) === 1
+)
+
+// A second sign-up must lose to the unique index the generated migration wrote.
+const duplicateUser = await captureOutput(() =>
+  postJson('/api/auth/sign-up/email', {
+    name: 'Ada again',
+    email: 'ada@example.com',
+    password: 'secret123'
+  })
+)
+check('a duplicate e-mail is refused', duplicateUser !== undefined && (await users.count()) === 1)
+
+const adaCookie = await signIn('ada@example.com')
+check('signing in issues a session cookie', adaCookie.startsWith('better-auth.session_token='))
+check('the session row is ours too', (await (await app.make('db').table('session')).count()) >= 1)
+
+const guestWho = (await (
+  await app.handle(new Request('http://localhost/check/whoami'))
+).json()) as { guest: boolean }
+check('a request with no cookie is a guest', guestWho.guest === true)
+
+let unauthenticated = 0
+await captureOutput(async () => {
+  unauthenticated = (await app.handle(new Request('http://localhost/check/me'))).status
+})
+check('a route that requires a user answers 401', unauthenticated === 401)
+
+const me = (await (
+  await app.handle(new Request('http://localhost/check/me', { headers: { cookie: adaCookie } }))
+).json()) as { email?: string; verified?: boolean }
+check('the signed-in user reaches the handler', me.email === 'ada@example.com')
+check('and arrives unverified', me.verified === false)
+
+// Two requests at once: the scope is per request, not per process.
+const [scopedAda, scopedGuest] = await Promise.all([
+  app
+    .handle(new Request('http://localhost/check/whoami', { headers: { cookie: adaCookie } }))
+    .then((response) => response.json() as Promise<{ email: string | null }>),
+  app
+    .handle(new Request('http://localhost/check/whoami'))
+    .then((response) => response.json() as Promise<{ email: string | null }>)
+])
+check(
+  'concurrent requests do not share the user',
+  scopedAda.email === 'ada@example.com' && scopedGuest.email === null
+)
+
+const abilities = (await (
+  await app.handle(
+    new Request('http://localhost/check/abilities', { headers: { cookie: adaCookie } })
+  )
+).json()) as { statusPage: boolean; admin: boolean }
+check('an ability may allow guests', abilities.statusPage === true)
+check('an ability the user does not have denies', abilities.admin === false)
+
+const unverified = await captureOutput(() => Promise.resolve())
+void unverified
+
+let refused!: Response
+await captureOutput(async () => {
+  refused = await postJson(
+    '/check/guarded/articles',
+    { title: 'Ada article', slug: 'ada-article', body: 'Body long enough.' },
+    { cookie: adaCookie }
+  )
+})
+const refusedBody = (await refused.json()) as { message?: string }
+check('a policy denial is a 403', refused.status === 403)
+check(
+  "and carries the policy's own message",
+  refusedBody.message === 'Verify your e-mail before publishing.'
+)
+
+// better-auth's tables are ordinary tables on our connection, which is what lets
+// an administrative task like this one use the query builder.
+await (await app.make('db').table('user'))
+  .where('email', '=', 'ada@example.com')
+  .update({ emailVerified: 1 })
+
+const authored = await postJson(
+  '/check/guarded/articles',
+  { title: 'Ada article', slug: 'ada-article', body: 'Body long enough.' },
+  { cookie: adaCookie }
+)
+const authoredBody = (await authored.json()) as { id?: number; author_id?: string }
+check('the same request passes once the policy is satisfied', authored.status === 201)
+check(
+  'the handler read the author from the request scope',
+  typeof authoredBody.author_id === 'string'
+)
+
+const ownUpdate = await app.handle(
+  new Request(`http://localhost/check/guarded/articles/${authoredBody.id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', cookie: adaCookie },
+    body: JSON.stringify({ title: 'Ada article, edited' })
+  })
+)
+check('the owner may update', ownUpdate.status === 200)
+
+let foreignUpdate!: Response
+await captureOutput(async () => {
+  foreignUpdate = await app.handle(
+    new Request('http://localhost/check/guarded/articles/1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: adaCookie },
+      body: JSON.stringify({ title: 'Hostile takeover' })
+    })
+  )
+})
+check('someone else’s article is refused', foreignUpdate.status === 403)
+
+let hidden!: Response
+await captureOutput(async () => {
+  hidden = await app.handle(
+    new Request('http://localhost/check/guarded/articles/2', {
+      method: 'DELETE',
+      headers: { cookie: adaCookie }
+    })
+  )
+})
+check('a policy may deny as a 404 instead of admitting the row exists', hidden.status === 404)
+
+await postJson('/api/auth/sign-up/email', {
+  name: 'Admin',
+  email: 'admin@example.com',
+  password: 'secret123'
+})
+const adminCookie = await signIn('admin@example.com')
+
+const adminUpdate = await app.handle(
+  new Request('http://localhost/check/guarded/articles/1', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', cookie: adminCookie },
+    body: JSON.stringify({ title: 'Admin edited' })
+  })
+)
+check('the policy before() hook overrides ownership', adminUpdate.status === 200)
+
+const adminAbilities = (await (
+  await app.handle(
+    new Request('http://localhost/check/abilities', { headers: { cookie: adminCookie } })
+  )
+).json()) as { admin: boolean }
+check('an ability the user does have allows', adminAbilities.admin === true)
+
+// better-auth refuses a cookie-bearing write with no `Origin` — its own CSRF
+// defence, and the reason these endpoints are exempt from the session package's.
+// A browser always sends one; a smoke test has to say so explicitly.
+const origin = app.config.get<string>('app.url', 'http://localhost:3000')
+
+const forgedSignOut = await postJson('/api/auth/sign-out', {}, { cookie: adaCookie })
+check('better-auth refuses a write with no Origin', forgedSignOut.status === 403)
+
+const untrustedSignOut = await postJson(
+  '/api/auth/sign-out',
+  {},
+  { cookie: adaCookie, origin: 'http://evil.example.com' }
+)
+check('and refuses an untrusted one', untrustedSignOut.status === 403)
+
+const signedOut = await postJson('/api/auth/sign-out', {}, { cookie: adaCookie, origin })
+check('signing out from a trusted origin is handled', signedOut.status === 200)
+
+const afterSignOut = (await (
+  await app.handle(new Request('http://localhost/check/whoami', { headers: { cookie: adaCookie } }))
+).json()) as { guest: boolean }
+check('the session is gone once signed out', afterSignOut.guest === true)
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')

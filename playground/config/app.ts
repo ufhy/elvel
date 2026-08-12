@@ -1,3 +1,4 @@
+import { AuthServiceProvider } from '@elysian/auth'
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
@@ -36,6 +37,9 @@ export default {
     DatabaseServiceProvider,
     ValidationServiceProvider,
     HttpServiceProvider,
+    // Before the view provider: its static handler claims `GET /*`, which would
+    // otherwise shadow the auth endpoints.
+    AuthServiceProvider,
     ViewServiceProvider
   ]
 }

@@ -30,7 +30,7 @@ export class MakeMigrationCommand extends Command {
       return 1
     }
 
-    const contents = Str.replacePlaceholders(await this.stub(), {
+    const contents = Str.replacePlaceholders(await this.stub(name), {
       studly: Str.headline(name),
       table: this.targetTable(name),
       name
@@ -72,10 +72,17 @@ export class MakeMigrationCommand extends Command {
     return match?.[1] ?? 'table_name'
   }
 
-  private async stub(): Promise<string> {
-    const published = Bun.file(this.app.basePath('stubs', 'migration.stub'))
+  /**
+   * `create_users_table` gets the create stub; anything else is an alteration
+   * and gets one built around `schema.table()`, as Laravel picks between its
+   * `migration.create` and `migration.update` stubs.
+   */
+  private async stub(name: string): Promise<string> {
+    const file = /^create_.+_table$/.test(name) ? 'migration.stub' : 'migration-update.stub'
+
+    const published = Bun.file(this.app.basePath('stubs', file))
     if (await published.exists()) return published.text()
 
-    return Bun.file(join(import.meta.dir, '..', '..', 'stubs', 'migration.stub')).text()
+    return Bun.file(join(import.meta.dir, '..', '..', 'stubs', file)).text()
   }
 }

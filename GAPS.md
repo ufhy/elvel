@@ -120,10 +120,50 @@ Deliberately absent, with reasons:
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
 | Rate limiting, trusted proxies, CORS | Separate middleware, none of it started. |
 
+## @elysian/auth
+
+better-auth 1.6.27 owns credentials, sessions, providers and the endpoints that
+go with them. This package supplies the adapter that puts its tables on our
+connection, the request scope that makes the current user reachable, and the Gate
+and policies on top.
+
+| Missing | Why |
+| --- | --- |
+| **Guest-allowed abilities are opt-in** | Laravel decides from the reflected type of the `$user` parameter whether an ability may run for a guest. TypeScript erases types, so `Gate.define(..., { allowGuests: true })` and a policy's static `allowGuests` say it explicitly. This is a deviation, not an omission. |
+| **Policy auto-discovery** | Laravel guesses `App\Policies\XPolicy` and falls back to a `#[UsePolicy]` attribute. Guessing here means scanning the filesystem, and there are no runtime attributes; `gate.policy(Article, ArticlePolicy)` is one line per model. A registered base class does cover its subclasses. |
+| **Native SQL joins in the adapter** | better-auth passes a `join` to an adapter only when `experimental.joins` is on, and otherwise emulates it with extra queries. Implementing one would be a second code path to keep correct for no gain today. |
+| `many-to-many` joins | Same reason: unreachable until joins are opted into. |
+| Auth-table column naming | The tables keep better-auth's own camelCase (`emailVerified`, `userId`) rather than our snake_case. Every plugin declares its `fieldName`s that way, so renaming globally breaks the first plugin added. Application tables are unaffected. |
+| Guards and `auth:api` style multi-guard config | There is one session-backed guard, because better-auth models sessions itself. A token guard belongs with its own plugin (`bearer`, `jwt`). |
+| `Gate::inspect` on a *response* rendering as HTML | The 403/404 is rendered as JSON by the core exception handler; an HTML error page belongs with the redirect-back work already noted under http. |
+| `can` middleware / route-level ability macro | `authorize()` inside a handler covers it and types cleanly across standalone controllers, which is the same reason `sessionOf(context)` exists. |
+| Email verification and password-reset mail | better-auth raises the hooks; sending needs the mail package. |
+| `auth:schema` diffing an existing schema | It writes a fresh migration. better-auth's own CLI can diff, but that needs schema introspection wired into the generator — worth doing when the first plugin is added mid-project. |
+
+Two things to know when using it:
+
+- The auth endpoints are registered per HTTP verb rather than through `all()`,
+  and the provider must boot *before* the view provider: Elysia treats an `ALL`
+  route as a fallback, so the static asset handler's `GET /*` would answer the
+  auth endpoints first.
+- The request scope is entered from a **synchronous** `onBeforeHandle`.
+  `AsyncLocalStorage.enterWith` applies to the rest of the current execution, and
+  an `await` restores the frame its continuation was scheduled with — so entering
+  the scope inside an async `derive` is lost by the time the handler runs. There
+  is a test for this arrangement, because it depends on Elysia not emitting an
+  `await` for a synchronous hook.
+
 ## Not started
 
-`auth` (better-auth via `createAdapterFactory`), `cache`, `queue`, `scheduler`, `mail`,
-`storage`, `notifications`.
+`cache`, `queue`, `scheduler`, `mail`, `storage`, `notifications`.
+
+## Watch list
+
+- `node_modules/.bun` holds **two copies of elysia 1.4.29** under different peer
+  hashes. Nothing misbehaves today, but dual module identity is exactly what the
+  `file:`-dependency episode was about, and Elysia deduplicates plugins by name
+  within one module instance. Worth collapsing if plugin registration ever gets
+  strange.
 
 ## Test coverage gaps
 
@@ -138,3 +178,6 @@ uncovered, and why:
 - `create-elysian` — covered end to end by the smoke test rather than by units
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
+- better-auth **plugin** schemas against real servers — the adapter itself is
+  covered on SQLite, Postgres 17 and MySQL 9 by `packages/auth/test/dialects.test.ts`,
+  but only for the four core tables

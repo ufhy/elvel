@@ -11,7 +11,16 @@ export class Article extends Model {
   static override table = 'articles'
 
   /** Columns mass assignment accepts. Everything else is refused. */
-  static override fillable = ['title', 'slug', 'body', 'status', 'featured', 'meta', 'published_at']
+  static override fillable = [
+    'title',
+    'slug',
+    'body',
+    'status',
+    'featured',
+    'meta',
+    'published_at',
+    'author_id'
+  ]
 
   /** SQLite has no boolean and JSON arrives as text; casts hide both. */
   static override casts = { featured: 'boolean', meta: 'json' } as never
@@ -27,6 +36,8 @@ export class Article extends Model {
   declare status: string
   declare featured: boolean
   declare meta: Record<string, unknown> | null
+  /** better-auth's user ids are strings, so this column is one too. */
+  declare author_id: string | null
 
   comments() {
     return this.hasMany(Comment)
