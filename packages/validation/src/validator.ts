@@ -20,6 +20,7 @@ import {
   type Rules,
   type ValidatorOptions
 } from './types.ts'
+import { expandWildcard, explicitKeys } from './wildcards.ts'
 
 export class ValidationError extends Error {
   /** Read by the framework's exception handler, as HttpException's is. */
@@ -56,6 +57,16 @@ export class Validator {
   private readonly excluded = new Set<string>()
   readonly errors = new ErrorBag()
 
+  /**
+   * Which wildcard rule each expanded attribute came from —
+   * Laravel's `implicitAttributes`.
+   *
+   * Kept because the pattern is what the *developer* wrote: a message or a label
+   * configured for `items.*.price` has to be found from `items.0.price`, and
+   * `distinct` has to know which attributes are its siblings.
+   */
+  private readonly patterns = new Map<string, string>()
+
   private ran = false
 
   constructor(
@@ -64,8 +75,25 @@ export class Validator {
     private readonly options: ValidatorOptions = {}
   ) {
     for (const [attribute, declaration] of Object.entries(rules)) {
-      this.rules[attribute] = Validator.parse(declaration)
+      const parsed = Validator.parse(declaration)
+
+      if (!attribute.includes('*')) {
+        this.rules[attribute] = parsed
+        continue
+      }
+
+      // One rule per element, in place of the pattern. An `items.*.price` with no
+      // matching data contributes nothing — the rule on `items` reports that.
+      for (const expanded of expandWildcard(this.data, attribute)) {
+        this.patterns.set(expanded, attribute)
+        this.rules[expanded] = [...(this.rules[expanded] ?? []), ...parsed]
+      }
     }
+  }
+
+  /** The rule key an attribute came from: the pattern, or the attribute itself. */
+  private patternFor(attribute: string): string {
+    return this.patterns.get(attribute) ?? attribute
   }
 
   /** `'required|min:3'`, an array, or a rule object. */
@@ -201,6 +229,9 @@ export class Validator {
       data: this.data,
       rule: rule.rule,
       siblings,
+      // `distinct` needs it: its question is about the other elements, and only
+      // the pattern knows which attributes those are.
+      pattern: this.patternFor(attribute),
       verifier: this.options.verifier
     }
 
@@ -295,23 +326,49 @@ export class Validator {
     )
   }
 
-  /** `attribute.rule` beats `rule`, matching Laravel's message lookup order. */
+  /**
+   * `attribute.rule` beats `rule`, matching Laravel's message lookup order.
+   *
+   * An expanded attribute also answers to its pattern, so a message written for
+   * `items.*.price` is found from `items.0.price` — the concrete key is ours, not
+   * something the developer ever wrote down.
+   *
+   * The split is from the right: a key is `<attribute>.<rule>`, and an attribute
+   * may itself contain dots.
+   */
   private customMessagesFor(attribute: string): Record<string, string> {
     const messages = this.options.messages ?? {}
     const scoped: Record<string, string> = {}
+    const pattern = this.patternFor(attribute)
 
     for (const [key, message] of Object.entries(messages)) {
-      const [target, rule] = key.split('.')
+      const separator = key.lastIndexOf('.')
 
-      if (rule === undefined) scoped[target as string] = message
-      else if (target === attribute) scoped[rule] = message
+      if (separator === -1) {
+        scoped[key] = message
+        continue
+      }
+
+      const target = key.slice(0, separator)
+      const rule = key.slice(separator + 1)
+
+      if (target === attribute || target === pattern) scoped[rule] = message
     }
 
     return scoped
   }
 
   private replacements(attribute: string, rule: ParsedRule): Record<string, string> {
-    const label = this.options.attributes?.[attribute] ?? humanizeAttribute(attribute)
+    const pattern = this.patternFor(attribute)
+    const label =
+      this.options.attributes?.[attribute] ??
+      this.options.attributes?.[pattern] ??
+      humanizeAttribute(attribute)
+
+    // `:index` is the first `*` as it stands in the data; `:position` counts from
+    // one, because "the 1st line" is what a person reading the error is looking at.
+    const [index] = explicitKeys(pattern, attribute)
+    const numericIndex = Number(index)
     const [first, second] = rule.params
 
     const otherField = DEPENDENT_RULES.has(rule.name) ? first : undefined
@@ -330,6 +387,8 @@ export class Validator {
       values: rule.params
         .map((param) => (DEPENDENT_RULES.has(rule.name) ? humanizeAttribute(param) : param))
         .join(', '),
+      index: index ?? '',
+      position: Number.isNaN(numericIndex) ? (index ?? '') : String(numericIndex + 1),
       min: String(first ?? ''),
       max: String(second ?? ''),
       size: String(first ?? ''),

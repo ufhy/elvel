@@ -16,6 +16,10 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   alpha_dash: 'The :attribute field must only contain letters, numbers, dashes, and underscores.',
   alpha_num: 'The :attribute field must only contain letters and numbers.',
   array: 'The :attribute field must be an array.',
+  list: 'The :attribute field must be a list.',
+  required_array_keys: 'The :attribute field must contain entries for: :values.',
+  contains: 'The :attribute field is missing a required value.',
+  distinct: 'The :attribute field has a duplicate value.',
   between: {
     numeric: 'The :attribute field must be between :min and :max.',
     string: 'The :attribute field must be between :min and :max characters.',

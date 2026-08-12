@@ -34,7 +34,16 @@ export const Arr = {
 
   get,
 
-  /** Write a nested value using dot notation, creating objects as needed. */
+  /**
+   * Write a nested value using dot notation, creating what is missing.
+   *
+   * A **numeric** segment creates an array, not an object. PHP cannot tell the
+   * two apart, so Laravel's `data_set` never had to decide; here it matters —
+   * rebuilding `items.0.price` into `{ items: { '0': … } }` produces something
+   * that serialises as an object, and a validated payload that reaches a database
+   * write or a JSON response in that shape is wrong in a way nothing catches
+   * until it is in front of a user.
+   */
   set(target: Dict, key: string, value: unknown): Dict {
     const segments = key.split('.')
     let current: Dict = target
@@ -42,7 +51,11 @@ export const Arr = {
     for (let index = 0; index < segments.length - 1; index += 1) {
       const segment = segments[index] as string
       const next = current[segment]
-      if (next === null || typeof next !== 'object') current[segment] = {}
+
+      if (next === null || typeof next !== 'object') {
+        current[segment] = /^\d+$/.test(segments[index + 1] as string) ? [] : {}
+      }
+
       current = current[segment] as Dict
     }
 

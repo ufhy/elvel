@@ -3,6 +3,7 @@ import { sessionOf, validateRequest } from '@elysian/http'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 import { StoreArticleRequest } from '../Requests/StoreArticleRequest.ts'
+import { StoreOrderRequest } from '../Requests/StoreOrderRequest.ts'
 import { ArticleResource } from '../Resources/ArticleResource.ts'
 
 /**
@@ -29,6 +30,19 @@ export default controller('article')
         lastPage: page.lastPage
       })
       .toObjectWithWrapper()
+  })
+
+  /**
+   * A payload with a variable number of lines, checked by wildcard rules.
+   *
+   * `parse: 'none'`-free and deliberately untyped by TypeBox: phase two is what
+   * is being exercised here, and the errors come back keyed by the concrete path
+   * (`lines.1.quantity`) so a form can put each message beside its own field.
+   */
+  .post('/check/orders', async (context) => {
+    const data = await validateRequest(StoreOrderRequest, { body: context.body })
+
+    return { validated: data }
   })
 
   /** Eager loading: one extra query for every article's comments, not N. */

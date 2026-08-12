@@ -130,13 +130,27 @@ and names the provider — running it in the request would look like it worked.
 | Missing | Why |
 | --- | --- |
 | Rules that need an HTTP request | `FormRequest` lives in `@elysian/http`, where the request and session are. The validator itself works with no HTTP at all, which is why it stays in this package. |
-| Array/wildcard rules (`items.*.price`) | Needs the attribute expander that turns one rule into one per index; the dot-notation reader is already there. |
-| `distinct`, `array_keys`, `contains` | Depend on the wildcard expansion above. |
+| A wildcard in the *middle* of a `required_if` field reference | Rule keys expand (`items.*.price` runs once per element, nested wildcards included), but a rule that names *another* field — `required_if:items.*.kind,gift` — does not resolve the sibling relative to the element it is running for. Laravel resolves it against the same index; here the field is read as written. |
+| `Rule::forEach` | `distinct`, `array:a,b`, `list`, `required_array_keys` and `contains` are implemented on top of the expansion. What is missing is deciding the *rules* per element at runtime, which needs closure rules first. |
 | File rules (`file`, `image`, `mimes`, `dimensions`) | Belong with request handling, where an upload actually exists. |
 | `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
 | `date_format`, timezone-aware comparisons | `Date.parse` covers ISO dates; a format parser is its own small project. |
 | `Rule::when`, closure rules, custom rule classes | `after()` covers the same ground for now. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |
+
+Three things to know about wildcard rules:
+
+- **Expansion walks the pattern, it does not filter the data.** `items.*.price`
+  against `items: [{ price: 1 }, {}]` produces `items.1.price` even though nothing
+  is there — an attribute that does not exist cannot fail `required`, and "you
+  forgot the price on the second line" is the whole point.
+- **A missing or wrong-typed collection reports itself, once.** With `items`
+  absent, `items.*.price` contributes nothing and the rule on `items` is what
+  fails. Inventing `items.0.price` would report one problem twice, in a place the
+  sender never wrote.
+- **`distinct`'s scope is the pattern.** `orders.*.lines.*` compares every line of
+  every order against every other, because that is what the pattern names; scoping
+  it per order means writing the rule per order.
 
 ## @elysian/http
 

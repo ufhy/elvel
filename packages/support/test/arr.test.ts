@@ -108,3 +108,33 @@ describe('Arr mutation helpers', () => {
     expect(source).toEqual([3, 1, 2])
   })
 })
+
+describe('Arr.set with numeric segments', () => {
+  test('a numeric key creates an array', () => {
+    // PHP cannot tell an array from a map, so Laravel never had to choose. Here
+    // the choice is visible the moment the result is serialised.
+    expect(Arr.set({}, 'items.0.price', 10)).toEqual({ items: [{ price: 10 }] })
+    expect(Array.isArray(Arr.set({}, 'items.0.price', 10).items)).toBe(true)
+  })
+
+  test('a non-numeric key still creates an object', () => {
+    expect(Arr.set({}, 'user.name', 'Ada')).toEqual({ user: { name: 'Ada' } })
+  })
+
+  test('a sparse write leaves holes rather than renumbering', () => {
+    const result = Arr.set({}, 'items.2.price', 3) as { items: unknown[] }
+
+    // The index the caller asked for is the index it lands on: shifting it to 0
+    // would silently rename `items.2` to `items.0`.
+    expect(result.items).toHaveLength(3)
+    expect(result.items[2]).toEqual({ price: 3 })
+  })
+
+  test('an existing container is not replaced', () => {
+    const target: { items: Array<Record<string, number>> } = { items: [{ price: 1 }] }
+
+    Arr.set(target, 'items.0.tax', 2)
+
+    expect(target.items[0]).toEqual({ price: 1, tax: 2 })
+  })
+})

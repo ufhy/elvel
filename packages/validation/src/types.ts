@@ -17,6 +17,11 @@ export type RuleContext = {
   rule?: DatabaseRule
   /** Every rule declared for this attribute, so a rule can inspect its siblings. */
   siblings: ParsedRule[]
+  /**
+   * The rule key this attribute came from — `items.*.price` for `items.0.price`,
+   * and the attribute itself when no wildcard was involved.
+   */
+  pattern: string
   verifier?: PresenceVerifier
 }
 

@@ -1,6 +1,7 @@
 import { Arr } from '@elysian/support'
 import type { Data, RuleContext, RuleHandler } from './types.ts'
 import { ExistsRule, UniqueRule } from './types.ts'
+import { valuesUnder } from './wildcards.ts'
 
 /**
  * Rules that run even when the attribute is absent.
@@ -92,6 +93,11 @@ export const SIZE_RULES = new Set(['size', 'between', 'min', 'max', 'gt', 'lt', 
 
 /** Rules the engine handles itself rather than dispatching. */
 export const NON_VALIDATING_RULES = new Set(['nullable', 'sometimes', 'bail', 'exclude'])
+
+/** An array, or a plain object: both arrive as "an array" over JSON or a form. */
+function isArrayLike(value: unknown): boolean {
+  return Array.isArray(value) || (value !== null && typeof value === 'object')
+}
 
 // ------------------------------------------------------------------- helpers
 
@@ -272,7 +278,65 @@ export const RULES: Record<string, RuleHandler> = {
 
   boolean: ({ value }) => TRUTHY.has(value as never) || FALSY.has(value as never),
 
-  array: ({ value }) => Array.isArray(value),
+  /**
+   * An array — and, when keys are named, *only* those keys.
+   *
+   * `array:name,email` is the guard against mass assignment through a nested
+   * object: an extra key is a failure rather than something quietly carried into
+   * `validated()`. A plain object counts, because JSON has no separate shape for
+   * "associative array" and a form posts one either way.
+   */
+  array: ({ value, params }) => {
+    if (!isArrayLike(value)) return false
+    if (params.length === 0) return true
+
+    return Object.keys(value as object).every((key) => params.includes(key))
+  },
+
+  /** An array with sequential numeric keys — a list, not a map. */
+  list: ({ value }) => Array.isArray(value),
+
+  /** Every named key is present. Says nothing about what else is there. */
+  required_array_keys: ({ value, params }) => {
+    if (!isArrayLike(value)) return false
+
+    const keys = Object.keys(value as object)
+
+    return params.every((param) => keys.includes(param))
+  },
+
+  /** The array contains every one of these values. Laravel's `contains`. */
+  contains: ({ value, params }) => {
+    if (!Array.isArray(value)) return false
+
+    const present = value.map((entry) => String(entry))
+
+    return params.every((param) => present.includes(param))
+  },
+
+  /**
+   * No two values under the same wildcard repeat.
+   *
+   * The comparison is loose by default, as Laravel's is: `1` and `'1'` collide,
+   * because a form sends numbers as text and "two of the same id" is what the
+   * caller means. `strict` compares by type as well, `ignore_case` folds case.
+   */
+  distinct: ({ value, params, data, pattern, attribute }) => {
+    const strict = params.includes('strict')
+    const ignoreCase = params.includes('ignore_case')
+
+    const siblings = Object.entries(valuesUnder(data, pattern))
+      .filter(([key]) => key !== attribute)
+      .map(([, entry]) => entry)
+
+    return !siblings.some((other) => {
+      if (ignoreCase) {
+        return String(other).toLowerCase() === String(value).toLowerCase()
+      }
+
+      return strict ? other === value : String(other) === String(value)
+    })
+  },
 
   json: ({ value }) => {
     if (typeof value !== 'string') return false

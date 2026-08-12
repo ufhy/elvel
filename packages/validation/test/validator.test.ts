@@ -452,3 +452,194 @@ describe('idempotence', () => {
     expect(validator.errors.get('name')).toHaveLength(1)
   })
 })
+
+describe('wildcards', () => {
+  test('a rule per element, named by its own path', async () => {
+    const messages = await errors(
+      { items: [{ price: 10 }, { price: -1 }, { price: 'free' }] },
+      { 'items.*.price': 'required|numeric|min:0' }
+    )
+
+    expect(Object.keys(messages)).toEqual(['items.1.price', 'items.2.price'])
+    expect(messages['items.1.price']?.[0]).toContain('at least 0')
+  })
+
+  test('an element that left the field out still fails required', async () => {
+    // The reason expansion walks the pattern instead of filtering the data: an
+    // attribute that does not exist cannot fail, and "you forgot the price on the
+    // second line" is exactly what has to be reported.
+    const messages = await errors({ items: [{ price: 1 }, {}] }, { 'items.*.price': 'required' })
+
+    expect(Object.keys(messages)).toEqual(['items.1.price'])
+  })
+
+  test('a missing collection reports itself, not its elements', async () => {
+    const messages = await errors({}, { items: 'required|array', 'items.*.price': 'required' })
+
+    // One error, on `items`. Reporting `items.0.price` as well would invent an
+    // element nobody sent.
+    expect(Object.keys(messages)).toEqual(['items'])
+  })
+
+  test('a collection of the wrong type reports itself once', async () => {
+    const messages = await errors(
+      { items: 'not a list' },
+      { items: 'array', 'items.*.price': 'required' }
+    )
+
+    expect(Object.keys(messages)).toEqual(['items'])
+  })
+
+  test('object keys work as well as array indices', async () => {
+    const messages = await errors(
+      { rates: { usd: 1.1, gbp: 'no' } },
+      { 'rates.*': 'required|numeric' }
+    )
+
+    expect(Object.keys(messages)).toEqual(['rates.gbp'])
+  })
+
+  test('wildcards nest', async () => {
+    const messages = await errors(
+      { orders: [{ lines: [{ qty: 1 }, { qty: 0 }] }, { lines: [{ qty: 'x' }] }] },
+      { 'orders.*.lines.*.qty': 'required|numeric|min:1' }
+    )
+
+    expect(Object.keys(messages)).toEqual(['orders.0.lines.1.qty', 'orders.1.lines.0.qty'])
+  })
+
+  test('a trailing wildcard covers the elements themselves', async () => {
+    const messages = await errors({ tags: ['ok', ''] }, { 'tags.*': 'required|string' })
+
+    expect(Object.keys(messages)).toEqual(['tags.1'])
+  })
+
+  test('validated() keeps the nested shape', async () => {
+    const validator = new Validator(
+      { items: [{ price: 1 }, { price: 2 }], junk: 'dropped' },
+      { 'items.*.price': 'required|numeric' }
+    )
+
+    expect(await validator.validate()).toEqual({ items: [{ price: 1 }, { price: 2 }] })
+  })
+
+  test('a message written for the pattern is found from the element', async () => {
+    const validator = new Validator(
+      { items: [{ price: -1 }] },
+      { 'items.*.price': 'min:0' },
+      { messages: { 'items.*.price.min': 'Line :position cannot be negative.' } }
+    )
+
+    await validator.passes()
+
+    // `:position` counts from one: "line 1" is what the person reading it sees.
+    expect(validator.errors.first()).toBe('Line 1 cannot be negative.')
+  })
+
+  test(':index is the key as it stands in the data', async () => {
+    const validator = new Validator(
+      { items: [{ price: -1 }, { price: -2 }] },
+      { 'items.*.price': 'min:0' },
+      { messages: { 'items.*.price.min': 'index :index, position :position' } }
+    )
+
+    await validator.passes()
+
+    expect(validator.errors.get('items.1.price')[0]).toBe('index 1, position 2')
+  })
+
+  test('an attribute label written for the pattern is used', async () => {
+    const validator = new Validator(
+      { items: [{ price: -1 }] },
+      { 'items.*.price': 'min:0' },
+      { attributes: { 'items.*.price': 'line price' } }
+    )
+
+    await validator.passes()
+
+    expect(validator.errors.first()).toContain('line price')
+  })
+})
+
+describe('array rules', () => {
+  test('array with named keys refuses anything else', async () => {
+    expect(await errors({ user: { name: 'Ada' } }, { user: 'array:name,email' })).toEqual({})
+
+    // The point of naming keys: an extra one is a failure, not something quietly
+    // carried through into validated().
+    const messages = await errors(
+      { user: { name: 'Ada', admin: true } },
+      { user: 'array:name,email' }
+    )
+    expect(messages.user?.[0]).toContain('must be an array')
+  })
+
+  test('list wants sequential keys', async () => {
+    expect(await errors({ tags: ['a', 'b'] }, { tags: 'list' })).toEqual({})
+    expect(Object.keys(await errors({ tags: { 0: 'a' } }, { tags: 'list' }))).toEqual(['tags'])
+  })
+
+  test('required_array_keys names what is missing', async () => {
+    expect(await errors({ opts: { a: 1, b: 2 } }, { opts: 'required_array_keys:a,b' })).toEqual({})
+
+    const messages = await errors({ opts: { a: 1 } }, { opts: 'required_array_keys:a,b' })
+    expect(messages.opts?.[0]).toContain('a, b')
+  })
+
+  test('contains wants every value present', async () => {
+    expect(await errors({ roles: ['admin', 'editor'] }, { roles: 'contains:admin' })).toEqual({})
+    expect(Object.keys(await errors({ roles: ['editor'] }, { roles: 'contains:admin' }))).toEqual([
+      'roles'
+    ])
+  })
+})
+
+describe('distinct', () => {
+  test('a repeated value fails, on both of them', async () => {
+    const messages = await errors({ ids: [1, 2, 1] }, { 'ids.*': 'distinct' })
+
+    // Both, because neither is "the duplicate" — the pair is.
+    expect(Object.keys(messages)).toEqual(['ids.0', 'ids.2'])
+  })
+
+  test('no repeats, no errors', async () => {
+    expect(await errors({ ids: [1, 2, 3] }, { 'ids.*': 'distinct' })).toEqual({})
+  })
+
+  test('loose by default, because a form sends numbers as text', async () => {
+    expect(Object.keys(await errors({ ids: [1, '1'] }, { 'ids.*': 'distinct' }))).toHaveLength(2)
+    expect(await errors({ ids: [1, '1'] }, { 'ids.*': 'distinct:strict' })).toEqual({})
+  })
+
+  test('ignore_case folds case', async () => {
+    expect(await errors({ tags: ['A', 'a'] }, { 'tags.*': 'distinct' })).toEqual({})
+    expect(
+      Object.keys(await errors({ tags: ['A', 'a'] }, { 'tags.*': 'distinct:ignore_case' }))
+    ).toHaveLength(2)
+  })
+
+  test('it compares within one collection, not across the payload', async () => {
+    const messages = await errors(
+      { first: [1, 2], second: [1, 2] },
+      { 'first.*': 'distinct', 'second.*': 'distinct' }
+    )
+
+    expect(messages).toEqual({})
+  })
+
+  test('nested siblings are the ones under the same parent', async () => {
+    const messages = await errors(
+      { orders: [{ lines: [1, 1] }, { lines: [1, 2] }] },
+      { 'orders.*.lines.*': 'distinct' }
+    )
+
+    // `orders.*.lines.*` covers every line of every order, so the two 1s in the
+    // first order collide with the 1 in the second as well — the pattern is what
+    // decides the scope, exactly as Laravel does.
+    expect(Object.keys(messages)).toEqual([
+      'orders.0.lines.0',
+      'orders.0.lines.1',
+      'orders.1.lines.0'
+    ])
+  })
+})

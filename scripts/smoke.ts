@@ -392,6 +392,71 @@ const unique = (await (await app.handle(new Request('http://localhost/check/uniq
 }
 check('the unique rule reaches the real database', unique.passes === true)
 
+/**
+ * Wildcard rules against a payload with a variable number of lines.
+ *
+ * The shape of the error bag is the feature: one entry per element, keyed by the
+ * concrete path, so a form can put each message beside the field it belongs to.
+ */
+let orderResponse!: Response
+
+// The handler reports the 422 through the exception handler, which logs a stack
+// trace; capture it so the checks stay readable.
+await captureOutput(async () => {
+  orderResponse = await postJson('/check/orders', {
+    reference: 'ORD-1',
+    lines: [
+      { sku: 'A1', quantity: 1, price: 10 },
+      { sku: 'A1', quantity: 0 },
+      { sku: 'B2', quantity: 2, price: -5, options: { colour: 'red', gift: true } }
+    ],
+    tags: ['Sale', 'sale']
+  })
+})
+
+const order = (await orderResponse.json()) as { errors: Record<string, string[]> }
+
+check('a wildcard rule runs once per element', 'lines.1.quantity' in order.errors)
+check('and reports against the element, not the pattern', !('lines.*.quantity' in order.errors))
+check('an element that left a field out fails required', 'lines.1.price' in order.errors)
+// `:position` counts from one — "line 2" is what the person reading it sees.
+check(
+  'a message written for the pattern is found, with :position',
+  order.errors['lines.1.quantity']?.[0] === 'Line 2 must order at least one unit.'
+)
+check(
+  'an attribute label written for the pattern is used',
+  order.errors['lines.2.price']?.[0]?.includes('line price') === true
+)
+check(
+  'distinct catches the repeat, on both of them',
+  'lines.0.sku' in order.errors && 'lines.1.sku' in order.errors
+)
+check('distinct:ignore_case folds case', 'tags.0' in order.errors)
+check('array:colour,size refuses an unexpected key', 'lines.2.options' in order.errors)
+
+let emptyResponse!: Response
+await captureOutput(async () => {
+  emptyResponse = await postJson('/check/orders', { reference: 'ORD-2', lines: [] })
+})
+
+const emptyOrder = (await emptyResponse.json()) as { errors: Record<string, string[]> }
+
+// One error, on the collection. Reporting `lines.0.sku` would invent an element.
+check('an empty collection reports itself once', Object.keys(emptyOrder.errors).join() === 'lines')
+
+const goodOrder = (await (
+  await postJson('/check/orders', {
+    reference: 'ORD-9',
+    lines: [{ sku: 'A1', quantity: 2, price: 10, options: { colour: 'red' } }],
+    tags: ['sale', 'new']
+  })
+).json()) as { validated: { lines: unknown } }
+
+// Rebuilt as an array, not `{ '0': … }`: a validated payload goes on to a
+// database write or a JSON response, where the difference is visible.
+check('validated() rebuilds the collection as an array', Array.isArray(goodOrder.validated.lines))
+
 section('HTTP: form requests, resources, session, CSRF')
 
 async function postJson(path: string, body: unknown, headers: Record<string, string> = {}) {
