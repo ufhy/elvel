@@ -341,3 +341,18 @@ describe('capabilities', () => {
     expect(sqlite.isValidOperator('; drop table users')).toBe(false)
   })
 })
+
+describe('boolean defaults', () => {
+  test('postgres needs true/false where the others accept 1/0', () => {
+    const { Blueprint } = require('../src/schema/blueprint.ts')
+    const { SQLiteSchemaGrammar } = require('../src/schema/grammars/sqlite.ts')
+    const { PostgresSchemaGrammar } = require('../src/schema/grammars/postgres.ts')
+
+    const plan = new Blueprint('users').create()
+    plan.boolean('active').default(true)
+
+    expect(new SQLiteSchemaGrammar().compile(plan)[0]).toContain('default 1')
+    // Postgres rejects `default 1` on a boolean column outright.
+    expect(new PostgresSchemaGrammar().compile(plan)[0]).toContain('default true')
+  })
+})

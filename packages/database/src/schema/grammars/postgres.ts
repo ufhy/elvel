@@ -65,6 +65,16 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
     return ''
   }
 
+  /**
+   * Postgres has a real boolean type, so `default 1` is a type error rather than
+   * a convenience. The other dialects store booleans as integers and accept it.
+   */
+  protected override defaultValue(value: unknown): string {
+    if (typeof value === 'boolean') return value ? 'true' : 'false'
+
+    return super.defaultValue(value)
+  }
+
   protected modifyIncrement(blueprint: Blueprint, column: ColumnAttributes): string {
     if (!this.serials.includes(column.type) || !column.autoIncrement) return ''
 
@@ -81,16 +91,18 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
       .filter((constraint) => !(hasAutoIncrement && constraint.startsWith('primary key')))
   }
 
+  // Postgres numbers its placeholders, so the introspection queries have to as
+  // well — the query grammar is not the only place this leaks.
   compileTableExists() {
     return {
-      sql: 'select tablename from pg_catalog.pg_tables where schemaname = current_schema() and tablename = ?',
+      sql: 'select tablename from pg_catalog.pg_tables where schemaname = current_schema() and tablename = $1',
       bindings: [] as unknown[]
     }
   }
 
   compileColumnListing(_table: string) {
     return {
-      sql: 'select column_name as name from information_schema.columns where table_schema = current_schema() and table_name = ?',
+      sql: 'select column_name as name from information_schema.columns where table_schema = current_schema() and table_name = $1',
       bindings: [] as unknown[]
     }
   }

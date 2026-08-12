@@ -229,6 +229,37 @@ Saving follows `performUpdate`: only dirty columns are sent, and a clean model
 issues **no query at all**. Dirty comparison tolerates driver type drift, so a
 column that comes back as `5` and is reassigned `'5'` is not reported as changed.
 
+### Testing against real servers
+
+`packages/database/test/dialects.test.ts` runs the same assertions against
+SQLite, Postgres and MySQL. Every other test in the package asserts the SQL we
+generate; this one proves a server accepts it, which is a different claim.
+
+```bash
+# defaults to 127.0.0.1:5432 (postgres) and 127.0.0.1:3309 (mysql)
+TEST_POSTGRES_URL=postgres://user:pass@host:5432/db bun test dialects
+```
+
+A dialect whose server is unreachable is skipped with a note rather than
+failing, so the suite stays green without them — but then it is only proving
+SQLite. It creates its own `elysian_test` database per server: MySQL's system
+schema `mysql` does **not** enforce InnoDB foreign keys, so running there
+silently accepted rows a real application database rejects.
+
+Three bugs it caught that no amount of SQL-string assertion would have:
+
+- the schema grammar's introspection queries hardcoded `?`, so `hasTable` and
+  `getColumnListing` were unparseable on Postgres — placeholders leak beyond
+  the query grammar
+- `default true` on a boolean column compiled to `default 1`, which Postgres
+  rejects as a type error
+- the boolean cast wrote `1`/`0`, which Postgres also rejects; it now writes a
+  real boolean, which every dialect accepts
+
+Known and deliberate: MySQL refuses to `truncate` a table a foreign key points
+at, however empty the child is. The grammar does not disable foreign key checks
+behind your back, so `delete()` is the way to empty such a table.
+
 ### Migrations
 
 ```ts
@@ -281,7 +312,7 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 474 unit + integration tests
+bun run test     # 539 tests, including 64 against real Postgres and MySQL
 bun run smoke    # 81 checks against the real playground app
 ```
 

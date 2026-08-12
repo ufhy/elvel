@@ -71,7 +71,9 @@ export function castToDatabase(value: unknown, cast: CastType): unknown {
       return typeof value === 'string' ? value : JSON.stringify(value)
 
     case 'boolean':
-      return value ? 1 : 0
+      // A real boolean, not 1/0: Postgres has a boolean type and refuses the
+      // integer, while sqlite and mysql accept either and store 1/0 anyway.
+      return Boolean(value)
 
     case 'date':
       return toDate(value).toISOString().slice(0, 10)
