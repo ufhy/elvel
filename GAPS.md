@@ -19,9 +19,11 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Queued anything (`ShouldQueue` listeners, queued jobs from models) | The queue package does not exist. A synchronous fallback that calls itself queued would be a lie. |
+| Queued jobs *from a model* (`$model->notify()`-shaped sugar) | The queue exists and queued listeners now run through it; what is missing is sugar on the model itself. A model's lifecycle events are dispatched, so a queued listener on `model.created` already covers it. |
 | Read/write connection splitting, sticky connections | Needs a second connection per config entry and a read/write router; worth doing when someone has a replica. `ConnectionManager` already keys connections by name, so this is additive. |
 | Database transactions across connections (2PC) | `Bun.SQL` exposes `beginDistributed`, so this is reachable — no design obstacle, just unbuilt. |
+| `DB::transactionLevel()` as a public helper, and rollback callbacks | `connection.transactions.level` reports it, and `afterCommit()` defers work to the outermost commit — which is what queued jobs, listeners and notifications need. An `afterRollback` mirror has no caller yet. |
+| A transaction shared across *connection objects* | Bun.SQL hands the open transaction to the callback, so nested `transaction()` on the **scoped** connection becomes a savepoint, and `afterCommit()` registered on either object lands in the same commit. What cannot work is opening a nested transaction on the *pool* while one is open — Bun refuses, and it is right to. |
 | `whereFullText`, vector/similarity clauses | Dialect-specific and rarely portable; Postgres `tsvector`, MySQL `MATCH`, and pgvector all need their own grammar. |
 | JSON path wheres (`whereJsonContains`, `->>` updates) | Three incompatible syntaxes (`json_extract`, `->>`, `jsonb`). Needs a grammar method per dialect to be correct rather than approximately correct. |
 | `Schema::hasIndex`, column *modification* (`->change()`) | Changing a column is not portable: SQLite requires a table rebuild. Adding, dropping and renaming columns are supported. |
@@ -65,7 +67,7 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Task scheduling (`schedule:run`, cron expressions) | A scheduler needs a long-running process and overlap locks; belongs with the queue work. |
+| Prompting for a missing *option*, as opposed to an argument | `@elysian/scheduler` owns `schedule:run` and the cron matcher, so that row is gone. What is left here is interactive input, below. |
 | Prompting for missing required arguments | The parser fails with `missing: "name"` instead. `@clack/prompts` is already a dependency, so this is small. |
 | `stub:publish`, `--pretend` for generators | Stubs are already overridable per project by dropping a file in `stubs/`. |
 | Command isolation / `--no-interaction` conventions | Not yet needed. |
@@ -81,11 +83,39 @@ Deliberately absent, with reasons:
 
 ## @elysian/events
 
+Wildcards, halting, subscribers, `push`/`flush`, a fake — and listeners that run in
+a worker instead of the request.
+
 | Missing | Why |
 | --- | --- |
-| Queued listeners, `ShouldQueue`, `afterCommit` | Needs the queue package and a transaction manager. |
+| Broadcasting to a queue | Queued listeners and `afterCommit` are implemented — see the notes below. Broadcasting is the row that remains, and it needs a socket layer, not a queue. |
 | Broadcasting | Needs a driver and a socket layer. |
 | Interface-based listeners (`addInterfaceListeners`) | Class events are matched by name; an interface has no runtime identity in TypeScript. |
+| A queued listener on a **wildcard** | A wildcard listener is handed the resolved event name as well as the payload, and only one payload can travel. `listen('order.*', SomeQueuedListener)` throws rather than delivering something different in the worker. |
+| `ShouldBeUnique` / `ShouldBeEncrypted` as *marker interfaces* on a listener | Both exist as statics — `encrypted = true` works today; uniqueness is a job-level static the wrapper does not copy yet. TypeScript has no runtime interface to test for. |
+| Auto-discovery by the handler's parameter type | Laravel reads the type of `handle($event)` to know what a listener listens to. TypeScript erases it, so the pairing is written once: `events.listen(OrderShipped, NotifyWarehouse)`. |
+
+Four things to know about a queued listener:
+
+- **It is a class, not a closure.** A worker is a different process, so only a name
+  travels — the same constraint jobs have. `QueuedListener` is what a worker can
+  resolve; anything in `app/Listeners` is discovered, and `artisan make:listener X
+  --event Y --queued` writes one.
+- **The event is rebuilt from its class, not handed over as data.** `app/Events` is
+  discovered into a registry, and the payload is poured into an instance without
+  running the constructor — so `event.label()` and `event instanceof OrderShipped`
+  still work inside the worker. An unregistered event still delivers its fields;
+  what it loses is exactly those two things.
+- **`shouldQueue(event)` is asked in the dispatching process.** That is the only
+  place that still has the request's state to decide with.
+- **`afterCommit` holds the push until the outermost transaction commits**, and
+  drops it entirely if that transaction rolls back. Without it a worker can reserve
+  the job first and find none of the rows the event is about. Outside a transaction
+  there is nothing to wait for, so it pushes at once.
+
+The dispatcher itself knows nothing about queues: the push arrives as a hook that
+`QueueServiceProvider` installs. A queued listener with no queue registered throws
+and names the provider — running it in the request would look like it worked.
 
 ## @elysian/log
 
@@ -99,11 +129,11 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| `FormRequest` | Needs the request context and session, so it belongs to `http`. The validator itself works with no HTTP at all. |
+| Rules that need an HTTP request | `FormRequest` lives in `@elysian/http`, where the request and session are. The validator itself works with no HTTP at all, which is why it stays in this package. |
 | Array/wildcard rules (`items.*.price`) | Needs the attribute expander that turns one rule into one per index; the dot-notation reader is already there. |
 | `distinct`, `array_keys`, `contains` | Depend on the wildcard expansion above. |
 | File rules (`file`, `image`, `mimes`, `dimensions`) | Belong with request handling, where an upload actually exists. |
-| `password` (uncompromised), `current_password` | Need the hashing and auth packages. |
+| `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
 | `date_format`, timezone-aware comparisons | `Date.parse` covers ISO dates; a format parser is its own small project. |
 | `Rule::when`, closure rules, custom rule classes | `after()` covers the same ground for now. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |

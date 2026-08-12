@@ -335,6 +335,58 @@ for (const { name, config } of available) {
 
         expect(await table().count()).toBe(2)
       })
+
+      test('after-commit work waits for the commit', async () => {
+        await truncate()
+
+        const ran: string[] = []
+
+        await connection.transaction(async (tx) => {
+          await new QueryBuilder(tx, users).insert({ name: 'Ada' })
+          // Found in async context, not on `tx`: this is how a queued listener or
+          // job defers itself without holding the transaction.
+          await connection.afterCommit(() => ran.push('deferred'))
+
+          expect(ran).toEqual([])
+        })
+
+        expect(ran).toEqual(['deferred'])
+      })
+
+      /**
+       * Two transactions at once are **siblings**, not one nested in the other.
+       *
+       * SQLite is skipped rather than passing vacuously: Bun opens one connection
+       * to it, so the second `begin()` fails in the driver — the assertion would
+       * hold for the wrong reason.
+       *
+       * This is also the case a per-connection depth counter gets wrong: it reads
+       * the second `begin()` as nested and takes a savepoint on the pool, which is
+       * not a transaction at all.
+       */
+      test.skipIf(name === 'sqlite')(
+        'concurrent transactions keep their deferred work apart',
+        async () => {
+          await truncate()
+
+          const ran: string[] = []
+
+          const [, failed] = await Promise.allSettled([
+            connection.transaction(async (tx) => {
+              await new QueryBuilder(tx, users).insert({ name: 'Ada' })
+              await tx.afterCommit(() => ran.push('committed'))
+            }),
+            connection.transaction(async (tx) => {
+              await tx.afterCommit(() => ran.push('rolled back'))
+              throw new Error('nope')
+            })
+          ])
+
+          expect((failed as PromiseRejectedResult).reason.message).toBe('nope')
+          expect(ran).toEqual(['committed'])
+          expect(await table().count()).toBe(1)
+        }
+      )
     })
 
     describe('foreign keys', () => {

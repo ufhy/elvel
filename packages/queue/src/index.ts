@@ -26,6 +26,11 @@ export {
 export { chain, dispatch, dispatchSync, queue } from './helpers.ts'
 export { type AnyJob, Job, type JobClass, type JobMiddleware, JobRegistry } from './job.ts'
 export {
+  CallQueuedListener,
+  type QueuedListenerData,
+  queuedListenerJob
+} from './listener-job.ts'
+export {
   type ConnectionConfig,
   type DispatchOptions,
   type DriverFactory,

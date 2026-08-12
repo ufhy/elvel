@@ -33,5 +33,5 @@ export default {
   encrypt: env('SESSION_ENCRYPT', false),
 
   /** Paths exempt from CSRF. A trailing `*` matches a prefix. */
-  csrfExcept: ['/api/*', '/check/*']
+  csrfExcept: ['/api/*', '/check/*', '/signal/*']
 }

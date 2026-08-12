@@ -83,18 +83,25 @@ describe('ConsoleDriver', () => {
     expect(err).toHaveLength(1)
   })
 
-  test('colouring is delegated to picocolors, which no-ops off a TTY', () => {
-    const coloured = new ConsoleDriver({ colours: true })
+  test('colours off never emits an escape code, whatever the terminal says', () => {
     const plain = new ConsoleDriver({ colours: false })
-
-    const withColour = capture(() => coloured.write(record('info')))
     const withoutColour = capture(() => plain.write(record('info')))
 
-    // Under a test runner stdout is not a TTY, so both are already plain. The
-    // point of the assertion is that enabling colours changes nothing else
-    // about the line — no stray escape codes leaking into piped output.
-    expect(withColour.out[0]).toBe(withoutColour.out[0] as string)
-    expect(withColour.out[0]).not.toContain(String.fromCharCode(27))
+    /**
+     * Asserted on `colours: false` alone, on purpose.
+     *
+     * What the coloured driver emits is picocolors' business, and picocolors reads
+     * the environment — `FORCE_COLOR` makes it paint even when stdout is a pipe. An
+     * earlier version of this test compared the two outputs and expected them to
+     * match "because a test runner is not a TTY", which quietly asserted something
+     * about the machine rather than about this driver, and failed on any shell that
+     * exports FORCE_COLOR.
+     *
+     * Ours to guarantee is the other direction: turning colours off leaves nothing
+     * to leak into a log file or a piped stream.
+     */
+    expect(withoutColour.out[0]).not.toContain(String.fromCharCode(27))
+    expect(withoutColour.out[0]).toContain('[probe] hello')
   })
 })
 

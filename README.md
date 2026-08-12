@@ -155,8 +155,38 @@ await dispatch(new OrderShipped(42))
   automatically; `EventFake` records dispatches for tests and `NullDispatcher`
   swallows them while keeping registration observable
 
-Queued listeners are **absent on purpose** until the queue package exists —
-there is no fallback that runs them synchronously and calls it queued.
+A listener can run in a worker instead of the request. It is a **class** rather
+than a closure, for the same reason a job is: the worker is another process, so
+only a name travels.
+
+```ts
+export class NotifyWarehouse extends QueuedListener<OrderShipped> {
+  static override queue = 'shipments'
+  static override tries = 3
+  static override afterCommit = true          // wait for the commit, or drop it
+
+  async handle(event: OrderShipped) {
+    event.label()                             // the event is rebuilt as itself
+  }
+
+  override failed(event: OrderShipped, error: unknown) {}
+}
+
+events().listen(OrderShipped, NotifyWarehouse)   // pushed, not called
+```
+
+- `app/Events` is discovered into a registry, so the worker rebuilds the event
+  from its class — its methods and `instanceof` survive the trip, which handing
+  over loose JSON would not
+- `shouldQueue(event)` is asked in the process that dispatched, the only one that
+  still has the request's state
+- `afterCommit` holds the push until the outermost transaction commits and drops
+  it if that transaction rolls back; without it a worker can reserve a job whose
+  rows were never committed
+- the dispatcher knows nothing about queues — the push is a hook installed by
+  `QueueServiceProvider`, and a queued listener with no queue registered **throws**
+  rather than quietly running in the request
+- `artisan make:listener NotifyWarehouse --event OrderShipped --queued` writes one
 
 ```ts
 log().info('User {id} signed in', { id: 7 })    // {placeholders} interpolate

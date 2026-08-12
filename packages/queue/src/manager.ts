@@ -219,7 +219,7 @@ export class QueueManager {
     return {
       uuid: crypto.randomUUID(),
       job: jobClass.name,
-      displayName: jobClass.name,
+      displayName: jobClass.displayName ?? jobClass.name,
       data,
       attempts: 0,
       maxTries: jobClass.tries,

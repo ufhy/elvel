@@ -1,0 +1,38 @@
+import { QueuedListener } from '@elysian/events'
+import type { {{ event }} } from '../Events/{{ event }}.ts'
+
+/**
+ * {{ class }}
+ *
+ * Runs in a worker rather than in the request: the dispatcher pushes a job and
+ * returns, so whatever dispatched the event does not wait for this.
+ *
+ * A class rather than a closure because the worker has to find it again — it is
+ * a different process, and only a name travels. Anything in `app/Listeners` is
+ * discovered, so registering it is `events.listen({{ event }}, {{ class }})`.
+ */
+export class {{ class }} extends QueuedListener<{{ event }}> {
+  /** Attempts allowed before the listener is recorded as failed. */
+  static override tries = 3
+
+  /** Seconds between attempts; a list is indexed by attempt. */
+  static override backoff = [5, 30, 120]
+
+  /**
+   * Wait for the outermost database transaction to commit before queueing.
+   *
+   * Without it a worker can reserve the job first and find none of the rows the
+   * event is about.
+   */
+  static override afterCommit = true
+
+  async handle(event: {{ event }}): Promise<void> {
+    void event
+  }
+
+  /** Runs in the worker after the final attempt has failed. */
+  override failed(event: {{ event }}, error: unknown): void {
+    void event
+    void error
+  }
+}

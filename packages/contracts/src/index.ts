@@ -120,9 +120,23 @@ export interface EventSubscriber {
   subscribe(dispatcher: EventDispatcher): void
 }
 
+/**
+ * A listener class the dispatcher queues instead of calling.
+ *
+ * Structural on purpose: the contracts package must not depend on
+ * `@elysian/events`, and what matters here is only that the class can be
+ * constructed and handles this event.
+ */
+export type QueuedListenerFor<E> = new () => { handle(event: E): unknown | Promise<unknown> }
+
 export interface EventDispatcher {
   /** Class events keep their payload typed. */
   listen<E extends object>(event: EventConstructor<E>, listener: Listener<E>): void
+  /**
+   * A queued listener is registered as a **class**, not a closure: a worker has
+   * to resolve it by name in another process, and a closure cannot travel.
+   */
+  listen<E extends object>(event: EventConstructor<E>, listener: QueuedListenerFor<E>): void
   /**
    * String events are the loose path: an exact name calls `(payload)`, while a
    * pattern such as `'order.*'` calls `(eventName, payload)`. The signature is

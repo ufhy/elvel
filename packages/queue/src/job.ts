@@ -38,6 +38,15 @@ export type AnyJob = Job<unknown>
 export abstract class Job<TData = Record<string, never>> {
   constructor(readonly data: TData) {}
 
+  /**
+   * What `queue:failed` and the logs call this job.
+   *
+   * Defaults to the class name. A job that wraps something else — a queued
+   * listener, a queued mailable — sets it so the entry names what the reader
+   * cares about rather than the wrapper.
+   */
+  static displayName: string | undefined
+
   /** Queue this job goes on when the dispatch does not say. */
   static queue: string | undefined
 
@@ -141,6 +150,7 @@ export abstract class Job<TData = Record<string, never>> {
 export type JobClass = (new (
   data: never
 ) => AnyJob) & {
+  displayName?: string | undefined
   queue?: string | undefined
   connection?: string | undefined
   tries?: number | undefined

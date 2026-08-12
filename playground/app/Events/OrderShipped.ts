@@ -12,4 +12,14 @@ export class OrderShipped {
     readonly orderId: number,
     readonly carrier: string
   ) {}
+
+  /**
+   * A method, deliberately.
+   *
+   * A queued listener runs in another process, so only the data travels; this
+   * still works there because the worker rebuilds the event from its class.
+   */
+  label(): string {
+    return `${this.carrier}-${this.orderId}`
+  }
 }

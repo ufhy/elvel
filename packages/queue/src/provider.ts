@@ -11,6 +11,7 @@ import { QueueSizeCommand } from './console/queue-size.ts'
 import { QueueFailedTableCommand, QueueTableCommand } from './console/queue-table.ts'
 import { QueueWorkCommand } from './console/queue-work.ts'
 import type { JobClass } from './job.ts'
+import { CallQueuedListener, queuedListenerJob } from './listener-job.ts'
 import { QueueManager } from './manager.ts'
 
 declare module '@elysian/contracts' {
@@ -54,6 +55,49 @@ export class QueueServiceProvider extends ServiceProvider {
     const manager = this.app.make('queue')
 
     manager.jobs.register(...(await this.discoverJobs()))
+
+    this.wireQueuedListeners(manager)
+  }
+
+  /**
+   * Teach the dispatcher how to queue a listener.
+   *
+   * The direction matters: `@elysian/events` knows nothing about queues, so the
+   * push arrives as a hook installed from here. That keeps the dispatcher usable
+   * with no queue at all — a listener that wants to be queued then says so instead
+   * of running in the request.
+   */
+  private wireQueuedListeners(manager: QueueManager): void {
+    if (!this.app.bound('events')) return
+
+    const dispatcher = this.app.make('events')
+
+    // The worker resolves both by name, and neither travels in the payload.
+    CallQueuedListener.useRegistries(dispatcher.queuedListeners, this.app.make('events.registry'))
+    manager.jobs.register(CallQueuedListener as never)
+
+    dispatcher.setQueue(async (listener, event) => {
+      const name = typeof listener.listenerName === 'string' ? listener.listenerName : listener.name
+      const push = () => manager.dispatch(queuedListenerJob(listener, name, event))
+
+      if (listener.afterCommit !== true) return push()
+
+      /**
+       * Hold the push until the outermost transaction commits.
+       *
+       * This is the bug `afterCommit` exists for: a worker can reserve the job
+       * before the transaction commits and find none of the rows the event is
+       * about. Outside a transaction there is nothing to wait for, and the manager
+       * pushes at once.
+       */
+      if (!this.app.bound('db')) return push()
+
+      const connection = await this.app.make('db').connection()
+
+      await connection.afterCommit(push)
+
+      return undefined
+    })
   }
 
   /** Every exported class in `app/Jobs` with a `handle` method. */

@@ -1,6 +1,9 @@
-import { controller } from '@elysian/core'
+import { cache } from '@elysian/cache'
+import { app, controller } from '@elysian/core'
+import { db } from '@elysian/database'
 import { dispatch, events } from '@elysian/events'
 import { log, MemoryDriver } from '@elysian/log'
+import { queue } from '@elysian/queue'
 import { OrderShipped } from '../../Events/OrderShipped.ts'
 import { RecordShipments } from '../../Listeners/RecordShipments.ts'
 
@@ -14,6 +17,59 @@ export default controller('signal', '/signal')
 
     return { responses, recorded: [...RecordShipments.shipments] }
   })
+
+  /**
+   * The same event, reaching a listener that runs in a worker.
+   *
+   * The response comes back before the listener has run — that is the point —
+   * so the route reports what is on the queue rather than what happened.
+   */
+  .post('/queued/:orderId', async ({ params }) => {
+    const orderId = Number(params.orderId)
+
+    await cache().forget(`warehouse:${orderId}`)
+    await dispatch(new OrderShipped(orderId, 'DHL'))
+
+    return {
+      // Still nothing: the worker has not run.
+      warehouse: (await cache().get<string>(`warehouse:${orderId}`)) ?? null,
+      queued: await queue().connection().size('shipments')
+    }
+  })
+
+  /** What the worker did, once it ran. */
+  .get('/queued/:orderId', async ({ params }) => ({
+    warehouse: (await cache().get<string>(`warehouse:${params.orderId}`)) ?? null
+  }))
+
+  /**
+   * A queued listener dispatched inside a transaction that rolls back.
+   *
+   * `afterCommit` on the listener means nothing should reach the queue: the rows
+   * the event is about never existed.
+   */
+  .post('/queued/:orderId/rollback', async ({ params }) => {
+    const orderId = Number(params.orderId)
+    const before = await queue().connection().size('shipments')
+
+    try {
+      await (await db().connection()).transaction(async () => {
+        await dispatch(new OrderShipped(orderId, 'DHL'))
+
+        throw new Error('deliberate rollback')
+      })
+    } catch {
+      // Expected: the route is about what the queue did, not the error.
+    }
+
+    return { before, after: await queue().connection().size('shipments') }
+  })
+
+  /** Which queued listeners a worker could resolve by name. */
+  .get('/listeners', () => ({
+    queued: events().queuedListeners.names(),
+    events: app('events.registry').names()
+  }))
 
   /** Wildcard matching, and the fact that a string event carries its payload. */
   .get('/wildcard', async () => {

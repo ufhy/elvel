@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { isAbsolute, join } from 'node:path'
 import type { EventDispatcher } from '@elysian/contracts'
 import type { Grammar } from '../query/grammar.ts'
@@ -5,6 +6,7 @@ import { MariaDbGrammar, MySqlGrammar } from '../query/grammars/mysql.ts'
 import { PostgresGrammar } from '../query/grammars/postgres.ts'
 import { SQLiteGrammar } from '../query/grammars/sqlite.ts'
 import { type Connection, QueryExecuted, type Row } from './connection.ts'
+import { TransactionManager } from './transactions.ts'
 
 export type ConnectionConfig = {
   driver: 'sqlite' | 'mysql' | 'mariadb' | 'postgres'
@@ -67,6 +69,15 @@ function isConcurrencyError(error: unknown): boolean {
  * Queries go through `unsafe(sql, bindings)` because our grammar produces the
  * SQL text; the tagged-template form cannot express a dynamic clause list.
  */
+/**
+ * The transactions open in the current async context, by connection name.
+ *
+ * `run()` rather than `enterWith()`: the store has to be visible to everything the
+ * callback awaits and invisible to everything outside it, which is what makes two
+ * concurrent transactions independent.
+ */
+const openTransactions = new AsyncLocalStorage<ReadonlyMap<string, TransactionManager>>()
+
 export class BunSqlConnection implements Connection {
   readonly grammar: Grammar
 
@@ -74,7 +85,17 @@ export class BunSqlConnection implements Connection {
     readonly name: string,
     private readonly sql: Bun.SQL,
     private readonly config: ConnectionConfig,
-    private readonly dispatcher?: EventDispatcher
+    private readonly dispatcher?: EventDispatcher,
+    /**
+     * The transaction this connection *is* inside, if it is a scoped copy.
+     *
+     * A shared counter on the pool cannot work: two `transaction()` calls that run
+     * concurrently — which is exactly what the queue's two-worker race does — are
+     * siblings, not one nested in the other, and Bun hands each its own connection
+     * from the pool. So being inside a transaction is a property of this object,
+     * and only the copy handed to a callback has it.
+     */
+    private readonly scope?: TransactionManager
   ) {
     this.grammar = grammarFor(config.driver)
   }
@@ -173,22 +194,99 @@ export class BunSqlConnection implements Connection {
     })
   }
 
+  /** The transaction this connection is inside, if any. */
+  get transactions(): TransactionManager | undefined {
+    return this.scope ?? openTransactions.getStore()?.get(this.name)
+  }
+
+  /**
+   * Run `callback` once the outermost transaction on this connection commits.
+   *
+   * Outside a transaction it runs now, which is what lets a caller defer work
+   * unconditionally: "after the commit, if there is one" is almost always what is
+   * meant, and code usually cannot answer whether its caller opened one.
+   *
+   * The open transaction is found in async context, not on this object, because
+   * the caller that needs this most does not hold one. A queued listener is pushed
+   * by the event dispatcher, which has the application's connection and no idea a
+   * service method three frames up opened a transaction — and that is exactly the
+   * case `afterCommit` exists for.
+   */
+  async afterCommit(callback: () => unknown): Promise<void> {
+    const manager = this.transactions
+
+    if (!manager) {
+      await callback()
+
+      return
+    }
+
+    await manager.afterCommit(callback)
+  }
+
   async transaction<T>(callback: (tx: Connection) => Promise<T>, attempts = 1): Promise<T> {
     let lastError: unknown
 
     for (let attempt = 1; attempt <= Math.max(1, attempts); attempt += 1) {
-      try {
-        return (await this.sql.begin(async (tx: unknown) => {
-          const scoped = new BunSqlConnection(
-            this.name,
-            tx as Bun.SQL,
-            this.config,
-            this.dispatcher
-          )
+      /**
+       * Nested only when this object *is* an open transaction's own copy.
+       *
+       * Two `transaction()` calls on the pool that overlap in time — which is what
+       * the queue's two-worker race does — are siblings, and Bun hands each its own
+       * connection. Only the copy passed to a callback holds a transaction that a
+       * savepoint can be taken on.
+       */
+      const nested = this.scope !== undefined
+      const manager = nested ? (this.scope as TransactionManager) : new TransactionManager()
 
-          return callback(scoped)
-        })) as T
+      manager.begin()
+
+      /** What the async context sees while the body runs: one manager per name. */
+      const scopes = new Map(openTransactions.getStore() ?? [])
+      scopes.set(this.name, manager)
+
+      try {
+        /**
+         * A transaction inside a transaction is a savepoint.
+         *
+         * Bun.SQL refuses a nested `begin` outright — "cannot call begin inside a
+         * transaction use savepoint() instead" — and it is right to: `BEGIN` twice
+         * is not two transactions in any engine we target. Nesting is what lets a
+         * service method wrap its own work in `transaction()` without caring
+         * whether its caller already opened one, which is what Laravel's
+         * transaction level gives.
+         */
+        const open = nested
+          ? (body: (tx: unknown) => Promise<unknown>) =>
+              (
+                this.sql as unknown as { savepoint(fn: (tx: unknown) => Promise<unknown>): unknown }
+              ).savepoint(body)
+          : (body: (tx: unknown) => Promise<unknown>) => this.sql.begin(body as never)
+
+        const result = (await openTransactions.run(scopes, () =>
+          open(async (tx: unknown) => {
+            const scoped = new BunSqlConnection(
+              this.name,
+              tx as Bun.SQL,
+              this.config,
+              this.dispatcher,
+              // The manager for *this* transaction: work deferred through `tx` is
+              // released by the commit this call is about, and by no other.
+              manager
+            )
+
+            return callback(scoped)
+          })
+        )) as T
+
+        // After the transaction resolves, and only then: the callbacks exist to
+        // run against committed rows.
+        await manager.commit()
+
+        return result
       } catch (error) {
+        manager.rollback()
+
         lastError = error
 
         // Only deadlocks are worth retrying; a constraint violation never is.

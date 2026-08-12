@@ -186,6 +186,56 @@ check(
 )
 check('until() returns the first non-null response', halting.until === 'answer')
 
+/**
+ * A listener that runs in a worker rather than in the request.
+ *
+ * The two halves that matter are *when* nothing happened and *when* it did: the
+ * dispatch has to return with the listener not yet run, and a worker has to be
+ * able to rebuild both the listener and the event in a process that only ever
+ * saw their names.
+ */
+const registries = (await (
+  await app.handle(new Request('http://localhost/signal/listeners'))
+).json()) as { queued: string[]; events: string[] }
+
+check(
+  'a queued listener is registered for a worker to resolve',
+  registries.queued.includes('NotifyWarehouse')
+)
+check('and its event is, so the worker can rebuild it', registries.events.includes('order.shipped'))
+
+await app.make('queue').connection().clear('shipments')
+await app.make('cache').store().forget('warehouse:42')
+
+const queuedListener = (await (await postJson('/signal/queued/42', {})).json()) as {
+  warehouse: string | null
+  queued: number
+}
+
+check('dispatching queues the listener instead of running it', queuedListener.queued === 1)
+check('and the request returns before it has run', queuedListener.warehouse === null)
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--queue', 'shipments', '--once']))
+
+const afterWorker = (await (
+  await app.handle(new Request('http://localhost/signal/queued/42'))
+).json()) as { warehouse: string | null }
+
+// `DHL-42` comes from a *method* on the event, so this is also the proof that the
+// worker rebuilt the event class rather than handing over loose JSON.
+check('the worker runs it, with the event rebuilt as itself', afterWorker.warehouse === 'DHL-42')
+
+const rolledBack = (await (await postJson('/signal/queued/77/rollback', {})).json()) as {
+  before: number
+  after: number
+}
+
+// afterCommit: a worker must not reserve a job whose rows were never committed.
+check('a rolled-back transaction queues nothing', rolledBack.after === rolledBack.before)
+
+await app.make('queue').connection().clear('shipments')
+await app.make('cache').store().forget('warehouse:42')
+
 section('Logging')
 
 const logged = (await (await app.handle(new Request('http://localhost/signal/log'))).json()) as {

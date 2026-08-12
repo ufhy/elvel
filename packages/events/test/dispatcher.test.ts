@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { Dispatcher, eventName } from '../src/dispatcher.ts'
+import { EventRegistry } from '../src/event-registry.ts'
 import { EventFake, NullDispatcher } from '../src/fake.ts'
+import { QueuedListener } from '../src/listener.ts'
 
 class OrderShipped {
   static readonly eventName = 'order.shipped'
@@ -385,5 +387,188 @@ describe('NullDispatcher', () => {
     await nullDispatcher.flush('probe')
 
     expect(called).toBe(false)
+  })
+})
+
+describe('queued listeners', () => {
+  class SendShipmentNotification extends QueuedListener<OrderShipped> {
+    static override queue = 'notifications'
+    static override tries = 5
+    static handled: number[] = []
+
+    handle(event: OrderShipped): void {
+      SendShipmentNotification.handled.push(event.orderId)
+    }
+  }
+
+  /** What the queue would receive, captured instead of pushed. */
+  let pushed: Array<{ listener: string; event: string; payload: unknown }>
+
+  beforeEach(() => {
+    pushed = []
+    SendShipmentNotification.handled = []
+
+    dispatcher.setQueue((listener, event) => {
+      pushed.push({ listener: listener.name, event: event.name, payload: event.payload })
+    })
+  })
+
+  test('a queued listener is pushed, not run', async () => {
+    dispatcher.listen(OrderShipped, SendShipmentNotification)
+
+    await dispatcher.dispatch(new OrderShipped(7))
+
+    expect(pushed).toHaveLength(1)
+    expect(pushed[0]?.listener).toBe('SendShipmentNotification')
+    expect(pushed[0]?.event).toBe('order.shipped')
+    // The whole point: nothing ran in this process.
+    expect(SendShipmentNotification.handled).toEqual([])
+  })
+
+  test('the event travels as the payload', async () => {
+    dispatcher.listen(OrderShipped, SendShipmentNotification)
+
+    await dispatcher.dispatch(new OrderShipped(9))
+
+    expect((pushed[0] as { payload: OrderShipped }).payload.orderId).toBe(9)
+  })
+
+  test('it is registered so a worker can resolve it by name', () => {
+    dispatcher.listen(OrderShipped, SendShipmentNotification)
+
+    expect(dispatcher.queuedListeners.names()).toEqual(['SendShipmentNotification'])
+    expect(dispatcher.queuedListeners.get('SendShipmentNotification')).toBe(
+      SendShipmentNotification as never
+    )
+  })
+
+  test('shouldQueue can refuse, in the process that has the request', async () => {
+    class OnlyLarge extends QueuedListener<OrderShipped> {
+      override shouldQueue(event: OrderShipped): boolean {
+        return event.orderId > 100
+      }
+
+      handle(): void {}
+    }
+
+    dispatcher.listen(OrderShipped, OnlyLarge)
+
+    await dispatcher.dispatch(new OrderShipped(5))
+    expect(pushed).toHaveLength(0)
+
+    await dispatcher.dispatch(new OrderShipped(500))
+    expect(pushed).toHaveLength(1)
+  })
+
+  test('a queued listener with no queue says so rather than running', async () => {
+    const orphan = new Dispatcher()
+    orphan.listen(OrderShipped, SendShipmentNotification)
+
+    // No silent fallback: running it in the request would look like it worked.
+    await expect(orphan.dispatch(new OrderShipped(1))).rejects.toThrow(/no queue is registered/)
+  })
+
+  test('a subclass of a project base class still counts as queued', async () => {
+    abstract class ProjectListener<E> extends QueuedListener<E> {}
+    class Deeper extends ProjectListener<OrderShipped> {
+      handle(): void {}
+    }
+
+    dispatcher.listen(OrderShipped, Deeper)
+    await dispatcher.dispatch(new OrderShipped(1))
+
+    expect(pushed[0]?.listener).toBe('Deeper')
+  })
+
+  test('a queued listener cannot listen on a pattern', () => {
+    // A wildcard listener is handed the event name too, which cannot survive the
+    // trip; refusing beats delivering something different in a worker.
+    expect(() => dispatcher.listen('order.*', SendShipmentNotification as never)).toThrow(
+      /cannot listen on a pattern/
+    )
+  })
+
+  test('a plain closure listener still runs inline', async () => {
+    const seen: number[] = []
+    dispatcher.listen(OrderShipped, (event) => seen.push(event.orderId))
+
+    await dispatcher.dispatch(new OrderShipped(3))
+
+    expect(seen).toEqual([3])
+    expect(pushed).toHaveLength(0)
+  })
+
+  test('listenerName overrides the class name, for a build that renames', () => {
+    class Renamed extends QueuedListener<OrderShipped> {
+      static override listenerName = 'shipment.notify'
+
+      handle(): void {}
+    }
+
+    dispatcher.listen(OrderShipped, Renamed)
+
+    expect(dispatcher.queuedListeners.names()).toEqual(['shipment.notify'])
+  })
+})
+
+describe('EventRegistry', () => {
+  test('an event comes back as itself, methods and all', () => {
+    class Shipped {
+      constructor(readonly orderId: number) {}
+
+      label(): string {
+        return `order-${this.orderId}`
+      }
+    }
+
+    const registry = new EventRegistry()
+    registry.register(Shipped)
+
+    // What a worker has: the name and the data, never the object.
+    const rebuilt = registry.hydrate('Shipped', JSON.parse(JSON.stringify(new Shipped(4))))
+
+    expect(rebuilt).toBeInstanceOf(Shipped)
+    expect((rebuilt as Shipped).label()).toBe('order-4')
+  })
+
+  test('the constructor is not re-run', () => {
+    let constructed = 0
+
+    class Counted {
+      constructor(readonly id: number) {
+        constructed += 1
+      }
+    }
+
+    const registry = new EventRegistry()
+    registry.register(Counted)
+    constructed = 0
+
+    const rebuilt = registry.hydrate('Counted', { id: 1 }) as Counted
+
+    // Rebuilding is not creating: a constructor may take a model, or may have
+    // already had its side effect once.
+    expect(constructed).toBe(0)
+    expect(rebuilt.id).toBe(1)
+  })
+
+  test('a static eventName is the key', () => {
+    class Named {
+      static readonly eventName = 'order.shipped'
+    }
+
+    const registry = new EventRegistry()
+    registry.register(Named)
+
+    expect(registry.names()).toEqual(['order.shipped'])
+    expect(registry.hydrate('order.shipped', {})).toBeInstanceOf(Named)
+  })
+
+  test('an unregistered event hands over its data unchanged', () => {
+    const registry = new EventRegistry()
+
+    expect(registry.hydrate('Unknown', { id: 1 })).toEqual({ id: 1 })
+    expect(registry.hydrate('Unknown', 'a string')).toBe('a string')
+    expect(registry.hydrate('Unknown', null)).toBeNull()
   })
 })

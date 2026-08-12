@@ -1,6 +1,7 @@
 import type { EventDispatcher, EventSubscriber } from '@elysian/events'
 import { log } from '@elysian/log'
 import { OrderShipped } from '../Events/OrderShipped.ts'
+import { NotifyWarehouse } from './NotifyWarehouse.ts'
 
 /**
  * RecordShipments
@@ -18,6 +19,10 @@ export class RecordShipments implements EventSubscriber {
   subscribe(events: EventDispatcher): void {
     // Listening on the class rather than the string keeps `event` typed.
     events.listen(OrderShipped, (event) => this.handle(event))
+
+    // The same event, handed to a listener that runs in a worker: this one is a
+    // class, and the dispatcher pushes it instead of calling it.
+    events.listen(OrderShipped, NotifyWarehouse)
 
     // Wildcard listeners receive the resolved event name as well.
     events.listen('order.*', (name: string, payload: unknown) => {

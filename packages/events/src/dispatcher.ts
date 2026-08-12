@@ -6,8 +6,23 @@ import type {
   Listener,
   WildcardListener
 } from '@elysian/contracts'
+import {
+  type AnyQueuedListenerClass,
+  isQueuedListener,
+  ListenerRegistry,
+  listenerName
+} from './listener.ts'
 
 type StoredListener = (event: string, payload: unknown) => unknown | Promise<unknown>
+
+/** How a queued listener reaches the queue. Installed by the queue's provider. */
+export type QueuedListenerPusher = (
+  listener: AnyQueuedListenerClass,
+  event: { name: string; payload: unknown }
+) => unknown | Promise<unknown>
+
+/** A queued listener class that handles this event type. */
+type QueuedListenerClassFor<E> = new () => { handle(event: E): unknown | Promise<unknown> }
 
 /**
  * Resolve the key an event is stored under.
@@ -53,32 +68,97 @@ function patternToRegExp(pattern: string): RegExp {
  * - wildcard listeners are matched by pattern and cached per resolved name
  * - `push()`/`flush()` defer through a synthetic `<event>_pushed` event
  *
- * Queued listeners are deliberately absent until the queue package exists;
- * there is no silent fallback that would run them synchronously and pretend.
+ * A queued listener is a class rather than a closure — see `QueuedListener` —
+ * and the dispatcher pushes it instead of calling it. The push itself belongs to
+ * the queue, so it arrives here as an injected hook: this package knows nothing
+ * about queues, and there is no silent fallback that would run a queued listener
+ * in the request and pretend it was queued.
  */
 export class Dispatcher implements EventDispatcher {
   private readonly listeners = new Map<string, StoredListener[]>()
   private readonly wildcards = new Map<string, WildcardListener[]>()
   private wildcardsCache = new Map<string, StoredListener[]>()
 
+  /** Queued listeners a worker can resolve by name. */
+  readonly queuedListeners = new ListenerRegistry()
+
+  private pusher: QueuedListenerPusher | undefined
+
+  /**
+   * Teach the dispatcher how to queue — called by the queue's provider.
+   *
+   * Laravel's `setQueueResolver`, and the same containment: this package depends
+   * on `@elysian/contracts` and `@elysian/core` only.
+   */
+  setQueue(pusher: QueuedListenerPusher): void {
+    this.pusher = pusher
+  }
+
   listen<E extends object>(event: EventConstructor<E>, listener: Listener<E>): void
+  listen<E extends object>(event: EventConstructor<E>, listener: QueuedListenerClassFor<E>): void
   listen(event: string | string[], listener: (...args: any[]) => unknown | Promise<unknown>): void
-  listen(event: EventKey | string[], listener: Listener | WildcardListener): void {
+  listen(
+    event: EventKey | string[],
+    listener: Listener | WildcardListener | AnyQueuedListenerClass
+  ): void {
     const events = Array.isArray(event) ? event : [event]
 
     for (const entry of events) {
       const name = eventName(entry)
 
       if (name.includes('*')) {
+        if (isQueuedListener(listener)) {
+          // A wildcard listener is handed the resolved name as well, and a queued
+          // one cannot be: what travels is a single event payload.
+          throw new Error(
+            `A queued listener cannot listen on a pattern [${name}]. Name the event, or use a closure.`
+          )
+        }
+
         this.setupWildcardListen(name, listener as WildcardListener)
         continue
       }
 
       const stored = this.listeners.get(name) ?? []
-      // Non-wildcard listeners receive the payload only, as in Laravel.
-      stored.push((_name, payload) => (listener as Listener)(payload))
+
+      if (isQueuedListener(listener)) {
+        this.queuedListeners.register(listener)
+        stored.push((eventKey, payload) => this.pushToQueue(listener, eventKey, payload))
+      } else {
+        // Non-wildcard listeners receive the payload only, as in Laravel.
+        stored.push((_name, payload) => (listener as Listener)(payload))
+      }
+
       this.listeners.set(name, stored)
     }
+  }
+
+  /**
+   * Hand one event to the queue.
+   *
+   * `shouldQueue` is asked here, in the dispatching process, because that is the
+   * only place that still has the request's state to decide with.
+   */
+  private async pushToQueue(
+    listener: AnyQueuedListenerClass,
+    event: string,
+    payload: unknown
+  ): Promise<unknown> {
+    const instance = new listener() as {
+      shouldQueue?: (event: unknown) => boolean | Promise<boolean>
+    }
+
+    if (typeof instance.shouldQueue === 'function') {
+      if ((await instance.shouldQueue(payload)) === false) return undefined
+    }
+
+    if (!this.pusher) {
+      throw new Error(
+        `Listener [${listenerName(listener)}] wants to be queued but no queue is registered. Add QueueServiceProvider to config/app.ts.`
+      )
+    }
+
+    return this.pusher(listener, { name: event, payload })
   }
 
   private setupWildcardListen(pattern: string, listener: WildcardListener): void {
@@ -172,7 +252,12 @@ export class Dispatcher implements EventDispatcher {
     return halt ? null : responses
   }
 
-  /** Register an event to be dispatched later by `flush()`. */
+  /**
+   * Register an event to be dispatched later by `flush()`.
+   *
+   * Laravel's `push`/`flush` pair, and unrelated to queueing: nothing leaves the
+   * process — the event waits in memory until `flush()` names it.
+   */
   push(event: string, payload?: unknown): void {
     this.listen(`${event}_pushed`, () => this.dispatch(event, payload))
   }

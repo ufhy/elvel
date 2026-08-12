@@ -6,8 +6,17 @@ export type {
   Listener,
   WildcardListener
 } from '@elysian/contracts'
-export { Dispatcher, eventName } from './dispatcher.ts'
+export { Dispatcher, eventName, type QueuedListenerPusher } from './dispatcher.ts'
+export { EventRegistry } from './event-registry.ts'
 export { EventFake, NullDispatcher } from './fake.ts'
+export {
+  type AnyQueuedListenerClass,
+  isQueuedListener,
+  ListenerRegistry,
+  listenerName,
+  QueuedListener,
+  type QueuedListenerClass
+} from './listener.ts'
 export { EventServiceProvider } from './provider.ts'
 
 /** The application's dispatcher — Laravel's `Event` facade. */

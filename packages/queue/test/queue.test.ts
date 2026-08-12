@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elysian/core'
 import { ConnectionManager } from '@elysian/database'
+import { EventRegistry, ListenerRegistry, QueuedListener } from '@elysian/events'
 import type { JobPayload, QueueDriver } from '../src/contracts.ts'
 import { DatabaseQueue } from '../src/drivers/database.ts'
 import { RedisQueue } from '../src/drivers/redis.ts'
 import { SyncQueue } from '../src/drivers/sync.ts'
 import { ArrayFailedJobStore } from '../src/failed.ts'
 import { Job, JobRegistry } from '../src/job.ts'
+import { CallQueuedListener, queuedListenerJob } from '../src/listener-job.ts'
 import { JobRunner } from '../src/runner.ts'
 import { ModelRegistry, serializeData } from '../src/serializer.ts'
 import { MaxAttemptsExceededError, Worker } from '../src/worker.ts'
@@ -738,5 +740,126 @@ describe('encrypted payloads', () => {
     const driver = new SyncQueue('sync', (job) => runner.run(job))
 
     await expect(driver.push(stored)).rejects.toThrow(/carries no ciphertext/)
+  })
+})
+
+// ------------------------------------------------------------ queued listeners
+
+describe('queued listeners', () => {
+  class OrderShipped {
+    static readonly eventName = 'order.shipped'
+
+    constructor(readonly orderId: number) {}
+
+    label(): string {
+      return `order-${this.orderId}`
+    }
+  }
+
+  class RecordShipment extends QueuedListener<OrderShipped> {
+    static override queue = 'notifications'
+    static override tries = 5
+    static override backoff = [1, 2]
+    static seen: string[] = []
+    static failures: string[] = []
+
+    handle(event: OrderShipped): void {
+      // Calling a method proves the event arrived as itself, not as loose data.
+      RecordShipment.seen.push(event.label())
+    }
+
+    override failed(event: OrderShipped, error: unknown): void {
+      RecordShipment.failures.push(`${event.label()}:${(error as Error).message}`)
+    }
+  }
+
+  let listeners: ListenerRegistry
+  let events: EventRegistry
+
+  beforeEach(() => {
+    RecordShipment.seen = []
+    RecordShipment.failures = []
+
+    listeners = new ListenerRegistry()
+    listeners.register(RecordShipment as never)
+
+    events = new EventRegistry()
+    events.register(OrderShipped)
+
+    CallQueuedListener.useRegistries(listeners, events)
+  })
+
+  const jobFor = (orderId: number) =>
+    queuedListenerJob(RecordShipment as never, 'RecordShipment', {
+      name: 'order.shipped',
+      payload: new OrderShipped(orderId)
+    })
+
+  test('the listener’s options travel to the job', () => {
+    const job = jobFor(1).constructor as typeof CallQueuedListener
+
+    expect(job.queue).toBe('notifications')
+    expect(job.tries).toBe(5)
+    expect(job.backoff).toEqual([1, 2])
+    // What `queue:failed` prints: the listener, not the wrapper.
+    expect(job.displayName).toBe('RecordShipment')
+  })
+
+  test('two listeners queued in the same tick keep their own options', () => {
+    class Impatient extends QueuedListener<OrderShipped> {
+      static override tries = 1
+
+      handle(): void {}
+    }
+
+    const first = jobFor(1).constructor as typeof CallQueuedListener
+    const second = queuedListenerJob(Impatient as never, 'Impatient', {
+      name: 'order.shipped',
+      payload: new OrderShipped(2)
+    }).constructor as typeof CallQueuedListener
+
+    // The reason each gets its own subclass rather than mutating a shared one.
+    expect(first.tries).toBe(5)
+    expect(second.tries).toBe(1)
+  })
+
+  test('the worker resolves it under the wrapper’s name', () => {
+    // A worker looks the payload's `job` up, so every listener has to arrive as
+    // the same registered class however many subclasses were made.
+    expect(jobFor(1).constructor.name).toBe('CallQueuedListener')
+  })
+
+  test('running it calls the listener with the event rebuilt', async () => {
+    const job = jobFor(7)
+    // Through JSON, as the store would: the worker never sees the object, and
+    // `label()` only exists again because the event was rebuilt from its class.
+    const payload = payloadFor(
+      'CallQueuedListener',
+      JSON.parse(JSON.stringify(job.data)) as Record<string, unknown>
+    )
+    const driver = new SyncQueue('sync', (queued) =>
+      new JobRunner(new JobRegistry().register(CallQueuedListener as never), models, {}).run(queued)
+    )
+
+    await driver.push(payload)
+
+    expect(RecordShipment.seen).toEqual(['order-7'])
+  })
+
+  test('a failure reaches the listener’s failed(), with the event', async () => {
+    const job = jobFor(3)
+
+    await job.failed(new Error('smtp down'))
+
+    expect(RecordShipment.failures).toEqual(['order-3:smtp down'])
+  })
+
+  test('an unregistered listener says how to register it', async () => {
+    listeners = new ListenerRegistry()
+    CallQueuedListener.useRegistries(listeners, events)
+
+    const job = jobFor(1)
+
+    await expect(job.handle()).rejects.toThrow(/is not registered.*app\/Listeners/s)
   })
 })

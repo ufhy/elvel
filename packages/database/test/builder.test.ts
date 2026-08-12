@@ -477,6 +477,110 @@ describe('transactions', () => {
   })
 })
 
+describe('after-commit callbacks', () => {
+  test('a callback runs when the transaction commits, once', async () => {
+    const ran: string[] = []
+
+    await connection.transaction(async (tx) => {
+      await new QueryBuilder(tx, 'users').insert({ name: 'Ada' })
+      await tx.afterCommit(() => ran.push('queued'))
+
+      // Not yet: the rows this callback is about are not committed.
+      expect(ran).toEqual([])
+    })
+
+    expect(ran).toEqual(['queued'])
+  })
+
+  test('and is dropped when it rolls back', async () => {
+    const ran: string[] = []
+
+    await expect(
+      connection.transaction(async (tx) => {
+        await tx.afterCommit(() => ran.push('queued'))
+        throw new Error('nope')
+      })
+    ).rejects.toThrow('nope')
+
+    // The rows it was about never existed, so neither should the work.
+    expect(ran).toEqual([])
+    // And nothing is left waiting: outside a transaction there is no manager at all.
+    expect(connection.transactions).toBeUndefined()
+  })
+
+  test('outside a transaction it runs immediately', async () => {
+    const ran: string[] = []
+
+    await connection.afterCommit(() => ran.push('now'))
+
+    // This is what lets a caller mark work afterCommit unconditionally.
+    expect(ran).toEqual(['now'])
+  })
+
+  test('a nested commit waits for the outermost one', async () => {
+    const ran: string[] = []
+
+    await connection.transaction(async (tx) => {
+      await tx.transaction(async (inner) => {
+        await inner.afterCommit(() => ran.push('inner'))
+      })
+
+      // The inner block finished, but the outer one can still roll it all back.
+      expect(ran).toEqual([])
+
+      await tx.afterCommit(() => ran.push('outer'))
+    })
+
+    expect(ran).toEqual(['inner', 'outer'])
+  })
+
+  test('an outer rollback discards what the inner block deferred', async () => {
+    const ran: string[] = []
+
+    await expect(
+      connection.transaction(async (tx) => {
+        await tx.transaction(async (inner) => {
+          await inner.afterCommit(() => ran.push('inner'))
+        })
+
+        throw new Error('nope')
+      })
+    ).rejects.toThrow('nope')
+
+    expect(ran).toEqual([])
+  })
+
+  test('registering from the outer connection lands in the same transaction', async () => {
+    const ran: string[] = []
+
+    await connection.transaction(async () => {
+      // The case this feature exists for: whatever defers the work — an event
+      // dispatcher, a queue manager — holds the application's connection, not the
+      // `tx` some service method three frames up was handed. It is found in async
+      // context instead, and must still be deferred.
+      await connection.afterCommit(() => ran.push('deferred'))
+
+      expect(ran).toEqual([])
+    })
+
+    expect(ran).toEqual(['deferred'])
+  })
+
+  test('a nested transaction is a savepoint, so it can be nested at all', async () => {
+    // In-memory SQLite has one connection, so two *concurrent* transactions are
+    // impossible here — the dialect suite covers that against Postgres and MySQL.
+    await connection.transaction(async (tx) => {
+      await tx.transaction(async (inner) => {
+        await new QueryBuilder(inner, 'users').insert({ name: 'Ada' })
+      })
+
+      expect(await new QueryBuilder(tx, 'users').count()).toBe(1)
+    })
+
+    expect(await users().count()).toBe(1)
+  })
+})
+
 describe('query events', () => {
   test('every query is announced with its sql, bindings and duration', async () => {
     const seen: Array<{ sql: string; bindings: unknown[]; time: number }> = []

@@ -1,4 +1,5 @@
 import type { Grammar } from '../query/grammar.ts'
+import type { TransactionManager } from './transactions.ts'
 
 export type Row = Record<string, unknown>
 
@@ -30,6 +31,25 @@ export interface Connection {
    * The callback receives a connection scoped to the transaction.
    */
   transaction<T>(callback: (tx: Connection) => Promise<T>, attempts?: number): Promise<T>
+
+  /**
+   * The transaction this connection is inside, or undefined outside one.
+   *
+   * Only the copy handed to a `transaction()` callback has it: two concurrent
+   * transactions on the same pool are siblings, so "am I in a transaction?" is a
+   * property of the object, never of the pool.
+   */
+  readonly transactions: TransactionManager | undefined
+
+  /**
+   * Run `callback` after the outermost transaction commits — or immediately when
+   * none is open.
+   *
+   * What `afterCommit` on a job, listener or notification is built on: work that
+   * leaves this process must not be released against rows that are not committed
+   * yet, or a worker can reserve a job whose data does not exist.
+   */
+  afterCommit(callback: () => unknown): Promise<void>
 
   disconnect(): Promise<void>
 }
