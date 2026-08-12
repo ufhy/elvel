@@ -115,7 +115,6 @@ Deliberately absent, with reasons:
 | **Encrypted cookies** | Signing is implemented; encryption needs an encryption package. Stated in the README rather than implied, and the encrypted `X-XSRF-TOKEN` header is rejected rather than silently accepted. |
 | Redirect-back-with-errors (`back()->withErrors()`) | Sessions and flash data are in place, so this is a redirect helper plus an `$errors` view global — small, but it belongs with a form-rendering example. |
 | `database` and `redis` session drivers | `file` and `memory` exist; the driver interface is four methods. |
-| Session garbage collection on a schedule | `gc(lifetime)` exists on both drivers; nothing calls it yet — that wants the scheduler. |
 | Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
 | Rate limiting, trusted proxies, CORS | Separate middleware, none of it started. |
@@ -164,12 +163,14 @@ that behaves differently per driver is worse than none.
 | --- | --- |
 | **JSON, not a binary format, for stored values** | A `Date` comes back as an ISO string and a class instance loses its identity on every driver except `array`, which stores values as they were given. The trade is deliberate: the payload stays readable in `redis-cli` and in the cache table, and every runtime we target can parse it. Cache plain data, or re-hydrate on read. |
 | `memcached`, `dynamodb`, `apc`, `octane` drivers | Nothing in this runtime needs them yet, and `extend()` takes a driver in ten lines. |
-| `flexible()` deferring until after the response | Laravel defers the refresh with `defer()`, which runs it once the response is sent. Ours starts it immediately and does not await it — the requester still does not wait, but the process does the work sooner. A real `defer()` belongs with the queue package. |
 | `funnel()` / `ConcurrencyLimiter` | `withoutOverlapping()` covers the common case (one at a time); a semaphore for *N* at a time is a separate primitive. |
 | Named rate limiters (`RateLimiter::for('uploads', …)`) and the `throttle` middleware | The limiter itself is complete; naming limits and applying them per route is HTTP work, and lands with the middleware in `@elysian/http`. |
 | Event classes (`CacheHit`, `KeyWritten`, …) | Events are dispatched as names — `cache.hit`, `cache.written`, `cache.forgotten`, `cache.flushed` — which is how the rest of the framework dispatches. A listener gets the same payload either way. |
-| Automatic pruning of the `database` store | `cache:prune` exists and deletes expired rows; nothing runs it on a schedule until the scheduler lands. The other drivers expire on their own. |
 | `many()` as one round trip on `file` and `array` | Both read key by key. Redis uses `MGET` and the database store one `where in`, which is where it matters. |
+
+Done since this was written: `flexible()` defers its refresh through core's
+`defer()`, so it runs after the response; and `cache:prune` is on a schedule — the
+playground registers it hourly.
 
 Two behaviours worth knowing rather than discovering:
 
@@ -212,9 +213,37 @@ Three behaviours worth knowing rather than discovering:
   trusted; a job still running when it expires will be picked up a second time,
   which is the same trade Laravel makes.
 
+## @elysian/scheduler
+
+A cron matcher written here rather than taken from a package, the frequency helpers
+built on top of it, mutexes for overlap and multi-server, and the four commands
+that drive it. Nothing runs by itself: a crontab calls `schedule:run` every minute,
+or a process runs `schedule:work`.
+
+| Missing | Why |
+| --- | --- |
+| **`runInBackground` does not fork** | Laravel spawns `php artisan` per entry, so a slow task does not hold the minute. Here every entry runs in the scheduler's own process, one after another: a task that takes two minutes delays the entries behind it. `withoutOverlapping()` keeps the *next minute's* copy of the same task out, which is the part that matters most, and a long task belongs on the queue — `schedule().job(...)` only dispatches, so it returns at once. |
+| `sendOutputTo` / `appendOutputTo` / `emailOutputTo` | Output is inherited rather than captured. Capturing is the easy half; emailing it needs the mail package. |
+| `#` (nth weekday) and `W` (nearest weekday) in expressions | `L` is supported because `lastDayOfMonth()` needs it. The other two have no helper pointing at them, and each is a special case in the matcher; `dayMatches` is the place to add them. |
+| `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
+| `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
+| `onOneServer` releasing its mutex | Deliberate: the lock is held for the minute, which is what keeps the other servers out. A task that must not run twice in the same minute across servers gets that; one that must never overlap *at all* wants `withoutOverlapping()` too. |
+| Maintenance-mode awareness (`evenInMaintenanceMode`) | There is no maintenance mode yet — that is `down`/`up` commands and a middleware, and it belongs with them. |
+
+Two things worth knowing:
+
+- **`schedule:run` must be called every minute.** It runs what is due *in that
+  minute*; calling it every five minutes silently drops four minutes of entries.
+  That is cron's contract, not a limitation added here.
+- **The day-of-month/day-of-week rule is POSIX's, not the obvious one.** With both
+  fields restricted, an expression matches if **either** matches, so
+  `0 0 1 * MON` is "the 1st, and every Monday". `matches()` says so, and there is
+  a test for it, because the intuitive reading turns a schedule into one that
+  almost never runs.
+
 ## Not started
 
-`scheduler`, `mail`, `storage`, `notifications`.
+`mail`, `storage`, `notifications`.
 
 ## Watch list
 

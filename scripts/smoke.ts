@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { ScheduleRunner } from '@elysian/scheduler'
 import pc from 'picocolors'
 
 /**
@@ -1087,6 +1088,119 @@ for (const connection of connections) {
 }
 await app.make('queue').failed.flush()
 await app.make('cache').store().forget('digest:log')
+
+// ---------------------------------------------------------------- scheduler
+
+section('Scheduler')
+
+const schedule = app.make('schedule')
+const scheduled = schedule.events()
+
+check(
+  'the application registers its schedule in one place',
+  scheduled.length >= 4,
+  `${scheduled.length} entries`
+)
+check(
+  'entries carry the expression their frequency wrote',
+  scheduled.map((event) => event.cronExpression).includes('0 * * * *')
+)
+check(
+  'the schedule timezone reaches every entry',
+  scheduled.every((event) => event.zone === app.config.get<string>('app.timezone', 'UTC'))
+)
+
+const scheduleList = plain(await captureOutput(() => app.make('artisan').run(['schedule:list'])))
+check('schedule:list shows the expression and the next run', scheduleList.includes('NEXT RUN'))
+check('and describes each entry', scheduleList.includes('Delete expired rows'))
+
+// Three entries added here, so the assertions do not depend on the clock.
+const ran: string[] = []
+
+schedule
+  .call(() => {
+    ran.push('due')
+  }, 'smoke:due')
+  .everyMinute()
+
+schedule
+  .call(() => {
+    ran.push('not-due')
+  }, 'smoke:yearly')
+  .yearly()
+
+schedule
+  .call(() => {
+    ran.push('filtered')
+  }, 'smoke:filtered')
+  .everyMinute()
+  .when(false)
+
+const due = schedule.dueEvents()
+check(
+  'dueEvents honours the expression',
+  due.some((event) => event.label === 'smoke:due') &&
+    !due.some((event) => event.label === 'smoke:yearly')
+)
+check(
+  'a filtered entry is still due — filters are a separate question',
+  due.some((event) => event.label === 'smoke:filtered')
+)
+
+const runOutput = plain(await captureOutput(() => app.make('artisan').run(['schedule:run'])))
+
+check('schedule:run runs what is due', ran.includes('due'))
+check('and skips what a filter refused', !ran.includes('filtered'))
+check('and does not run what is not due', !ran.includes('not-due'))
+check('reporting each outcome', runOutput.includes('smoke:due') && runOutput.includes('SKIP'))
+
+// The overlap mutex, through the real cache store.
+let held: (() => void) | undefined
+const gate = new Promise<void>((resolve) => {
+  held = resolve
+})
+
+const slow = schedule
+  .call(() => gate, 'smoke:overlapping')
+  .everyMinute()
+  .withoutOverlapping()
+
+const runner = new ScheduleRunner({ mutex: app.make('cache').store() })
+const firstRun = runner.runEvent(slow)
+
+await Bun.sleep(20)
+const secondRun = await runner.runEvent(slow)
+
+check('withoutOverlapping keeps a second run out', secondRun === 'overlapping')
+
+held?.()
+check('and the first one finishes', (await firstRun) === 'ran')
+check(
+  'the mutex is released afterwards',
+  (await runner.runEvent(
+    schedule
+      .call(() => undefined, 'smoke:overlapping')
+      .everyMinute()
+      .withoutOverlapping()
+  )) === 'ran'
+)
+
+// `schedule:test` ignores the expression on purpose.
+ran.length = 0
+const tested = plain(
+  await captureOutput(() => app.make('artisan').run(['schedule:test', 'smoke:yearly']))
+)
+check('schedule:test runs an entry whose window is nowhere near', ran.includes('not-due'))
+check('and says which entry it ran', tested.includes('smoke:yearly'))
+
+const unknownEntry = plain(
+  await captureOutput(() => app.make('artisan').run(['schedule:test', 'nothing:here']))
+)
+check('an unknown entry lists what is registered', unknownEntry.includes('Registered:'))
+
+// The entries added above stay for the rest of this process, which ends with the
+// smoke run; what matters is that nothing they wrote is left behind.
+await app.make('cache').store().flush()
 
 // ---------------------------------------------------------------- exceptions
 

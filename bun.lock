@@ -11,6 +11,8 @@
         "@biomejs/biome": "^2.5.8",
         "@clack/prompts": "^1.7.0",
         "@elysiajs/static": "^1.4.10",
+        "@elysian/auth": "workspace:*",
+        "@elysian/cache": "workspace:*",
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
@@ -18,6 +20,8 @@
         "@elysian/events": "workspace:*",
         "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
+        "@elysian/queue": "workspace:*",
+        "@elysian/scheduler": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
         "@elysian/view": "workspace:*",
@@ -155,6 +159,19 @@
         "@elysian/support": "workspace:*",
       },
     },
+    "packages/scheduler": {
+      "name": "@elysian/scheduler",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/console": "workspace:*",
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@elysian/cache": "workspace:*",
+        "@elysian/queue": "workspace:*",
+      },
+    },
     "packages/support": {
       "name": "@elysian/support",
       "version": "0.0.1",
@@ -200,6 +217,7 @@
         "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/queue": "workspace:*",
+        "@elysian/scheduler": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
         "@elysian/view": "workspace:*",
@@ -277,6 +295,8 @@
     "@elysian/log": ["@elysian/log@workspace:packages/log"],
 
     "@elysian/queue": ["@elysian/queue@workspace:packages/queue"],
+
+    "@elysian/scheduler": ["@elysian/scheduler@workspace:packages/scheduler"],
 
     "@elysian/support": ["@elysian/support@workspace:packages/support"],
 
