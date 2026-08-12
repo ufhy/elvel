@@ -1,0 +1,10 @@
+import { JsonResource } from '@elysian/http'
+
+export class {{ class }} extends JsonResource<unknown> {
+  toObject() {
+    return {
+      // id: this.resource.id,
+      // posts: this.whenLoaded('posts')
+    }
+  }
+}

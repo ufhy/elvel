@@ -52,6 +52,7 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
 | `@elysian/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
+| `@elysian/http` | `FormRequest`, `JsonResource`, sessions, signed cookies, CSRF. |
 | `@elysian/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
 | `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
@@ -353,8 +354,8 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 646 tests, including 64 against real Postgres and MySQL
-bun run smoke    # 91 checks against the real playground app
+bun run test     # 692 tests, including 64 against real Postgres and MySQL
+bun run smoke    # 114 checks against the real playground app
 ```
 
 ### playground/
@@ -442,6 +443,59 @@ extra constraints (`Rule.unique('users','email').where('tenant', id)`).
 session, so it belongs to the `http` package. This one works in a command or a
 seeder with no HTTP at all.
 
+## HTTP
+
+`FormRequest` completes the validation story, in the order
+`ValidatesWhenResolvedTrait` defines: `prepareForValidation` → `authorize` →
+rules → `passedValidation`.
+
+```ts
+class StoreArticleRequest extends FormRequest {
+  authorize() { return true }          // false is a 403, never a 422
+  prepareForValidation() { this.merge({ title: String(this.input('title')).trim() }) }
+  rules() { return { title: 'required|min:3', status: 'required|in:draft,published' } }
+}
+
+const data = await validateRequest(StoreArticleRequest, { body })
+```
+
+Authorization is checked **before** the rules, so a refused request cannot reveal
+which fields would have failed. `validated()` returns only validated keys;
+`safe().only()/except()` slices it. `failOnUnknownFields` rejects keys no rule
+mentions.
+
+`JsonResource` makes a conditional key **absent** rather than null — a null tells
+a client the value exists and is empty:
+
+```ts
+class ArticleResource extends JsonResource<Article> {
+  toObject() {
+    return {
+      id: this.resource.id,
+      notes: this.when(viewer.isEditor, () => this.resource.notes),
+      comments: this.whenLoaded('comments'),        // never lazily loads
+      links: this.merge({ self: `/articles/${this.resource.id}` })
+    }
+  }
+}
+```
+
+Sessions are driver-based (`file`, `memory`) with Laravel's flash semantics: a
+flashed value survives exactly one further request, implemented with the same
+`_flash.new` → `_flash.old` ageing. CSRF compares `_token` or `X-CSRF-TOKEN`
+against the session token in **constant time**, exempts read methods and
+configured paths, and answers 419 on a mismatch.
+
+**Cookies are signed, not encrypted.** The value stays readable by the client but
+cannot be altered without the key. Laravel encrypts; that needs an encryption
+package we have not built, so it is said plainly rather than implied — the session
+cookie carries only an id. An encrypted `X-XSRF-TOKEN` is therefore *rejected*
+rather than waved through.
+
+Errors are rendered by **one** handler, in core: `ValidationError` carries
+`status = 422` and its bag is picked up duck-typed. A second `onError` in the http
+package raced the first one and lost, which is how that was found.
+
 ## Known gaps
 
 [`GAPS.md`](GAPS.md) records what is deliberately missing in every finished
@@ -451,11 +505,8 @@ to work (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
 
 ## Roadmap
 
-Milestone 1, events + log, the database layer and validation are done. Next, in
-dependency order:
+Milestone 1, events + log, the database layer, validation and http are done.
+Next, in dependency order:
 
-1. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
-2. `auth` — better-auth through `createAdapterFactory` over our own query
-   builder, so its `createSchema` emits our migration format rather than a
-   second schema; plus Gate/Policy
-3. `cache`, `queue`, `scheduler`, `mail`, `storage`
+1. `auth` — better-auth through `createAdapterFactory`, plus Gate/Policy
+2. `cache`, `queue`, `scheduler`, `mail`, `storage`

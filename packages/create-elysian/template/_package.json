@@ -14,6 +14,7 @@
     "@elysian/core": "{{ dep_core }}",
     "@elysian/database": "{{ dep_database }}",
     "@elysian/events": "{{ dep_events }}",
+    "@elysian/http": "{{ dep_http }}",
     "@elysian/log": "{{ dep_log }}",
     "@elysian/support": "{{ dep_support }}",
     "@elysian/validation": "{{ dep_validation }}",

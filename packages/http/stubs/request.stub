@@ -1,0 +1,19 @@
+import { FormRequest } from '@elysian/http'
+
+export class {{ class }} extends FormRequest {
+  /** Return false to refuse the request with a 403, not a 422. */
+  override authorize(): boolean {
+    return true
+  }
+
+  rules() {
+    return {
+      // name: 'required|string|min:2'
+    }
+  }
+
+  /** Custom messages, keyed by `rule` or `field.rule`. */
+  override messages() {
+    return {}
+  }
+}

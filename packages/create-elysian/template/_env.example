@@ -2,6 +2,7 @@ APP_NAME="{{ name }}"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:3000
+APP_KEY=change-me-to-32-characters-or-more
 
 PORT=3000
 HOST=
@@ -15,3 +16,6 @@ LOG_REQUESTS=false
 DB_CONNECTION=sqlite
 DB_DATABASE=database/database.sqlite
 DB_FOREIGN_KEYS=true
+
+SESSION_DRIVER=file
+SESSION_CSRF=true

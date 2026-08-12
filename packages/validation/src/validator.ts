@@ -22,6 +22,9 @@ import {
 } from './types.ts'
 
 export class ValidationError extends Error {
+  /** Read by the framework's exception handler, as HttpException's is. */
+  readonly status = 422
+
   constructor(readonly errors: ErrorBag) {
     super(errors.first() ?? 'The given data was invalid.')
     this.name = 'ValidationError'

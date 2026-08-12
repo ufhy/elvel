@@ -108,10 +108,21 @@ Deliberately absent, with reasons:
 | `Rule::when`, closure rules, custom rule classes | `after()` covers the same ground for now. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |
 
+## @elysian/http
+
+| Missing | Why |
+| --- | --- |
+| **Encrypted cookies** | Signing is implemented; encryption needs an encryption package. Stated in the README rather than implied, and the encrypted `X-XSRF-TOKEN` header is rejected rather than silently accepted. |
+| Redirect-back-with-errors (`back()->withErrors()`) | Sessions and flash data are in place, so this is a redirect helper plus an `$errors` view global — small, but it belongs with a form-rendering example. |
+| `database` and `redis` session drivers | `file` and `memory` exist; the driver interface is four methods. |
+| Session garbage collection on a schedule | `gc(lifetime)` exists on both drivers; nothing calls it yet — that wants the scheduler. |
+| Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
+| `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
+| Rate limiting, trusted proxies, CORS | Separate middleware, none of it started. |
+
 ## Not started
 
-`http` (FormRequest, JsonResource, session, cookies, CSRF), `auth`
-(better-auth via `createAdapterFactory`), `cache`, `queue`, `scheduler`, `mail`,
+`auth` (better-auth via `createAdapterFactory`), `cache`, `queue`, `scheduler`, `mail`,
 `storage`, `notifications`.
 
 ## Test coverage gaps

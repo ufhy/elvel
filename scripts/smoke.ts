@@ -328,6 +328,125 @@ const unique = (await (await app.handle(new Request('http://localhost/check/uniq
 }
 check('the unique rule reaches the real database', unique.passes === true)
 
+section('HTTP: form requests, resources, session, CSRF')
+
+async function postJson(path: string, body: unknown, headers: Record<string, string> = {}) {
+  return app.handle(
+    new Request(`http://localhost${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body)
+    })
+  )
+}
+
+const created = await postJson('/check/articles', {
+  title: '  Trimmed title  ',
+  body: 'Long enough body text.',
+  status: 'draft'
+})
+const createdBody = (await created.json()) as { created?: Record<string, unknown> }
+
+check('a valid form request passes', created.status === 200)
+check('prepareForValidation ran', createdBody.created?.title === 'Trimmed title')
+
+const invalid = await postJson('/check/articles', { title: 'x', status: 'published' })
+const invalidBody = (await invalid.json()) as { errors?: Record<string, string[]> }
+
+check('an invalid form request is a 422 with the bag', invalid.status === 422)
+check(
+  'the failing rule decides the message, not the field',
+  invalidBody.errors?.title?.[0] === 'The title field must be at least 3 characters.'
+)
+check(
+  'required_if fired from the sibling field',
+  invalidBody.errors?.published_at?.[0]?.includes('required when status is published') === true
+)
+
+const forbidden = await postJson('/check/articles', { forbidden: 'yes', title: 'x' })
+check('authorize() refusing is a 403, not a 422', forbidden.status === 403)
+
+const collection = (await (
+  await app.handle(new Request('http://localhost/check/articles'))
+).json()) as { data?: Array<Record<string, unknown>>; meta?: { total?: number } }
+
+check('a resource collection is wrapped', Array.isArray(collection.data))
+check('meta travels with the collection', collection.meta?.total === 2)
+check(
+  'a hidden field is absent rather than null',
+  collection.data?.[0] !== undefined && !('notes' in collection.data[0])
+)
+check('merge() flattens into the item', collection.data?.[0]?.self === '/articles/1')
+check(
+  'whenLoaded only includes a loaded relation',
+  !('comments' in (collection.data?.[0] ?? {})) && 'comments' in (collection.data?.[1] ?? {})
+)
+
+const asEditor = (await (
+  await app.handle(new Request('http://localhost/check/articles/1?editor=yes'))
+).json()) as { data?: Record<string, unknown> }
+check('a permitted field appears', asEditor.data?.notes === 'internal only')
+
+// The session routes are deliberately not CSRF-exempt.
+const tokenResponse = await app.handle(new Request('http://localhost/session/token'))
+const tokenBody = (await tokenResponse.json()) as { token: string }
+const cookie = tokenResponse.headers.get('set-cookie') ?? ''
+
+check('a session cookie is issued', cookie.includes('elysian_session='))
+check(
+  'the cookie is HttpOnly and SameSite=Lax',
+  cookie.includes('HttpOnly') && cookie.includes('SameSite=Lax')
+)
+check('a session carries a CSRF token', tokenBody.token.length === 40)
+
+const jarCookie = cookie.split(';')[0] as string
+
+const blocked = await postJson('/session/visit', {}, { cookie: jarCookie })
+check('a write without a CSRF token is a 419', blocked.status === 419)
+
+const allowed = await postJson('/session/visit', { _token: tokenBody.token }, { cookie: jarCookie })
+check('a write with the token succeeds', allowed.status === 200)
+
+const withHeader = await postJson(
+  '/session/visit',
+  {},
+  { cookie: jarCookie, 'x-csrf-token': tokenBody.token }
+)
+check('the token is also accepted from the header', withHeader.status === 200)
+
+const tampered = await postJson(
+  '/session/visit',
+  { _token: `${tokenBody.token}x` },
+  { cookie: jarCookie }
+)
+check('a wrong token is rejected', tampered.status === 419)
+
+// Read the flash on the very next request: any request in between ages it by
+// one, which is exactly what flash data means.
+const flashed = (await (
+  await app.handle(
+    new Request('http://localhost/session/status', { headers: { cookie: jarCookie } })
+  )
+).json()) as { status: string | null }
+check('flash data survives exactly one request', flashed.status === 'Visited!')
+
+const visited = (await (
+  await app.handle(
+    new Request('http://localhost/session/token', { headers: { cookie: jarCookie } })
+  )
+).json()) as { visits: number }
+check('session data persists across requests', visited.visits === 2)
+
+const gone = (await (
+  await app.handle(
+    new Request('http://localhost/session/status', { headers: { cookie: jarCookie } })
+  )
+).json()) as { status: string | null }
+check('and is gone on the next one', gone.status === null)
+
+const forged = await postJson('/session/visit', { _token: tokenBody.token })
+check('a token without the matching session cookie is rejected', forged.status === 419)
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')

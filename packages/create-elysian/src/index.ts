@@ -119,6 +119,7 @@ const FRAMEWORK_PACKAGES = [
   'core',
   'database',
   'events',
+  'http',
   'log',
   'support',
   'validation',

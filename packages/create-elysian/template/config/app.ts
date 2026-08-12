@@ -2,12 +2,16 @@ import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
 import { EventServiceProvider } from '@elysian/events'
+import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
 import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
 export default {
   name: env('APP_NAME', 'Elysian'),
+
+  /** Signs session cookies. Must be at least 32 characters in production. */
+  key: env('APP_KEY', ''),
 
   env: env('APP_ENV', 'local'),
 
@@ -31,6 +35,7 @@ export default {
     ConsoleServiceProvider,
     DatabaseServiceProvider,
     ValidationServiceProvider,
+    HttpServiceProvider,
     ViewServiceProvider
   ]
 }

@@ -71,6 +71,12 @@ export class ExceptionHandler implements ExceptionHandlerContract {
       message: this.messageFor(error, status, debug)
     }
 
+    // An error may carry a field-keyed bag (validation). Rendering it here keeps
+    // a single error renderer: a second onError would race this one, and Elysia
+    // uses whichever handler answers first.
+    const errors = ExceptionHandler.errorsOf(error)
+    if (errors) payload.errors = errors
+
     if (debug && error instanceof Error) {
       payload.exception = error.name
       payload.stack = error.stack?.split('\n').map((line) => line.trim())
@@ -101,6 +107,25 @@ export class ExceptionHandler implements ExceptionHandlerContract {
 
     if (debug && error instanceof Error) return error.message
     return 'Server Error'
+  }
+
+  /**
+   * A field-keyed error bag, when the error exposes one.
+   *
+   * Duck-typed: core cannot depend on the validation package.
+   */
+  private static errorsOf(error: unknown): Record<string, string[]> | undefined {
+    const bag = (error as { errors?: { messages?: unknown } }).errors
+
+    if (
+      bag &&
+      typeof bag === 'object' &&
+      typeof (bag as { messages?: unknown }).messages === 'function'
+    ) {
+      return (bag as { messages(): Record<string, string[]> }).messages()
+    }
+
+    return undefined
   }
 
   /**

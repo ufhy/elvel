@@ -13,6 +13,7 @@
         "@elysian/core": "workspace:*",
         "@elysian/database": "workspace:*",
         "@elysian/events": "workspace:*",
+        "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
@@ -86,6 +87,20 @@
         "@elysian/core": "workspace:*",
       },
     },
+    "packages/http": {
+      "name": "@elysian/http",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/console": "workspace:*",
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+        "@elysian/support": "workspace:*",
+        "@elysian/validation": "workspace:*",
+      },
+      "peerDependencies": {
+        "elysia": ">=1.4.0",
+      },
+    },
     "packages/log": {
       "name": "@elysian/log",
       "version": "0.0.1",
@@ -139,6 +154,7 @@
         "@elysian/core": "workspace:*",
         "@elysian/database": "workspace:*",
         "@elysian/events": "workspace:*",
+        "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
@@ -188,6 +204,8 @@
     "@elysian/database": ["@elysian/database@workspace:packages/database"],
 
     "@elysian/events": ["@elysian/events@workspace:packages/events"],
+
+    "@elysian/http": ["@elysian/http@workspace:packages/http"],
 
     "@elysian/log": ["@elysian/log@workspace:packages/log"],
 

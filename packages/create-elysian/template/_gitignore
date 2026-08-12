@@ -6,5 +6,7 @@ node_modules
 bun.lock
 
 storage/logs/*.log
+storage/framework/sessions/*
+!storage/framework/sessions/.gitkeep
 database/*.sqlite
 database/*.sqlite-*
