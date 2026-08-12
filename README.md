@@ -3,9 +3,9 @@
 Laravel's structure and developer experience, built on [Elysia](https://elysiajs.com)
 and Bun.
 
-**Status: milestone 1 (walking skeleton).** Scaffold an app, generate code with an
-Artisan-style CLI, and serve server-rendered pages. Database, Eloquent,
-validation, and auth are not built yet — see the roadmap.
+**Status: application core, CLI, views, events, logging and the database layer
+(query builder, models, migrations) are built.** Validation, HTTP form requests
+and auth are not — see the roadmap.
 
 ## Quick start
 
@@ -47,7 +47,7 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elysian/contracts` | Interfaces only. Breaks dependency cycles between packages. |
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
-| `@elysian/database` | Connections, query builder, schema builder and migrator on Bun.SQL. |
+| `@elysian/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
 | `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
@@ -188,6 +188,47 @@ from Laravel's source:
 An empty `whereIn` compiles to `0 = 1` rather than invalid SQL, and where
 operators are validated against a known list instead of interpolated.
 
+### Models
+
+The model layer has no brand name — it is `Model`, and the docs call them models.
+Laravel needs "Eloquent" because its ecosystem has a marketing surface; a
+descriptive name costs nothing to explain.
+
+```ts
+class User extends Model {
+  static override table = 'users'
+  static override fillable = ['name', 'email']
+  static override casts = { active: 'boolean', meta: 'json' }
+
+  declare id: number
+  declare name: string
+
+  posts() { return this.hasMany(Post) }
+}
+
+const user = await User.create({ name: 'Ada' })
+await User.where('votes', '>', 10).orderByDesc('votes').paginate(1, 15)
+```
+
+Attribute access goes through a Proxy, so `user.name` reads an attribute while
+`user.save()` stays a method; `declare` gives the columns types without
+shadowing it at runtime. Casts matter more here than in PHP — SQLite has no
+boolean, so `active` arrives as `0`, and `'0'` is truthy in JavaScript.
+
+**Relations are methods, and there is no synchronous lazy loading.** Reaching the
+database is asynchronous on Bun, so `user.posts` cannot return rows the way
+`$user->posts` does; it is `await user.posts().get()`. `with()` is what keeps
+that from becoming an N+1 — it uses the two-query strategy from Laravel's
+`addEagerConstraints`/`match`: collect the parents' keys, fetch every child in
+one `where in`, build a dictionary, assign. Parents with a null key are skipped
+rather than matched against null. `hasMany`, `hasOne`, `belongsTo` and
+`belongsToMany` are covered, including `attach`/`detach`/`sync` and nested
+`with('posts.comments')`.
+
+Saving follows `performUpdate`: only dirty columns are sent, and a clean model
+issues **no query at all**. Dirty comparison tolerates driver type drift, so a
+column that comes back as `5` and is reassigned `'5'` is not reported as changed.
+
 ### Migrations
 
 ```ts
@@ -240,7 +281,7 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 415 unit + integration tests
+bun run test     # 474 unit + integration tests
 bun run smoke    # 81 checks against the real playground app
 ```
 
@@ -268,7 +309,7 @@ integration tests; the playground is for end-to-end checks and manual poking.
 
 ### Test coverage
 
-`bun test --coverage` reports **74% of functions / 86% of lines**. Every package
+`bun test --coverage` reports **74% of functions / 85% of lines**. Every package
 has unit tests except `contracts` (interfaces only, no runtime) and
 `create-elysian` (covered end to end by the smoke test).
 
@@ -285,15 +326,13 @@ Deliberately not unit-tested:
 ## Roadmap
 
 Milestone 1, events + log, and the database layer (connections, query builder,
-schema builder, migrator) are done. Next, in dependency order:
+models, schema builder, migrator) are done. Next, in dependency order:
 
-1. `database` — Eloquent: models, casts, scopes, relations, eager loading.
-   Note lazy loading cannot be synchronous on Bun: `await user.posts()`.
-2. `validation` — two phases. TypeBox handles shape/type/format synchronously
+1. `validation` — two phases. TypeBox handles shape/type/format synchronously
    (it has no async path and no `refine`); a RuleRunner of ours handles
    `unique`/`exists` and the ~24 cross-field rules.
-3. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
-4. `auth` — better-auth through `createAdapterFactory` over our own query
+2. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
+3. `auth` — better-auth through `createAdapterFactory` over our own query
    builder, so its `createSchema` emits our migration format rather than a
    second schema; plus Gate/Policy
-5. `cache`, `queue`, `scheduler`, `mail`, `storage`
+4. `cache`, `queue`, `scheduler`, `mail`, `storage`

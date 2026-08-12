@@ -8,7 +8,7 @@ export { MigrateRefreshCommand } from './console/migrate-refresh.ts'
 export { MigrateResetCommand } from './console/migrate-reset.ts'
 export { MigrateRollbackCommand } from './console/migrate-rollback.ts'
 export { MigrateStatusCommand } from './console/migrate-status.ts'
-export { db, schema } from './helpers.ts'
+export { db, schema, table } from './helpers.ts'
 export { Migration, type MigrationContext, type MigrationFile } from './migrations/migration.ts'
 export {
   Migrator,
@@ -16,6 +16,21 @@ export {
   type RunOptions
 } from './migrations/migrator.ts'
 export { type MigrationRecord, MigrationRepository } from './migrations/repository.ts'
+export { ModelBuilder, ModelNotFoundError, type Paginated } from './model/builder.ts'
+export {
+  type CastType,
+  castFromDatabase,
+  castToDatabase,
+  formatDateTime
+} from './model/casts.ts'
+export { type ConnectionResolver, Model, type ModelClass, ModelEvent } from './model/model.ts'
+export {
+  BelongsTo,
+  BelongsToMany,
+  HasMany,
+  HasOne,
+  Relation
+} from './model/relations.ts'
 export { DatabaseServiceProvider } from './provider.ts'
 export { QueryBuilder } from './query/builder.ts'
 export { Expression, isExpression, raw } from './query/expression.ts'

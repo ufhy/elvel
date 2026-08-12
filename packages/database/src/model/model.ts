@@ -1,0 +1,668 @@
+import type { EventDispatcher } from '@elysian/contracts'
+import { Collection } from '@elysian/support'
+import type { Connection, Row } from '../connection/connection.ts'
+import { QueryBuilder } from '../query/builder.ts'
+import { ModelBuilder } from './builder.ts'
+import { type CastType, castFromDatabase, castToDatabase, formatDateTime } from './casts.ts'
+import { BelongsTo, BelongsToMany, HasMany, HasOne, type Relation } from './relations.ts'
+
+export type ConnectionResolver = (name?: string) => Promise<Connection>
+
+export type ModelClass<M extends Model = Model> = typeof Model & {
+  new (attributes?: Row): M
+}
+
+/** Lifecycle events, dispatched when the events package is available. */
+export class ModelEvent {
+  constructor(
+    readonly name: string,
+    readonly model: Model
+  ) {}
+
+  static readonly eventName = 'model'
+}
+
+/**
+ * Base model.
+ *
+ * Attribute access goes through a Proxy, so `user.name` reads an attribute while
+ * `user.save()` stays a method. Declare your columns with `declare` so they are
+ * typed without shadowing the proxy at runtime:
+ *
+ * ```ts
+ * class User extends Model {
+ *   static override table = 'users'
+ *   declare id: number
+ *   declare name: string
+ *
+ *   posts() { return this.hasMany(Post) }
+ * }
+ * ```
+ *
+ * There is no synchronous lazy loading. `$user->posts` cannot work on Bun,
+ * because reaching the database is asynchronous — so relations are methods and
+ * you `await user.posts().get()`. Eager loading via `with()` is what keeps that
+ * from becoming an N+1.
+ */
+export class Model {
+  static table?: string
+  static primaryKey = 'id'
+  static incrementing = true
+  static keyType: 'int' | 'string' = 'int'
+  static timestamps = true
+  static connection?: string
+
+  /** Columns mass assignment accepts. Empty means "consult `guarded`". */
+  static fillable: string[] = []
+
+  /** Columns mass assignment refuses. `['*']` blocks everything, as Laravel does. */
+  static guarded: string[] = ['*']
+
+  static casts: Record<string, CastType> = {}
+
+  /** Columns removed from `toObject()`/`toJSON()`. */
+  static hidden: string[] = []
+
+  static softDeletes = false
+
+  static CREATED_AT = 'created_at'
+  static UPDATED_AT = 'updated_at'
+  static DELETED_AT = 'deleted_at'
+
+  private static resolver?: ConnectionResolver
+  private static dispatcher?: EventDispatcher
+
+  /** Wired by DatabaseServiceProvider; set by hand in tests. */
+  static setConnectionResolver(resolver: ConnectionResolver): void {
+    Model.resolver = resolver
+  }
+
+  static setEventDispatcher(dispatcher: EventDispatcher | undefined): void {
+    Model.dispatcher = dispatcher
+  }
+
+  static getConnection(name?: string): Promise<Connection> {
+    if (!Model.resolver) {
+      throw new Error(
+        'No connection resolver. Register DatabaseServiceProvider, or call Model.setConnectionResolver().'
+      )
+    }
+
+    return Model.resolver(name)
+  }
+
+  attributes: Row = {}
+  original: Row = {}
+  relations: Record<string, unknown> = {}
+  exists = false
+
+  constructor(attributes: Row = {}) {
+    this.fill(attributes)
+
+    // A Proxy is what lets `user.name` work while `user.save()` still resolves.
+    // Returning it from the constructor keeps `instanceof` intact.
+    // biome-ignore lint/correctness/noConstructorReturn: the proxy IS the model
+    return new Proxy(this, {
+      get(target, property, receiver) {
+        if (typeof property !== 'string' || property in target) {
+          return Reflect.get(target, property, receiver)
+        }
+
+        if (property in target.relations) return target.relations[property]
+        if (property in target.attributes) return target.getAttribute(property)
+
+        return undefined
+      },
+
+      set(target, property, value, receiver) {
+        if (typeof property !== 'string' || property in target) {
+          return Reflect.set(target, property, value, receiver)
+        }
+
+        target.setAttribute(property, value)
+        return true
+      },
+
+      has(target, property) {
+        return (
+          Reflect.has(target, property) ||
+          (typeof property === 'string' && property in target.attributes)
+        )
+      },
+
+      deleteProperty(target, property) {
+        if (typeof property === 'string' && property in target.attributes) {
+          delete target.attributes[property]
+          return true
+        }
+
+        return Reflect.deleteProperty(target, property)
+      },
+
+      ownKeys(target) {
+        return [...new Set([...Reflect.ownKeys(target), ...Object.keys(target.attributes)])]
+      },
+
+      getOwnPropertyDescriptor(target, property) {
+        if (typeof property === 'string' && property in target.attributes) {
+          return { configurable: true, enumerable: true, value: target.getAttribute(property) }
+        }
+
+        return Reflect.getOwnPropertyDescriptor(target, property)
+      }
+    })
+  }
+
+  // ------------------------------------------------------------------ statics
+
+  private get self(): typeof Model {
+    return this.constructor as typeof Model
+  }
+
+  /** `users` from `User`, unless `static table` says otherwise. */
+  static getTable(): string {
+    if (this.table) return this.table
+
+    // Naive pluralisation, matching what Str.plural does for common cases.
+    const base = this.name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
+
+    if (/(s|x|z|ch|sh)$/.test(base)) return `${base}es`
+    if (/[^aeiou]y$/.test(base)) return `${base.slice(0, -1)}ies`
+
+    return `${base}s`
+  }
+
+  static query<T extends typeof Model>(this: T): ModelBuilder<InstanceType<T>> {
+    return new ModelBuilder<InstanceType<T>>(this as unknown as ModelClass<InstanceType<T>>)
+  }
+
+  static async all<T extends typeof Model>(this: T): Promise<Collection<InstanceType<T>>> {
+    return this.query().get()
+  }
+
+  static async find<T extends typeof Model>(
+    this: T,
+    id: unknown
+  ): Promise<InstanceType<T> | undefined> {
+    return this.query().find(id)
+  }
+
+  static async findOrFail<T extends typeof Model>(this: T, id: unknown): Promise<InstanceType<T>> {
+    return this.query().findOrFail(id)
+  }
+
+  static async first<T extends typeof Model>(this: T): Promise<InstanceType<T> | undefined> {
+    return this.query().first()
+  }
+
+  // Spelled out rather than forwarded with Parameters<>, which collapses an
+  // overloaded method to its last signature and would break where(col, value).
+  static where<T extends typeof Model>(
+    this: T,
+    column: string,
+    operator: string,
+    value: unknown
+  ): ModelBuilder<InstanceType<T>>
+  static where<T extends typeof Model>(
+    this: T,
+    column: string,
+    value: unknown
+  ): ModelBuilder<InstanceType<T>>
+  static where<T extends typeof Model>(this: T, ...args: unknown[]): ModelBuilder<InstanceType<T>> {
+    const query = this.query()
+
+    ;(query.where as (...rest: unknown[]) => unknown)(...args)
+
+    return query
+  }
+
+  static with<T extends typeof Model>(
+    this: T,
+    ...relations: string[]
+  ): ModelBuilder<InstanceType<T>> {
+    return this.query().with(...relations)
+  }
+
+  static async create<T extends typeof Model>(this: T, attributes: Row): Promise<InstanceType<T>> {
+    const model = new this(attributes) as InstanceType<T>
+    await model.save()
+
+    return model
+  }
+
+  /** Build an instance from a database row, without marking it dirty. */
+  static hydrate<T extends typeof Model>(this: T, row: Row): InstanceType<T> {
+    const model = new this() as InstanceType<T>
+
+    model.attributes = { ...row }
+    model.syncOriginal()
+    model.exists = true
+
+    return model
+  }
+
+  static withTrashed<T extends typeof Model>(this: T): ModelBuilder<InstanceType<T>> {
+    return this.query().withTrashed()
+  }
+
+  static onlyTrashed<T extends typeof Model>(this: T): ModelBuilder<InstanceType<T>> {
+    return this.query().onlyTrashed()
+  }
+
+  // --------------------------------------------------------------- attributes
+
+  getKey(): unknown {
+    return this.attributes[this.self.primaryKey]
+  }
+
+  getAttribute(key: string): unknown {
+    const value = this.attributes[key]
+    const cast = this.self.casts[key]
+
+    if (cast) return castFromDatabase(value, cast)
+
+    // Timestamps are dates even without an explicit cast, as in Laravel.
+    if (this.isDateColumn(key) && value !== null && value !== undefined) {
+      return castFromDatabase(value, 'datetime')
+    }
+
+    return value
+  }
+
+  setAttribute(key: string, value: unknown): this {
+    const cast = this.self.casts[key]
+
+    this.attributes[key] = cast
+      ? castToDatabase(value, cast)
+      : value instanceof Date
+        ? formatDateTime(value)
+        : value
+
+    return this
+  }
+
+  private isDateColumn(key: string): boolean {
+    const dates = [this.self.CREATED_AT, this.self.UPDATED_AT]
+    if (this.self.softDeletes) dates.push(this.self.DELETED_AT)
+
+    return dates.includes(key)
+  }
+
+  /** Mass assignment, honouring `fillable`/`guarded`. */
+  fill(attributes: Row): this {
+    for (const [key, value] of Object.entries(attributes)) {
+      if (this.isFillable(key)) this.setAttribute(key, value)
+    }
+
+    return this
+  }
+
+  /** Assign regardless of `fillable`/`guarded` — Laravel's `forceFill`. */
+  forceFill(attributes: Row): this {
+    for (const [key, value] of Object.entries(attributes)) this.setAttribute(key, value)
+
+    return this
+  }
+
+  isFillable(key: string): boolean {
+    if (this.self.fillable.length > 0) return this.self.fillable.includes(key)
+
+    if (this.self.guarded.includes('*')) {
+      // Guarded by default, but the framework's own columns must still fill.
+      return [this.self.primaryKey, this.self.CREATED_AT, this.self.UPDATED_AT].includes(key)
+        ? key !== this.self.primaryKey
+        : false
+    }
+
+    return !this.self.guarded.includes(key)
+  }
+
+  // ------------------------------------------------------------------- dirty
+
+  syncOriginal(): this {
+    this.original = { ...this.attributes }
+    return this
+  }
+
+  /**
+   * Attributes that differ from the last sync.
+   *
+   * A key absent from `original` counts as dirty, which is what makes a newly
+   * built model save every attribute it was given.
+   */
+  getDirty(): Row {
+    const dirty: Row = {}
+
+    for (const [key, value] of Object.entries(this.attributes)) {
+      if (!(key in this.original)) {
+        dirty[key] = value
+        continue
+      }
+
+      if (!Model.equivalent(this.original[key], value)) dirty[key] = value
+    }
+
+    return dirty
+  }
+
+  isDirty(...keys: string[]): boolean {
+    const dirty = this.getDirty()
+
+    return keys.length === 0 ? Object.keys(dirty).length > 0 : keys.some((key) => key in dirty)
+  }
+
+  isClean(...keys: string[]): boolean {
+    return !this.isDirty(...keys)
+  }
+
+  private static equivalent(original: unknown, current: unknown): boolean {
+    if (original === current) return true
+    if (original === null || current === null) return false
+
+    if (typeof original === 'object' || typeof current === 'object') {
+      return JSON.stringify(original) === JSON.stringify(current)
+    }
+
+    // A driver may return `1` where the caller set `'1'`; treat that as equal so
+    // a round trip does not report a phantom change.
+    return String(original) === String(current)
+  }
+
+  // ------------------------------------------------------------- persistence
+
+  async newQuery(): Promise<ModelBuilder<this>> {
+    return new ModelBuilder<this>(this.self as unknown as ModelClass<this>)
+  }
+
+  /**
+   * A raw query builder for this model's table.
+   *
+   * Persistence bypasses ModelBuilder deliberately: it must not inherit the
+   * soft-delete scope, and it needs the connection resolved, which is async.
+   */
+  private async baseQuery(): Promise<QueryBuilder<Row>> {
+    const connection = await Model.getConnection(this.self.connection)
+
+    return new QueryBuilder<Row>(connection, this.self.getTable())
+  }
+
+  async save(): Promise<boolean> {
+    const query = await this.baseQuery()
+
+    await this.fireEvent('saving')
+
+    const saved = this.exists ? await this.performUpdate(query) : await this.performInsert(query)
+
+    if (saved) {
+      await this.fireEvent('saved')
+      this.syncOriginal()
+    }
+
+    return saved
+  }
+
+  private async performUpdate(query: QueryBuilder<Row>): Promise<boolean> {
+    const dirty = this.getDirty()
+
+    // Nothing changed: skip the query entirely rather than issue a no-op UPDATE.
+    if (Object.keys(dirty).length === 0) return true
+
+    await this.fireEvent('updating')
+
+    if (this.self.timestamps) {
+      this.touchUpdatedAt()
+      dirty[this.self.UPDATED_AT] = this.attributes[this.self.UPDATED_AT]
+    }
+
+    await query.clone().where(this.self.primaryKey, this.getKey()).update(dirty)
+
+    await this.fireEvent('updated')
+
+    return true
+  }
+
+  private async performInsert(query: QueryBuilder<Row>): Promise<boolean> {
+    await this.fireEvent('creating')
+
+    if (this.self.timestamps) {
+      const now = formatDateTime(new Date())
+      this.attributes[this.self.CREATED_AT] ??= now
+      this.attributes[this.self.UPDATED_AT] ??= now
+    }
+
+    if (this.self.incrementing) {
+      const id = await query.clone().insertGetId(this.attributes, this.self.primaryKey)
+      this.attributes[this.self.primaryKey] = id
+    } else {
+      await query.clone().insert(this.attributes)
+    }
+
+    this.exists = true
+    await this.fireEvent('created')
+
+    return true
+  }
+
+  async update(attributes: Row): Promise<boolean> {
+    if (!this.exists) return false
+
+    this.fill(attributes)
+
+    return this.save()
+  }
+
+  /** Set `updated_at` without touching anything else. */
+  async touch(): Promise<boolean> {
+    if (!this.self.timestamps) return false
+
+    this.touchUpdatedAt()
+
+    return this.save()
+  }
+
+  private touchUpdatedAt(): void {
+    this.attributes[this.self.UPDATED_AT] = formatDateTime(new Date())
+  }
+
+  async delete(): Promise<boolean> {
+    if (!this.exists) return false
+
+    await this.fireEvent('deleting')
+
+    const query = (await this.baseQuery()).where(this.self.primaryKey, this.getKey())
+
+    if (this.self.softDeletes) {
+      const now = formatDateTime(new Date())
+      await query.update({ [this.self.DELETED_AT]: now })
+      this.attributes[this.self.DELETED_AT] = now
+      this.syncOriginal()
+    } else {
+      await query.delete()
+      this.exists = false
+    }
+
+    await this.fireEvent('deleted')
+
+    return true
+  }
+
+  /** Delete for real, even when the model soft deletes. */
+  async forceDelete(): Promise<boolean> {
+    if (!this.exists) return false
+
+    await this.fireEvent('deleting')
+    await (await this.baseQuery()).where(this.self.primaryKey, this.getKey()).delete()
+
+    this.exists = false
+    await this.fireEvent('deleted')
+
+    return true
+  }
+
+  async restore(): Promise<boolean> {
+    if (!this.self.softDeletes) return false
+
+    await (await this.baseQuery())
+      .where(this.self.primaryKey, this.getKey())
+      .update({ [this.self.DELETED_AT]: null })
+
+    this.attributes[this.self.DELETED_AT] = null
+    this.syncOriginal()
+
+    return true
+  }
+
+  trashed(): boolean {
+    return this.self.softDeletes && this.attributes[this.self.DELETED_AT] != null
+  }
+
+  /** Re-read this row from the database, leaving this instance untouched. */
+  async fresh(): Promise<this | undefined> {
+    if (!this.exists) return undefined
+
+    const query = await this.newQuery()
+
+    return (this.self.softDeletes ? query.withTrashed() : query).find(this.getKey()) as Promise<
+      this | undefined
+    >
+  }
+
+  /** Re-read this row into this instance, discarding unsaved changes. */
+  async refresh(): Promise<this> {
+    const fresh = await this.fresh()
+    if (!fresh) return this
+
+    this.attributes = { ...fresh.attributes }
+    this.relations = {}
+    this.syncOriginal()
+
+    return this
+  }
+
+  // ------------------------------------------------------------------ relations
+
+  hasMany<R extends Model>(
+    related: ModelClass<R>,
+    foreignKey?: string,
+    localKey?: string
+  ): HasMany<R> {
+    return new HasMany(
+      related,
+      this,
+      foreignKey ?? this.foreignKeyName(),
+      localKey ?? this.self.primaryKey
+    )
+  }
+
+  hasOne<R extends Model>(
+    related: ModelClass<R>,
+    foreignKey?: string,
+    localKey?: string
+  ): HasOne<R> {
+    return new HasOne(
+      related,
+      this,
+      foreignKey ?? this.foreignKeyName(),
+      localKey ?? this.self.primaryKey
+    )
+  }
+
+  belongsTo<R extends Model>(
+    related: ModelClass<R>,
+    foreignKey?: string,
+    ownerKey?: string
+  ): BelongsTo<R> {
+    const resolvedForeign =
+      foreignKey ?? `${Model.snake(related.name)}_${(related as typeof Model).primaryKey}`
+
+    return new BelongsTo(related, this, resolvedForeign, ownerKey ?? related.primaryKey)
+  }
+
+  belongsToMany<R extends Model>(
+    related: ModelClass<R>,
+    pivotTable?: string,
+    foreignPivotKey?: string,
+    relatedPivotKey?: string
+  ): BelongsToMany<R> {
+    const tables = [Model.snake(this.self.name), Model.snake(related.name)].sort()
+
+    return new BelongsToMany(
+      related,
+      this,
+      pivotTable ?? tables.join('_'),
+      foreignPivotKey ?? this.foreignKeyName(),
+      relatedPivotKey ?? `${Model.snake(related.name)}_${related.primaryKey}`
+    )
+  }
+
+  /** `user_id` for a `User`. */
+  foreignKeyName(): string {
+    return `${Model.snake(this.self.name)}_${this.self.primaryKey}`
+  }
+
+  static snake(value: string): string {
+    return value.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
+  }
+
+  setRelation(name: string, value: unknown): this {
+    this.relations[name] = value
+    return this
+  }
+
+  getRelation(name: string): unknown {
+    return this.relations[name]
+  }
+
+  relationLoaded(name: string): boolean {
+    return name in this.relations
+  }
+
+  /** Resolve a relation defined as a method on this model. */
+  resolveRelation(name: string): Relation<Model> {
+    const method = (this as unknown as Record<string, unknown>)[name]
+
+    if (typeof method !== 'function') {
+      throw new Error(`Relation [${name}] is not defined on ${this.self.name}.`)
+    }
+
+    return (method as () => Relation<Model>).call(this)
+  }
+
+  /** Eager-load relations onto an existing instance — Laravel's `load()`. */
+  async load(...relations: string[]): Promise<this> {
+    const query = await this.newQuery()
+    await query.eagerLoadRelations([this], relations)
+
+    return this
+  }
+
+  // ------------------------------------------------------------ serialisation
+
+  toObject(): Row {
+    const result: Row = {}
+
+    for (const key of Object.keys(this.attributes)) {
+      if (this.self.hidden.includes(key)) continue
+      result[key] = this.getAttribute(key)
+    }
+
+    for (const [name, value] of Object.entries(this.relations)) {
+      result[name] =
+        value instanceof Collection
+          ? value.all().map((item) => (item instanceof Model ? item.toObject() : item))
+          : value instanceof Model
+            ? value.toObject()
+            : value
+    }
+
+    return result
+  }
+
+  toJSON(): Row {
+    return this.toObject()
+  }
+
+  private async fireEvent(name: string): Promise<void> {
+    await Model.dispatcher?.dispatch(new ModelEvent(`${Model.snake(this.self.name)}.${name}`, this))
+  }
+}
