@@ -9,6 +9,7 @@ export type ArticleShape = {
   comments?: Array<{ id: number; body: string }>
 }
 
+/** Generated with `bun run playground make:resource Article`, then extended. */
 export class ArticleResource extends JsonResource<ArticleShape> {
   constructor(
     resource: ArticleShape,

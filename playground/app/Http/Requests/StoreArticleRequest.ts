@@ -1,16 +1,16 @@
 import { FormRequest } from '@elysian/http'
 
 /**
- * The full form-request lifecycle, asserted by `scripts/smoke.ts`.
+ * Generated with `bun run playground make:request StoreArticle`, then extended.
  *
- * Order: prepareForValidation → authorize → rules → passedValidation. A refused
- * authorization is a 403 and must not reveal which fields would have failed.
+ * The full lifecycle is asserted by `scripts/smoke.ts`: prepareForValidation →
+ * authorize → rules → passedValidation. A refused authorization is a 403 and
+ * must not reveal which fields would have failed.
  */
 export class StoreArticleRequest extends FormRequest {
-  static override failOnUnknownFields = false
-
+  /** Return false to refuse the request with a 403, not a 422. */
   override authorize(): boolean {
-    // A real app would consult a policy; the header keeps it inspectable.
+    // A real app would consult a policy; the field keeps it inspectable.
     return this.input('forbidden') !== 'yes'
   }
 
@@ -27,6 +27,7 @@ export class StoreArticleRequest extends FormRequest {
     }
   }
 
+  /** Custom messages, keyed by `rule` or `field.rule`. */
   override messages() {
     return { 'title.required': 'An article needs a title.' }
   }
