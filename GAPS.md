@@ -361,12 +361,38 @@ Five decisions worth knowing rather than discovering:
   means the same plaintext never produces the same bytes twice. Encrypt what you
   read, not what you search by.
 
+## create-elysian
+
+**The scaffolder ships 10 of the 17 packages.** This is the largest gap in the
+project and the one least visible from inside it: every package is exercised by
+the playground, where the wiring was written by hand, so nothing fails — while an
+application scaffolded today cannot use half the framework without hand-wiring it.
+
+| Missing from the template | Consequence |
+| --- | --- |
+| `@elysian/auth`, `cache`, `queue`, `scheduler`, `mail`, `storage`, `notifications`, `encryption` in `_package.json` | Eight packages a new application has to add itself, with the version pinning the scaffolder otherwise handles. |
+| The same eight in `config/app.ts` providers | Nothing is bound, so `cache()`, `dispatch()`, `notify()`, `encrypt()` throw in a fresh application. |
+| `config/auth.ts`, `cache.ts`, `queue.ts`, `mail.ts`, `filesystems.ts`, `notifications.ts` | Only `app`, `database`, `logging`, `session`, `view` are written. The rest exist in `playground/config/` only. |
+| The env keys those configs read, in `_env.example` | `CACHE_STORE`, `QUEUE_CONNECTION`, `MAIL_MAILER`, `FILESYSTEM_DISK`, `APP_PREVIOUS_KEYS`, `SESSION_ENCRYPT` and the rest are absent. |
+| Migrations for `jobs`, `failed_jobs`, `cache`, `notifications` and the auth tables | Those tables exist in the playground as hand-extended migrations. A new application has no way to create them except by copying those files. |
+| `queue:table`, `cache:table`, `notifications:table`, `auth:table` commands | Laravel ships the infrastructure tables as generators rather than as skeleton files; we have neither the generators nor the files. |
+
+The template also **drifts silently**: its `config/session.ts` still told a new
+application that cookies are signed "rather than encrypted" for as long as it took
+somebody to read it, which was fixed only because the encryption work happened to
+touch that sentence. Nothing checks the template against the packages — the smoke
+test asserts that a scaffolded application *scaffolds*, not that it can boot every
+provider the framework offers.
+
 ## Not started
 
-Nothing. The roadmap agreed at the start — core, console, view, events, log,
+Every package on the roadmap is built — core, console, view, events, log,
 database, validation, http, auth, cache, queue, scheduler, mail, storage,
-notifications — is complete, and so is the encryption package the last three
-items were waiting on. What remains is in the per-package tables above.
+notifications, and the encryption package the last three items were waiting on.
+
+What is *not* done is delivery: the scaffolder lags eight packages behind the
+framework, which is the section above and the next piece of work. The rest of
+what is deliberately missing is in the per-package tables.
 
 ## Watch list
 
@@ -386,7 +412,9 @@ uncovered, and why:
   `picocolors`
 - `serve.ts` — its `handle()` never resolves by design; the smoke test binds a
   real socket instead
-- `create-elysian` — covered end to end by the smoke test rather than by units
+- `create-elysian` — covered end to end by the smoke test rather than by units,
+  and only that it *scaffolds*: nothing asserts the template stays level with the
+  packages, which is how the drift in the section above went unnoticed
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
 - the S3 disk against AWS itself — the round trip is covered against MinIO
