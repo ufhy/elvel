@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Application } from '@elysian/core'
-import { BunSqlConnection, ConnectionManager, SchemaBuilder } from '@elysian/database'
+import { Application, flushDeferred, forgetDeferred } from '@elysian/core'
+import { ConnectionManager } from '@elysian/database'
 import { encode, FOREVER } from '../src/payload.ts'
 import { RateLimiter } from '../src/rate-limiter.ts'
 import { Repository } from '../src/repository.ts'
@@ -136,6 +136,8 @@ for (const candidate of candidates) {
     })
 
     afterEach(async () => {
+      // A deferred refresh from one test must not fire during the next.
+      forgetDeferred()
       await dispose()
     })
 
@@ -422,10 +424,16 @@ for (const candidate of candidates) {
 
       await Bun.sleep(1100)
 
-      // Stale: the old value comes back at once, and the refresh happens behind it.
+      // Stale: the old value comes back at once, and the refresh is deferred.
       expect(await cache.flexible('report', [1, 60], compute)).toBe('value-1')
 
-      await Bun.sleep(150)
+      // Nothing has recomputed yet — that is the point of deferring it.
+      expect(calls).toBe(1)
+
+      // In a request this happens after the response is sent; here we flush by
+      // hand, which is what a command or a test has to do.
+      expect(await flushDeferred()).toBeGreaterThan(0)
+
       expect(calls).toBe(2)
       expect(await cache.get<string>('report')).toBe('value-2')
     })

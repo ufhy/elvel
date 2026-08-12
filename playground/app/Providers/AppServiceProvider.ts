@@ -29,5 +29,9 @@ export class AppServiceProvider extends ServiceProvider {
     gate.define('view-status-page', () => true, { allowGuests: true })
 
     gate.define('access-admin', (user) => user?.email === 'admin@example.com')
+
+    // A job may carry a model, and the payload holds only its key — so the
+    // worker, which is a different process, needs to know the name.
+    this.app.make('queue').models.register(Article)
   }
 }

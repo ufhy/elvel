@@ -1,0 +1,26 @@
+import { Job } from '@elysian/queue'
+
+/**
+ * {{ studly }}
+ *
+ * `data` is what travels in the payload — keep it small and plain. A model in
+ * there is stored as a reference and re-read when the job runs, so the job always
+ * works on the current row.
+ */
+export class {{ class }} extends Job<{ id: string }> {
+  /** Attempts allowed before the job is recorded as failed. */
+  static override tries = 3
+
+  /** Seconds to wait between attempts; a list is indexed by attempt. */
+  static override backoff = [5, 30, 120]
+
+  async handle(): Promise<void> {
+    // The job runs in a worker process, not in the request.
+    void this.data.id
+  }
+
+  /** Runs once, after the last attempt has failed. */
+  override failed(_error: unknown): void {
+    //
+  }
+}

@@ -896,6 +896,198 @@ check(
 // Leave nothing behind: the file store writes into storage/, and Redis is shared.
 for (const store of stores) await app.make('cache').store(store).flush()
 
+// -------------------------------------------------------------------- queue
+
+section('Queue: dispatch, work, retry, fail')
+
+/** Every connection worth running here — redis only when a server answers. */
+const connections = ['database', ...(redisReachable ? ['redis'] : [])]
+
+async function queueState(connection: string) {
+  return (await (
+    await app.handle(new Request(`http://localhost/check/queue/state?connection=${connection}`))
+  ).json()) as {
+    size: number
+    failed: Array<{ id: number | string; job: string; attempts: number }>
+    log: string[]
+    jobs: string[]
+  }
+}
+
+const discovered = await queueState('database')
+check(
+  'jobs in app/Jobs are discovered, so a worker can resolve them',
+  ['FlakyProbe', 'SendArticleDigest', 'TouchArticle'].every((job) => discovered.jobs.includes(job))
+)
+
+for (const connection of connections) {
+  const clear = () =>
+    app.handle(
+      new Request(`http://localhost/check/queue/state?connection=${connection}`, {
+        method: 'DELETE'
+      })
+    )
+
+  const work = async () =>
+    (await (
+      await app.handle(
+        new Request(`http://localhost/check/queue/work?connection=${connection}`, {
+          method: 'POST'
+        })
+      )
+    ).json()) as { processed: number; failed: number; released: number; log: string[] }
+
+  await clear()
+
+  const queued = (await (
+    await postJson(`/check/queue/digest?connection=${connection}`, { label: 'digest' })
+  ).json()) as { queued: string; size: number }
+
+  check(`${connection}: dispatch queues the job and returns at once`, queued.size === 1)
+
+  const idle = await queueState(connection)
+  check(`${connection}: nothing has run yet`, idle.log.length === 0)
+
+  const worked = await work()
+  check(
+    `${connection}: the worker runs it and empties the queue`,
+    worked.processed === 1 && worked.log[0]?.startsWith('digest:') === true
+  )
+  check(`${connection}: and the job is gone`, (await queueState(connection)).size === 0)
+
+  // A delayed job is queued but not yet available.
+  await clear()
+  await postJson(`/check/queue/digest?connection=${connection}`, { label: 'later', delay: 60 })
+
+  const delayed = await work()
+  check(`${connection}: a delayed job is not picked up`, delayed.processed === 0)
+  check(`${connection}: but it is queued`, (await queueState(connection)).size === 1)
+
+  // Retry policy: two attempts, then the failed store, then the failed() hook.
+  await clear()
+  await postJson(`/check/queue/flaky?connection=${connection}`, { label: 'p', failTimes: 5 })
+
+  const flaky = await work()
+  check(
+    `${connection}: a failing job is retried, then recorded as failed`,
+    flaky.processed === 2 && flaky.released === 1 && flaky.failed === 1
+  )
+  check(
+    `${connection}: attempts and the failed hook are both visible`,
+    flaky.log.join('|') === 'p:attempt-1|p:attempt-2|p:failed:Probe [p] failed on atte'
+  )
+
+  const afterFailure = await queueState(connection)
+  check(
+    `${connection}: the failed job is recorded with its attempt count`,
+    afterFailure.failed[0]?.attempts === 2
+  )
+  check(`${connection}: and is off the queue`, afterFailure.size === 0)
+
+  // Retrying puts it back with the count reset.
+  const retried = (await (await postJson('/check/queue/retry', {})).json()) as { retried: number }
+  check(`${connection}: retry re-queues from the recorded payload`, retried.retried === 1)
+
+  const afterRetry = await queueState(connection)
+  check(
+    `${connection}: the failed record is cleared and the job is queued again`,
+    afterRetry.size === 1 && afterRetry.failed.length === 0
+  )
+
+  // A chain: each link is queued by its predecessor's success.
+  await clear()
+  await postJson(`/check/queue/chain?connection=${connection}`, {})
+
+  const chained = await work()
+  check(
+    `${connection}: a chain runs in order`,
+    chained.log.map((entry) => entry.split(':')[0]).join(',') === 'one,two,three'
+  )
+
+  await clear()
+}
+
+// A job carrying a model: the payload holds the key, the worker re-reads the row.
+await app.handle(
+  new Request('http://localhost/check/queue/state?connection=database', { method: 'DELETE' })
+)
+
+const titleBefore = (
+  (await (await app.handle(new Request('http://localhost/check/articles/3'))).json()) as {
+    data: { title: string }
+  }
+).data.title
+
+await postJson('/check/queue/touch/3?connection=database', {})
+await postJson('/check/queue/work?connection=database', {})
+
+const titleAfter = (
+  (await (await app.handle(new Request('http://localhost/check/articles/3'))).json()) as {
+    data: { title: string }
+  }
+).data.title
+
+check(
+  'a model travels as a reference and is re-read by the worker',
+  titleAfter === `${titleBefore}!`
+)
+
+// `sync`: the job runs inside the dispatch, before the response is built.
+const synchronous = (await (
+  await postJson('/check/queue/digest/now', { label: 'sync' })
+).json()) as { log: string[] }
+check(
+  'dispatchSync runs the job before the handler returns',
+  synchronous.log.some((entry) => entry.startsWith('sync:'))
+)
+
+// `defer()`: after the response, not during it.
+const deferred = (await (await postJson('/check/queue/defer', {})).json()) as {
+  ranAlready: boolean | null
+}
+check('a deferred callback has not run when the response is built', !deferred.ranAlready)
+
+// Whether it *ran* can only be asserted against a real socket: Elysia fires
+// `onAfterResponse` when a response is transmitted, and `app.handle()` never
+// transmits one. Asserted in the Server section below.
+
+// The commands.
+const sized = plain(await captureOutput(() => app.make('artisan').run(['queue:size'])))
+check('queue:size reports the depth', /\d+ job\(s\) on \[default\]/.test(sized))
+
+await postJson('/check/queue/digest?connection=database', { label: 'once' })
+
+const once = plain(await captureOutput(() => app.make('artisan').run(['queue:work', '--once'])))
+check('queue:work --once processes a single job', once.includes('Job processed'))
+
+const emptyOnce = plain(
+  await captureOutput(() => app.make('artisan').run(['queue:work', '--once']))
+)
+check('and says so when nothing is waiting', emptyOnce.includes('No job was waiting'))
+
+await postJson('/check/queue/flaky?connection=database', { label: 'listed', failTimes: 5 })
+await app.handle(
+  new Request('http://localhost/check/queue/work?connection=database', { method: 'POST' })
+)
+
+const listed = plain(await captureOutput(() => app.make('artisan').run(['queue:failed'])))
+check('queue:failed lists what failed', listed.includes('FlakyProbe'))
+
+const flushed = plain(await captureOutput(() => app.make('artisan').run(['queue:flush'])))
+check('queue:flush empties the failed table', /Deleted [1-9]/.test(flushed))
+
+await postJson('/check/queue/digest?connection=database', { label: 'cleared' })
+
+const clearedQueue = plain(await captureOutput(() => app.make('artisan').run(['queue:clear'])))
+check('queue:clear deletes pending work', /Deleted [1-9]/.test(clearedQueue))
+
+// Leave the queue and the shared Redis as they were found.
+for (const connection of connections) {
+  await app.make('queue').connection(connection).clear()
+}
+await app.make('queue').failed.flush()
+await app.make('cache').store().forget('digest:log')
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')
@@ -1113,8 +1305,21 @@ try {
   const response = await fetch(`http://127.0.0.1:${port}/health`)
   check('listen() serves real requests', response.status === 200)
   check('reported port matches', app.router.server?.port === port)
+
+  // Deferred work needs a transmitted response, which only a real socket gives.
+  await fetch(`http://127.0.0.1:${port}/check/queue/defer`, { method: 'POST' })
+
+  // The flush happens after the response, so give the loop a turn.
+  await Bun.sleep(100)
+
+  const deferred = (await (await fetch(`http://127.0.0.1:${port}/check/queue/defer`)).json()) as {
+    ran: boolean
+  }
+
+  check('a deferred callback runs once the response has been sent', deferred.ran === true)
 } finally {
   app.router.stop()
+  await app.make('cache').store().forget('defer:ran')
 }
 
 // -------------------------------------------------------------------- summary

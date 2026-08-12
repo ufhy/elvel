@@ -5,6 +5,7 @@ import CheckController from '../app/Http/Controllers/CheckController.ts'
 import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
 import PageController from '../app/Http/Controllers/PageController.ts'
+import QueueController from '../app/Http/Controllers/QueueController.ts'
 import SignalController from '../app/Http/Controllers/SignalController.ts'
 
 /**
@@ -19,3 +20,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(ArticleController)
   .use(GuardController)
   .use(CacheController)
+  .use(QueueController)

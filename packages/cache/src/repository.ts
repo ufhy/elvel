@@ -1,3 +1,4 @@
+import { defer } from '@elysian/core'
 import { isLockProvider, type Lock, LockTimeoutError, type Store } from './store.ts'
 import { NamespacedStore, TagSet } from './tags.ts'
 
@@ -171,8 +172,10 @@ export class Repository {
    * refreshes it and the rest are not made to wait. Past the second it is gone
    * and the caller computes it.
    *
-   * The refresh is not awaited: the point is that the request that noticed the
-   * staleness does not pay for it.
+   * The refresh is deferred rather than awaited: the point is that the request
+   * which noticed the staleness does not pay for it. `defer()` runs it after the
+   * response has been sent; outside a request there is nothing to wait for, so it
+   * runs at the next flush.
    */
   async flexible<T>(
     key: string,
@@ -215,9 +218,10 @@ export class Repository {
         })
     }
 
-    // Deliberately not awaited, and the rejection is swallowed: a failed
-    // background refresh must not surface as a failure of this request.
-    void refresh().catch(() => undefined)
+    // Keyed so a burst of requests on the same stale key schedules one refresh,
+    // not one per request. The rejection is swallowed by `flushDeferred`: a failed
+    // background refresh must not surface as a failure of the request.
+    defer(refresh, { key: `elysian:cache:flexible:${key}` })
 
     return value as T
   }

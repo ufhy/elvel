@@ -1,0 +1,330 @@
+import type { FailedJobStore, JobPayload, QueueDriver, QueuedJob } from './contracts.ts'
+import type { JobRunner } from './runner.ts'
+
+export type WorkerOptions = {
+  /** Attempts allowed, unless the job says otherwise. `0` is unlimited. */
+  maxTries?: number
+  /** Seconds before a retry, unless the job says otherwise. */
+  backoff?: number | number[]
+  /** Seconds one attempt may run. */
+  timeout?: number
+  /** Seconds to wait when the queue is empty. */
+  sleep?: number
+  /** Stop once this many jobs have been processed. */
+  maxJobs?: number
+  /** Stop after this many seconds. */
+  maxTime?: number
+  /** Stop as soon as the queue is empty. */
+  stopWhenEmpty?: boolean
+}
+
+export type WorkerEvents = { dispatch(event: string, payload?: unknown): unknown }
+
+export type WorkerResult = {
+  processed: number
+  failed: number
+  released: number
+  reason: 'empty' | 'max-jobs' | 'max-time' | 'stopped'
+}
+
+/** Thrown when an attempt outlives its timeout. */
+export class TimeoutExceededError extends Error {
+  constructor(job: string, seconds: number) {
+    super(`Job [${job}] timed out after ${seconds} seconds.`)
+    this.name = 'TimeoutExceededError'
+  }
+}
+
+/** Thrown when a job has used up its attempts. */
+export class MaxAttemptsExceededError extends Error {
+  constructor(job: string, attempts: number) {
+    super(`Job [${job}] has been attempted too many times (${attempts}).`)
+    this.name = 'MaxAttemptsExceededError'
+  }
+}
+
+/**
+ * Pulls jobs off a queue and runs them — `Illuminate\Queue\Worker`.
+ *
+ * The order of the retry policy is transcribed rather than reinvented, because
+ * every step of it exists for a failure that happened to somebody:
+ *
+ * 1. Before running, fail a job that has *already* exceeded its attempts. A job
+ *    that keeps timing out never throws, so this is the only place it can be
+ *    caught.
+ * 2. Run it.
+ * 3. On an exception, fail it now if the *next* attempt would exceed the limit —
+ *    releasing it first would mean one more pointless run.
+ * 4. Otherwise release it with a backoff, but only if the job did not already
+ *    delete, release or fail itself.
+ *
+ * `retryUntil` outranks `maxTries`: a job given a deadline keeps it even when
+ * attempts remain.
+ */
+export class Worker {
+  private stopping = false
+
+  constructor(
+    private readonly driver: QueueDriver,
+    private readonly runner: JobRunner,
+    private readonly failed?: FailedJobStore,
+    private readonly events?: WorkerEvents
+  ) {}
+
+  /** Ask the loop to finish the job in hand and return. */
+  stop(): void {
+    this.stopping = true
+  }
+
+  /**
+   * Work the queue until a stop condition is met.
+   *
+   * `queue` may name several, comma-separated, in priority order — the first with
+   * work wins, which is how a `high,default` split is expressed.
+   */
+  async work(queue?: string, options: WorkerOptions = {}): Promise<WorkerResult> {
+    const queues = (queue ?? this.driver.defaultQueue).split(',').map((name) => name.trim())
+    const startedAt = Date.now()
+    const sleep = options.sleep ?? 3
+
+    const result: WorkerResult = { processed: 0, failed: 0, released: 0, reason: 'stopped' }
+
+    this.stopping = false
+    this.events?.dispatch('queue.worker.starting', { queues })
+
+    while (!this.stopping) {
+      const job = await this.reserve(queues)
+
+      if (!job) {
+        if (options.stopWhenEmpty) {
+          result.reason = 'empty'
+          break
+        }
+
+        if (this.exceededTime(startedAt, options)) {
+          result.reason = 'max-time'
+          break
+        }
+
+        await Bun.sleep(sleep * 1000)
+        continue
+      }
+
+      const outcome = await this.process(job, options)
+
+      result.processed += 1
+      if (outcome === 'failed') result.failed += 1
+      if (outcome === 'released') result.released += 1
+
+      if (options.maxJobs && result.processed >= options.maxJobs) {
+        result.reason = 'max-jobs'
+        break
+      }
+
+      if (this.exceededTime(startedAt, options)) {
+        result.reason = 'max-time'
+        break
+      }
+    }
+
+    this.events?.dispatch('queue.worker.stopping', { ...result })
+
+    return result
+  }
+
+  /** Run exactly one job, if one is waiting. Used by tests and by `--once`. */
+  async runNextJob(queue?: string, options: WorkerOptions = {}): Promise<'none' | Outcome> {
+    const queues = (queue ?? this.driver.defaultQueue).split(',').map((name) => name.trim())
+    const job = await this.reserve(queues)
+
+    if (!job) return 'none'
+
+    return this.process(job, options)
+  }
+
+  /**
+   * Process one reserved job.
+   *
+   * Returns what happened rather than throwing: a worker that stopped on the
+   * first failing job would be a worse worker.
+   */
+  async process(job: QueuedJob, options: WorkerOptions = {}): Promise<Outcome> {
+    const name = job.payload.displayName
+
+    this.events?.dispatch('queue.job.processing', { job: name, attempts: job.attempts() })
+
+    try {
+      // Step 1: a job already past its limit is failed before it runs again.
+      await this.failIfAlreadyExceeded(job, options)
+
+      if (job.hasFailed()) return 'failed'
+
+      await this.runWithTimeout(job, options)
+
+      this.events?.dispatch('queue.job.processed', { job: name, attempts: job.attempts() })
+
+      if (job.hasFailed()) return 'failed'
+      if (job.isReleased()) return 'released'
+
+      return 'processed'
+    } catch (error) {
+      return this.handleException(job, options, error)
+    }
+  }
+
+  /**
+   * Run the attempt, giving up on it after its timeout.
+   *
+   * The attempt is *abandoned*, not killed: without process isolation there is no
+   * way to stop an async function that is already running. The worker stops
+   * waiting and the job is failed or retried, which is the honest half of what
+   * Laravel's `pcntl` alarm does — stated in GAPS rather than implied here.
+   */
+  private async runWithTimeout(job: QueuedJob, options: WorkerOptions): Promise<void> {
+    const seconds = job.payload.timeout ?? options.timeout ?? 0
+
+    if (seconds <= 0) {
+      await this.runner.run(job)
+      return
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new TimeoutExceededError(job.payload.displayName, seconds)),
+        seconds * 1000
+      )
+    })
+
+    try {
+      await Promise.race([this.runner.run(job), timeout])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  private async failIfAlreadyExceeded(job: QueuedJob, options: WorkerOptions): Promise<void> {
+    const maxTries = job.payload.maxTries ?? options.maxTries ?? 1
+    const retryUntil = job.payload.retryUntil
+
+    // A deadline that has not passed keeps the job alive whatever the count.
+    if (retryUntil && Math.floor(Date.now() / 1000) <= retryUntil) return
+
+    if (!retryUntil && (maxTries === 0 || job.attempts() <= maxTries)) return
+
+    await this.fail(job, new MaxAttemptsExceededError(job.payload.displayName, job.attempts()))
+  }
+
+  private async handleException(
+    job: QueuedJob,
+    options: WorkerOptions,
+    error: unknown
+  ): Promise<Outcome> {
+    this.events?.dispatch('queue.job.exception', {
+      job: job.payload.displayName,
+      attempts: job.attempts(),
+      error
+    })
+
+    if (!job.hasFailed()) {
+      // Step 3: fail now when the next attempt could not run anyway.
+      await this.failIfWillExceed(job, options, error)
+    }
+
+    // Step 4: release, unless the job already decided its own fate.
+    if (!job.isDeleted() && !job.isReleased() && !job.hasFailed()) {
+      await job.release(this.backoffFor(job, options))
+
+      this.events?.dispatch('queue.job.released', {
+        job: job.payload.displayName,
+        attempts: job.attempts()
+      })
+
+      return 'released'
+    }
+
+    return job.hasFailed() ? 'failed' : 'processed'
+  }
+
+  private async failIfWillExceed(
+    job: QueuedJob,
+    options: WorkerOptions,
+    error: unknown
+  ): Promise<void> {
+    const maxTries = job.payload.maxTries ?? options.maxTries ?? 1
+    const retryUntil = job.payload.retryUntil
+
+    if (retryUntil && retryUntil <= Math.floor(Date.now() / 1000)) {
+      await this.fail(job, error)
+      return
+    }
+
+    if (!retryUntil && maxTries > 0 && job.attempts() >= maxTries) {
+      await this.fail(job, error)
+    }
+  }
+
+  /** Record the failure, tell the job, and drop the reservation. */
+  private async fail(job: QueuedJob, error: unknown): Promise<void> {
+    await this.failed?.log(job.connectionName, job.queue, job.payload, error)
+
+    // The job's own `failed()` hook runs before the reservation goes, so it can
+    // still read the payload it was given.
+    await this.callFailedHook(job, error)
+
+    await job.fail(error)
+
+    this.events?.dispatch('queue.job.failed', {
+      job: job.payload.displayName,
+      attempts: job.attempts(),
+      error
+    })
+  }
+
+  private async callFailedHook(job: QueuedJob, error: unknown): Promise<void> {
+    try {
+      const instance = await this.runner.resolve(job)
+
+      await instance.failed(error)
+    } catch {
+      // A job whose class or data cannot be resolved still has to be recorded as
+      // failed; swallowing this is the difference between a logged failure and a
+      // worker that dies on a bad payload.
+    }
+  }
+
+  private backoffFor(job: QueuedJob, options: WorkerOptions): number {
+    const backoff = job.payload.backoff ?? options.backoff ?? 0
+
+    if (typeof backoff === 'number') return backoff
+    if (backoff.length === 0) return 0
+
+    // Indexed by attempt, then held at the last value — `[5, 30, 120]` waits
+    // five seconds, then thirty, then two minutes for every attempt after.
+    return backoff[job.attempts() - 1] ?? backoff[backoff.length - 1] ?? 0
+  }
+
+  private async reserve(queues: string[]): Promise<QueuedJob | null> {
+    for (const queue of queues) {
+      const job = await this.driver.pop(queue)
+
+      if (job) return job
+    }
+
+    return null
+  }
+
+  private exceededTime(startedAt: number, options: WorkerOptions): boolean {
+    return Boolean(options.maxTime) && Date.now() - startedAt >= (options.maxTime ?? 0) * 1000
+  }
+}
+
+export type Outcome = 'processed' | 'released' | 'failed'
+
+/** Shape a failed-job record takes on the way out of `queue:failed`. */
+export type FailedSummary = { id: string | number; job: string; queue: string; failedAt: Date }
+
+export function summarise(payload: JobPayload): string {
+  return payload.displayName
+}

@@ -6,6 +6,7 @@ import { DatabaseServiceProvider } from '@elysian/database'
 import { EventServiceProvider } from '@elysian/events'
 import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
+import { QueueServiceProvider } from '@elysian/queue'
 import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
@@ -37,6 +38,7 @@ export default {
     ConsoleServiceProvider,
     DatabaseServiceProvider,
     CacheServiceProvider,
+    QueueServiceProvider,
     ValidationServiceProvider,
     HttpServiceProvider,
     // Before the view provider: its static handler claims `GET /*`, which would

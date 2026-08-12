@@ -181,9 +181,40 @@ Two behaviours worth knowing rather than discovering:
   which would take another application's keys with it. With no prefix configured
   there is nothing to scan for, and it does flush the database.
 
+## @elysian/queue
+
+Three drivers — `sync`, `database`, `redis` — a worker whose retry policy is
+transcribed step for step from `Illuminate\Queue\Worker`, chains, job middleware,
+a failed-job store, and `defer()` for work too small to queue.
+
+| Missing | Why |
+| --- | --- |
+| **A timeout does not kill the attempt** | Laravel's worker raises a `pcntl` alarm in a forked child. Bun has no way to stop an async function that is already running, so a timeout makes the *worker* stop waiting and fail or retry the job — while the abandoned attempt keeps going in the background. This is the one place where the semantics are genuinely weaker than Laravel's, and it is why `timeout` should be treated as "how long before we give up on you", not "how long before you are stopped". A future `queue:work --isolate` running each job in a child process would close it. |
+| **Jobs are identified by class name, not a serialised object** | PHP can `serialize($job)`; TypeScript cannot. The payload carries a name plus the constructor data, and the worker resolves the name through discovery over `app/Jobs`. A job that lives elsewhere has to be registered: `queue().jobs.register(TheJob)`. |
+| `Bus::batch()` | Batches need their own table, progress tracking, and completion callbacks — a milestone of its own. Chains are implemented, which covers "run these in order". |
+| `maxExceptions` | Carried in the payload and honoured by the payload contract, but not yet counted: Laravel counts exceptions in the cache per job uuid. The attempt limit and `retryUntil` both work. |
+| `queue:listen`, `queue:restart`, Horizon-style supervision | `queue:work` with `--max-jobs`/`--max-time`/`--stop-when-empty` is what a container or a supervisor wants; restarting is the supervisor's job, not ours. |
+| `sqs`, `beanstalkd`, `sync`-with-delay | No AWS or Beanstalk client in this runtime yet; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
+| Encrypted payloads (`ShouldBeEncrypted`) | Needs the encryption package, which is also what encrypted cookies are waiting on. |
+| Rate-limited and overlapping middleware as *attributes* | Both exist as middleware classes returned from `middleware()`; TypeScript has no runtime attributes. |
+
+Three behaviours worth knowing rather than discovering:
+
+- **`app.handle()` never runs deferred callbacks.** Elysia fires
+  `onAfterResponse` when a response is transmitted, and an in-process
+  `app.handle()` transmits nothing. A test that needs `defer()` should call
+  `flushDeferred()` itself, or drive a real socket — the smoke test does the
+  latter.
+- **A released job goes to the back of the queue** on the database driver: the row
+  is deleted and re-inserted, so it gets a fresh id rather than jumping ahead of
+  work that arrived while it was failing.
+- **`retryAfter` must exceed your slowest job.** It is how long a reservation is
+  trusted; a job still running when it expires will be picked up a second time,
+  which is the same trade Laravel makes.
+
 ## Not started
 
-`queue`, `scheduler`, `mail`, `storage`, `notifications`.
+`scheduler`, `mail`, `storage`, `notifications`.
 
 ## Watch list
 
@@ -206,6 +237,9 @@ uncovered, and why:
 - `create-elysian` — covered end to end by the smoke test rather than by units
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
+- the queue's `redis` driver against a cluster; single-node Redis is covered, and
+  the database driver is covered on SQLite, Postgres 17 and MySQL 9 including the
+  two-workers-race case that only a real server can exercise
 - the cache's `database` driver against Postgres and MySQL — the conformance
   suite runs it on SQLite, and the upsert and `for update` paths it relies on are
   covered for those dialects by the database package's own suite

@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { ServiceProvider } from '@elysian/core'
+import { flushDeferred, ServiceProvider } from '@elysian/core'
 import { Elysia } from 'elysia'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
@@ -49,9 +49,27 @@ export class HttpServiceProvider extends ServiceProvider {
       this.app.make('artisan').register(MakeRequestCommand, MakeResourceCommand)
     }
 
+    // Its own plugin, and registered before the session check: deferred work has
+    // nothing to do with sessions, and an API with sessions turned off still
+    // expects `defer()` to run.
+    this.use(this.deferPlugin())
+
     if (this.config<boolean>('session.enabled', true) === false) return
 
     this.use(await this.sessionPlugin())
+  }
+
+  /**
+   * Flush deferred callbacks once the response is out, so the client waits for
+   * none of it.
+   *
+   * Registered here because this package owns the request lifecycle; `defer()`
+   * itself is a core primitive with no idea that HTTP exists.
+   */
+  private deferPlugin() {
+    return new Elysia({ name: 'elysian:defer' }).onAfterResponse({ as: 'global' }, async () => {
+      await flushDeferred((error) => this.app.make('exception.handler').report(error))
+    })
   }
 
   /**

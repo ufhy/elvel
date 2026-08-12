@@ -18,6 +18,7 @@
     "@elysian/events": "workspace:*",
     "@elysian/http": "workspace:*",
     "@elysian/log": "workspace:*",
+    "@elysian/queue": "workspace:*",
     "@elysian/support": "workspace:*",
     "@elysian/validation": "workspace:*",
     "@elysian/view": "workspace:*",

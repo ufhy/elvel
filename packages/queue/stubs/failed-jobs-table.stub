@@ -1,0 +1,25 @@
+import { Migration, type MigrationContext } from '@elysian/database'
+
+/**
+ * The failed-job table.
+ *
+ * The whole payload is kept, not a summary: recording a failure is only useful if
+ * `queue:retry` can run the job again once the cause is fixed.
+ */
+export default class extends Migration {
+  async up({ schema }: MigrationContext): Promise<void> {
+    await schema.create('{{ table }}', (table) => {
+      table.id()
+      table.string('uuid').unique()
+      table.string('connection')
+      table.string('queue')
+      table.text('payload')
+      table.text('exception')
+      table.timestamp('failed_at').useCurrent()
+    })
+  }
+
+  async down({ schema }: MigrationContext): Promise<void> {
+    await schema.dropIfExists('{{ table }}')
+  }
+}
