@@ -2,7 +2,13 @@ APP_NAME="{{ name }}"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:3000
+APP_TIMEZONE=UTC
+
+# At least 32 characters. Write one with: artisan key:generate
 APP_KEY=change-me-to-32-characters-or-more
+# Keys that are no longer primary but can still read what they wrote.
+# Comma-separated; set this before running key:generate --force.
+APP_PREVIOUS_KEYS=
 
 PORT=3000
 HOST=
@@ -19,3 +25,27 @@ DB_FOREIGN_KEYS=true
 
 SESSION_DRIVER=file
 SESSION_CSRF=true
+# Encrypt the session cookie instead of only signing it.
+SESSION_ENCRYPT=false
+
+# Signs better-auth's tokens. Generate your own; never reuse APP_KEY.
+# The tables come from: artisan auth:schema && artisan migrate
+AUTH_SECRET=
+AUTH_MOUNT=true
+
+# file needs no service. database needs: artisan cache:table && artisan migrate
+CACHE_STORE=file
+
+# sync runs the job in the request. database needs: artisan queue:table
+QUEUE_CONNECTION=sync
+QUEUE_FAILED_DRIVER=null
+
+# log writes the message instead of sending it.
+MAIL_MAILER=log
+MAIL_FROM_ADDRESS=hello@example.com
+MAIL_FROM_NAME="{{ name }}"
+
+FILESYSTEM_DISK=local
+
+# Only read by the redis cache store and queue connection.
+REDIS_URL=redis://127.0.0.1:6379

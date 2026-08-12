@@ -9,17 +9,26 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@elysian/auth": "{{ dep_auth }}",
+    "@elysian/cache": "{{ dep_cache }}",
     "@elysian/console": "{{ dep_console }}",
     "@elysian/contracts": "{{ dep_contracts }}",
     "@elysian/core": "{{ dep_core }}",
     "@elysian/database": "{{ dep_database }}",
+    "@elysian/encryption": "{{ dep_encryption }}",
     "@elysian/events": "{{ dep_events }}",
     "@elysian/http": "{{ dep_http }}",
     "@elysian/log": "{{ dep_log }}",
+    "@elysian/mail": "{{ dep_mail }}",
+    "@elysian/notifications": "{{ dep_notifications }}",
+    "@elysian/queue": "{{ dep_queue }}",
+    "@elysian/scheduler": "{{ dep_scheduler }}",
+    "@elysian/storage": "{{ dep_storage }}",
     "@elysian/support": "{{ dep_support }}",
     "@elysian/validation": "{{ dep_validation }}",
     "@elysian/view": "{{ dep_view }}",
     "@kitajs/html": "^4.2.13",
+    "better-auth": "1.6.27",
     "elysia": "^1.4.29"
   },
   "devDependencies": {

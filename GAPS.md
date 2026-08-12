@@ -363,26 +363,31 @@ Five decisions worth knowing rather than discovering:
 
 ## create-elysian
 
-**The scaffolder ships 10 of the 17 packages.** This is the largest gap in the
-project and the one least visible from inside it: every package is exercised by
-the playground, where the wiring was written by hand, so nothing fails — while an
-application scaffolded today cannot use half the framework without hand-wiring it.
+The template ships **all 17 packages** and a scaffolded application registers
+every provider, with the drivers that need no service behind them — `cache=file`,
+`queue=sync`, `mail=log`, `disk=local`, SQLite — so `bun run dev` works before
+Docker does.
 
-| Missing from the template | Consequence |
+| Missing | Why |
 | --- | --- |
-| `@elysian/auth`, `cache`, `queue`, `scheduler`, `mail`, `storage`, `notifications`, `encryption` in `_package.json` | Eight packages a new application has to add itself, with the version pinning the scaffolder otherwise handles. |
-| The same eight in `config/app.ts` providers | Nothing is bound, so `cache()`, `dispatch()`, `notify()`, `encrypt()` throw in a fresh application. |
-| `config/auth.ts`, `cache.ts`, `queue.ts`, `mail.ts`, `filesystems.ts`, `notifications.ts` | Only `app`, `database`, `logging`, `session`, `view` are written. The rest exist in `playground/config/` only. |
-| The env keys those configs read, in `_env.example` | `CACHE_STORE`, `QUEUE_CONNECTION`, `MAIL_MAILER`, `FILESYSTEM_DISK`, `APP_PREVIOUS_KEYS`, `SESSION_ENCRYPT` and the rest are absent. |
-| Migrations for `jobs`, `failed_jobs`, `cache`, `notifications` and the auth tables | Not actually missing: `queue:table`, `queue:failed-table`, `cache:table`, `notifications:table` and `auth:schema` write them on demand, which is how Laravel ships them too. What a new application lacks is being *told* it needs to run one when it switches a driver to `database`. |
+| Starter kits (Breeze/Jetstream-shaped) | The template is one landing page. Auth *endpoints* are mounted and better-auth is a dependency, but there is no sign-in view, no dashboard and no scaffolding switch that writes them. |
+| Migrations in the box | Laravel's skeleton carries `users`, `cache` and `jobs` migrations. Ours carries none: better-auth's tables depend on `config/auth.ts`, so they are generated with `auth:schema`, and the rest are only needed when a driver changes. `create-elysian` prints those steps rather than assuming them. |
 | A `sessions` table generator | There is no `database` session driver yet (see `@elysian/http`), so `session:table` would write a migration nothing reads. |
+| Publishing to npm | `bun create elysian my-app` cannot work until `create-elysian` is on npm; the README says so rather than implying it. |
+| `--kit`/`--minimal` variants | One template, so nothing to choose between. A minimal variant would mean maintaining two. |
 
-The template also **drifts silently**: its `config/session.ts` still told a new
-application that cookies are signed "rather than encrypted" for as long as it took
-somebody to read it, which was fixed only because the encryption work happened to
-touch that sentence. Nothing checks the template against the packages — the smoke
-test asserts that a scaffolded application *scaffolds*, not that it can boot every
-provider the framework offers.
+Two things this cost, worth remembering rather than re-learning:
+
+- **The template drifted for eight packages and nothing noticed.** Every package
+  was exercised by the playground, where the wiring was written by hand, so a new
+  application silently lacked half the framework while every test passed. Its
+  `config/session.ts` also told a new application that cookies are signed "rather
+  than encrypted" long after that stopped being true.
+- **What catches it now is registration.** The smoke run boots a scaffolded
+  application and asserts that a command from each package appears in `artisan
+  list` — a command only appears if its provider booted, which needs the
+  dependency, the provider entry and the config file all present. A ninth package
+  that forgets the template fails there.
 
 ## Not started
 
@@ -390,9 +395,9 @@ Every package on the roadmap is built — core, console, view, events, log,
 database, validation, http, auth, cache, queue, scheduler, mail, storage,
 notifications, and the encryption package the last three items were waiting on.
 
-What is *not* done is delivery: the scaffolder lags eight packages behind the
-framework, which is the section above and the next piece of work. The rest of
-what is deliberately missing is in the per-package tables.
+Delivery is done too: the scaffolder ships all of them, and a scaffolded
+application boots every provider without a service running. What remains is in
+the per-package tables above — starter-kit views being the largest of it.
 
 ## Watch list
 
@@ -412,9 +417,10 @@ uncovered, and why:
   `picocolors`
 - `serve.ts` — its `handle()` never resolves by design; the smoke test binds a
   real socket instead
-- `create-elysian` — covered end to end by the smoke test rather than by units,
-  and only that it *scaffolds*: nothing asserts the template stays level with the
-  packages, which is how the drift in the section above went unnoticed
+- `create-elysian` — covered end to end by the smoke test rather than by units:
+  it scaffolds, boots, and every package's commands are registered in what it
+  wrote. Not covered is a scaffold installed *from npm* rather than resolved
+  through the workspace
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
 - the S3 disk against AWS itself — the round trip is covered against MinIO

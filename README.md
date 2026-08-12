@@ -13,8 +13,18 @@ and auth are not — see the roadmap.
 bun install
 bun run create apps/blog   # scaffold
 bun install                # link the new workspace member
-cd apps/blog && bun run dev
+cd apps/blog
+bun artisan key:generate   # per application; never a shipped default
+bun artisan auth:schema    # better-auth's tables, from your config/auth.ts
+bun artisan migrate
+bun run dev
 ```
+
+A scaffolded application registers **every** package, with the drivers that need
+nothing running: `cache=file`, `queue=sync`, `mail=log`, `disk=local`, SQLite. So
+`bun run dev` works before Docker does. Switching a driver to `database` is one
+env change plus the migration its command writes — `artisan cache:table`,
+`queue:table`, `queue:failed-table`, `notifications:table`.
 
 `bun create elysian my-app` does **not** work yet. `bun create <name>` resolves
 only via `bunx create-<name>` on npm, a GitHub repo, or a template folder in

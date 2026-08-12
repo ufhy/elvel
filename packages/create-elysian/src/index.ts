@@ -94,14 +94,29 @@ async function main(): Promise<number> {
 
   spinner.stop(`Created ${written} files`)
 
+  /**
+   * `key:generate` and the auth tables are steps, not defaults.
+   *
+   * The key has to be generated per application — a shipped one would be a
+   * shared secret — and better-auth's tables are whatever `config/auth.ts` asks
+   * for, so they are generated rather than copied in. Without the migration the
+   * first sign-up answers 500, which is a poor way to learn about it.
+   */
+  const start = [
+    'bun artisan key:generate',
+    'bun artisan auth:schema',
+    'bun artisan migrate',
+    'bun run dev'
+  ]
+
   const steps = workspaceMode
     ? [
         // Workspace members must be installed from the repository root.
         `cd ${relative(process.cwd(), monorepoRoot as string) || '.'} && bun install`,
         `cd ${relative(monorepoRoot as string, target)}`,
-        'bun run dev'
+        ...start
       ]
-    : [`cd ${relative(process.cwd(), target) || '.'}`, 'bun install', 'bun run dev']
+    : [`cd ${relative(process.cwd(), target) || '.'}`, 'bun install', ...start]
 
   prompts.note(steps.join('\n'), 'Next steps')
 
@@ -114,13 +129,21 @@ async function main(): Promise<number> {
 }
 
 const FRAMEWORK_PACKAGES = [
+  'auth',
+  'cache',
   'console',
   'contracts',
   'core',
   'database',
+  'encryption',
   'events',
   'http',
   'log',
+  'mail',
+  'notifications',
+  'queue',
+  'scheduler',
+  'storage',
   'support',
   'validation',
   'view'

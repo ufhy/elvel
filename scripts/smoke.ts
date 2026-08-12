@@ -2011,6 +2011,76 @@ try {
   check('view components are copied verbatim', scaffoldedView.includes('export function Landing('))
   const scaffoldedTsconfig = await Bun.file(join(scaffoldTarget, 'tsconfig.json')).text()
   check('scaffolded tsconfig wires the JSX runtime', scaffoldedTsconfig.includes('@kitajs/html'))
+
+  /**
+   * Every package the framework ships is wired into the template.
+   *
+   * The template used to lag the packages by eight of them, and nothing noticed
+   * because these checks only asserted that a scaffold *scaffolds*. Registration
+   * is the proxy that catches it: a command only appears in `artisan list` if its
+   * provider booted, which needs the dependency, the provider entry and the
+   * config file to all be present.
+   */
+  const scaffoldedArtisan = Bun.spawnSync({
+    cmd: ['bun', 'artisan.ts', 'list'],
+    cwd: scaffoldTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  const listed = plain(scaffoldedArtisan.stdout.toString())
+
+  check('a scaffolded application boots', scaffoldedArtisan.exitCode === 0, listed.slice(-400))
+
+  for (const [command, provider] of [
+    ['key:generate', 'encryption'],
+    ['cache:table', 'cache'],
+    ['queue:table', 'queue'],
+    ['make:mail', 'mail'],
+    ['notifications:table', 'notifications'],
+    ['schedule:run', 'scheduler'],
+    ['storage:link', 'storage'],
+    ['auth:schema', 'auth']
+  ] as const) {
+    check(`${provider} is wired into the template`, listed.includes(command))
+  }
+
+  // Config and env have to arrive together: a provider that boots but reads an
+  // absent config file is the failure this pair catches.
+  for (const file of ['auth', 'cache', 'queue', 'mail', 'filesystems', 'notifications']) {
+    check(
+      `config/${file}.ts ships`,
+      await Bun.file(join(scaffoldTarget, 'config', `${file}.ts`)).exists()
+    )
+  }
+
+  const scaffoldedEnv = await Bun.file(join(scaffoldTarget, '.env')).text()
+
+  for (const key of [
+    'CACHE_STORE',
+    'QUEUE_CONNECTION',
+    'MAIL_MAILER',
+    'FILESYSTEM_DISK',
+    'AUTH_SECRET',
+    'APP_PREVIOUS_KEYS',
+    'SESSION_ENCRYPT'
+  ]) {
+    check(`.env carries ${key}`, scaffoldedEnv.includes(`${key}=`))
+  }
+
+  // Defaults that need nothing running: a new application has to work before it
+  // has Docker, so the shipped drivers are the ones with no service behind them.
+  check(
+    'the queue defaults to running jobs in the request',
+    scaffoldedEnv.includes('QUEUE_CONNECTION=sync')
+  )
+  check('the cache defaults to files', scaffoldedEnv.includes('CACHE_STORE=file'))
+  check('mail defaults to the log', scaffoldedEnv.includes('MAIL_MAILER=log'))
+
+  check(
+    'better-auth is a dependency, since @elysian/auth only peers on it',
+    manifest.dependencies['better-auth'] !== undefined
+  )
 } finally {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
