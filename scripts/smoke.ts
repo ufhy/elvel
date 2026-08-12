@@ -1089,6 +1089,105 @@ for (const connection of connections) {
 await app.make('queue').failed.flush()
 await app.make('cache').store().forget('digest:log')
 
+// -------------------------------------------------------------------- mail
+
+section('Mail')
+
+const mailables = (await (
+  await app.handle(new Request('http://localhost/check/mail/mailables'))
+).json()) as { mailables: string[] }
+
+check('mailables in app/Mail are discovered', mailables.mailables.includes('ArticlePublished'))
+
+await app.handle(new Request('http://localhost/check/mail/outbox', { method: 'DELETE' }))
+
+const sentResult = (await (
+  await postJson('/check/mail/send/1?mailer=array', { to: 'ada@example.com' })
+).json()) as { sent: string; id?: string }
+
+check('a message goes out through the named mailer', sentResult.sent === 'array')
+
+const outbox = (await (
+  await app.handle(new Request('http://localhost/check/mail/outbox'))
+).json()) as {
+  count: number
+  messages: Array<{
+    mailable: string
+    subject: string
+    to: string[]
+    replyTo: string[]
+    htmlHead?: string
+    hasText: boolean
+  }>
+}
+
+const message = outbox.messages[0]
+
+check('the outbox holds exactly what was sent', outbox.count === 1)
+check('the mailable names itself on the message', message?.mailable === 'ArticlePublished')
+// Not pinned to a title: earlier sections edit article 1 on purpose, and the
+// point here is that the envelope interpolated the row it was given.
+check(
+  'the envelope subject is interpolated from the data',
+  message?.subject.startsWith('Published: ') === true &&
+    message.subject.length > 'Published: '.length
+)
+check('the recipient given to to() is used', message?.to.join() === 'ada@example.com')
+check('reply-to travels as its own field', message?.replyTo.join() === 'editors@example.com')
+check(
+  'the JSX view rendered into the HTML body',
+  message?.htmlHead?.startsWith('<!DOCTYPE html>') === true
+)
+check('and a text part was included', message?.hasText === true)
+
+// The default mailer writes the message instead of sending it, so the proof is
+// that it reports the `log` transport and the array outbox stays untouched.
+const viaLog = (await (await postJson('/check/mail/send/2', {})).json()) as { sent: string }
+check('the default mailer writes to the log instead of sending', viaLog.sent === 'log')
+
+// Rendering without sending, for a preview.
+const preview = await app.handle(new Request('http://localhost/check/mail/preview/1'))
+const previewHtml = await preview.text()
+
+check('a preview renders the mail as HTML', previewHtml.includes('<h1'))
+check(
+  'and does not send it',
+  (
+    (await (await app.handle(new Request('http://localhost/check/mail/outbox'))).json()) as {
+      count: number
+    }
+  ).count === 1
+)
+
+// Queued mail: the request only queues, the worker renders and sends.
+await app.handle(
+  new Request('http://localhost/check/queue/state?connection=database', { method: 'DELETE' })
+)
+await app.handle(new Request('http://localhost/check/mail/outbox', { method: 'DELETE' }))
+
+const queuedMail = (await (await postJson('/check/mail/queue/1', {})).json()) as {
+  queued: string
+  size: number
+}
+
+check('queued mail lands on the queue the mailable names', queuedMail.size === 1)
+check(
+  'and nothing has been sent yet',
+  (
+    (await (await app.handle(new Request('http://localhost/check/mail/outbox'))).json()) as {
+      count: number
+    }
+  ).count === 0
+)
+
+// The worker sends through the configured mailer, which is `log` — so the proof
+// is that the job ran without failing, and the queue is empty afterwards.
+const mailWorked = (await (
+  await postJson('/check/queue/work?connection=database&queue=mail', {})
+).json()) as { processed: number; failed: number }
+
+check('the worker sends the queued mail', mailWorked.processed === 1 && mailWorked.failed === 0)
+
 // ---------------------------------------------------------------- scheduler
 
 section('Scheduler')

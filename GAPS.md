@@ -136,7 +136,7 @@ and policies on top.
 | Guards and `auth:api` style multi-guard config | There is one session-backed guard, because better-auth models sessions itself. A token guard belongs with its own plugin (`bearer`, `jwt`). |
 | `Gate::inspect` on a *response* rendering as HTML | The 403/404 is rendered as JSON by the core exception handler; an HTML error page belongs with the redirect-back work already noted under http. |
 | `can` middleware / route-level ability macro | `authorize()` inside a handler covers it and types cleanly across standalone controllers, which is the same reason `sessionOf(context)` exists. |
-| Email verification and password-reset mail | better-auth raises the hooks; sending needs the mail package. |
+| Email verification and password-reset mail | better-auth raises the hooks; wiring them to `@elysian/mail` is a small piece of application code rather than framework code, and the playground does not yet show it. |
 | `auth:schema` diffing an existing schema | It writes a fresh migration. better-auth's own CLI can diff, but that needs schema introspection wired into the generator — worth doing when the first plugin is added mid-project. |
 
 Two things to know when using it:
@@ -223,7 +223,7 @@ or a process runs `schedule:work`.
 | Missing | Why |
 | --- | --- |
 | **`runInBackground` does not fork** | Laravel spawns `php artisan` per entry, so a slow task does not hold the minute. Here every entry runs in the scheduler's own process, one after another: a task that takes two minutes delays the entries behind it. `withoutOverlapping()` keeps the *next minute's* copy of the same task out, which is the part that matters most, and a long task belongs on the queue — `schedule().job(...)` only dispatches, so it returns at once. |
-| `sendOutputTo` / `appendOutputTo` / `emailOutputTo` | Output is inherited rather than captured. Capturing is the easy half; emailing it needs the mail package. |
+| `sendOutputTo` / `appendOutputTo` / `emailOutputTo` | Output is inherited rather than captured. Capturing is the easy half; the mail package is now here, so this is only waiting for a reason. |
 | `#` (nth weekday) and `W` (nearest weekday) in expressions | `L` is supported because `lastDayOfMonth()` needs it. The other two have no helper pointing at them, and each is a special case in the matcher; `dayMatches` is the place to add them. |
 | `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
 | `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
@@ -241,9 +241,34 @@ Two things worth knowing:
   a test for it, because the intuitive reading turns a schedule into one that
   almost never runs.
 
+## @elysian/mail
+
+Mailables with an envelope, content and attachments; transports for SMTP, Resend,
+Postmark, Mailgun, log and array, plus `failover` and `roundrobin`; queued mail
+through the queue package; and `Mail.fake()` for tests.
+
+| Missing | Why |
+| --- | --- |
+| **SMTP is nodemailer, not ours** | Deliberate. Sending mail is an SMTP state machine *and* a MIME encoder — dot-stuffing, header folding, RFC 2047 words, quoted-printable, multipart boundaries — and every one of those is a place where a subtle bug means mail that silently lands in spam. Laravel delegates the same work to Symfony Mailer. nodemailer is one package with no dependencies of its own and it runs on Bun; what we own is the translation and the tests, including a real SMTP session. |
+| Markdown mailables | Needs a markdown parser and a theme to render into. HTML mail here is a JSX view, which is the same renderer the web views use — no second template engine, and the props are typechecked. |
+| `ses` transport | SigV4 request signing, which is a package of its own or a hundred lines of crypto. `mail().extend('ses', …)` takes it when it is wanted. |
+| Inline images resolved from `cid:` in a preview | The transports pass `cid` through, so embedding works in a real client. Laravel additionally rewrites `cid:` to a data URI when *rendering* for a preview; ours shows the raw reference. |
+| `Mail::alwaysFrom` / `alwaysReplyTo` | `alwaysTo` is implemented, because that is the one that prevents an accident. The other two are a config default away. |
+| Attachments from a storage disk | Files come from bytes or a path. A `Storage::disk()->attach()` form belongs with the storage package. |
+| `Content` carrying its props type | `content()` returns an erased `Content`, and `viewContent(Component, props)` is where the pairing is checked. A generic return type would force every mailable in an application to agree on one props type. |
+
+Two behaviours worth knowing:
+
+- **`alwaysTo` keeps the originals.** Redirected recipients are written to
+  `X-Elysian-To`/`Cc`/`Bcc` rather than dropped, so a message caught on staging can
+  still be traced to who it was for.
+- **`allowSelfSigned` is refused in production.** The flag exists for a local mail
+  catcher; the manager throws rather than honour it where it would mean mail
+  readable in transit.
+
 ## Not started
 
-`mail`, `storage`, `notifications`.
+`storage`, `notifications`.
 
 ## Watch list
 

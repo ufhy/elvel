@@ -1,0 +1,23 @@
+import { Mailable } from '@elysian/mail'
+import type { Content, Envelope } from '@elysian/mail'
+
+/**
+ * {{ studly }}
+ *
+ * `data` is the constructor argument, and the only thing that travels when the
+ * mailable is queued — so keep it small and plain, as with a job.
+ */
+export class {{ class }} extends Mailable<{ name: string }> {
+  envelope(): Envelope {
+    return { subject: '{{ studly }}' }
+  }
+
+  content(): Content {
+    // Or `viewContent(SomeComponent, { … })` to render one of your JSX views —
+    // that helper is where the component's props are checked.
+    return {
+      html: `<p>Hello ${this.data.name}.</p>`,
+      text: `Hello ${this.data.name}.`
+    }
+  }
+}
