@@ -374,8 +374,8 @@ application scaffolded today cannot use half the framework without hand-wiring i
 | The same eight in `config/app.ts` providers | Nothing is bound, so `cache()`, `dispatch()`, `notify()`, `encrypt()` throw in a fresh application. |
 | `config/auth.ts`, `cache.ts`, `queue.ts`, `mail.ts`, `filesystems.ts`, `notifications.ts` | Only `app`, `database`, `logging`, `session`, `view` are written. The rest exist in `playground/config/` only. |
 | The env keys those configs read, in `_env.example` | `CACHE_STORE`, `QUEUE_CONNECTION`, `MAIL_MAILER`, `FILESYSTEM_DISK`, `APP_PREVIOUS_KEYS`, `SESSION_ENCRYPT` and the rest are absent. |
-| Migrations for `jobs`, `failed_jobs`, `cache`, `notifications` and the auth tables | Those tables exist in the playground as hand-extended migrations. A new application has no way to create them except by copying those files. |
-| `queue:table`, `cache:table`, `notifications:table`, `auth:table` commands | Laravel ships the infrastructure tables as generators rather than as skeleton files; we have neither the generators nor the files. |
+| Migrations for `jobs`, `failed_jobs`, `cache`, `notifications` and the auth tables | Not actually missing: `queue:table`, `queue:failed-table`, `cache:table`, `notifications:table` and `auth:schema` write them on demand, which is how Laravel ships them too. What a new application lacks is being *told* it needs to run one when it switches a driver to `database`. |
+| A `sessions` table generator | There is no `database` session driver yet (see `@elysian/http`), so `session:table` would write a migration nothing reads. |
 
 The template also **drifts silently**: its `config/session.ts` still told a new
 application that cookies are signed "rather than encrypted" for as long as it took

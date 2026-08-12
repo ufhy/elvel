@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
-import { rm } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { BunSqlConnection, MigrationRepository, Migrator } from '@elysian/database'
 import { ScheduleRunner } from '@elysian/scheduler'
 import pc from 'picocolors'
 
@@ -1849,6 +1850,131 @@ try {
   await Promise.all(generated.map((path) => rm(path, { force: true })))
   await rm(app.resourcePath('views', 'smoke'), { recursive: true, force: true })
   await rm(app.appPath('Http', 'Controllers', 'nested'), { recursive: true, force: true })
+}
+
+// ------------------------------------------------- infrastructure tables
+
+section('Infrastructure tables')
+
+/**
+ * `queue:table`, `cache:table` and `notifications:table` write the tables the
+ * framework's own drivers need.
+ *
+ * Two things are checked that nothing else can: that a second run **refuses**
+ * rather than writing a duplicate `create_<table>_table` migration beside the
+ * first — the migrator would then try to create the same table twice — and that
+ * what the stubs write actually migrates, which is the only proof that a stub
+ * still matches the schema builder.
+ */
+const tableMigrations = join(app.basePath(), 'database', 'migrations')
+
+/** Everything the generators wrote here, so the playground is left as found. */
+const generatedTables: string[] = []
+
+const collectGenerated = async (table: string) => {
+  for await (const found of new Bun.Glob(`*create_${table}_table.ts`).scan({
+    cwd: tableMigrations,
+    onlyFiles: true
+  })) {
+    const path = join(tableMigrations, found)
+    if (!generatedTables.includes(path)) generatedTables.push(path)
+  }
+}
+
+try {
+  // Names nothing in the playground owns, so the existing migrations are left alone.
+  const written = plain(
+    await captureOutput(() => artisan.run(['queue:table', '--table', 'smoke_jobs']))
+  )
+  await collectGenerated('smoke_jobs')
+
+  check('queue:table writes a migration', written.includes('Migration created'))
+  check('and says what to run next', written.includes('artisan migrate'))
+
+  const refused = plain(
+    await captureOutput(() => artisan.run(['queue:table', '--table', 'smoke_jobs']))
+  )
+
+  // The bug this catches: a timestamped name makes every run unique, so without
+  // globbing for the table a second run silently writes a duplicate.
+  check('a second run refuses rather than duplicating', refused.includes('already exists'))
+  check('and names the migration that already has it', refused.includes('create_smoke_jobs_table'))
+
+  const forced = plain(
+    await captureOutput(() => artisan.run(['queue:table', '--table', 'smoke_jobs', '--force']))
+  )
+  await collectGenerated('smoke_jobs')
+  check('--force writes one anyway', forced.includes('Migration created'))
+
+  // An existing table is recognised however it was named: the playground's own
+  // `jobs`, `cache` and `notifications` migrations were written by hand.
+  for (const [command, table] of [
+    ['queue:table', 'jobs'],
+    ['cache:table', 'cache'],
+    ['notifications:table', 'notifications']
+  ] as const) {
+    const output = plain(await captureOutput(() => artisan.run([command])))
+
+    check(`${command} sees the migration the playground already has`, output.includes(table))
+  }
+
+  // What the stubs write has to survive the migrator, not merely typecheck.
+  //
+  // A forced run inside the same second rewrites the same file, so there may be
+  // one migration for `smoke_jobs` or two. Keep the first and drop the rest, or
+  // the migrator below would try to create that table twice.
+  await Promise.all(generatedTables.slice(1).map((path) => rm(path, { force: true })))
+  generatedTables.length = 1
+
+  await captureOutput(() => artisan.run(['cache:table', '--table', 'smoke_cache']))
+  await collectGenerated('smoke_cache')
+  await captureOutput(() => artisan.run(['notifications:table', '--table', 'smoke_notes']))
+  await collectGenerated('smoke_notes')
+
+  const staging = join(app.basePath(), 'storage', 'framework', 'smoke-migrations')
+  await mkdir(staging, { recursive: true })
+  await Promise.all(
+    generatedTables.map((path) =>
+      Bun.write(join(staging, path.split('/').pop() as string), Bun.file(path))
+    )
+  )
+
+  const sqlite = await BunSqlConnection.make('smoke-tables', {
+    driver: 'sqlite',
+    database: ':memory:'
+  })
+
+  try {
+    const migrator = new Migrator(sqlite, new MigrationRepository(sqlite, 'migrations'), [staging])
+
+    await migrator.install()
+    const ran = await migrator.run()
+
+    check('the generated migrations run', ran.length === 3, ran.join(', '))
+
+    const builder = migrator.schema
+
+    check('the jobs table is created', await builder.hasTable('smoke_jobs'))
+    check(
+      'with the reserved_at column the driver depends on',
+      await builder.hasColumn('smoke_jobs', 'reserved_at')
+    )
+    // The cache stub writes two tables: the store and its locks.
+    check('the cache table is created', await builder.hasTable('smoke_cache'))
+    check('and the locks table beside it', await builder.hasTable('smoke_cache_locks'))
+    check('the notifications table is created', await builder.hasTable('smoke_notes'))
+
+    // Down has to reverse all of it, or migrate:rollback strands tables.
+    await migrator.rollback()
+
+    check('and rolling back removes them', !(await builder.hasTable('smoke_jobs')))
+    check('including the locks table', !(await builder.hasTable('smoke_cache_locks')))
+  } finally {
+    await sqlite.disconnect()
+    await rm(staging, { recursive: true, force: true })
+  }
+} finally {
+  await Promise.all(generatedTables.map((path) => rm(path, { force: true })))
 }
 
 // ------------------------------------------------------------------ scaffolder
