@@ -1,5 +1,6 @@
 import { ServiceProvider } from '@elysian/core'
 import { AboutCommand } from './commands/about.ts'
+import { DownCommand } from './commands/down.ts'
 import { MakeCommandCommand } from './commands/make-command.ts'
 import { MakeComponentCommand } from './commands/make-component.ts'
 import { MakeControllerCommand } from './commands/make-controller.ts'
@@ -9,6 +10,7 @@ import { MakeProviderCommand } from './commands/make-provider.ts'
 import { MakeViewCommand } from './commands/make-view.ts'
 import { RouteListCommand } from './commands/route-list.ts'
 import { ServeCommand } from './commands/serve.ts'
+import { UpCommand } from './commands/up.ts'
 import { Kernel } from './kernel.ts'
 
 declare module '@elysian/contracts' {
@@ -29,6 +31,8 @@ export class ConsoleServiceProvider extends ServiceProvider {
       ServeCommand,
       RouteListCommand,
       AboutCommand,
+      DownCommand,
+      UpCommand,
       MakeControllerCommand,
       MakeViewCommand,
       MakeComponentCommand,

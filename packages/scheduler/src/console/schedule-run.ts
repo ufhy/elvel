@@ -54,7 +54,9 @@ export class ScheduleRunCommand extends Command {
             dispatch(event: string, payload?: unknown): unknown
           })
         : undefined,
-      report: (error: unknown) => this.app.make('exception.handler').report(error)
+      report: (error: unknown) => this.app.make('exception.handler').report(error),
+      // The runner asks once per run; `down` and `up` happen between runs.
+      isDownForMaintenance: () => this.app.isDownForMaintenance()
     }
   }
 }

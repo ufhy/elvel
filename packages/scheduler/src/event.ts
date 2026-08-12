@@ -27,6 +27,7 @@ export class ScheduledEvent {
   private environmentNames: string[] | undefined
 
   private overlapping = false
+  private runsInMaintenanceMode = false
   /** Minutes the overlap mutex is held, as Laravel's `expiresAt` default. */
   private expiresAfter = 1440
   private oneServer = false
@@ -268,6 +269,25 @@ export class ScheduledEvent {
     this.filters.push(typeof filter === 'function' ? filter : () => filter)
 
     return this
+  }
+
+  /**
+   * Run this entry even while the application is in maintenance mode.
+   *
+   * Off by default, and that default is the useful one: maintenance mode usually
+   * means something is being repaired or migrated, and a scheduled task that keeps
+   * writing through it is how a half-finished migration acquires new rows. The
+   * exceptions — a health ping, a queue drain, log rotation — say so.
+   */
+  evenInMaintenanceMode(): this {
+    this.runsInMaintenanceMode = true
+
+    return this
+  }
+
+  /** Read by the runner, which is what knows whether the application is down. */
+  get runsInMaintenance(): boolean {
+    return this.runsInMaintenanceMode
   }
 
   /** Skip when the callback returns true. */

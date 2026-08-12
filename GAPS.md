@@ -60,7 +60,8 @@ Deliberately absent, with reasons:
 | --- | --- |
 | `config:cache`, `route:cache` | Bun's module cache already covers most of the cost; a config cache matters at Laravel's file count, not ours yet. |
 | Contextual binding, tagged bindings, automatic constructor injection | The container is deliberately typed via `ContainerBindings` rather than reflective. TypeScript erases parameter types, so PHP-style autowiring would need decorators and `emitDecoratorMetadata`. |
-| Maintenance mode (`down`/`up`) | Needs a request middleware and a flag file. |
+| Maintenance mode in the **cache** | `down`/`up` keep the payload in a file, which is Laravel's default and the only one that works when the thing being repaired is the database or Redis. A cache-backed driver matters for a cluster, where every node has to learn about it — that needs a driver contract and a config key. |
+| `MaintenanceModeEnabled` as an event *class* | Dispatched by name (`maintenance.enabled`, `maintenance.disabled`), as everything else here dispatches. |
 | `terminate` callbacks / graceful shutdown hooks | `booted()` exists; the mirror on shutdown does not. |
 
 ## @elysian/console
@@ -185,6 +186,19 @@ limiting, CORS and trusted proxies.
 | A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
 | Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |
 | `X-Forwarded-Prefix`, AWS ELB's header | `X-Forwarded-For`, `-Proto` and `-Host` are honoured from a trusted proxy. The other two are a branch each when something needs them. |
+
+Three things to know about maintenance mode:
+
+- **The payload is a file, not the cache.** The likeliest moment to need
+  maintenance mode is when the database or Redis is the thing that is broken, and a
+  mode that cannot be switched on then is not a maintenance mode.
+- **`--render` renders when `down` runs**, not per request, and the HTML is stored
+  in the payload. The reason to be down is often that the application cannot serve a
+  page; asking it to render one then is asking the broken thing to explain itself.
+- **The bypass cookie carries a MAC over its own expiry, never the secret.** So a
+  copied cookie is a temporary problem rather than a permanent key, and the phrase
+  never reaches a browser's history or storage. Visiting the secret URL redirects to
+  `/` for the same reason.
 
 Four things to know about the form loop:
 
@@ -341,7 +355,7 @@ or a process runs `schedule:work`.
 | `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
 | `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
 | `onOneServer` releasing its mutex | Deliberate: the lock is held for the minute, which is what keeps the other servers out. A task that must not run twice in the same minute across servers gets that; one that must never overlap *at all* wants `withoutOverlapping()` too. |
-| Maintenance-mode awareness (`evenInMaintenanceMode`) | There is no maintenance mode yet — that is `down`/`up` commands and a middleware, and it belongs with them. |
+| `schedule:test` honouring maintenance mode | `schedule:run` skips due entries while the application is down unless they declare `evenInMaintenanceMode()`. `schedule:test` deliberately does not: it exists to run one entry *now*, and refusing that during maintenance would remove the only way to check a task before bringing the site back. |
 
 Two things worth knowing:
 

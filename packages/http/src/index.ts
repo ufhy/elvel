@@ -29,6 +29,7 @@ export {
   old
 } from './errors.ts'
 export { FormRequest, type RequestContext, validateRequest } from './form-request.ts'
+export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
   clientHost,

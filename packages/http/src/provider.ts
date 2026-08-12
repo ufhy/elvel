@@ -14,6 +14,7 @@ import {
   preflightHeaders
 } from './cors.ts'
 import { TokenMismatchError, tokensMatch } from './csrf.ts'
+import { maintenancePlugin } from './maintenance.ts'
 import { PREVIOUS_URL_KEY } from './redirect.ts'
 import { enterRequestScope } from './scope.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
@@ -67,6 +68,13 @@ export class HttpServiceProvider extends ServiceProvider {
     if (this.app.bound('artisan')) {
       this.app.make('artisan').register(MakeRequestCommand, MakeResourceCommand)
     }
+
+    /**
+     * First, before anything else: an application that is down should not be
+     * starting sessions, checking CSRF or counting rate limits for requests it is
+     * about to refuse.
+     */
+    this.use(maintenancePlugin(this.app.make('maintenance'), this.config('session.path', '/')))
 
     // Its own plugin, and registered before the session check: deferred work has
     // nothing to do with sessions, and an API with sessions turned off still

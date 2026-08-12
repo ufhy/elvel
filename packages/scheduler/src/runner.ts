@@ -15,6 +15,14 @@ export type RunnerOptions = {
   events?: RunnerEvents
   /** Called with anything an event threw, so it reaches the log. */
   report?: (error: unknown) => void
+  /**
+   * Is the application in maintenance mode?
+   *
+   * A callback, asked once per run rather than read at registration: `down` and
+   * `up` happen between runs, and a schedule that decided at boot would keep
+   * running through a deploy that took it down.
+   */
+  isDownForMaintenance?: () => boolean | Promise<boolean>
 }
 
 export type EventOutcome = 'ran' | 'skipped' | 'overlapping' | 'failed'
@@ -45,7 +53,23 @@ export class ScheduleRunner {
   async run(events: ScheduledEvent[]): Promise<RunResult> {
     const result: RunResult = { ran: 0, skipped: 0, failed: 0, outcomes: [] }
 
+    // Asked once for the whole run: sixty tasks should not stat the same file
+    // sixty times, and a `down` landing mid-run belongs to the next minute.
+    const down = (await this.options.isDownForMaintenance?.()) === true
+
     for (const event of events) {
+      if (down && !event.runsInMaintenance) {
+        this.options.events?.dispatch('schedule.task.skipped', {
+          event: event.label,
+          reason: 'maintenance mode'
+        })
+
+        result.skipped += 1
+        result.outcomes.push({ event: event.label, outcome: 'skipped', durationMs: 0 })
+
+        continue
+      }
+
       const started = Date.now()
       const outcome = await this.runEvent(event)
 

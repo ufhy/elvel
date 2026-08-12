@@ -2281,6 +2281,91 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// ------------------------------------------------------------ maintenance mode
+
+section('Maintenance mode')
+
+const maintenance = app.make('maintenance')
+const artisanForDown = app.make('artisan')
+
+try {
+  await captureOutput(() =>
+    artisanForDown.run(['down', '--retry', '60', '--except', '/health', '--with-secret'])
+  )
+
+  const payload = await maintenance.data()
+  const secret = payload?.secret ?? ''
+
+  check('down writes a payload', payload?.retry === 60)
+  check('with a generated secret', /^[0-9a-f]{32}$/.test(secret))
+
+  let refusedWhileDown!: Response
+  await captureOutput(async () => {
+    refusedWhileDown = await app.handle(new Request('http://localhost/check/health'))
+  })
+
+  check('an ordinary request is refused with 503', refusedWhileDown.status === 503)
+  // A client that has to guess when to come back is a client that hammers.
+  check('and told when to come back', refusedWhileDown.headers.get('Retry-After') === '60')
+
+  const excepted = await app.handle(new Request('http://localhost/health'))
+
+  // A health check that fails during maintenance tells an orchestrator to replace
+  // a container that is deliberately down.
+  check('an excepted path answers normally', excepted.status === 200)
+
+  const unlocked = await app.handle(new Request(`http://localhost/${secret}`))
+  const cookie = unlocked.headers.get('set-cookie') ?? ''
+
+  check('the secret URL redirects', unlocked.status === 302)
+  check('setting a bypass cookie', cookie.includes('elysian_maintenance='))
+  // What travels is a MAC over the expiry: a stolen cookie expires by itself.
+  check('which does not contain the secret', !cookie.includes(secret))
+
+  const bypassed = await app.handle(
+    new Request('http://localhost/health', { headers: { cookie: cookie.split(';')[0] as string } })
+  )
+
+  check('a valid bypass cookie passes through', bypassed.status === 200)
+
+  let forged!: Response
+  await captureOutput(async () => {
+    forged = await app.handle(
+      new Request('http://localhost/check/health', {
+        headers: {
+          cookie: `elysian_maintenance=${Buffer.from(
+            JSON.stringify({ expiresAt: 9_999_999_999, mac: 'deadbeef' })
+          ).toString('base64url')}`
+        }
+      })
+    )
+  })
+
+  check('a forged one is not', forged.status === 503)
+
+  // The schedule decides per entry, and only while down.
+  await app.make('cache').store().forget('beat:normal')
+  await app.make('cache').store().forget('beat:always')
+
+  await captureOutput(() => artisanForDown.run(['schedule:run']))
+
+  check(
+    'a scheduled entry is skipped while down',
+    (await app.make('cache').store().get('beat:normal')) === null
+  )
+  check(
+    'unless it asked to run anyway',
+    (await app.make('cache').store().get('beat:always')) !== null
+  )
+} finally {
+  await captureOutput(() => artisanForDown.run(['up']))
+}
+
+check('up brings it back', (await maintenance.active()) === false)
+
+const live = await app.handle(new Request('http://localhost/health'))
+check('and requests are answered again', live.status === 200)
+
 // ------------------------------------------------ forms: errors and old input
 
 section('Forms: redirect back with errors')

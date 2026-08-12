@@ -543,6 +543,18 @@ a different cookie fails to decrypt. Reading falls back from decrypt to unsign, 
 turning encryption on does not log everybody out. An encrypted `X-XSRF-TOKEN` is
 still *rejected* rather than waved through.
 
+```bash
+bun artisan down --retry=60 --except=/health --with-secret   # 503, but /health still answers
+bun artisan down --render=errors.maintenance                 # bake the page now, serve it later
+bun artisan up
+```
+
+Maintenance mode keeps its payload in **a file**, because the reason to need it is
+often that the database or Redis is what broke. `--with-secret` prints a URL that
+sets a bypass cookie — a MAC over the cookie's own expiry, so the phrase never
+reaches the browser and a copied cookie expires by itself. A scheduled entry is
+skipped while the application is down unless it says `evenInMaintenanceMode()`.
+
 A rejected form goes **back to itself**, with the messages and what was typed:
 
 ```ts

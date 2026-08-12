@@ -13,10 +13,12 @@ import { Elysia } from 'elysia'
 import { Config } from './config.ts'
 import { Env } from './env.ts'
 import { ExceptionHandler } from './exceptions.ts'
+import { MaintenanceMode } from './maintenance.ts'
 
 declare module '@elysian/contracts' {
   interface ContainerBindings {
     'exception.handler': ExceptionHandlerContract
+    maintenance: MaintenanceMode
   }
 }
 
@@ -56,6 +58,11 @@ export class Application implements ApplicationContract {
     this.router = new Elysia({ name: 'elysian' })
 
     this.instance('exception.handler', new ExceptionHandler(this))
+
+    // Bound in the constructor rather than a provider: `artisan down` has to work
+    // when a provider cannot boot, which is one of the reasons to run it.
+    this.instance('maintenance', new MaintenanceMode(this.storagePath('framework', 'down')))
+
     Application.current = this
   }
 
@@ -171,6 +178,11 @@ export class Application implements ApplicationContract {
 
   hasDebugModeEnabled(): boolean {
     return this.config.get<boolean>('app.debug', false) === true
+  }
+
+  /** Is the application in maintenance mode? Read from disk, not cached. */
+  async isDownForMaintenance(): Promise<boolean> {
+    return this.make('maintenance').active()
   }
 
   // ---------------------------------------------------------------- providers

@@ -79,6 +79,30 @@ export class AppServiceProvider extends ServiceProvider {
       .withoutOverlapping()
       .description('Delete expired rows from the database cache store')
 
+    /**
+     * Two entries a minute apart in behaviour, not in timing.
+     *
+     * Both are due every minute; while `artisan down` is in force only the second
+     * runs. That is the useful default: maintenance usually means something is
+     * being migrated, and a task that keeps writing through it is how a
+     * half-finished migration acquires new rows — while a heartbeat is exactly what
+     * you still want.
+     */
+    schedule
+      .call(async () => {
+        await this.app.make('cache').store().put('beat:normal', Date.now(), 300)
+      }, 'beat:normal')
+      .everyMinute()
+      .description('Writes a cache key, and stops while the application is down')
+
+    schedule
+      .call(async () => {
+        await this.app.make('cache').store().put('beat:always', Date.now(), 300)
+      }, 'beat:always')
+      .everyMinute()
+      .evenInMaintenanceMode()
+      .description('Writes a cache key even while the application is down')
+
     // Sessions expire in the cookie, but their files do not delete themselves.
     schedule
       .call(async () => {

@@ -35,4 +35,12 @@ export {
   resource_path,
   storage_path
 } from './helpers.ts'
+export {
+  BYPASS_COOKIE,
+  bypassCookieIsValid,
+  generateSecret,
+  issueBypassCookie,
+  MaintenanceMode,
+  type MaintenancePayload
+} from './maintenance.ts'
 export { ServiceProvider } from './service-provider.ts'
