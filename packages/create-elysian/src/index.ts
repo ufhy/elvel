@@ -121,6 +121,7 @@ const FRAMEWORK_PACKAGES = [
   'events',
   'log',
   'support',
+  'validation',
   'view'
 ] as const
 

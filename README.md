@@ -52,6 +52,7 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
 | `@elysian/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
+| `@elysian/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
 | `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
@@ -352,8 +353,8 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 582 tests, including 64 against real Postgres and MySQL
-bun run smoke    # 81 checks against the real playground app
+bun run test     # 646 tests, including 64 against real Postgres and MySQL
+bun run smoke    # 91 checks against the real playground app
 ```
 
 ### playground/
@@ -394,6 +395,53 @@ Deliberately not unit-tested:
   rather than in isolation.
 - `str.ts` inflection edge cases beyond the common forms.
 
+## Validation
+
+Two phases, because TypeBox has no async path and no `refine` — this is a
+constraint, not a preference.
+
+**Phase one is the Elysia `body` schema**: shape, type and format, checked
+synchronously before the handler runs, and the same schema that produces the
+OpenAPI document.
+
+**Phase two is `validator()`**: everything TypeBox cannot express.
+
+```ts
+const check = validator(body, {
+  name: 'required|string|min:2',
+  email: ['required', 'email', Rule.unique('users', 'email').ignore(user.id)],
+  password: 'required|min:8|confirmed',
+  team: 'required_if:role,admin'
+})
+
+const data = await check.validate()   // throws ValidationError with the bag
+```
+
+The execution model follows `Illuminate\Validation\Validator::passes()`, and the
+details are what make an error bag readable rather than noisy:
+
+- a rule runs only if the value is present or the rule is **implicit** (the 24
+  `required*`/`present*`/`accepted*` rules), so `required` can fail on a key that
+  was never sent
+- an implicit failure **stops the remaining rules for that attribute** — an empty
+  field reports "required" alone, not also "min" and "email"
+- a whitespace-only string counts as absent
+- `nullable` lets an explicit null through, `sometimes` skips an absent key,
+  `bail` stops at the first failure
+- `exclude_if` and friends **drop the attribute** instead of failing it
+- `validated()` returns only what was validated, so an unchecked field cannot
+  reach a database write
+
+`unique` and `exists` read the database through a `PresenceVerifier`, which is an
+interface: `@elysian/validation` has **no dependency** on `@elysian/database`, and
+the two rules explain themselves if no verifier is available. Both support the
+string form (`unique:users,email,ignoreId,idColumn`) and the object form with
+extra constraints (`Rule.unique('users','email').where('tenant', id)`).
+
+`FormRequest` is deliberately *not* here: it needs the request context and
+session, so it belongs to the `http` package. This one works in a command or a
+seeder with no HTTP at all.
+
 ## Known gaps
 
 [`GAPS.md`](GAPS.md) records what is deliberately missing in every finished
@@ -403,16 +451,11 @@ to work (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
 
 ## Roadmap
 
-Milestone 1, events + log, and the database layer are done — connections, query
-builder, models with relations and eager loading, schema builder, migrator,
-factories and seeders, verified against SQLite, Postgres and MySQL. Next, in
+Milestone 1, events + log, the database layer and validation are done. Next, in
 dependency order:
 
-1. `validation` — two phases. TypeBox handles shape/type/format synchronously
-   (it has no async path and no `refine`); a RuleRunner of ours handles
-   `unique`/`exists` and the ~24 cross-field rules.
-2. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
-3. `auth` — better-auth through `createAdapterFactory` over our own query
+1. `http` — `FormRequest`, `JsonResource`, session, cookies, CSRF
+2. `auth` — better-auth through `createAdapterFactory` over our own query
    builder, so its `createSchema` emits our migration format rather than a
    second schema; plus Gate/Policy
-4. `cache`, `queue`, `scheduler`, `mail`, `storage`
+3. `cache`, `queue`, `scheduler`, `mail`, `storage`

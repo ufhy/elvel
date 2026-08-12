@@ -16,6 +16,7 @@
     "@elysian/events": "{{ dep_events }}",
     "@elysian/log": "{{ dep_log }}",
     "@elysian/support": "{{ dep_support }}",
+    "@elysian/validation": "{{ dep_validation }}",
     "@elysian/view": "{{ dep_view }}",
     "@kitajs/html": "^4.2.13",
     "elysia": "^1.4.29"

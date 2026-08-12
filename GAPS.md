@@ -95,9 +95,22 @@ Deliberately absent, with reasons:
 | Log deprecation channel, `Log::withoutContext` on the manager | Minor surface. |
 | `pail`-style live tailing | A `log:tail` command over the file drivers would cover it. |
 
+## @elysian/validation
+
+| Missing | Why |
+| --- | --- |
+| `FormRequest` | Needs the request context and session, so it belongs to `http`. The validator itself works with no HTTP at all. |
+| Array/wildcard rules (`items.*.price`) | Needs the attribute expander that turns one rule into one per index; the dot-notation reader is already there. |
+| `distinct`, `array_keys`, `contains` | Depend on the wildcard expansion above. |
+| File rules (`file`, `image`, `mimes`, `dimensions`) | Belong with request handling, where an upload actually exists. |
+| `password` (uncompromised), `current_password` | Need the hashing and auth packages. |
+| `date_format`, timezone-aware comparisons | `Date.parse` covers ISO dates; a format parser is its own small project. |
+| `Rule::when`, closure rules, custom rule classes | `after()` covers the same ground for now. |
+| Translations | Messages are one English catalogue; a translator package would carry the rest. |
+
 ## Not started
 
-`validation`, `http` (FormRequest, JsonResource, session, cookies, CSRF), `auth`
+`http` (FormRequest, JsonResource, session, cookies, CSRF), `auth`
 (better-auth via `createAdapterFactory`), `cache`, `queue`, `scheduler`, `mail`,
 `storage`, `notifications`.
 

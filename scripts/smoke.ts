@@ -244,6 +244,90 @@ check(
   statusOutput.includes('MIGRATION') && statusOutput.includes('no')
 )
 
+section('Validation')
+
+const registered = await app.handle(
+  new Request('http://localhost/check/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Ada',
+      email: 'ada@example.com',
+      password: 'secret123',
+      password_confirmation: 'secret123',
+      role: 'member'
+    })
+  })
+)
+
+const registeredBody = (await registered.json()) as { validated?: Record<string, unknown> }
+
+check('a valid payload passes both phases', registered.status === 200)
+check(
+  'validated() drops what was never validated',
+  registeredBody.validated !== undefined && !('password_confirmation' in registeredBody.validated)
+)
+
+const rejected = await app.handle(
+  new Request('http://localhost/check/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'A',
+      email: 'not-an-email',
+      password: 'short',
+      password_confirmation: 'different',
+      role: 'admin'
+    })
+  })
+)
+
+const rejectedBody = (await rejected.json()) as { errors?: Record<string, string[]> }
+
+check('an invalid payload is a 422', rejected.status === 422)
+check('every failing field is reported', Object.keys(rejectedBody.errors ?? {}).length === 4)
+check(
+  'required_if fires from another field',
+  rejectedBody.errors?.team?.[0]?.includes('required when role is admin') === true
+)
+check(
+  'confirmed compares the twin field',
+  rejectedBody.errors?.password?.some((message) => message.includes('confirmation')) === true
+)
+
+// Phase one rejects a wrong *shape* before the handler runs at all.
+const malformed = await captureOutput(() =>
+  app.handle(
+    new Request('http://localhost/check/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 42 })
+    })
+  )
+)
+check('phase one rejects a bad shape before the handler', malformed !== undefined)
+
+const excluded = (await (
+  await app.handle(
+    new Request('http://localhost/check/payment', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'cash', card_number: 'nonsense' })
+    })
+  )
+).json()) as { passed: boolean; validated: Record<string, unknown> }
+
+check('exclude_if drops the field instead of failing it', excluded.passed)
+check('the excluded field is absent from validated()', !('card_number' in excluded.validated))
+
+// The rule reads a real table, so make sure one exists first.
+await captureOutput(() => app.make('artisan').run(['migrate:install']))
+
+const unique = (await (await app.handle(new Request('http://localhost/check/unique'))).json()) as {
+  passes: boolean
+}
+check('the unique rule reaches the real database', unique.passes === true)
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')

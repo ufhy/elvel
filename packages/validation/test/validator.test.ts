@@ -1,0 +1,454 @@
+import { describe, expect, test } from 'bun:test'
+import { Rule } from '../src/types.ts'
+import { ValidationError, Validator } from '../src/validator.ts'
+
+async function errors(data: Record<string, unknown>, rules: Record<string, unknown>) {
+  const validator = new Validator(data, rules as never)
+  await validator.passes()
+
+  return validator.errors.messages()
+}
+
+describe('rule parsing', () => {
+  test('pipe strings, arrays and rule objects', () => {
+    expect(Validator.parse('required|min:3')).toEqual([
+      { name: 'required', params: [] },
+      { name: 'min', params: ['3'] }
+    ])
+
+    expect(Validator.parse(['required', 'between:1,5'])).toEqual([
+      { name: 'required', params: [] },
+      { name: 'between', params: ['1', '5'] }
+    ])
+
+    const parsed = Validator.parse(Rule.unique('users', 'email'))
+    expect(parsed[0]?.name).toBe('unique')
+    expect(parsed[0]?.rule).toBeDefined()
+  })
+
+  test('empty segments are dropped', () => {
+    expect(Validator.parse('required||min:3')).toHaveLength(2)
+  })
+})
+
+describe('presence', () => {
+  test('required rejects empty values but accepts falsy ones', async () => {
+    expect(await errors({}, { name: 'required' })).toHaveProperty('name')
+    expect(await errors({ name: '' }, { name: 'required' })).toHaveProperty('name')
+    expect(await errors({ name: '   ' }, { name: 'required' })).toHaveProperty('name')
+    expect(await errors({ name: [] }, { name: 'required' })).toHaveProperty('name')
+    expect(await errors({ name: null }, { name: 'required' })).toHaveProperty('name')
+
+    // 0 and false are values, not absences.
+    expect(await errors({ name: 0 }, { name: 'required' })).toEqual({})
+    expect(await errors({ name: false }, { name: 'required' })).toEqual({})
+  })
+
+  test('an absent optional field skips its other rules', async () => {
+    expect(await errors({}, { email: 'email|min:5' })).toEqual({})
+  })
+
+  test('a whitespace-only string only runs implicit rules', async () => {
+    // `required` fails; `email` does not also fire, which keeps the bag readable.
+    expect(await errors({ email: '  ' }, { email: 'required|email' })).toEqual({
+      email: ['The email field is required.']
+    })
+  })
+
+  test('nullable allows an explicit null through the type rules', async () => {
+    expect(await errors({ age: null }, { age: 'nullable|integer' })).toEqual({})
+    expect(await errors({ age: 'x' }, { age: 'nullable|integer' })).toHaveProperty('age')
+  })
+
+  test('sometimes skips an absent key entirely', async () => {
+    expect(await errors({}, { age: 'sometimes|required|integer' })).toEqual({})
+    expect(await errors({ age: '' }, { age: 'sometimes|required|integer' })).toHaveProperty('age')
+  })
+
+  test('present demands the key but not a value', async () => {
+    expect(await errors({}, { note: 'present' })).toHaveProperty('note')
+    expect(await errors({ note: '' }, { note: 'present' })).toEqual({})
+  })
+
+  test('filled demands a value only when the key is sent', async () => {
+    expect(await errors({}, { note: 'filled' })).toEqual({})
+    expect(await errors({ note: '' }, { note: 'filled' })).toHaveProperty('note')
+  })
+
+  test('missing and prohibited', async () => {
+    expect(await errors({ trap: 'x' }, { trap: 'missing' })).toHaveProperty('trap')
+    expect(await errors({}, { trap: 'missing' })).toEqual({})
+    expect(await errors({ trap: 'x' }, { trap: 'prohibited' })).toHaveProperty('trap')
+  })
+})
+
+describe('stopping', () => {
+  test('an implicit failure stops the remaining rules for that attribute', async () => {
+    const bag = await errors({}, { email: 'required|email|min:10' })
+
+    expect(bag.email).toEqual(['The email field is required.'])
+  })
+
+  test('without bail, several rules can fail on one attribute', async () => {
+    const bag = await errors({ code: 'ab' }, { code: 'min:5|alpha_num|starts_with:zz' })
+
+    expect(bag.code?.length).toBe(2)
+  })
+
+  test('bail stops after the first failure', async () => {
+    const bag = await errors({ code: 'ab' }, { code: 'bail|min:5|starts_with:zz' })
+
+    expect(bag.code).toHaveLength(1)
+  })
+
+  test('stopOnFirstFailure stops the whole validator', async () => {
+    const validator = new Validator(
+      { a: '', b: '' },
+      { a: 'required', b: 'required' },
+      { stopOnFirstFailure: true }
+    )
+
+    await validator.passes()
+
+    expect(validator.errors.keys()).toEqual(['a'])
+  })
+})
+
+describe('types and formats', () => {
+  test('numeric, integer and boolean accept string forms', async () => {
+    expect(await errors({ n: '12' }, { n: 'numeric' })).toEqual({})
+    expect(await errors({ n: '12.5' }, { n: 'numeric' })).toEqual({})
+    expect(await errors({ n: '12.5' }, { n: 'integer' })).toHaveProperty('n')
+    expect(await errors({ n: '1' }, { n: 'boolean' })).toEqual({})
+    expect(await errors({ n: 'yes' }, { n: 'boolean' })).toEqual({})
+    expect(await errors({ n: 'maybe' }, { n: 'boolean' })).toHaveProperty('n')
+  })
+
+  test('email, url, uuid, ip and json', async () => {
+    expect(await errors({ v: 'a@b.co' }, { v: 'email' })).toEqual({})
+    expect(await errors({ v: 'a@b' }, { v: 'email' })).toHaveProperty('v')
+    expect(await errors({ v: 'https://x.dev' }, { v: 'url' })).toEqual({})
+    expect(await errors({ v: crypto.randomUUID() }, { v: 'uuid' })).toEqual({})
+    expect(await errors({ v: '10.0.0.1' }, { v: 'ip' })).toEqual({})
+    expect(await errors({ v: '999.0.0.1' }, { v: 'ip' })).toHaveProperty('v')
+    expect(await errors({ v: '{"a":1}' }, { v: 'json' })).toEqual({})
+    expect(await errors({ v: '{' }, { v: 'json' })).toHaveProperty('v')
+  })
+
+  test('alpha family and case', async () => {
+    expect(await errors({ v: 'abc' }, { v: 'alpha' })).toEqual({})
+    expect(await errors({ v: 'a-b_1' }, { v: 'alpha_dash' })).toEqual({})
+    expect(await errors({ v: 'a b' }, { v: 'alpha_num' })).toHaveProperty('v')
+    expect(await errors({ v: 'abc' }, { v: 'lowercase' })).toEqual({})
+    expect(await errors({ v: 'Abc' }, { v: 'uppercase' })).toHaveProperty('v')
+  })
+
+  test('regex, digits and decimal', async () => {
+    expect(await errors({ v: 'ab' }, { v: 'regex:/^[a-z]+$/' })).toEqual({})
+    expect(await errors({ v: 'a1' }, { v: 'regex:/^[a-z]+$/' })).toHaveProperty('v')
+    expect(await errors({ v: 'a1' }, { v: 'not_regex:/^[a-z]+$/' })).toEqual({})
+    expect(await errors({ v: '1234' }, { v: 'digits:4' })).toEqual({})
+    expect(await errors({ v: '123' }, { v: 'digits_between:4,6' })).toHaveProperty('v')
+    expect(await errors({ v: '1.25' }, { v: 'decimal:2' })).toEqual({})
+    expect(await errors({ v: '1.2' }, { v: 'decimal:2' })).toHaveProperty('v')
+  })
+})
+
+describe('size rules', () => {
+  test('measure length for strings, items for arrays, magnitude for numbers', async () => {
+    expect(await errors({ v: 'abc' }, { v: 'min:3' })).toEqual({})
+    expect(await errors({ v: 'ab' }, { v: 'min:3' })).toHaveProperty('v')
+    expect(await errors({ v: [1, 2] }, { v: 'min:3' })).toHaveProperty('v')
+    expect(await errors({ v: 5 }, { v: 'min:3' })).toEqual({})
+    // A numeric rule alongside makes a numeric string compare as a number.
+    expect(await errors({ v: '5' }, { v: 'numeric|min:3' })).toEqual({})
+    expect(await errors({ v: '5' }, { v: 'min:3' })).toHaveProperty('v')
+  })
+
+  test('the message names the right unit', async () => {
+    expect((await errors({ v: 'ab' }, { v: 'min:3' })).v?.[0]).toContain('3 characters')
+    expect((await errors({ v: [1] }, { v: 'min:3' })).v?.[0]).toContain('3 items')
+    expect((await errors({ v: 1 }, { v: 'numeric|min:3' })).v?.[0]).toBe(
+      'The v field must be at least 3.'
+    )
+  })
+
+  test('between, size, gt and lte compare against another field', async () => {
+    expect(await errors({ v: 'abc' }, { v: 'between:1,5' })).toEqual({})
+    expect(await errors({ v: 'abc' }, { v: 'size:3' })).toEqual({})
+    expect(await errors({ a: 5, b: 3 }, { a: 'numeric|gt:b' })).toEqual({})
+    expect(await errors({ a: 2, b: 3 }, { a: 'numeric|gt:b' })).toHaveProperty('a')
+    expect(await errors({ a: 3, b: 3 }, { a: 'numeric|lte:b' })).toEqual({})
+  })
+})
+
+describe('cross-field rules', () => {
+  test('confirmed looks for the _confirmation twin', async () => {
+    expect(
+      await errors(
+        { password: 'secret', password_confirmation: 'secret' },
+        { password: 'confirmed' }
+      )
+    ).toEqual({})
+
+    expect(
+      await errors({ password: 'secret', password_confirmation: 'typo' }, { password: 'confirmed' })
+    ).toEqual({ password: ['The password field confirmation does not match.'] })
+  })
+
+  test('same and different', async () => {
+    expect(await errors({ a: 'x', b: 'x' }, { a: 'same:b' })).toEqual({})
+    expect(await errors({ a: 'x', b: 'y' }, { a: 'same:b' })).toHaveProperty('a')
+    expect(await errors({ a: 'x', b: 'y' }, { a: 'different:b' })).toEqual({})
+  })
+
+  test('required_if and required_unless', async () => {
+    expect(await errors({ kind: 'card' }, { number: 'required_if:kind,card' })).toHaveProperty(
+      'number'
+    )
+    expect(await errors({ kind: 'cash' }, { number: 'required_if:kind,card' })).toEqual({})
+    // The named field being absent means the condition cannot hold.
+    expect(await errors({}, { number: 'required_if:kind,card' })).toEqual({})
+
+    expect(await errors({ kind: 'cash' }, { number: 'required_unless:kind,card' })).toHaveProperty(
+      'number'
+    )
+    expect(await errors({ kind: 'card' }, { number: 'required_unless:kind,card' })).toEqual({})
+  })
+
+  test('required_with, required_with_all, required_without, required_without_all', async () => {
+    expect(await errors({ a: 1 }, { b: 'required_with:a' })).toHaveProperty('b')
+    expect(await errors({}, { b: 'required_with:a' })).toEqual({})
+    expect(await errors({ a: 1 }, { c: 'required_with_all:a,b' })).toEqual({})
+    expect(await errors({ a: 1, b: 2 }, { c: 'required_with_all:a,b' })).toHaveProperty('c')
+    expect(await errors({}, { b: 'required_without:a' })).toHaveProperty('b')
+    expect(await errors({ a: 1 }, { b: 'required_without:a' })).toEqual({})
+    expect(await errors({}, { c: 'required_without_all:a,b' })).toHaveProperty('c')
+    expect(await errors({ a: 1 }, { c: 'required_without_all:a,b' })).toEqual({})
+  })
+
+  test('accepted, declined and their conditional forms', async () => {
+    expect(await errors({ tos: 'yes' }, { tos: 'accepted' })).toEqual({})
+    expect(await errors({ tos: 'no' }, { tos: 'accepted' })).toHaveProperty('tos')
+    expect(await errors({ tos: 'off' }, { tos: 'declined' })).toEqual({})
+    expect(await errors({ kind: 'a', tos: 'no' }, { tos: 'accepted_if:kind,a' })).toHaveProperty(
+      'tos'
+    )
+    expect(await errors({ kind: 'b', tos: 'no' }, { tos: 'accepted_if:kind,a' })).toEqual({})
+  })
+
+  test('prohibited_if and prohibits', async () => {
+    expect(
+      await errors({ kind: 'a', extra: 'x' }, { extra: 'prohibited_if:kind,a' })
+    ).toHaveProperty('extra')
+    expect(await errors({ a: 'x', b: 'y' }, { a: 'prohibits:b' })).toHaveProperty('a')
+    expect(await errors({ a: 'x' }, { a: 'prohibits:b' })).toEqual({})
+  })
+
+  test('in, not_in and in_array', async () => {
+    expect(await errors({ v: 'a' }, { v: 'in:a,b' })).toEqual({})
+    expect(await errors({ v: 'c' }, { v: 'in:a,b' })).toHaveProperty('v')
+    expect(await errors({ v: 'c' }, { v: 'not_in:a,b' })).toEqual({})
+    expect(await errors({ v: 'a', list: ['a'] }, { v: 'in_array:list' })).toEqual({})
+    expect(await errors({ v: 'z', list: ['a'] }, { v: 'in_array:list' })).toHaveProperty('v')
+  })
+
+  test('date comparisons accept a literal or another field', async () => {
+    expect(
+      await errors({ end: '2026-02-01', start: '2026-01-01' }, { end: 'after:start' })
+    ).toEqual({})
+    expect(
+      await errors({ end: '2025-01-01', start: '2026-01-01' }, { end: 'after:start' })
+    ).toHaveProperty('end')
+    expect(await errors({ v: '2026-01-02' }, { v: 'after:2026-01-01' })).toEqual({})
+    expect(await errors({ v: '2026-01-01' }, { v: 'after_or_equal:2026-01-01' })).toEqual({})
+    expect(await errors({ v: 'not a date' }, { v: 'date' })).toHaveProperty('v')
+  })
+
+  test('starts_with and ends_with take several options', async () => {
+    expect(await errors({ v: 'abc' }, { v: 'starts_with:x,a' })).toEqual({})
+    expect(await errors({ v: 'abc' }, { v: 'ends_with:z' })).toHaveProperty('v')
+  })
+})
+
+describe('exclude rules', () => {
+  test('exclude_if drops the attribute rather than failing it', async () => {
+    const validator = new Validator(
+      { kind: 'cash', number: 'nonsense' },
+      { kind: 'required', number: 'exclude_if:kind,cash|min:10' }
+    )
+
+    expect(await validator.passes()).toBe(true)
+    expect(validator.validated()).toEqual({ kind: 'cash' })
+  })
+
+  test('exclude_unless keeps it when the condition holds', async () => {
+    const validator = new Validator(
+      { kind: 'card', number: '4111111111111111' },
+      { kind: 'required', number: 'exclude_unless:kind,card|min:10' }
+    )
+
+    expect(await validator.passes()).toBe(true)
+    expect(validator.validated()).toHaveProperty('number')
+  })
+
+  test('exclude always drops', async () => {
+    const validator = new Validator({ a: 1, b: 2 }, { a: 'exclude', b: 'required' })
+    await validator.passes()
+
+    expect(validator.validated()).toEqual({ b: 2 })
+  })
+})
+
+describe('validated output', () => {
+  test('only validated keys survive, so an unchecked field cannot reach a write', async () => {
+    const validator = new Validator({ name: 'Ada', is_admin: true }, { name: 'required|string' })
+
+    expect(await validator.passes()).toBe(true)
+    expect(validator.validated()).toEqual({ name: 'Ada' })
+  })
+
+  test('validate() returns the data or throws with the bag', async () => {
+    expect(await new Validator({ name: 'Ada' }, { name: 'required' }).validate()).toEqual({
+      name: 'Ada'
+    })
+
+    const failing = new Validator({}, { name: 'required' })
+
+    await expect(failing.validate()).rejects.toThrow(ValidationError)
+    await expect(failing.validate()).rejects.toThrow('The name field is required.')
+  })
+
+  test('the error carries the full bag', async () => {
+    try {
+      await new Validator({}, { name: 'required', email: 'required' }).validate()
+      throw new Error('should have thrown')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError)
+      expect((error as ValidationError).errors.messages()).toEqual({
+        name: ['The name field is required.'],
+        email: ['The email field is required.']
+      })
+    }
+  })
+
+  test('dot notation reads and writes nested data', async () => {
+    const validator = new Validator(
+      { user: { name: 'Ada', secret: 'x' } },
+      { 'user.name': 'required|string' }
+    )
+
+    expect(await validator.passes()).toBe(true)
+    expect(validator.validated()).toEqual({ user: { name: 'Ada' } })
+  })
+})
+
+describe('messages', () => {
+  test('attribute names are humanised', async () => {
+    expect((await errors({}, { first_name: 'required' })).first_name?.[0]).toBe(
+      'The first name field is required.'
+    )
+  })
+
+  test('a custom message replaces the default, per rule or per field', async () => {
+    const byRule = new Validator({}, { name: 'required' }, { messages: { required: 'Need it.' } })
+    await byRule.passes()
+    expect(byRule.errors.first()).toBe('Need it.')
+
+    const byField = new Validator(
+      { a: '', b: '' },
+      { a: 'required', b: 'required' },
+      { messages: { 'a.required': 'A is special.' } }
+    )
+    await byField.passes()
+    expect(byField.errors.first('a')).toBe('A is special.')
+    expect(byField.errors.first('b')).toBe('The b field is required.')
+  })
+
+  test('a custom attribute label is used in every message', async () => {
+    const validator = new Validator(
+      {},
+      { email_address: 'required' },
+      { attributes: { email_address: 'e-mail' } }
+    )
+    await validator.passes()
+
+    expect(validator.errors.first()).toBe('The e-mail field is required.')
+  })
+
+  test(':other names the referenced field', async () => {
+    const bag = await errors({ kind: 'card' }, { card_number: 'required_if:kind,card' })
+
+    expect(bag.card_number?.[0]).toBe('The card number field is required when kind is card.')
+  })
+
+  test('an unknown rule fails loudly instead of passing silently', async () => {
+    await expect(new Validator({ a: 1 }, { a: 'nope' }).passes()).rejects.toThrow(
+      /rule \[nope\] does not exist/
+    )
+  })
+})
+
+describe('after hooks', () => {
+  test('run once the rules have finished, and can add errors', async () => {
+    const validator = new Validator({ password: 'secret' }, { password: 'required' }).after(
+      (instance) => {
+        instance.addError('password', 'That password is too common.')
+      }
+    )
+
+    expect(await validator.passes()).toBe(false)
+    expect(validator.errors.first('password')).toBe('That password is too common.')
+  })
+
+  test('an after hook sees the errors the rules produced', async () => {
+    let seen = 0
+
+    const validator = new Validator({}, { name: 'required' }).after((instance) => {
+      seen = instance.errors.count()
+    })
+
+    await validator.passes()
+
+    expect(seen).toBe(1)
+  })
+})
+
+describe('error bag', () => {
+  test('exposes first, get, all, keys and the JSON shape', async () => {
+    const validator = new Validator(
+      { a: 'x' },
+      { a: 'min:5|alpha_num|starts_with:zz', b: 'required' }
+    )
+    await validator.passes()
+
+    expect(validator.errors.first('a')).toContain('at least 5')
+    expect(validator.errors.get('a')).toHaveLength(2)
+    expect(validator.errors.keys().sort()).toEqual(['a', 'b'])
+    expect(validator.errors.count()).toBe(3)
+    expect(JSON.parse(JSON.stringify(validator.errors))).toHaveProperty('b')
+  })
+
+  test('duplicate messages are not repeated', async () => {
+    const validator = new Validator(
+      { a: '' },
+      { a: 'required' },
+      { messages: { required: 'Nope.' } }
+    )
+    await validator.passes()
+    validator.addError('a', 'Nope.')
+
+    expect(validator.errors.get('a')).toEqual(['Nope.'])
+  })
+})
+
+describe('idempotence', () => {
+  test('passes() twice does not double the errors', async () => {
+    const validator = new Validator({}, { name: 'required' })
+
+    await validator.passes()
+    await validator.passes()
+
+    expect(validator.errors.get('name')).toHaveLength(1)
+  })
+})

@@ -3,6 +3,7 @@ import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
 import { EventServiceProvider } from '@elysian/events'
 import { LogServiceProvider } from '@elysian/log'
+import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
 export default {
@@ -29,6 +30,7 @@ export default {
     LogServiceProvider,
     ConsoleServiceProvider,
     DatabaseServiceProvider,
+    ValidationServiceProvider,
     ViewServiceProvider
   ]
 }

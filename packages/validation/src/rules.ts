@@ -1,0 +1,502 @@
+import { Arr } from '@elysian/support'
+import type { Data, RuleContext, RuleHandler } from './types.ts'
+import { ExistsRule, UniqueRule } from './types.ts'
+
+/**
+ * Rules that run even when the attribute is absent.
+ *
+ * Verbatim from `Validator::$implicitRules`, and the reason `required` can fail
+ * on a key that was never sent.
+ */
+export const IMPLICIT_RULES = new Set([
+  'accepted',
+  'accepted_if',
+  'declined',
+  'declined_if',
+  'filled',
+  'missing',
+  'missing_if',
+  'missing_unless',
+  'missing_with',
+  'missing_with_all',
+  'present',
+  'present_if',
+  'present_unless',
+  'present_with',
+  'present_with_all',
+  'required',
+  'required_if',
+  'required_if_accepted',
+  'required_if_declined',
+  'required_unless',
+  'required_with',
+  'required_with_all',
+  'required_without',
+  'required_without_all'
+])
+
+/** Rules whose parameters name other fields, so they need the whole payload. */
+export const DEPENDENT_RULES = new Set([
+  'after',
+  'after_or_equal',
+  'before',
+  'before_or_equal',
+  'confirmed',
+  'different',
+  'exclude_if',
+  'exclude_unless',
+  'exclude_with',
+  'exclude_without',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'accepted_if',
+  'declined_if',
+  'required_if',
+  'required_if_accepted',
+  'required_if_declined',
+  'required_unless',
+  'required_with',
+  'required_with_all',
+  'required_without',
+  'required_without_all',
+  'present_if',
+  'present_unless',
+  'present_with',
+  'present_with_all',
+  'prohibited',
+  'prohibited_if',
+  'prohibited_unless',
+  'prohibits',
+  'missing_if',
+  'missing_unless',
+  'missing_with',
+  'missing_with_all',
+  'same',
+  'unique',
+  'in_array'
+])
+
+/** Rules that drop the attribute from the validated output. */
+export const EXCLUDE_RULES = new Set([
+  'exclude',
+  'exclude_if',
+  'exclude_unless',
+  'exclude_with',
+  'exclude_without'
+])
+
+/** Rules whose message depends on the value's type. */
+export const SIZE_RULES = new Set(['size', 'between', 'min', 'max', 'gt', 'lt', 'gte', 'lte'])
+
+/** Rules the engine handles itself rather than dispatching. */
+export const NON_VALIDATING_RULES = new Set(['nullable', 'sometimes', 'bail', 'exclude'])
+
+// ------------------------------------------------------------------- helpers
+
+function has(data: Data, key: string): boolean {
+  return Arr.has(data, key)
+}
+
+function get(data: Data, key: string): unknown {
+  return Arr.get(data, key)
+}
+
+/** Laravel's notion of "present": not null, not an empty string or array. */
+export function isFilled(value: unknown): boolean {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  if (Array.isArray(value)) return value.length > 0
+
+  return true
+}
+
+const TRUTHY = new Set([true, 'true', 1, '1', 'yes', 'on'])
+const FALSY = new Set([false, 'false', 0, '0', 'no', 'off'])
+
+/** Numeric size for a value: magnitude, length, or item count. */
+export function sizeOf(value: unknown, treatAsNumeric = false): number {
+  if (typeof value === 'number') return value
+  if (Array.isArray(value)) return value.length
+  if (typeof value === 'string') {
+    return treatAsNumeric && value.trim() !== '' && !Number.isNaN(Number(value))
+      ? Number(value)
+      : value.length
+  }
+
+  return 0
+}
+
+function numericContext(context: RuleContext): boolean {
+  return context.siblings.some((rule) => ['numeric', 'integer', 'decimal'].includes(rule.name))
+}
+
+function compareSize(context: RuleContext): number {
+  return sizeOf(context.value, numericContext(context))
+}
+
+function otherValue(context: RuleContext, field?: string): unknown {
+  return field === undefined ? undefined : get(context.data, field)
+}
+
+function anyPresent(context: RuleContext, fields: string[]): boolean {
+  return fields.some((field) => isFilled(otherValue(context, field)))
+}
+
+function allPresent(context: RuleContext, fields: string[]): boolean {
+  return fields.every((field) => isFilled(otherValue(context, field)))
+}
+
+function toDate(value: unknown): number {
+  if (value instanceof Date) return value.getTime()
+
+  const parsed = Date.parse(String(value))
+
+  return Number.isNaN(parsed) ? Number.NaN : parsed
+}
+
+/** A date rule's parameter may name another field or be a literal date. */
+function dateBoundary(context: RuleContext, param: string | undefined): number {
+  if (param === undefined) return Number.NaN
+  if (has(context.data, param)) return toDate(get(context.data, param))
+
+  return toDate(param)
+}
+
+// --------------------------------------------------------------------- rules
+
+export const RULES: Record<string, RuleHandler> = {
+  // -- presence ------------------------------------------------------------
+  required: ({ value }) => isFilled(value),
+
+  filled: ({ attribute, value, data }) => (has(data, attribute) ? isFilled(value) : true),
+
+  present: ({ attribute, data }) => has(data, attribute),
+
+  missing: ({ attribute, data }) => !has(data, attribute),
+
+  missing_if: (context) => {
+    const [field, ...values] = context.params
+    return values.includes(String(otherValue(context, field)))
+      ? !has(context.data, context.attribute)
+      : true
+  },
+
+  missing_unless: (context) => {
+    const [field, ...values] = context.params
+    return values.includes(String(otherValue(context, field)))
+      ? true
+      : !has(context.data, context.attribute)
+  },
+
+  missing_with: (context) =>
+    anyPresent(context, context.params) ? !has(context.data, context.attribute) : true,
+
+  missing_with_all: (context) =>
+    allPresent(context, context.params) ? !has(context.data, context.attribute) : true,
+
+  required_if: (context) => {
+    const [field, ...values] = context.params
+    if (field === undefined || !has(context.data, field)) return true
+
+    return values.includes(String(otherValue(context, field))) ? isFilled(context.value) : true
+  },
+
+  required_unless: (context) => {
+    const [field, ...values] = context.params
+
+    return values.includes(String(otherValue(context, field))) ? true : isFilled(context.value)
+  },
+
+  required_if_accepted: (context) => {
+    const [field] = context.params
+
+    return TRUTHY.has(otherValue(context, field) as never) ? isFilled(context.value) : true
+  },
+
+  required_if_declined: (context) => {
+    const [field] = context.params
+
+    return FALSY.has(otherValue(context, field) as never) ? isFilled(context.value) : true
+  },
+
+  required_with: (context) =>
+    anyPresent(context, context.params) ? isFilled(context.value) : true,
+
+  required_with_all: (context) =>
+    allPresent(context, context.params) ? isFilled(context.value) : true,
+
+  required_without: (context) =>
+    context.params.some((field) => !isFilled(otherValue(context, field)))
+      ? isFilled(context.value)
+      : true,
+
+  required_without_all: (context) =>
+    context.params.every((field) => !isFilled(otherValue(context, field)))
+      ? isFilled(context.value)
+      : true,
+
+  prohibited: ({ value }) => !isFilled(value),
+
+  prohibited_if: (context) => {
+    const [field, ...values] = context.params
+
+    return values.includes(String(otherValue(context, field))) ? !isFilled(context.value) : true
+  },
+
+  prohibited_unless: (context) => {
+    const [field, ...values] = context.params
+
+    return values.includes(String(otherValue(context, field))) ? true : !isFilled(context.value)
+  },
+
+  /** This field being present forbids the others. */
+  prohibits: (context) =>
+    isFilled(context.value)
+      ? context.params.every((field) => !isFilled(otherValue(context, field)))
+      : true,
+
+  // -- types ---------------------------------------------------------------
+  string: ({ value }) => typeof value === 'string',
+
+  numeric: ({ value }) =>
+    typeof value === 'number'
+      ? Number.isFinite(value)
+      : typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value)),
+
+  integer: ({ value }) =>
+    typeof value === 'number'
+      ? Number.isInteger(value)
+      : typeof value === 'string' && /^-?\d+$/.test(value.trim()),
+
+  boolean: ({ value }) => TRUTHY.has(value as never) || FALSY.has(value as never),
+
+  array: ({ value }) => Array.isArray(value),
+
+  json: ({ value }) => {
+    if (typeof value !== 'string') return false
+    try {
+      JSON.parse(value)
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  date: ({ value }) => !Number.isNaN(toDate(value)),
+
+  // -- format --------------------------------------------------------------
+  email: ({ value }) => typeof value === 'string' && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value),
+
+  url: ({ value }) => {
+    if (typeof value !== 'string') return false
+    try {
+      new URL(value)
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  uuid: ({ value }) =>
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+
+  ip: ({ value }) => {
+    if (typeof value !== 'string') return false
+    const v4 = /^(\d{1,3}\.){3}\d{1,3}$/
+    if (v4.test(value)) return value.split('.').every((part) => Number(part) <= 255)
+
+    return /^[0-9a-f:]+$/i.test(value) && value.includes(':')
+  },
+
+  alpha: ({ value }) => typeof value === 'string' && /^[a-z]+$/i.test(value),
+
+  alpha_num: ({ value }) => typeof value === 'string' && /^[a-z0-9]+$/i.test(value),
+
+  alpha_dash: ({ value }) => typeof value === 'string' && /^[a-z0-9_-]+$/i.test(value),
+
+  lowercase: ({ value }) => typeof value === 'string' && value === value.toLowerCase(),
+
+  uppercase: ({ value }) => typeof value === 'string' && value === value.toUpperCase(),
+
+  regex: ({ value, params }) => {
+    const pattern = params.join(',')
+
+    return typeof value === 'string' && buildRegExp(pattern).test(value)
+  },
+
+  not_regex: ({ value, params }) => {
+    const pattern = params.join(',')
+
+    return typeof value === 'string' && !buildRegExp(pattern).test(value)
+  },
+
+  digits: ({ value, params }) =>
+    /^\d+$/.test(String(value)) && String(value).length === Number(params[0]),
+
+  digits_between: ({ value, params }) => {
+    if (!/^\d+$/.test(String(value))) return false
+    const length = String(value).length
+
+    return length >= Number(params[0]) && length <= Number(params[1])
+  },
+
+  decimal: ({ value, params }) => {
+    const match = /^-?\d+(?:\.(\d+))?$/.exec(String(value))
+    if (!match) return false
+
+    const places = match[1]?.length ?? 0
+    const [min, max] = params
+
+    return max === undefined
+      ? places === Number(min)
+      : places >= Number(min) && places <= Number(max)
+  },
+
+  // -- size ----------------------------------------------------------------
+  size: (context) => compareSize(context) === Number(context.params[0]),
+
+  min: (context) => compareSize(context) >= Number(context.params[0]),
+
+  max: (context) => compareSize(context) <= Number(context.params[0]),
+
+  between: (context) => {
+    const size = compareSize(context)
+
+    return size >= Number(context.params[0]) && size <= Number(context.params[1])
+  },
+
+  gt: (context) => compareSize(context) > sizeOf(otherValue(context, context.params[0]), true),
+
+  gte: (context) => compareSize(context) >= sizeOf(otherValue(context, context.params[0]), true),
+
+  lt: (context) => compareSize(context) < sizeOf(otherValue(context, context.params[0]), true),
+
+  lte: (context) => compareSize(context) <= sizeOf(otherValue(context, context.params[0]), true),
+
+  // -- membership ----------------------------------------------------------
+  in: ({ value, params }) => params.includes(String(value)),
+
+  not_in: ({ value, params }) => !params.includes(String(value)),
+
+  in_array: (context) => {
+    const other = otherValue(context, context.params[0])
+
+    return Array.isArray(other) ? other.map(String).includes(String(context.value)) : false
+  },
+
+  starts_with: ({ value, params }) =>
+    typeof value === 'string' && params.some((prefix) => value.startsWith(prefix)),
+
+  ends_with: ({ value, params }) =>
+    typeof value === 'string' && params.some((suffix) => value.endsWith(suffix)),
+
+  // -- cross-field ---------------------------------------------------------
+  same: (context) => String(context.value) === String(otherValue(context, context.params[0])),
+
+  different: (context) => String(context.value) !== String(otherValue(context, context.params[0])),
+
+  confirmed: (context) => {
+    const field = context.params[0] ?? `${context.attribute}_confirmation`
+
+    return String(context.value) === String(otherValue(context, field))
+  },
+
+  accepted: ({ value }) => TRUTHY.has(value as never),
+
+  declined: ({ value }) => FALSY.has(value as never),
+
+  accepted_if: (context) => {
+    const [field, ...values] = context.params
+
+    return values.includes(String(otherValue(context, field)))
+      ? TRUTHY.has(context.value as never)
+      : true
+  },
+
+  declined_if: (context) => {
+    const [field, ...values] = context.params
+
+    return values.includes(String(otherValue(context, field)))
+      ? FALSY.has(context.value as never)
+      : true
+  },
+
+  after: (context) => toDate(context.value) > dateBoundary(context, context.params[0]),
+
+  after_or_equal: (context) => toDate(context.value) >= dateBoundary(context, context.params[0]),
+
+  before: (context) => toDate(context.value) < dateBoundary(context, context.params[0]),
+
+  before_or_equal: (context) => toDate(context.value) <= dateBoundary(context, context.params[0]),
+
+  date_equals: (context) => toDate(context.value) === dateBoundary(context, context.params[0]),
+
+  // -- database ------------------------------------------------------------
+  /**
+   * `unique:table,column,ignoreId,idColumn` — passes when no other row matches.
+   * The rule object form adds `->ignore()` and extra `where` constraints.
+   */
+  unique: async (context) => {
+    const verifier = requireVerifier(context, 'unique')
+    const rule = context.rule instanceof UniqueRule ? context.rule : undefined
+
+    const table = rule?.table ?? (context.params[0] as string)
+    const column = rule?.column ?? context.params[1] ?? context.attribute
+
+    const ignore = rule
+      ? rule.ignoring()
+      : context.params[2] !== undefined
+        ? { id: context.params[2], column: context.params[3] ?? 'id' }
+        : undefined
+
+    const extra = rule ? rule.constraints() : extraConstraints(context.params.slice(4))
+
+    return (await verifier.count(table, column, context.value, ignore, extra)) === 0
+  },
+
+  /** `exists:table,column` — every value given must be present. */
+  exists: async (context) => {
+    const verifier = requireVerifier(context, 'exists')
+    const rule = context.rule instanceof ExistsRule ? context.rule : undefined
+
+    const table = rule?.table ?? (context.params[0] as string)
+    const column = rule?.column ?? context.params[1] ?? context.attribute
+    const extra = rule ? rule.constraints() : extraConstraints(context.params.slice(2))
+
+    const values = Array.isArray(context.value) ? [...new Set(context.value)] : [context.value]
+    if (values.length === 0) return true
+
+    return (await verifier.countIn(table, column, values, extra)) >= values.length
+  }
+}
+
+function requireVerifier(context: RuleContext, rule: string) {
+  if (!context.verifier) {
+    throw new Error(
+      `The [${rule}] rule needs a database. Register DatabaseServiceProvider, or pass a verifier to the Validator.`
+    )
+  }
+
+  return context.verifier
+}
+
+/** `where_column,value` pairs trailing a string rule. */
+function extraConstraints(params: string[]): Array<[string, unknown]> {
+  const pairs: Array<[string, unknown]> = []
+
+  for (let index = 0; index + 1 < params.length; index += 2) {
+    pairs.push([params[index] as string, params[index + 1]])
+  }
+
+  return pairs
+}
+
+/** `/pattern/flags` or a bare pattern. */
+function buildRegExp(pattern: string): RegExp {
+  const delimited = /^\/(.*)\/([gimsuy]*)$/s.exec(pattern)
+
+  return delimited ? new RegExp(delimited[1] as string, delimited[2]) : new RegExp(pattern)
+}

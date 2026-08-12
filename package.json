@@ -30,6 +30,7 @@
     "@elysian/events": "workspace:*",
     "@elysian/log": "workspace:*",
     "@elysian/support": "workspace:*",
+    "@elysian/validation": "workspace:*",
     "@elysian/view": "workspace:*",
     "@kitajs/html": "^4.2.13",
     "@types/bun": "^1.3.14",
