@@ -1,0 +1,22 @@
+{
+  "name": "@elysian/notifications",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elysian/console": "workspace:*",
+    "@elysian/contracts": "workspace:*",
+    "@elysian/core": "workspace:*",
+    "@elysian/database": "workspace:*",
+    "@elysian/mail": "workspace:*",
+    "@elysian/queue": "workspace:*",
+    "@elysian/support": "workspace:*"
+  }
+}

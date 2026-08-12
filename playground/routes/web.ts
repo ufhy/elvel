@@ -6,6 +6,7 @@ import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
 import FileController from '../app/Http/Controllers/FileController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
 import MailController from '../app/Http/Controllers/MailController.ts'
+import NotificationController from '../app/Http/Controllers/NotificationController.ts'
 import PageController from '../app/Http/Controllers/PageController.ts'
 import QueueController from '../app/Http/Controllers/QueueController.ts'
 import SignalController from '../app/Http/Controllers/SignalController.ts'
@@ -25,3 +26,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(QueueController)
   .use(MailController)
   .use(FileController)
+  .use(NotificationController)

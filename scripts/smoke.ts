@@ -1089,6 +1089,103 @@ for (const connection of connections) {
 await app.make('queue').failed.flush()
 await app.make('cache').store().forget('digest:log')
 
+// ------------------------------------------------------------- notifications
+
+section('Notifications')
+
+const registry = (await (
+  await app.handle(new Request('http://localhost/check/notifications/registry'))
+).json()) as { notifications: string[] }
+
+check(
+  'notifications in app/Notifications are discovered',
+  registry.notifications.includes('ArticlePublished')
+)
+
+await app.handle(new Request('http://localhost/check/notifications', { method: 'DELETE' }))
+
+// Two recipients, one without an address: `via()` decides per recipient.
+const notified = (await (
+  await postJson('/check/notifications/1', {
+    recipients: [{ id: 1, email: 'ada@example.com' }, { id: 2 }]
+  })
+).json()) as { notified: number; id: string; channels: string[] }
+
+check('both recipients were notified', notified.notified === 2)
+check(
+  'a recipient with an address gets the mail channel too',
+  notified.channels.join(',') === 'mail,database,log'
+)
+
+const inbox = async (recipient: string) =>
+  (await (
+    await app.handle(new Request(`http://localhost/check/notifications?for=${recipient}`))
+  ).json()) as {
+    unread: number
+    notifications: Array<{ id: string; type: string; data: Record<string, unknown>; read: boolean }>
+  }
+
+const first = await inbox('1')
+const second = await inbox('2')
+
+check(
+  'each recipient has a stored row',
+  first.notifications.length === 1 && second.notifications.length === 1
+)
+check('the row carries the notification type', first.notifications[0]?.type === 'ArticlePublished')
+check(
+  'and the payload toDatabase() returned',
+  typeof first.notifications[0]?.data.title === 'string'
+)
+check('a stored row starts unread', first.unread === 1 && first.notifications[0]?.read === false)
+
+// The id is per recipient, not per notification instance: two people's rows must
+// not share one, or an inbox cannot tell them apart.
+check('each recipient gets its own id', first.notifications[0]?.id !== second.notifications[0]?.id)
+
+// Marking as read is idempotent.
+const storedId = first.notifications[0]?.id ?? ''
+
+const read = (await (await postJson(`/check/notifications/${storedId}/read`, {})).json()) as {
+  read: boolean
+  readAt: string
+}
+
+check('a notification can be marked as read', read.read === true)
+
+const readAgain = (await (await postJson(`/check/notifications/${storedId}/read`, {})).json()) as {
+  readAt: string
+}
+
+check('marking it again does not move the timestamp', readAgain.readAt === read.readAt)
+check('and the unread count drops', (await inbox('1')).unread === 0)
+
+// `shouldSend` refuses one channel without affecting the others.
+await app.handle(new Request('http://localhost/check/notifications', { method: 'DELETE' }))
+await postJson('/check/notifications/1', { title: 'Draft: not ready' })
+
+const draft = await inbox('1')
+check(
+  'shouldSend refusing mail still stores the row',
+  draft.notifications[0]?.data.title === 'Draft: not ready'
+)
+
+// An on-demand recipient has no row to own, so the database channel is skipped.
+const routed = (await (await postJson('/check/notifications/route/1', {})).json()) as {
+  routed: string[]
+}
+
+check(
+  'an on-demand recipient carries only the channel it was routed for',
+  routed.routed.join() === 'mail'
+)
+check(
+  'and no row was stored for it',
+  (await inbox('1')).notifications.length === draft.notifications.length
+)
+
+await app.handle(new Request('http://localhost/check/notifications', { method: 'DELETE' }))
+
 // ------------------------------------------------------------------ storage
 
 section('Storage')

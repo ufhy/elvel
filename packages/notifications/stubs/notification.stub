@@ -1,0 +1,30 @@
+import { MailMessage, Notification } from '@elysian/notifications'
+import type { Notifiable } from '@elysian/notifications'
+
+/**
+ * {{ studly }}
+ *
+ * `data` is the constructor argument and the only thing that travels when this is
+ * queued — keep it small and plain.
+ */
+export class {{ class }} extends Notification<{ id: string }> {
+  /** Deliver in the request, or set `shouldQueue` and let a worker do it. */
+  static override shouldQueue = false
+
+  via(_notifiable: Notifiable): string[] {
+    return ['mail', 'database']
+  }
+
+  override toMail(): MailMessage {
+    return new MailMessage()
+      .subject('{{ studly }}')
+      .line('Something happened that you asked to hear about.')
+      .action('Take a look', 'https://example.com')
+      .line('Thank you for using the application.')
+  }
+
+  /** What an in-app inbox reads. */
+  override toDatabase(): Record<string, unknown> {
+    return { id: this.data.id }
+  }
+}

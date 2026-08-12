@@ -7,6 +7,7 @@ import { EventServiceProvider } from '@elysian/events'
 import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
+import { NotificationServiceProvider } from '@elysian/notifications'
 import { QueueServiceProvider } from '@elysian/queue'
 import { ScheduleServiceProvider } from '@elysian/scheduler'
 import { StorageServiceProvider } from '@elysian/storage'
@@ -50,6 +51,7 @@ export default {
     CacheServiceProvider,
     QueueServiceProvider,
     MailServiceProvider,
+    NotificationServiceProvider,
     ScheduleServiceProvider,
     ValidationServiceProvider,
     HttpServiceProvider,

@@ -22,6 +22,7 @@
         "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/mail": "workspace:*",
+        "@elysian/notifications": "workspace:*",
         "@elysian/queue": "workspace:*",
         "@elysian/scheduler": "workspace:*",
         "@elysian/storage": "workspace:*",
@@ -163,6 +164,19 @@
         "nodemailer": "9.0.5",
       },
     },
+    "packages/notifications": {
+      "name": "@elysian/notifications",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/console": "workspace:*",
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+        "@elysian/database": "workspace:*",
+        "@elysian/mail": "workspace:*",
+        "@elysian/queue": "workspace:*",
+        "@elysian/support": "workspace:*",
+      },
+    },
     "packages/queue": {
       "name": "@elysian/queue",
       "version": "0.0.1",
@@ -242,6 +256,7 @@
         "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/mail": "workspace:*",
+        "@elysian/notifications": "workspace:*",
         "@elysian/queue": "workspace:*",
         "@elysian/scheduler": "workspace:*",
         "@elysian/storage": "workspace:*",
@@ -322,6 +337,8 @@
     "@elysian/log": ["@elysian/log@workspace:packages/log"],
 
     "@elysian/mail": ["@elysian/mail@workspace:packages/mail"],
+
+    "@elysian/notifications": ["@elysian/notifications@workspace:packages/notifications"],
 
     "@elysian/queue": ["@elysian/queue@workspace:packages/queue"],
 

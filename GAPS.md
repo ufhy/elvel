@@ -297,9 +297,43 @@ Three behaviours worth knowing:
   are removed from the filename before it goes in, so a filename cannot close the
   quoted string or split the header; the real name travels in `filename*`.
 
+## @elysian/notifications
+
+One notification, several channels — `mail`, `database` and `log` — with `via()`
+deciding per recipient, on-demand recipients, queued delivery, an inbox model and a
+fake.
+
+| Missing | Why |
+| --- | --- |
+| `broadcast` channel | Needs a websocket package, which does not exist yet. It is the one channel that cannot be a few lines of `fetch`. |
+| `slack`, `vonage`/SMS channels | Each is one HTTP call and one credential, which makes them a better fit for `notifications().extend()` in an application than a driver in the framework — the playground shows an `sms` channel added that way in the tests. |
+| Markdown notification templates | The `MailMessage` builder renders to HTML here, inline-styled, because a mail client ignores most of a stylesheet. `view()` hands the body to one of the application's own JSX components when the default is not enough. |
+| `preferredLocale()` / translated notifications | There is no translator package, so there is nothing to switch. |
+| `Notifiable` as a model trait with a `notifications()` relation | Recipients satisfy a small interface — `routeNotificationFor`, `getKey`, `getNotifiableType` — rather than inheriting. The inbox is read with an ordinary query on `DatabaseNotification`, which is also what makes `unread()` a database scope instead of a filter in memory. |
+| `NotificationSent` as event *classes* | Events are dispatched by name (`notification.sending`, `notification.sent`, `notification.failed`, `notification.skipped`), as everything else in this framework dispatches. |
+
+Three behaviours worth knowing:
+
+- **The id belongs to the delivery, not to the notification object.** Each recipient
+  gets its own uuid, shared by every channel it is sent through — that is what lets
+  a stored row and the mail about it be correlated. Laravel gets this by cloning the
+  notification per recipient; we share one instance, so the id is assigned per
+  recipient explicitly. Writing the test for it is what caught the first draft
+  handing recipient two the id of recipient one.
+- **A failing channel re-throws.** The event is dispatched first, but the error is
+  not swallowed: a queued notification that failed silently is a notification
+  nobody knows was lost.
+- **`database` is skipped for an on-demand recipient.** There is no record for the
+  row to belong to, and `route('database', …)` refuses outright rather than writing
+  an orphan.
+
 ## Not started
 
-`notifications`.
+Nothing. The roadmap agreed at the start — core, console, view, events, log,
+database, validation, http, auth, cache, queue, scheduler, mail, storage,
+notifications — is complete. What remains is in the per-package tables above, and
+the largest single item is an encryption package: encrypted cookies, encrypted
+queue payloads and `ShouldBeEncrypted` all wait on it.
 
 ## Watch list
 
