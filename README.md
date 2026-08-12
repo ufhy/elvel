@@ -543,6 +543,28 @@ a different cookie fails to decrypt. Reading falls back from decrypt to unsign, 
 turning encryption on does not log everybody out. An encrypted `X-XSRF-TOKEN` is
 still *rejected* rather than waved through.
 
+A rejected form goes **back to itself**, with the messages and what was typed:
+
+```ts
+// In the handler: nothing about redirecting is written here.
+const data = await validateRequest(SubscribeRequest, { body, request })
+```
+
+```tsx
+// In the view: no props threaded through, because a component has no scope to
+// share `$errors` into — `errors()` and `old()` read the request instead.
+<input name="email" value={old('email')} />
+{errors().has('email') && <p class="error">{errors().first('email')}</p>}
+```
+
+- a browser is redirected; a client asking for JSON — by `Accept`, by
+  `X-Requested-With`, or by *sending a JSON body* — still gets the 422 and the bag
+- `password`, `password_confirmation`, `current_password`, `token` and uploads are
+  never flashed, at any depth
+- flash data survives exactly one further request, so nothing has to clean up
+- `redirect('/x')`, `redirect().back()`, `.with()`, `.withErrors()`, `.withInput()`,
+  `.seeOther()`, `.permanent()`
+
 Rate limiting, CORS and trusted proxies are middleware:
 
 ```ts

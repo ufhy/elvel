@@ -20,6 +20,14 @@ export {
   tokenFromRequest,
   tokensMatch
 } from './csrf.ts'
+export {
+  ERRORS_KEY,
+  errors,
+  hasOld,
+  MessageBag,
+  OLD_INPUT_KEY,
+  old
+} from './errors.ts'
 export { FormRequest, type RequestContext, validateRequest } from './form-request.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
@@ -30,11 +38,26 @@ export {
   type ProxyOptions
 } from './proxies.ts'
 export {
+  back,
+  type ErrorsInput,
+  PREVIOUS_URL_KEY,
+  previousUrl,
+  Redirect,
+  redirect
+} from './redirect.ts'
+export { RedirectException } from './redirect-exception.ts'
+export {
   type Attributes,
   JsonResource,
   MISSING,
   ResourceCollection
 } from './resource.ts'
+export {
+  currentScope,
+  enterRequestScope,
+  type RequestScope,
+  withRequestScope
+} from './scope.ts'
 export {
   FileSessionDriver,
   MemorySessionDriver,

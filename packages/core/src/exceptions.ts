@@ -4,6 +4,26 @@ import type { ApplicationContract, ExceptionHandlerContract } from '@elysian/con
  * Base class for exceptions that carry their own HTTP response, mirroring
  * Laravel's `HttpException` family.
  */
+/**
+ * Marks an exception that carries its own finished `Response`.
+ *
+ * A symbol, and `Symbol.for` so two copies of this package agree on it. Core
+ * cannot import `@elysian/http`, and this is the whole contract between them.
+ */
+export const CARRIES_RESPONSE: unique symbol = Symbol.for(
+  'elysian.carriesResponse'
+) as typeof CARRIES_RESPONSE
+
+export type CarriesResponse = { [CARRIES_RESPONSE](): Response }
+
+export function carriesResponse(error: unknown): error is CarriesResponse {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    typeof (error as Record<PropertyKey, unknown>)[CARRIES_RESPONSE] === 'function'
+  )
+}
+
 export class HttpException extends Error {
   constructor(
     readonly status: number,
@@ -72,6 +92,17 @@ export class ExceptionHandler implements ExceptionHandlerContract {
   }
 
   render(error: unknown, _context: { request: Request }): Response {
+    /**
+     * An exception may *be* the response — a redirect thrown from validation.
+     *
+     * Recognised by an explicit symbol, not by having a `toResponse` method.
+     * Duck-typing that shape was the first attempt and it silently hijacked
+     * Elysia's own error classes, which have one too: every framework error
+     * started answering with Elysia's response instead of ours, and what surfaced
+     * was an unrelated policy check failing to parse its body as JSON.
+     */
+    if (carriesResponse(error)) return error[CARRIES_RESPONSE]()
+
     const status = this.statusFor(error)
     const debug = this.app.hasDebugModeEnabled()
 

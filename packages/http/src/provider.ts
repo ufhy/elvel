@@ -8,11 +8,14 @@ import {
   actualHeaders,
   type CorsConfig,
   corsConfig,
+  isCorsRequest,
   isPreflight,
   pathMatches,
   preflightHeaders
 } from './cors.ts'
 import { TokenMismatchError, tokensMatch } from './csrf.ts'
+import { PREVIOUS_URL_KEY } from './redirect.ts'
+import { enterRequestScope } from './scope.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
 import { LimiterRegistry } from './throttle.ts'
 
@@ -161,48 +164,77 @@ export class HttpServiceProvider extends ServiceProvider {
       }
     }
 
-    return new Elysia({ name: 'elysian:session' })
-      .derive({ as: 'global' }, async ({ request }) => {
-        const cookies = CookieJar.parse(request.headers.get('cookie'))
+    return (
+      new Elysia({ name: 'elysian:session' })
+        .derive({ as: 'global' }, async ({ request }) => {
+          const cookies = CookieJar.parse(request.headers.get('cookie'))
 
-        // Encrypted when configured and possible; signed otherwise. Reading falls
-        // back to the other form so a running application survives the switch
-        // without logging everyone out.
-        const id =
-          (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ??
-          jar.unsign(cookies[name]) ??
-          Session.newId()
+          // Encrypted when configured and possible; signed otherwise. Reading falls
+          // back to the other form so a running application survives the switch
+          // without logging everyone out.
+          const id =
+            (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ??
+            jar.unsign(cookies[name]) ??
+            Session.newId()
 
-        const session = await new Session(id, driver, name).start()
+          const session = await new Session(id, driver, name).start()
 
-        return { session }
-      })
-      .onBeforeHandle({ as: 'global' }, async ({ request, session, body }) => {
-        if (!csrfEnabled) return
-
-        const headers: Record<string, string | undefined> = {}
-        request.headers.forEach((value, key) => {
-          headers[key.toLowerCase()] = value
+          return { session }
         })
-
-        const path = new URL(request.url).pathname
-
-        if (!tokensMatch(session, { method: request.method, path, body, headers, except })) {
-          throw new TokenMismatchError()
-        }
-      })
-      .onAfterHandle({ as: 'global' }, async ({ session, set }) => {
-        await session.save()
-
-        // Re-issuing every response keeps the cookie's lifetime rolling.
-        const value = encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id)
-
-        set.headers['set-cookie'] = CookieJar.serialize(name, value, {
-          maxAge: lifetime,
-          httpOnly: true,
-          secure,
-          sameSite: 'lax'
+        /**
+         * Enter the request scope, **synchronously**.
+         *
+         * This is what makes `errors()` and `old()` work inside a JSX component with
+         * no props threaded through. It cannot move into the async `derive` above:
+         * `enterWith` applies to the rest of the current execution, and an `await`
+         * restores the frame its continuation was scheduled with — so the scope would
+         * be gone by the time a handler runs. There is a test for the arrangement,
+         * because it depends on Elysia not emitting an `await` for a sync hook.
+         */
+        .onBeforeHandle({ as: 'global' }, ({ request, session }) => {
+          enterRequestScope({ request, session })
         })
-      })
+        .onBeforeHandle({ as: 'global' }, async ({ request, session, body }) => {
+          if (!csrfEnabled) return
+
+          const headers: Record<string, string | undefined> = {}
+          request.headers.forEach((value, key) => {
+            headers[key.toLowerCase()] = value
+          })
+
+          const path = new URL(request.url).pathname
+
+          if (!tokensMatch(session, { method: request.method, path, body, headers, except })) {
+            throw new TokenMismatchError()
+          }
+        })
+        .onAfterHandle({ as: 'global' }, async ({ request, session, set }) => {
+          /**
+           * Remember where this request was, so the *next* one can go `back()`.
+           *
+           * Only for a page a browser can return to: recording a POST would send
+           * `back()` to a URL that only answers a form submission, and recording an
+           * asset or an API call would send it somewhere nobody was looking at.
+           */
+          if (request.method === 'GET' && !isCorsRequest(request)) {
+            session.put(
+              PREVIOUS_URL_KEY,
+              new URL(request.url).pathname + new URL(request.url).search
+            )
+          }
+
+          await session.save()
+
+          // Re-issuing every response keeps the cookie's lifetime rolling.
+          const value = encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id)
+
+          set.headers['set-cookie'] = CookieJar.serialize(name, value, {
+            maxAge: lifetime,
+            httpOnly: true,
+            secure,
+            sameSite: 'lax'
+          })
+        })
+    )
   }
 }

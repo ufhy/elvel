@@ -2281,6 +2281,110 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// ------------------------------------------------ forms: errors and old input
+
+section('Forms: redirect back with errors')
+
+/**
+ * The form-and-redirect loop, over a real cookie jar.
+ *
+ * `app.handle()` is enough here because the session travels in a cookie we carry
+ * ourselves — what is being checked is that a failure comes back to the form with
+ * its messages and its input, and that both live exactly one request.
+ */
+let formCookie = ''
+
+async function visitForm(): Promise<string> {
+  const response = await app.handle(
+    new Request('http://localhost/subscribe', { headers: { cookie: formCookie } })
+  )
+
+  const setCookie = response.headers.get('set-cookie')
+  if (setCookie) formCookie = setCookie.split(';')[0] as string
+
+  return response.text()
+}
+
+async function submitForm(body: Record<string, string>, accept = 'text/html'): Promise<Response> {
+  const page = await visitForm()
+  const token = /name="_token" value="([^"]+)"/.exec(page)?.[1] ?? ''
+
+  let response!: Response
+  await captureOutput(async () => {
+    response = await app.handle(
+      new Request('http://localhost/subscribe', {
+        method: 'POST',
+        headers: {
+          cookie: formCookie,
+          accept,
+          'content-type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({ ...body, _token: token }).toString()
+      })
+    )
+  })
+
+  return response
+}
+
+const refusedForm = await submitForm({ email: 'nope', name: 'A', password: 'short' })
+
+check('a browser is redirected rather than shown a 422', refusedForm.status === 302)
+check(
+  'and sent back to the form it came from',
+  refusedForm.headers.get('location') === '/subscribe'
+)
+
+const returnedForm = await visitForm()
+
+check(
+  'the form carries the messages',
+  returnedForm.includes('That does not look like an email address.')
+)
+check('one per failing field', (returnedForm.match(/<li>/g) ?? []).length === 3)
+// A long form that empties itself on a failure is one the user abandons.
+check('and what was typed, refilled', returnedForm.includes('name="email" value="nope"'))
+// Relying on every caller to remember this is how a password reaches a session store.
+check('but never the password', returnedForm.includes('name="password" value=""'))
+
+const secondVisit = await visitForm()
+
+// Flash data survives exactly one further request — that is what makes this work
+// without anything ever having to clean up after itself.
+check('a second visit is clean', !secondVisit.includes('That does not look like an email address.'))
+check('and its inputs are empty again', secondVisit.includes('name="email" value=""'))
+
+const asApi = await submitForm({ email: 'nope', name: 'A', password: 'short' }, 'application/json')
+
+check('an API client still gets the 422', asApi.status === 422)
+
+const apiBody = (await asApi.json()) as { errors: Record<string, string[]> }
+check(
+  'with the bag, not a redirect',
+  Object.keys(apiBody.errors).sort().join() === 'email,name,password'
+)
+
+const accepted = await submitForm({
+  email: 'ada@example.com',
+  name: 'Ada',
+  password: 'longenough1'
+})
+
+check('a valid submission redirects onward as 303', accepted.status === 303)
+
+const done = (await (
+  await app.handle(
+    new Request('http://localhost/subscribe/done', { headers: { cookie: formCookie } })
+  )
+).json()) as { status: string | null }
+
+// The other half of the double-save bug: a returnedForm redirect must not persist the
+// session itself, or the flash is aged twice and gone before it is read.
+check(
+  'and its own flashed status survives the redirect',
+  done.status?.includes('ada@example.com') === true
+)
+
 // ------------------------------------------------- limits, CORS and proxies
 
 section('Rate limiting and CORS')

@@ -18,6 +18,9 @@ export { controller, routeGroup } from './controller.ts'
 export { defer, deferredCount, flushDeferred, forgetDeferred } from './defer.ts'
 export { Env, env, parseEnvFile } from './env.ts'
 export {
+  CARRIES_RESPONSE,
+  type CarriesResponse,
+  carriesResponse,
   ExceptionHandler,
   ForbiddenException,
   HttpException,

@@ -176,13 +176,36 @@ limiting, CORS and trusted proxies.
 | Missing | Why |
 | --- | --- |
 | Encrypting cookies other than the session | Signing and encryption both work, and `SESSION_ENCRYPT=true` encrypts the session cookie, bound to its own name. There is no `EncryptCookies` middleware yet that names a list of cookies to encrypt on the way out and decrypt on the way in; a route that wants one calls `cookies().encrypt(name, value)` itself. |
-| Redirect-back-with-errors (`back()->withErrors()`) | Sessions and flash data are in place, so this is a redirect helper plus an `$errors` view global — small, but it belongs with a form-rendering example. |
+| A named-route `redirect()->route('articles.show', …)` | `redirect()` takes a path, `back()` resolves the previous URL, and both flash. Named routes do not exist here: Elysia routes are declared as strings on a plugin, so there is no name table to look one up in. |
+| `redirect()->guest()` and the intended-URL dance | Needs somewhere to record where the guest was going, which is the login redirect belonging to `@elysian/auth`. |
+| A `ViewErrorBag` with **named** bags (`$errors->login->first(...)`) | One bag. Named bags exist for two forms on one page; `errors()` would take the name, and nothing needs it yet. |
 | `database` and `redis` session drivers | `file` and `memory` exist; the driver interface is four methods. |
 | Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
 | A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
 | Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |
 | `X-Forwarded-Prefix`, AWS ELB's header | `X-Forwarded-For`, `-Proto` and `-Host` are honoured from a trusted proxy. The other two are a branch each when something needs them. |
+
+Four things to know about the form loop:
+
+- **`errors()` and `old()` read a request scope, not props.** A view here is a JSX
+  component, so there is no template scope to share `$errors` into; threading a
+  message bag through every component between the handler and the input it belongs
+  to is the plumbing that makes people skip validation feedback. The scope is
+  entered from a **synchronous** hook, because `enterWith` inside an async `derive`
+  is already lost by the time the handler runs.
+- **A failure redirects for a browser and 422s for a client**, decided by four
+  signals: `X-Requested-With`, `Accept`, a **JSON request body**, and no `Accept` at
+  all. The body signal was missing at first, and the playground's API routes started
+  receiving redirects they could not follow.
+- **A thrown redirect must persist the session; a returned one must not.**
+  `onAfterHandle` is what saves, and it does not run on the error path — so a thrown
+  redirect saves before throwing. Doing both saves the session twice, which ages the
+  flash twice and destroys it before the next request reads it. Both halves were
+  found by driving the form over the network.
+- **A password is never flashed.** `withInput()` drops `password`,
+  `password_confirmation`, `current_password` and `token` at every depth, along with
+  uploads, rather than trusting each caller to remember.
 
 Four things to know about the middleware:
 
