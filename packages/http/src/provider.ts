@@ -4,13 +4,23 @@ import { Elysia } from 'elysia'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
 import { CookieJar } from './cookies.ts'
+import {
+  actualHeaders,
+  type CorsConfig,
+  corsConfig,
+  isPreflight,
+  pathMatches,
+  preflightHeaders
+} from './cors.ts'
 import { TokenMismatchError, tokensMatch } from './csrf.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
+import { LimiterRegistry } from './throttle.ts'
 
 declare module '@elysian/contracts' {
   interface ContainerBindings {
     'session.driver': SessionDriver
     cookies: CookieJar
+    limiters: LimiterRegistry
   }
 }
 
@@ -44,6 +54,10 @@ export class HttpServiceProvider extends ServiceProvider {
       // and `encrypt()` says what to register rather than failing obscurely.
       return new CookieJar(key, app.bound('encrypter') ? app.make('encrypter') : undefined)
     })
+
+    // Registered rather than booted: a provider's `boot()` is where an
+    // application defines its limiters, and half of those run before this one.
+    this.app.singleton('limiters', () => new LimiterRegistry())
   }
 
   override async boot(): Promise<void> {
@@ -56,9 +70,44 @@ export class HttpServiceProvider extends ServiceProvider {
     // expects `defer()` to run.
     this.use(this.deferPlugin())
 
+    // Before sessions and CSRF: a preflight carries no cookies and must be
+    // answered even when the request that follows it would be refused.
+    const cors = corsConfig(this.config<Partial<CorsConfig>>('cors', {}))
+    if (cors.paths.length > 0) this.use(this.corsPlugin(cors))
+
     if (this.config<boolean>('session.enabled', true) === false) return
 
     this.use(await this.sessionPlugin())
+  }
+
+  /**
+   * Answer preflights, and add the headers to everything else on a matching path.
+   *
+   * A refused origin gets a normal response with no CORS headers rather than a
+   * 403: the browser is what turns the absence into an error, and a 403 would
+   * break same-origin callers of the same route.
+   */
+  private corsPlugin(config: CorsConfig) {
+    return new Elysia({ name: 'elysian:cors' })
+      .onRequest(({ request, set }) => {
+        if (!pathMatches(config, request)) return undefined
+        if (!isPreflight(request)) return undefined
+
+        // 204 and nothing else: a preflight never reaches a route, so it is not
+        // subject to CSRF, sessions, or the handler's own rules.
+        for (const [header, value] of Object.entries(preflightHeaders(config, request))) {
+          set.headers[header] = value
+        }
+
+        return new Response(null, { status: 204, headers: set.headers as HeadersInit })
+      })
+      .onAfterHandle({ as: 'global' }, ({ request, set }) => {
+        if (!pathMatches(config, request)) return
+
+        for (const [header, value] of Object.entries(actualHeaders(config, request))) {
+          set.headers[header] = value
+        }
+      })
   }
 
   /**

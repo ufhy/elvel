@@ -62,14 +62,14 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
 | `@elysian/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
-| `@elysian/http` | `FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF. |
+| `@elysian/http` | `FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF, rate limiting, CORS, trusted proxies. |
 | `@elysian/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
 | `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
 | `@elysian/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `@elysian/auth` | better-auth over our own query builder, plus Gate and policies. |
-| `@elysian/cache` | Four stores (array, file, database, redis) with atomic locks and tags. |
+| `@elysian/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
 | `@elysian/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
 | `@elysian/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |
 | `@elysian/mail` | Mailables, nodemailer transports, queued mail. |
@@ -542,6 +542,32 @@ cookie name is authenticated as the AEAD's associated data, so a value lifted in
 a different cookie fails to decrypt. Reading falls back from decrypt to unsign, so
 turning encryption on does not log everybody out. An encrypted `X-XSRF-TOKEN` is
 still *rejected* rather than waved through.
+
+Rate limiting, CORS and trusted proxies are middleware:
+
+```ts
+controller('api')
+  .use(throttle({ max: 60, decay: 60 }))        // or throttle('api'), a named one
+  .get('/orders', () => …)
+
+limiters().for('uploads', ({ ip, user }) =>      // in a provider's boot()
+  user?.id ? Limit.perMinute(500).by(String(user.id)) : [Limit.perMinute(3).by(ip), Limit.perDay(50).by(ip)]
+)
+```
+
+- a refusal is **429** with `Retry-After` and `X-RateLimit-Reset`, so a client
+  waits the right amount instead of guessing — guessing is what turns a rate limit
+  into a retry storm
+- two windows over one subject get two counters, and the response reports the
+  tightest remaining
+- `throttle()` is scoped to the plugin it is used in: one per `routeGroup()` when
+  two routes need two budgets
+- CORS is driven by `config/cors.ts`; `paths` is the switch, `*` is never sent for
+  a credentialed request, and a refused origin gets a normal response with no CORS
+  headers rather than a 403
+- `X-Forwarded-For` is believed only from a proxy named in `http.trustedProxies` —
+  trusting it while directly exposed hands every caller a fresh identity per
+  request
 
 Errors are rendered by **one** handler, in core: `ValidationError` carries
 `status = 422` and its bag is picked up duck-typed. A second `onError` in the http

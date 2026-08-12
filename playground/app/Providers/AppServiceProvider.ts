@@ -1,3 +1,4 @@
+import { Limit } from '@elysian/cache'
 import { ServiceProvider } from '@elysian/core'
 import { SendArticleDigest } from '../Jobs/SendArticleDigest.ts'
 import { Article } from '../Models/Article.ts'
@@ -36,6 +37,30 @@ export class AppServiceProvider extends ServiceProvider {
     this.app.make('queue').models.register(Article)
 
     this.registerSchedule()
+    this.registerLimiters()
+  }
+
+  /**
+   * Named rate limiters, as `RateLimiter::for(...)` in a Laravel provider.
+   *
+   * A limiter decides from the request, which is what makes "500 an hour for a
+   * signed-in user, 20 for everyone else" one rule instead of two routes.
+   */
+  private registerLimiters(): void {
+    const limits = this.app.make('limiters')
+
+    limits.for('api', ({ user, ip }) =>
+      user?.id ? Limit.perMinute(500).by(String(user.id)) : Limit.perMinute(20).by(ip)
+    )
+
+    // Two windows at once: a burst ceiling and a daily one. Neither expresses the
+    // other, and the request has to satisfy both.
+    limits.for('uploads', ({ ip }) => [Limit.perMinute(3).by(ip), Limit.perDay(50).by(ip)])
+
+    // An exemption said out loud rather than by omission.
+    limits.for('internal', ({ ip }) =>
+      ip === '127.0.0.1' ? Limit.none() : Limit.perMinute(5).by(ip)
+    )
   }
 
   /**

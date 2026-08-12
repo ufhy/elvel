@@ -2234,7 +2234,16 @@ try {
 
   // Config and env have to arrive together: a provider that boots but reads an
   // absent config file is the failure this pair catches.
-  for (const file of ['auth', 'cache', 'queue', 'mail', 'filesystems', 'notifications']) {
+  for (const file of [
+    'auth',
+    'cache',
+    'queue',
+    'mail',
+    'filesystems',
+    'notifications',
+    'cors',
+    'http'
+  ]) {
     check(
       `config/${file}.ts ships`,
       await Bun.file(join(scaffoldTarget, 'config', `${file}.ts`)).exists()
@@ -2272,6 +2281,141 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// ------------------------------------------------- limits, CORS and proxies
+
+section('Rate limiting and CORS')
+
+const limiterNames = (await (
+  await app.handle(new Request('http://localhost/check/limit/registry'))
+).json()) as { limiters: string[] }
+
+check(
+  'named limiters are registered from a provider',
+  limiterNames.limiters.join() === 'api,internal,uploads'
+)
+
+await app.make('cache').store().flush()
+
+/** Hit a route N times and report the status and remaining count each time. */
+async function hammer(path: string, times: number) {
+  const results: Array<{ status: number; left: string | null; retry: string | null }> = []
+
+  for (let attempt = 0; attempt < times; attempt += 1) {
+    let response!: Response
+    await captureOutput(async () => {
+      response = await app.handle(new Request(`http://localhost${path}`))
+    })
+
+    results.push({
+      status: response.status,
+      left: response.headers.get('X-RateLimit-Remaining'),
+      retry: response.headers.get('Retry-After')
+    })
+  }
+
+  return results
+}
+
+const inline = await hammer('/check/limit/probe', 4)
+
+check(
+  'an inline limit lets the first requests through',
+  inline.slice(0, 3).every((r) => r.status === 200)
+)
+check('and refuses the one past it with 429', inline[3]?.status === 429)
+check('the remaining count walks down', inline.map((r) => r.left).join() === '2,1,0,0')
+// A 429 without Retry-After tells a client to back off but not for how long, so
+// it guesses — and guessing is what turns a rate limit into a retry storm.
+check('a refusal says how long to wait', Number(inline[3]?.retry) > 0)
+
+const named = await hammer('/check/limit/uploads', 4)
+
+// `uploads` is [3/minute, 50/day]: two windows over one subject, each with its
+// own counter — sharing one would count every request twice.
+check('a named limiter with two windows trips on the tighter one', named[3]?.status === 429)
+check('and reports the tightest remaining, not the loosest', named[0]?.left === '2')
+
+/**
+ * The address-based exemption is asserted over a real socket, in `Server` below.
+ *
+ * `app.handle()` has no peer to report, so `server.requestIP()` is undefined and
+ * every caller looks like the empty address — which is precisely why the
+ * framework must not invent one. A limiter keyed on the address has nothing to
+ * match in-process, so what is checked here is that it degrades to its limit
+ * instead of throwing.
+ */
+const inProcess = await hammer('/check/limit/internal', 6)
+
+check(
+  'with no socket, an address-keyed limiter falls back rather than throwing',
+  inProcess.slice(0, 5).every((r) => r.status === 200) && inProcess[5]?.status === 429,
+  inProcess.map((r) => r.status).join()
+)
+
+await app.make('cache').store().flush()
+
+const preflight = await app.handle(
+  new Request('http://localhost/check/cors/ping', {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://app.example.com',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type'
+    }
+  })
+)
+
+check('a preflight is answered 204 without reaching a route', preflight.status === 204)
+check(
+  'with the method it asked about',
+  preflight.headers.get('Access-Control-Allow-Methods') === 'POST'
+)
+check(
+  'and the headers it asked about',
+  preflight.headers.get('Access-Control-Allow-Headers') === 'content-type'
+)
+check(
+  'and it varies on the request method',
+  preflight.headers.get('Vary')?.includes('Access-Control-Request-Method') === true
+)
+
+const crossOrigin = await app.handle(
+  new Request('http://localhost/check/cors/ping', {
+    headers: { origin: 'https://app.example.com' }
+  })
+)
+
+check(
+  'an actual request carries the allow header',
+  crossOrigin.headers.get('Access-Control-Allow-Origin') === '*'
+)
+check(
+  'and the headers the browser may read',
+  crossOrigin.headers.get('Access-Control-Expose-Headers')?.includes('X-RateLimit-Remaining') ===
+    true
+)
+
+const outsidePaths = await app.handle(
+  new Request('http://localhost/check/limit/ip', { headers: { origin: 'https://app.example.com' } })
+)
+
+// `paths` is the switch: a route outside it is not a CORS route at all.
+check(
+  'a path outside cors.paths gets no CORS headers',
+  outsidePaths.headers.get('Access-Control-Allow-Origin') === null
+)
+
+const forwarded = (await (
+  await app.handle(
+    new Request('http://localhost/check/limit/ip', { headers: { 'x-forwarded-for': '9.9.9.9' } })
+  )
+).json()) as { ip: string; trusting: string }
+
+// Trusting the header while directly exposed hands a caller a fresh identity per
+// request, which is a rate limit that counts nothing.
+check('a forwarding header is ignored from an untrusted source', forwarded.ip !== '9.9.9.9')
+check('and believed from a trusted one', forwarded.trusting === '9.9.9.9')
+
 // -------------------------------------------------------------------- server
 
 section('Server')
@@ -2295,6 +2439,32 @@ try {
   }
 
   check('a deferred callback runs once the response has been sent', deferred.ran === true)
+
+  await app.make('cache').store().flush()
+
+  /**
+   * `Limit.none()` for localhost — over a socket, where an address exists.
+   *
+   * Also the mapped-address case: the limiter compares against `127.0.0.1` and
+   * Bun reports `::ffff:127.0.0.1` for an IPv4 client, so without normalising it
+   * the exemption would silently never fire.
+   */
+  const exemptStatuses: number[] = []
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    exemptStatuses.push((await fetch(`http://127.0.0.1:${port}/check/limit/internal`)).status)
+  }
+
+  check(
+    'Limit.none() exempts a caller entirely, over a real socket',
+    exemptStatuses.every((status) => status === 200),
+    exemptStatuses.join()
+  )
+
+  const address = (await (await fetch(`http://127.0.0.1:${port}/check/limit/ip`)).json()) as {
+    ip: string
+  }
+
+  check('an IPv4 client is reported as IPv4, not ::ffff:', address.ip === '127.0.0.1')
 } finally {
   app.router.stop()
   await app.make('cache').store().forget('defer:ran')

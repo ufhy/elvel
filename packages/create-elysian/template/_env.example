@@ -49,3 +49,10 @@ FILESYSTEM_DISK=local
 
 # Only read by the redis cache store and queue connection.
 REDIS_URL=redis://127.0.0.1:6379
+
+# Comma-separated origins, or * while nothing is credentialed.
+CORS_ORIGINS=*
+CORS_CREDENTIALS=false
+
+# Proxies whose X-Forwarded-* headers are believed. Empty = trust none.
+TRUSTED_PROXIES=

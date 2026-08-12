@@ -7,7 +7,15 @@ import type { ApplicationContract, ExceptionHandlerContract } from '@elysian/con
 export class HttpException extends Error {
   constructor(
     readonly status: number,
-    message?: string
+    message?: string,
+    /**
+     * Headers the response must carry.
+     *
+     * Some statuses are not usable without them: a 429 without `Retry-After`
+     * tells a client to back off but not for how long, so it guesses — and a
+     * client guessing is what turns a rate limit into a retry storm.
+     */
+    readonly headers: Record<string, string> = {}
   ) {
     super(message ?? `HTTP ${status}`)
     this.name = new.target.name
@@ -82,7 +90,19 @@ export class ExceptionHandler implements ExceptionHandlerContract {
       payload.stack = error.stack?.split('\n').map((line) => line.trim())
     }
 
-    return Response.json(payload, { status })
+    return Response.json(payload, { status, headers: ExceptionHandler.headersOf(error) })
+  }
+
+  /** Headers an exception asked to be sent with it. */
+  static headersOf(error: unknown): Record<string, string> {
+    if (error instanceof HttpException) return error.headers
+
+    // Duck-typed as well, so a package can carry headers without importing this.
+    const candidate = (error as { headers?: unknown }).headers
+
+    return candidate !== null && typeof candidate === 'object'
+      ? (candidate as Record<string, string>)
+      : {}
   }
 
   protected statusFor(error: unknown): number {

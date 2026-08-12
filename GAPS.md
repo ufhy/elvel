@@ -170,6 +170,9 @@ Three things to know about wildcard rules:
 
 ## @elysian/http
 
+`FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF, rate
+limiting, CORS and trusted proxies.
+
 | Missing | Why |
 | --- | --- |
 | Encrypting cookies other than the session | Signing and encryption both work, and `SESSION_ENCRYPT=true` encrypts the session cookie, bound to its own name. There is no `EncryptCookies` middleware yet that names a list of cookies to encrypt on the way out and decrypt on the way in; a route that wants one calls `cookies().encrypt(name, value)` itself. |
@@ -177,7 +180,34 @@ Three things to know about wildcard rules:
 | `database` and `redis` session drivers | `file` and `memory` exist; the driver interface is four methods. |
 | Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
-| Rate limiting, trusted proxies, CORS | Separate middleware, none of it started. |
+| A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
+| Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |
+| `X-Forwarded-Prefix`, AWS ELB's header | `X-Forwarded-For`, `-Proto` and `-Host` are honoured from a trusted proxy. The other two are a branch each when something needs them. |
+
+Four things to know about the middleware:
+
+- **`throttle()` is scoped to the plugin it is used in.** Putting one on a
+  controller limits every route in that file against one budget; a `routeGroup()`
+  per limit is how two routes get two budgets. The first draft of the playground
+  controller got this wrong and reported one limit's numbers for another limit's
+  route.
+- **Two windows need two counters.** A named limiter returning
+  `[perMinute(3).by(ip), perDay(50).by(ip)]` describes one subject through two
+  windows, so the window length is part of the counter key: sharing one counter
+  makes every request count twice and the tighter limit trip at half its stated
+  number. That happened, and driving it over the network is what showed it. The
+  headers report the *tightest* remaining rather than the last one read.
+- **A refused CORS request is a normal response without the headers.** Answering
+  403 would break same-origin callers of the same route — the browser is what turns
+  the absence into an error. A refused origin is told nothing at all: not the
+  methods, not the credentials flag, not the max-age.
+- **`X-Forwarded-For` is believed only from a proxy you named.** Behind a load
+  balancer you must trust it, or one rate limit is shared by the whole internet;
+  directly exposed you must not, or a caller forges a fresh identity per request.
+  `::ffff:127.0.0.1` is normalised to `127.0.0.1`, because Bun reports an IPv4
+  client that way and a limiter comparing against the plain form would silently
+  never match — an exemption that never fires being worse than none, since it
+  looks like one.
 
 ## @elysian/auth
 
@@ -224,7 +254,7 @@ that behaves differently per driver is worse than none.
 | **JSON, not a binary format, for stored values** | A `Date` comes back as an ISO string and a class instance loses its identity on every driver except `array`, which stores values as they were given. The trade is deliberate: the payload stays readable in `redis-cli` and in the cache table, and every runtime we target can parse it. Cache plain data, or re-hydrate on read. |
 | `memcached`, `dynamodb`, `apc`, `octane` drivers | Nothing in this runtime needs them yet, and `extend()` takes a driver in ten lines. |
 | `funnel()` / `ConcurrencyLimiter` | `withoutOverlapping()` covers the common case (one at a time); a semaphore for *N* at a time is a separate primitive. |
-| Named rate limiters (`RateLimiter::for('uploads', …)`) and the `throttle` middleware | The limiter itself is complete; naming limits and applying them per route is HTTP work, and lands with the middleware in `@elysian/http`. |
+| Rate limiter **events** (`RateLimitAttempt`) | The counter and `Limit` live here; naming limiters and applying them is `@elysian/http`, where the request is. Nothing dispatches an event per attempt — a listener would fire on every request, so it needs a reason first. |
 | Event classes (`CacheHit`, `KeyWritten`, …) | Events are dispatched as names — `cache.hit`, `cache.written`, `cache.forgotten`, `cache.flushed` — which is how the rest of the framework dispatches. A listener gets the same payload either way. |
 | `many()` as one round trip on `file` and `array` | Both read key by key. Redis uses `MGET` and the database store one `where in`, which is where it matters. |
 

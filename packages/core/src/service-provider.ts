@@ -22,7 +22,7 @@ export abstract class ServiceProvider implements ServiceProviderContract {
    * Always give the plugin a `name` so Elysia deduplicates it — a provider
    * booted twice (tests, nested `use`) must not register routes twice.
    */
-  protected use(plugin: Elysia<any, any, any, any, any, any>): void {
+  protected use(plugin: Elysia<any, any, any, any, any, any, any>): void {
     this.app.router.use(plugin as never)
   }
 

@@ -148,6 +148,7 @@
       "name": "@elysian/http",
       "version": "0.0.1",
       "dependencies": {
+        "@elysian/cache": "workspace:*",
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",

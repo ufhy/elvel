@@ -5,6 +5,7 @@ import CheckController from '../app/Http/Controllers/CheckController.ts'
 import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
 import FileController from '../app/Http/Controllers/FileController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
+import LimitController from '../app/Http/Controllers/LimitController.ts'
 import MailController from '../app/Http/Controllers/MailController.ts'
 import NotificationController from '../app/Http/Controllers/NotificationController.ts'
 import PageController from '../app/Http/Controllers/PageController.ts'
@@ -29,3 +30,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(FileController)
   .use(NotificationController)
   .use(SecretController)
+  .use(LimitController)
