@@ -7,3 +7,6 @@ bun.lock
 storage/framework/sessions/*.json
 storage/logs/*.log
 storage/framework/cache/
+public/storage
+storage/app/private/
+storage/app/public/

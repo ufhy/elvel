@@ -3,6 +3,7 @@ import ArticleController from '../app/Http/Controllers/ArticleController.ts'
 import CacheController from '../app/Http/Controllers/CacheController.ts'
 import CheckController from '../app/Http/Controllers/CheckController.ts'
 import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
+import FileController from '../app/Http/Controllers/FileController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
 import MailController from '../app/Http/Controllers/MailController.ts'
 import PageController from '../app/Http/Controllers/PageController.ts'
@@ -23,3 +24,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(CacheController)
   .use(QueueController)
   .use(MailController)
+  .use(FileController)

@@ -254,7 +254,7 @@ through the queue package; and `Mail.fake()` for tests.
 | `ses` transport | SigV4 request signing, which is a package of its own or a hundred lines of crypto. `mail().extend('ses', …)` takes it when it is wanted. |
 | Inline images resolved from `cid:` in a preview | The transports pass `cid` through, so embedding works in a real client. Laravel additionally rewrites `cid:` to a data URI when *rendering* for a preview; ours shows the raw reference. |
 | `Mail::alwaysFrom` / `alwaysReplyTo` | `alwaysTo` is implemented, because that is the one that prevents an accident. The other two are a config default away. |
-| Attachments from a storage disk | Files come from bytes or a path. A `Storage::disk()->attach()` form belongs with the storage package. |
+| Attachments from a storage disk | Files come from bytes or a path, so `disk('local').path(…)` and `await disk('s3').bytes(…)` both work; the sugar does not exist. |
 | `Content` carrying its props type | `content()` returns an erased `Content`, and `viewContent(Component, props)` is where the pairing is checked. A generic return type would force every mailable in an application to agree on one props type. |
 
 Two behaviours worth knowing:
@@ -266,9 +266,40 @@ Two behaviours worth knowing:
   catcher; the manager throws rather than honour it where it would mean mail
   readable in transit.
 
+## @elysian/storage
+
+Disks for `local`, `s3` and `memory` behind one contract, with `storage:link`,
+streamed downloads and a path guard. The S3 driver is Bun's native client — no SDK,
+and presigning needs no network.
+
+| Missing | Why |
+| --- | --- |
+| `ftp` / `sftp` disks | Neither has a Bun-native client, so each means a dependency. `storage().extend()` takes one in a few lines when it is wanted. |
+| `Storage::disk()->response()` as a framework helper on the http side | `fileResponse()` and `download()` return a plain `Response`, which is all a handler needs. There is no `->response()` on the disk itself because a disk should not know about HTTP. |
+| `putFileAs` deriving a name from the file's hash | Names are random UUIDs, which do not collide. Content-addressing is a different feature — it deduplicates — and belongs where that is wanted. |
+| Per-object visibility on S3 read back from the bucket | `getVisibility()` reports the disk's default. Reading an object's real ACL needs `GetObjectAcl`, which needs a permission most buckets do not grant. |
+| `temporaryUploadUrl` on the local disk | There is nothing to sign against: a local file is served by whatever serves the directory. The disk says so rather than inventing a scheme. |
+| Attaching a disk file to mail directly | Mail takes `path` or bytes, so `disk('local').path(…)` already works for a local disk, and `await disk('s3').bytes(…)` for a bucket. A `Storage::disk()->attach()` sugar is not there. |
+| Directory visibility, `MissingFile` exceptions, chunked/multipart upload helpers | Not needed yet; Bun's S3 writer already does multipart for large writes. |
+
+Three behaviours worth knowing:
+
+- **A path that leaves the disk is refused, not rewritten.** `../../.env`,
+  `/etc/passwd` and a `..` that walks out through a symlink all throw
+  `PathOutsideDiskError`. Stripping the segments instead would silently turn a
+  hostile path into a valid one. There are tests for each, and one that confirms a
+  `..` which *stays* inside is still allowed.
+- **A missing file reads as `null`; an unreadable directory throws.** The
+  distinction is deliberate: a directory nobody has written to yet is a normal
+  state, but one that exists and cannot be read is a misconfiguration that should
+  not look like "empty".
+- **`Content-Disposition` is built defensively.** Quotes, backslashes, CR and LF
+  are removed from the filename before it goes in, so a filename cannot close the
+  quoted string or split the header; the real name travels in `filename*`.
+
 ## Not started
 
-`storage`, `notifications`.
+`notifications`.
 
 ## Watch list
 
@@ -291,6 +322,9 @@ uncovered, and why:
 - `create-elysian` — covered end to end by the smoke test rather than by units
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
+- the S3 disk against AWS itself — the round trip is covered against MinIO
+  (`TEST_S3_ENDPOINT`), which is the same protocol, but not against S3's own
+  eventual-consistency and region behaviour
 - the queue's `redis` driver against a cluster; single-node Redis is covered, and
   the database driver is covered on SQLite, Postgres 17 and MySQL 9 including the
   two-workers-race case that only a real server can exercise

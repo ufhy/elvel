@@ -9,6 +9,7 @@ import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
 import { QueueServiceProvider } from '@elysian/queue'
 import { ScheduleServiceProvider } from '@elysian/scheduler'
+import { StorageServiceProvider } from '@elysian/storage'
 import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
@@ -45,6 +46,7 @@ export default {
     LogServiceProvider,
     ConsoleServiceProvider,
     DatabaseServiceProvider,
+    StorageServiceProvider,
     CacheServiceProvider,
     QueueServiceProvider,
     MailServiceProvider,

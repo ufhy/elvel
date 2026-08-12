@@ -24,6 +24,7 @@
         "@elysian/mail": "workspace:*",
         "@elysian/queue": "workspace:*",
         "@elysian/scheduler": "workspace:*",
+        "@elysian/storage": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
         "@elysian/view": "workspace:*",
@@ -187,6 +188,15 @@
         "@elysian/queue": "workspace:*",
       },
     },
+    "packages/storage": {
+      "name": "@elysian/storage",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysian/console": "workspace:*",
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+    },
     "packages/support": {
       "name": "@elysian/support",
       "version": "0.0.1",
@@ -234,6 +244,7 @@
         "@elysian/mail": "workspace:*",
         "@elysian/queue": "workspace:*",
         "@elysian/scheduler": "workspace:*",
+        "@elysian/storage": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
         "@elysian/view": "workspace:*",
@@ -315,6 +326,8 @@
     "@elysian/queue": ["@elysian/queue@workspace:packages/queue"],
 
     "@elysian/scheduler": ["@elysian/scheduler@workspace:packages/scheduler"],
+
+    "@elysian/storage": ["@elysian/storage@workspace:packages/storage"],
 
     "@elysian/support": ["@elysian/support@workspace:packages/support"],
 

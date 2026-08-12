@@ -35,6 +35,7 @@
     "@elysian/mail": "workspace:*",
     "@elysian/queue": "workspace:*",
     "@elysian/scheduler": "workspace:*",
+    "@elysian/storage": "workspace:*",
     "@elysian/support": "workspace:*",
     "@elysian/validation": "workspace:*",
     "@elysian/view": "workspace:*",

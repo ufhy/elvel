@@ -1089,6 +1089,169 @@ for (const connection of connections) {
 await app.make('queue').failed.flush()
 await app.make('cache').store().forget('digest:log')
 
+// ------------------------------------------------------------------ storage
+
+section('Storage')
+
+/** A multipart request, as a browser would send one. */
+async function upload(path: string, contents: string, filename = 'notes.txt') {
+  const form = new FormData()
+  form.append('file', new File([contents], filename, { type: 'text/plain' }))
+
+  return app.handle(new Request(`http://localhost${path}`, { method: 'POST', body: form }))
+}
+
+for (const diskName of ['memory', 'local', 'public']) {
+  await app.handle(
+    new Request(`http://localhost/check/storage/listing?disk=${diskName}`, { method: 'DELETE' })
+  )
+
+  const stored = (await (
+    await upload(`/check/files?disk=${diskName}`, 'the quick brown fox')
+  ).json()) as {
+    path: string
+    size: number
+    mimeType: string
+    visibility: string
+  }
+
+  check(
+    `${diskName}: an upload is stored with a generated name`,
+    /^uploads\/[0-9a-f]{32}\.txt$/.test(stored.path)
+  )
+  check(
+    `${diskName}: its size and type are read back`,
+    stored.size === 19 && stored.mimeType.includes('text/plain')
+  )
+  check(
+    `${diskName}: visibility follows the disk`,
+    stored.visibility === (diskName === 'public' ? 'public' : 'private')
+  )
+
+  const fetched = await app.handle(
+    new Request(`http://localhost/check/files/${stored.path}?disk=${diskName}`)
+  )
+  check(`${diskName}: the file streams back`, (await fetched.text()) === 'the quick brown fox')
+  check(
+    `${diskName}: with a content type and length`,
+    fetched.headers.get('content-type')?.includes('text/plain') === true &&
+      fetched.headers.get('content-length') === '19'
+  )
+
+  const listing = (await (
+    await app.handle(new Request(`http://localhost/check/storage/listing?disk=${diskName}`))
+  ).json()) as { files: string[]; directories: string[] }
+
+  check(`${diskName}: listing finds it`, listing.files.includes(stored.path))
+  check(`${diskName}: and the directory above it`, listing.directories.includes('uploads'))
+
+  // Two uploads of the same file must not collide.
+  const second = (await (await upload(`/check/files?disk=${diskName}`, 'another')).json()) as {
+    path: string
+  }
+  check(`${diskName}: a generated name does not collide`, second.path !== stored.path)
+
+  await app.handle(
+    new Request(`http://localhost/check/storage/listing?disk=${diskName}`, { method: 'DELETE' })
+  )
+  check(
+    `${diskName}: the disk can be emptied`,
+    (
+      (await (
+        await app.handle(new Request(`http://localhost/check/storage/listing?disk=${diskName}`))
+      ).json()) as { files: string[] }
+    ).files.length === 0
+  )
+}
+
+// A download names the file, and survives a name the header cannot hold verbatim.
+const namedUpload = (await (await upload('/check/files?disk=memory', 'bytes')).json()) as {
+  path: string
+}
+
+const downloaded = await app.handle(
+  new Request(
+    `http://localhost/check/files/${namedUpload.path}?disk=memory&download=yes&as=${encodeURIComponent('Ringkasan 笔记.txt')}`
+  )
+)
+
+const disposition = downloaded.headers.get('content-disposition') ?? ''
+check('a download is an attachment', disposition.startsWith('attachment;'))
+check(
+  'a non-ASCII filename is carried in filename*',
+  disposition.includes("filename*=UTF-8''Ringkasan%20%E7%AC%94%E8%AE%B0.txt")
+)
+check('and the plain parameter stays ASCII', disposition.includes('filename="Ringkasan __.txt"'))
+
+// The traversal guard, from outside the process.
+for (const hostile of ['../../.env', '/etc/passwd', 'uploads/../../../secrets']) {
+  const refused = await app.handle(
+    new Request(
+      `http://localhost/check/storage/traversal?disk=local&path=${encodeURIComponent(hostile)}`
+    )
+  )
+
+  const body = (await refused.json()) as { refused?: boolean }
+
+  check(
+    `a path leaving the disk is refused: ${hostile}`,
+    refused.status === 422 && body.refused === true
+  )
+}
+
+// A path that stays inside is still allowed — the guard is not a ban on `..`.
+const inside = await app.handle(
+  new Request('http://localhost/check/storage/traversal?disk=local&path=uploads/../ok.txt')
+)
+check('a path that resolves inside the disk is allowed', inside.status === 200)
+
+// Temporary URLs: signed locally, so no network is involved.
+const temporary = (await (
+  await app.handle(
+    new Request('http://localhost/check/storage/temporary-url?disk=s3&path=invoices/7.pdf')
+  )
+).json()) as { supported: boolean; url: string; uploadUrl: string }
+
+check('an S3 disk can sign a link that expires', temporary.supported === true)
+
+const signed = new URL(temporary.url)
+check('the link names the object', signed.pathname === '/elysian-playground/invoices/7.pdf')
+check(
+  'it carries an expiry and a signature',
+  signed.searchParams.get('X-Amz-Expires') === '900' &&
+    Boolean(signed.searchParams.get('X-Amz-Signature'))
+)
+check('and an upload link is signed differently', temporary.url !== temporary.uploadUrl)
+
+const noTemporary = (await (
+  await app.handle(new Request('http://localhost/check/storage/temporary-url?disk=local'))
+).json()) as { supported: boolean; reason?: string }
+check(
+  'a local disk says it cannot, rather than pretending',
+  noTemporary.supported === false && noTemporary.reason?.includes('cannot make links') === true
+)
+
+// `storage:link` is what makes the public disk reachable without a route.
+const linked = plain(await captureOutput(() => app.make('artisan').run(['storage:link'])))
+check('storage:link reports the link it made or found', /Linked|already links/.test(linked))
+
+const publicUpload = (await (
+  await upload('/check/files?disk=public', 'served statically')
+).json()) as { path: string }
+
+const served = await app.handle(new Request(`http://localhost/storage/${publicUpload.path}`))
+check(
+  'a file on the public disk is served as a static file',
+  (await served.text()) === 'served statically'
+)
+
+await app.handle(
+  new Request('http://localhost/check/storage/listing?disk=public', { method: 'DELETE' })
+)
+await app.handle(
+  new Request('http://localhost/check/storage/listing?disk=memory', { method: 'DELETE' })
+)
+
 // -------------------------------------------------------------------- mail
 
 section('Mail')
