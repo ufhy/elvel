@@ -106,7 +106,15 @@ for (const { name, config } of available) {
       })
 
       try {
-        const driver = new DatabaseQueue(name, db, { table, retryAfter: 1 })
+        /**
+         * A long reservation window on purpose.
+         *
+         * `reserved_at` is a whole-second timestamp, so a one-second window can
+         * report a reservation as expired a few milliseconds after it was taken —
+         * the pops below then hand back the same row and the FIFO assertions fail
+         * intermittently. Expiry is proved separately, by the driver underneath.
+         */
+        const driver = new DatabaseQueue(name, db, { table, retryAfter: 60 })
 
         await driver.push(payloadFor('first'))
         await driver.push(payloadFor('second'))
@@ -131,15 +139,18 @@ for (const { name, config } of available) {
         expect(retried?.attempts()).toBe(2)
         expect((retried?.payload.data as { label: string } | undefined)?.label).toBe('first')
 
-        // The reservation `second` holds expires, so the row returns.
-        await Bun.sleep(1200)
-        const recovered = await driver.pop()
+        /**
+         * A reservation that outlived its window comes back.
+         *
+         * Read through a second driver on the same table whose window has already
+         * passed, rather than by sleeping: it asserts the same `reserved_at <= now
+         * - retryAfter` branch without spending a second of wall clock on it.
+         */
+        const impatient = new DatabaseQueue(name, db, { table, retryAfter: 0 })
+        const recovered = await impatient.pop()
         expect(recovered?.payload.uuid).toBe(second?.payload.uuid)
         expect(recovered?.attempts()).toBe(2)
 
-        // Finish both before the next assertion: with `retryAfter` at one second
-        // their reservations would expire and they would legitimately come back,
-        // which is the recovery behaviour asserted above.
         await recovered?.delete()
         await retried?.delete()
         expect(await driver.size()).toBe(0)

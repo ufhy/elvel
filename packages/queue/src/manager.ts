@@ -148,6 +148,7 @@ export class QueueManager {
   /** A runner wired to this manager's registries. */
   runner(): JobRunner {
     return new JobRunner(this.jobs, this.models, {
+      encrypter: this.app.bound('encrypter') ? this.app.make('encrypter') : undefined,
       chain: async (payload, connection, queue) => {
         await this.connection(connection).push(payload, queue)
       },
@@ -190,7 +191,24 @@ export class QueueManager {
     const chain: JobPayload[] = []
     for (const link of options.chain ?? []) chain.push(await this.payloadFor(link, {}))
 
-    const data = serializeData(job.data) as Record<string, unknown>
+    let data = serializeData(job.data) as Record<string, unknown>
+    let encrypted = false
+
+    if (jobClass.encrypted === true) {
+      if (!this.app.bound('encrypter')) {
+        throw new Error(
+          `Job [${jobClass.name}] asks for an encrypted payload. Register EncryptionServiceProvider, or the data would be stored in the clear.`
+        )
+      }
+
+      // The job's name is the context, so a ciphertext cannot be moved to a
+      // different job — a payload meant for `DeleteAccount` must not run as
+      // `SendReport`.
+      data = {
+        __encrypted: this.app.make('encrypter').encrypt(data, `job:${jobClass.name}`)
+      }
+      encrypted = true
+    }
 
     if (jobClass.unique === true) {
       // Carried in the payload so the runner can release the right lock without
@@ -210,6 +228,7 @@ export class QueueManager {
       timeout: jobClass.timeout,
       retryUntil: jobClass.retryFor ? Math.floor(Date.now() / 1000) + jobClass.retryFor : undefined,
       chain: chain.length > 0 ? chain : undefined,
+      encrypted: encrypted ? true : undefined,
       createdAt: Math.floor(Date.now() / 1000)
     }
   }

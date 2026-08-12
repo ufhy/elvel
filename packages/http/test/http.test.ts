@@ -644,3 +644,57 @@ describe('CSRF', () => {
     expect(new TokenMismatchError().status).toBe(419)
   })
 })
+
+describe('encrypted cookies', () => {
+  /** A stand-in for the encryption package, with the same two methods. */
+  const encrypter = {
+    encryptString: (value: string, context?: string) =>
+      `enc:${Buffer.from(`${context ?? ''}|${value}`).toString('base64url')}`,
+    decryptString: (payload: string, context?: string) => {
+      if (!payload.startsWith('enc:')) throw new Error('not a payload')
+
+      const decoded = Buffer.from(payload.slice(4), 'base64url').toString()
+      const separator = decoded.indexOf('|')
+
+      // The context is authenticated in the real encrypter; here it is compared,
+      // which is enough to prove the jar passes the cookie name through.
+      if (decoded.slice(0, separator) !== (context ?? '')) throw new Error('wrong context')
+
+      return decoded.slice(separator + 1)
+    }
+  }
+
+  test('a jar without an encrypter still signs, and says so', () => {
+    const jar = new CookieJar('a-key-of-at-least-16-characters')
+
+    expect(jar.encrypts).toBe(false)
+    expect(() => jar.encrypt('session', 'value')).toThrow(/EncryptionServiceProvider/)
+  })
+
+  test('an encrypted cookie round-trips under its own name', () => {
+    const jar = new CookieJar('a-key-of-at-least-16-characters', encrypter)
+
+    const payload = jar.encrypt('session', 'the-session-id')
+
+    expect(jar.encrypts).toBe(true)
+    expect(payload).not.toContain('the-session-id')
+    expect(jar.decrypt('session', payload)).toBe('the-session-id')
+  })
+
+  test('a value cannot be moved to another cookie', () => {
+    const jar = new CookieJar('a-key-of-at-least-16-characters', encrypter)
+
+    const payload = jar.encrypt('remember_token', 'a-long-lived-token')
+
+    // Lifting `remember_token` into `session` has to fail, not merely look odd.
+    expect(jar.decrypt('session', payload)).toBeUndefined()
+    expect(jar.decrypt('remember_token', payload)).toBe('a-long-lived-token')
+  })
+
+  test('a tampered or absent cookie reads as undefined', () => {
+    const jar = new CookieJar('a-key-of-at-least-16-characters', encrypter)
+
+    expect(jar.decrypt('session', undefined)).toBeUndefined()
+    expect(jar.decrypt('session', 'rubbish')).toBeUndefined()
+  })
+})

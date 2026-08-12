@@ -1561,6 +1561,128 @@ check('an unknown entry lists what is registered', unknownEntry.includes('Regist
 // smoke run; what matters is that nothing they wrote is left behind.
 await app.make('cache').store().flush()
 
+// --------------------------------------------------------------- encryption
+
+section('Encryption')
+
+const roundTrip = (await (
+  await postJson('/check/secret/roundtrip', {
+    value: { card: '4111111111111111' },
+    context: 'card:1'
+  })
+).json()) as { payload: string; version: string; containsPlaintext: boolean; decrypted: unknown }
+
+check(
+  'a value comes back as itself',
+  (roundTrip.decrypted as { card: string }).card === '4111111111111111'
+)
+check('the payload is versioned', roundTrip.version === 'v1')
+check('and holds no plaintext', roundTrip.containsPlaintext === false)
+check('nor any base64 padding, so it is cookie- and URL-safe', !/[+/=]/.test(roundTrip.payload))
+
+// Context binding: the same key, a different purpose, and it must fail. This is
+// what stops a value being lifted out of one cookie and pasted into another.
+const rightContext = (await (
+  await postJson('/check/secret/context', {
+    value: 'a token',
+    context: 'cookie:remember',
+    readAs: 'cookie:remember'
+  })
+).json()) as { read?: string }
+
+const wrongContext = await postJson('/check/secret/context', {
+  value: 'a token',
+  context: 'cookie:remember',
+  readAs: 'cookie:session'
+})
+
+check('a payload reads back under its own context', rightContext.read === 'a token')
+check('and is refused under another', wrongContext.status === 422)
+
+// An encrypted model column: ciphertext in the row, the value on the model.
+const stored = (await (
+  await postJson('/check/secret/articles/1', { note: 'call the lawyer' })
+).json()) as {
+  note: string
+  storedLooksEncrypted: boolean
+  storedContainsNote: boolean
+  foundByPlaintext: number
+}
+
+check('an encrypted cast reads back through the model', stored.note === 'call the lawyer')
+check('while the column holds a ciphertext', stored.storedLooksEncrypted === true)
+check('which does not contain the value', stored.storedContainsNote === false)
+// The cost of encrypting a column, stated plainly: you give up querying it.
+check('and the plaintext cannot be matched by a where', stored.foundByPlaintext === 0)
+
+// A resource still decides who is shown it — encryption guards the row at rest,
+// not the response.
+const noteHidden = await (await app.handle(new Request('http://localhost/check/articles/1'))).json()
+const noteShown = await (
+  await app.handle(new Request('http://localhost/check/articles/1?editor=yes'))
+).json()
+
+check('an encrypted attribute is not exposed by default', !('editorNote' in noteHidden.data))
+check('and is, to a viewer allowed it', noteShown.data.editorNote === 'call the lawyer')
+
+// A queued job marked `encrypted`: the queue stores a ciphertext it cannot read,
+// and the worker still gets the real payload.
+await app.make('queue').connection().clear()
+
+const secretJob = (await (
+  await postJson('/check/secret/jobs', { token: 'tok_live_51H', label: 'smoke' })
+).json()) as { encrypted: boolean; payloadContainsToken: boolean }
+
+check('a queued payload is marked encrypted', secretJob.encrypted === true)
+check('and the stored row does not carry the token', secretJob.payloadContainsToken === false)
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--once']))
+
+const workerSaw = (await (
+  await app.handle(new Request('http://localhost/check/secret/jobs/smoke'))
+).json()) as { token: string | null }
+
+check('the worker decrypted it and saw the real value', workerSaw.token === 'tok_live_51H')
+
+await app.make('cache').store().forget('secret:smoke')
+await app.make('queue').connection().clear()
+
+const rotation = (await (
+  await app.handle(new Request('http://localhost/check/secret/rotation'))
+).json()) as { keys: number }
+
+check('the playground runs on a single key', rotation.keys === 1)
+
+// A payload written by a key that is no longer primary. Configured through the
+// container rather than the environment, so the running app is left alone.
+const { Encrypter } = await import('@elysian/encryption')
+const retired = 'a-retired-application-key-32-chars!'
+const writtenBefore = new Encrypter(retired).encryptString('written before the rotation')
+
+const beforeRotation = await postJson('/check/secret/read', { payload: writtenBefore })
+check('a payload from an unconfigured key is refused', beforeRotation.status === 422)
+
+const rotated = new Encrypter(app.config.get<string>('app.key'), { previousKeys: [retired] })
+check(
+  'and readable once that key is in APP_PREVIOUS_KEYS',
+  rotated.decryptString(writtenBefore) === 'written before the rotation'
+)
+const retiredKeyStillReadsNewPayloads = (() => {
+  try {
+    new Encrypter(retired).decryptString(rotated.encryptString('after'))
+
+    return true
+  } catch {
+    return false
+  }
+})()
+
+check('while new payloads use the new key alone', retiredKeyStillReadsNewPayloads === false)
+
+// The cookie jar gets the encrypter from the container, which is what makes
+// `SESSION_ENCRYPT=true` possible at all.
+check('the cookie jar can encrypt, because an encrypter is bound', app.make('cookies').encrypts)
+
 // ---------------------------------------------------------------- exceptions
 
 section('Exceptions')

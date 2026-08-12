@@ -73,6 +73,15 @@ export abstract class Job<TData = Record<string, never>> {
   /** Seconds the uniqueness lock is held. Defaults to an hour. */
   static uniqueFor: number | undefined
 
+  /**
+   * Encrypt this job's data where the queue stores it.
+   *
+   * Worth it when the payload carries something the queue itself should not hold
+   * in the clear — a token, an address, a document. Needs the encryption package;
+   * the queue says so rather than storing the data unencrypted anyway.
+   */
+  static encrypted = false
+
   /** The reserved job, set by the worker before `handle()` runs. */
   protected queuedJob?: QueuedJob
 
@@ -141,6 +150,7 @@ export type JobClass = (new (
   retryFor?: number | undefined
   unique?: boolean
   uniqueFor?: number | undefined
+  encrypted?: boolean
 }
 
 /**

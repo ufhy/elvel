@@ -15,6 +15,7 @@
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
     "@elysian/database": "workspace:*",
+    "@elysian/encryption": "workspace:*",
     "@elysian/events": "workspace:*",
     "@elysian/http": "workspace:*",
     "@elysian/log": "workspace:*",

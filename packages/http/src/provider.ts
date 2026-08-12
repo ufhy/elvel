@@ -33,14 +33,16 @@ export class HttpServiceProvider extends ServiceProvider {
       throw new Error(`Session driver [${driver}] is not supported.`)
     })
 
-    this.app.singleton('cookies', () => {
+    this.app.singleton('cookies', (app) => {
       const key = this.config<string>('app.key', '')
 
       if (key === '') {
         throw new Error('Set APP_KEY (32+ characters) before using signed cookies or sessions.')
       }
 
-      return new CookieJar(key)
+      // Encryption is optional: without the encryption package a jar still signs,
+      // and `encrypt()` says what to register rather than failing obscurely.
+      return new CookieJar(key, app.bound('encrypter') ? app.make('encrypter') : undefined)
     })
   }
 
@@ -87,10 +89,40 @@ export class HttpServiceProvider extends ServiceProvider {
     const csrfEnabled = this.config<boolean>('session.csrf', true)
     const secure = this.app.isProduction()
 
+    /**
+     * Encrypt the session cookie, when asked and when an encrypter exists.
+     *
+     * Signing is enough for what the cookie holds — an opaque id — so this is off
+     * by default; it is here because an encrypted cookie also hides the id from
+     * anything reading the browser's storage.
+     */
+    const encryptionAsked = this.config<boolean>('session.encrypt', false)
+    const encryptSession = encryptionAsked && jar.encrypts
+
+    // Asked for and not possible is worth saying out loud: falling back to signing
+    // silently would leave someone believing the cookie is encrypted when it is not.
+    if (encryptionAsked && !jar.encrypts) {
+      const message =
+        'session.encrypt is on but no encrypter is bound, so the session cookie is only signed. Register EncryptionServiceProvider.'
+
+      if (this.app.bound('log')) {
+        ;(this.app.make('log' as never) as { warning(text: string): void }).warning(message)
+      } else {
+        console.warn(message)
+      }
+    }
+
     return new Elysia({ name: 'elysian:session' })
       .derive({ as: 'global' }, async ({ request }) => {
         const cookies = CookieJar.parse(request.headers.get('cookie'))
-        const id = jar.unsign(cookies[name]) ?? Session.newId()
+
+        // Encrypted when configured and possible; signed otherwise. Reading falls
+        // back to the other form so a running application survives the switch
+        // without logging everyone out.
+        const id =
+          (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ??
+          jar.unsign(cookies[name]) ??
+          Session.newId()
 
         const session = await new Session(id, driver, name).start()
 
@@ -114,7 +146,9 @@ export class HttpServiceProvider extends ServiceProvider {
         await session.save()
 
         // Re-issuing every response keeps the cookie's lifetime rolling.
-        set.headers['set-cookie'] = CookieJar.serialize(name, jar.sign(session.id), {
+        const value = encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id)
+
+        set.headers['set-cookie'] = CookieJar.serialize(name, value, {
           maxAge: lifetime,
           httpOnly: true,
           secure,

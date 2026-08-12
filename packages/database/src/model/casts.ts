@@ -11,6 +11,40 @@ export type CastType =
   | 'date'
   | 'datetime'
   | 'timestamp'
+  | 'encrypted'
+  | 'encrypted:json'
+
+/**
+ * The encryption the `encrypted` casts need.
+ *
+ * Duck-typed and injected rather than imported: the database package must keep
+ * working with no encryption package present, and only two casts need one.
+ */
+export type AttributeEncrypter = {
+  encryptString(value: string, context?: string): string
+  decryptString(payload: string, context?: string): string
+}
+
+let encrypter: AttributeEncrypter | undefined
+
+/**
+ * Give the casts an encrypter. Called by the encryption provider at boot.
+ *
+ * Synchronous on purpose, which is why the encrypter itself is: a cast runs inside
+ * attribute access, and making that asynchronous would change every read of every
+ * model.
+ */
+export function setAttributeEncrypter(instance: AttributeEncrypter | undefined): void {
+  encrypter = instance
+}
+
+function requireEncrypter(cast: CastType): AttributeEncrypter {
+  if (!encrypter) {
+    throw new Error(`The [${cast}] cast needs an encrypter. Register EncryptionServiceProvider.`)
+  }
+
+  return encrypter
+}
 
 /**
  * Attribute casting.
@@ -23,6 +57,12 @@ export function castFromDatabase(value: unknown, cast: CastType): unknown {
   if (value === null || value === undefined) return value
 
   switch (cast) {
+    case 'encrypted':
+      return requireEncrypter(cast).decryptString(String(value))
+
+    case 'encrypted:json':
+      return JSON.parse(requireEncrypter(cast).decryptString(String(value)))
+
     case 'int':
     case 'integer':
       return typeof value === 'number' ? Math.trunc(value) : Number.parseInt(String(value), 10)
@@ -65,6 +105,12 @@ export function castToDatabase(value: unknown, cast: CastType): unknown {
   if (value === null || value === undefined) return value
 
   switch (cast) {
+    case 'encrypted':
+      return requireEncrypter(cast).encryptString(String(value))
+
+    case 'encrypted:json':
+      return requireEncrypter(cast).encryptString(JSON.stringify(value))
+
     case 'json':
     case 'object':
     case 'array':

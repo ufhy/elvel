@@ -18,8 +18,9 @@ export default {
   /**
    * CSRF protection for state-changing requests.
    *
-   * The session cookie holds only a signed id, so it is signed rather than
-   * encrypted — never put anything secret in a cookie.
+   * The session cookie holds only an opaque id, so signing it is enough — never
+   * put anything secret in a cookie. Add `@elysian/encryption` and set
+   * `encrypt: true` here to encrypt it as well.
    */
   csrf: env('SESSION_CSRF', true),
 

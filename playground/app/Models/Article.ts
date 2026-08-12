@@ -19,11 +19,20 @@ export class Article extends Model {
     'featured',
     'meta',
     'published_at',
-    'author_id'
+    'author_id',
+    'editor_note'
   ]
 
   /** SQLite has no boolean and JSON arrives as text; casts hide both. */
-  static override casts = { featured: 'boolean', meta: 'json' } as never
+  /**
+   * `editor_note` is encrypted at rest: the column holds a ciphertext and the
+   * attribute holds the text. Nothing can query by it, which is the trade.
+   */
+  static override casts = {
+    featured: 'boolean',
+    meta: 'json',
+    editor_note: 'encrypted'
+  } as never
 
   static override softDeletes = true
 
@@ -38,6 +47,7 @@ export class Article extends Model {
   declare meta: Record<string, unknown> | null
   /** better-auth's user ids are strings, so this column is one too. */
   declare author_id: string | null
+  declare editor_note: string | null
 
   comments() {
     return this.hasMany(Comment)

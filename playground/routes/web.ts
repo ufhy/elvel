@@ -9,6 +9,7 @@ import MailController from '../app/Http/Controllers/MailController.ts'
 import NotificationController from '../app/Http/Controllers/NotificationController.ts'
 import PageController from '../app/Http/Controllers/PageController.ts'
 import QueueController from '../app/Http/Controllers/QueueController.ts'
+import SecretController from '../app/Http/Controllers/SecretController.ts'
 import SignalController from '../app/Http/Controllers/SignalController.ts'
 
 /**
@@ -27,3 +28,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(MailController)
   .use(FileController)
   .use(NotificationController)
+  .use(SecretController)

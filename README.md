@@ -52,12 +52,20 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
 | `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
 | `@elysian/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
-| `@elysian/http` | `FormRequest`, `JsonResource`, sessions, signed cookies, CSRF. |
+| `@elysian/http` | `FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF. |
 | `@elysian/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
 | `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
 | `@elysian/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
+| `@elysian/auth` | better-auth over our own query builder, plus Gate and policies. |
+| `@elysian/cache` | Four stores (array, file, database, redis) with atomic locks and tags. |
+| `@elysian/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
+| `@elysian/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |
+| `@elysian/mail` | Mailables, nodemailer transports, queued mail. |
+| `@elysian/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |
+| `@elysian/notifications` | Channels (mail, database, log), per-recipient ids, on-demand recipients. |
+| `@elysian/encryption` | AES-256-GCM, HKDF-derived keys, context binding, key rotation, `key:generate`. |
 | `create-elysian` | Application skeleton scaffolder. |
 
 ## Design decisions
@@ -486,15 +494,56 @@ flashed value survives exactly one further request, implemented with the same
 against the session token in **constant time**, exempts read methods and
 configured paths, and answers 419 on a mismatch.
 
-**Cookies are signed, not encrypted.** The value stays readable by the client but
-cannot be altered without the key. Laravel encrypts; that needs an encryption
-package we have not built, so it is said plainly rather than implied — the session
-cookie carries only an id. An encrypted `X-XSRF-TOKEN` is therefore *rejected*
-rather than waved through.
+**Cookies are signed by default, and can be encrypted.** A signed value stays
+readable by the client but cannot be altered without the key; the session cookie
+carries only an id, so signing is enough for it. Setting `SESSION_ENCRYPT=true`
+encrypts it instead, through `@elysian/encryption`, **bound to its own name** — the
+cookie name is authenticated as the AEAD's associated data, so a value lifted into
+a different cookie fails to decrypt. Reading falls back from decrypt to unsign, so
+turning encryption on does not log everybody out. An encrypted `X-XSRF-TOKEN` is
+still *rejected* rather than waved through.
 
 Errors are rendered by **one** handler, in core: `ValidationError` carries
 `status = 422` and its bag is picked up duck-typed. A second `onError` in the http
 package raced the first one and lost, which is how that was found.
+
+## Encryption
+
+One AEAD, chosen rather than configurable: **AES-256-GCM**, through Bun's
+synchronous `node:crypto`. Encryption is therefore not an `await` in the middle of
+an accessor.
+
+```ts
+encryptString('4111111111111111')          // v1.<nonce>.<ciphertext‖tag>
+encrypt({ card: '4111…' }, 'card:1')       // JSON, bound to a purpose
+decrypt<Card>(payload, 'card:1')           // throws unless the purpose matches
+```
+
+Three things worth stating:
+
+**Keys are derived, never used raw.** `APP_KEY` goes through HKDF with a purpose
+string, so the cookie *signer* and the *encrypter* share an origin but no key
+material. `artisan key:generate` writes one and refuses to overwrite an existing
+key without `--force`, printing the `APP_PREVIOUS_KEYS=` line that keeps old
+payloads readable through the rotation.
+
+**Context is authenticated, not carried.** The second argument becomes the AEAD's
+associated data: it costs no bytes, appears nowhere in the payload, and makes a
+value encrypted for one purpose fail to decrypt as another. That is what stops a
+cookie value being pasted into a different cookie, or a job payload into a
+different job.
+
+**Every failure reads the same** — "Could not decrypt the payload." — whether the
+version, length, tag, context or key was wrong. Distinguishing them is how an
+oracle attack starts.
+
+It reaches three places:
+
+| Where | How |
+| --- | --- |
+| Cookies | `SESSION_ENCRYPT=true`, or `cookies().encrypt(name, value)`, bound to the cookie name. |
+| Queue payloads | `static encrypted = true` on a job. The queue stores a ciphertext it cannot read; the worker decrypts it, bound to the job class. |
+| Model columns | `casts = { editor_note: 'encrypted' }` (or `'encrypted:json'`). Ciphertext at rest, the value on the model — and no `where` on the plaintext will ever match, which is the price. |
 
 ## Known gaps
 
@@ -505,8 +554,10 @@ to work (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
 
 ## Roadmap
 
-Milestone 1, events + log, the database layer, validation and http are done.
-Next, in dependency order:
+The roadmap agreed at the start is complete: core, console, view, events, log,
+database, validation, http, auth, cache, queue, scheduler, mail, storage,
+notifications, and the encryption package the last three items were waiting on
+(encrypted cookies, encrypted queue payloads, encrypted model casts).
 
-1. `auth` — better-auth through `createAdapterFactory`, plus Gate/Policy
-2. `cache`, `queue`, `scheduler`, `mail`, `storage`
+What is deliberately left out of each package — and why — is in
+[`GAPS.md`](GAPS.md).

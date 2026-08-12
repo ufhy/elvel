@@ -23,6 +23,15 @@ export default {
    */
   csrf: env('SESSION_CSRF', true),
 
+  /**
+   * Encrypt the session cookie instead of only signing it.
+   *
+   * Signing is enough for what it holds — an opaque id — so this is off by
+   * default; turning it on also hides the id from anything reading the browser's
+   * storage. Needs the encryption package.
+   */
+  encrypt: env('SESSION_ENCRYPT', false),
+
   /** Paths exempt from CSRF. A trailing `*` matches a prefix. */
   csrfExcept: ['/api/*', '/check/*']
 }

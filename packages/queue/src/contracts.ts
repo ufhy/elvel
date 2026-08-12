@@ -20,6 +20,13 @@ export type JobPayload = {
   retryUntil?: number | undefined
   /** Jobs to dispatch once this one succeeds. */
   chain?: JobPayload[] | undefined
+  /**
+   * Set when `data` holds a ciphertext rather than the job's own fields.
+   *
+   * In the payload rather than read from the class, so a worker running an older
+   * copy of the code still knows what it is looking at.
+   */
+  encrypted?: boolean | undefined
   createdAt: number
 }
 

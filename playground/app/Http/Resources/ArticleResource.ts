@@ -31,6 +31,9 @@ export class ArticleResource extends JsonResource<Article> {
       ),
       // Absent, not null, when the viewer may not see it.
       status: this.when(this.viewerIsEditor, () => this.resource.status),
+      // Encrypted in the column, plain here, and only for an editor: encryption
+      // protects the row at rest, the resource decides who is shown it.
+      editorNote: this.when(this.viewerIsEditor, () => this.resource.editor_note),
       links: this.merge({ self: `/check/articles/${this.resource.id}` })
     }
   }

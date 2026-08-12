@@ -3,6 +3,7 @@ import { CacheServiceProvider } from '@elysian/cache'
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
+import { EncryptionServiceProvider } from '@elysian/encryption'
 import { EventServiceProvider } from '@elysian/events'
 import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
@@ -17,8 +18,20 @@ import { ViewServiceProvider } from '@elysian/view'
 export default {
   name: env('APP_NAME', 'Elysian'),
 
-  /** Signs session cookies. Must be at least 32 characters in production. */
+  /**
+   * Signs cookies and, through HKDF, derives the encryption key.
+   *
+   * At least 32 characters. `artisan key:generate` writes one.
+   */
   key: env('APP_KEY', ''),
+
+  /**
+   * Keys that can still *read* what they encrypted, comma-separated.
+   *
+   * Set the old APP_KEY here after rotating, and existing cookies and encrypted
+   * columns keep working while new ones use the new key.
+   */
+  previousKeys: env('APP_PREVIOUS_KEYS', ''),
 
   env: env('APP_ENV', 'local'),
 
@@ -45,6 +58,7 @@ export default {
   providers: [
     EventServiceProvider,
     LogServiceProvider,
+    EncryptionServiceProvider,
     ConsoleServiceProvider,
     DatabaseServiceProvider,
     StorageServiceProvider,

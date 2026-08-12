@@ -13,6 +13,8 @@ export type JobRunnerOptions = {
   chain?: ChainDispatcher
   /** Cache repository used to release a unique job's lock, when one was taken. */
   locks?: { forget(key: string): Promise<boolean> }
+  /** Needed only for a job whose payload was encrypted. */
+  encrypter?: { decrypt<T>(payload: string, context?: string): T }
 }
 
 /**
@@ -55,16 +57,41 @@ export class JobRunner {
       )
     }
 
-    const data = (await deserializeData(queued.payload.data, this.models)) as Record<
-      string,
-      unknown
-    >
+    // An encrypted payload is recovered first: what follows expects the job's own
+    // fields, not the envelope they travelled in.
+    const stored = queued.payload.encrypted
+      ? this.decryptPayload(queued.payload)
+      : queued.payload.data
+
+    const data = (await deserializeData(stored, this.models)) as Record<string, unknown>
 
     // The constructor takes the same shape it was dispatched with, which is what
     // keeps a job readable: `new SendReport({ userId })`, not a bag of setters.
     const instance = new (jobClass as unknown as new (data: unknown) => AnyJob)(data)
 
     return instance.setQueuedJob(queued)
+  }
+
+  /**
+   * Recover the data of an encrypted payload.
+   *
+   * The job's name is the context it was encrypted with, so a ciphertext written
+   * for another job fails here rather than running with someone else's data.
+   */
+  private decryptPayload(payload: JobPayload): Record<string, unknown> {
+    if (!this.options.encrypter) {
+      throw new Error(
+        `Job [${payload.job}] has an encrypted payload but no encrypter is registered. Register EncryptionServiceProvider.`
+      )
+    }
+
+    const ciphertext = (payload.data as { __encrypted?: unknown }).__encrypted
+
+    if (typeof ciphertext !== 'string') {
+      throw new Error(`Job [${payload.job}] is marked encrypted but carries no ciphertext.`)
+    }
+
+    return this.options.encrypter.decrypt<Record<string, unknown>>(ciphertext, `job:${payload.job}`)
   }
 
   /** Run `handle()` through the job's middleware, innermost last. */

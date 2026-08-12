@@ -654,3 +654,89 @@ describe('serializeData', () => {
     ).rejects.toThrow(/not registered with the queue/)
   })
 })
+
+describe('encrypted payloads', () => {
+  /** The two methods the queue needs, standing in for the encryption package. */
+  const encrypter = {
+    encrypt: (value: unknown, context?: string) =>
+      `enc:${Buffer.from(`${context ?? ''}|${JSON.stringify(value)}`).toString('base64url')}`,
+    decrypt: <T>(payload: string, context?: string): T => {
+      const decoded = Buffer.from(payload.slice(4), 'base64url').toString()
+      const separator = decoded.indexOf('|')
+
+      if (decoded.slice(0, separator) !== (context ?? '')) throw new Error('wrong context')
+
+      return JSON.parse(decoded.slice(separator + 1)) as T
+    }
+  }
+
+  class Confidential extends Job<{ token: string }> {
+    static override encrypted = true
+
+    async handle(): Promise<void> {
+      ran.push(`token:${this.data.token}`)
+    }
+  }
+
+  beforeEach(() => {
+    ran.length = 0
+  })
+
+  test('the stored payload holds a ciphertext, and the job still runs', async () => {
+    const stored: JobPayload = {
+      ...payloadFor('Confidential'),
+      encrypted: true,
+      data: { __encrypted: encrypter.encrypt({ token: 'sk-live-123' }, 'job:Confidential') }
+    }
+
+    // Nothing readable in what the queue would keep.
+    expect(JSON.stringify(stored)).not.toContain('sk-live-123')
+
+    const runner = new JobRunner(new JobRegistry().register(Confidential), models, { encrypter })
+    const driver = new SyncQueue('sync', (job) => runner.run(job))
+
+    await driver.push(stored)
+
+    expect(ran).toEqual(['token:sk-live-123'])
+  })
+
+  test('a payload encrypted for another job is refused', async () => {
+    const stored: JobPayload = {
+      ...payloadFor('Confidential'),
+      encrypted: true,
+      // Written for a different job: the context is what stops it running here.
+      data: { __encrypted: encrypter.encrypt({ token: 'sk-live-123' }, 'job:SomethingElse') }
+    }
+
+    const runner = new JobRunner(new JobRegistry().register(Confidential), models, { encrypter })
+    const driver = new SyncQueue('sync', (job) => runner.run(job))
+
+    await expect(driver.push(stored)).rejects.toThrow(/wrong context/)
+  })
+
+  test('an encrypted payload with no encrypter says what to register', async () => {
+    const stored: JobPayload = {
+      ...payloadFor('Confidential'),
+      encrypted: true,
+      data: { __encrypted: 'enc:whatever' }
+    }
+
+    const runner = new JobRunner(new JobRegistry().register(Confidential), models)
+    const driver = new SyncQueue('sync', (job) => runner.run(job))
+
+    await expect(driver.push(stored)).rejects.toThrow(/EncryptionServiceProvider/)
+  })
+
+  test('a payload marked encrypted but carrying nothing is refused', async () => {
+    const stored: JobPayload = {
+      ...payloadFor('Confidential'),
+      encrypted: true,
+      data: {}
+    }
+
+    const runner = new JobRunner(new JobRegistry().register(Confidential), models, { encrypter })
+    const driver = new SyncQueue('sync', (job) => runner.run(job))
+
+    await expect(driver.push(stored)).rejects.toThrow(/carries no ciphertext/)
+  })
+})

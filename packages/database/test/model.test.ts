@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { BunSqlConnection } from '../src/connection/bun-sql.ts'
 import { ModelNotFoundError } from '../src/model/builder.ts'
+import { setAttributeEncrypter } from '../src/model/casts.ts'
 import { Model } from '../src/model/model.ts'
 import { SchemaBuilder } from '../src/schema/builder.ts'
 
@@ -1176,5 +1177,92 @@ describe('pivot completeness', () => {
     await withTags.tags().attach(tag.id)
 
     expect((await User.query().has('tags').get()).pluck('name').all()).toEqual(['Ada'])
+  })
+})
+
+describe('encrypted casts', () => {
+  /** The two methods the casts need, standing in for the encryption package. */
+  const encrypter = {
+    encryptString: (value: string) => `enc:${Buffer.from(value).toString('base64url')}`,
+    decryptString: (payload: string) => {
+      if (!payload.startsWith('enc:')) throw new Error('not a payload')
+
+      return Buffer.from(payload.slice(4), 'base64url').toString()
+    }
+  }
+
+  class Secretive extends Model {
+    static override table = 'users'
+    static override fillable = ['name', 'email', 'meta']
+    static override casts = { email: 'encrypted', meta: 'encrypted:json' } as never
+
+    declare id: number
+    declare name: string
+    declare email: string
+    declare meta: Record<string, unknown> | null
+  }
+
+  afterEach(() => {
+    setAttributeEncrypter(undefined)
+  })
+
+  test('without an encrypter the cast says what to register', async () => {
+    setAttributeEncrypter(undefined)
+
+    await expect(Secretive.create({ name: 'Ada', email: 'ada@example.com' })).rejects.toThrow(
+      /needs an encrypter.*EncryptionServiceProvider/s
+    )
+  })
+
+  test('the column holds a ciphertext and the attribute holds the value', async () => {
+    setAttributeEncrypter(encrypter)
+
+    await Secretive.create({ name: 'Ada', email: 'ada@example.com' })
+
+    // What the database actually stores.
+    const row = await (
+      await connection.select<Record<string, unknown>>('select email from users limit 1')
+    )[0]
+
+    expect(String(row?.email).startsWith('enc:')).toBe(true)
+    expect(String(row?.email)).not.toContain('ada@example.com')
+
+    // What the model gives back.
+    const found = await Secretive.first()
+    expect(found?.email).toBe('ada@example.com')
+  })
+
+  test('encrypted:json round-trips a structure', async () => {
+    setAttributeEncrypter(encrypter)
+
+    await Secretive.create({
+      name: 'Ada',
+      email: 'ada@example.com',
+      meta: { plan: 'pro', seats: 3 }
+    })
+
+    const found = await Secretive.first()
+    expect(found?.meta).toEqual({ plan: 'pro', seats: 3 })
+  })
+
+  test('a null column stays null rather than encrypting nothing', async () => {
+    setAttributeEncrypter(encrypter)
+
+    await Secretive.create({ name: 'Ada', email: 'ada@example.com', meta: null })
+
+    const found = await Secretive.first()
+    expect(found?.meta).toBeNull()
+  })
+
+  test('a query cannot match on an encrypted column', async () => {
+    setAttributeEncrypter(encrypter)
+
+    await Secretive.create({ name: 'Ada', email: 'ada@example.com' })
+
+    // Worth asserting rather than discovering: the ciphertext differs from the
+    // plaintext, so `where email = ?` finds nothing. Encrypt what you do not need
+    // to search by.
+    expect(await Secretive.query().where('email', 'ada@example.com').count()).toBe(0)
+    expect(await Secretive.query().where('name', 'Ada').count()).toBe(1)
   })
 })

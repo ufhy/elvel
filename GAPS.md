@@ -32,7 +32,7 @@ Deliberately absent, with reasons:
 | `chunkById`, cursor pagination | `chunk()` and `lazy()` are implemented with offset paging, which is correct but slower on large tables and can skip rows if the set changes mid-walk. |
 | `Model::withoutEvents`, `saveQuietly` | Straightforward once needed. |
 | Custom cast classes (`CastsAttributes`) | Casts are the built-in set plus accessors/mutators, which covers the same ground with less machinery. |
-| Attribute encryption | Needs the encryption package. |
+| Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
 | `DB::listen` as a public helper | Every query already dispatches `QueryExecuted`; a listener on `db.query` is the same thing without a new API. |
 | `migrate --isolated`, `--squash`, `schema:dump` | Needs an advisory lock and a schema dumper per dialect. |
 
@@ -112,7 +112,7 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| **Encrypted cookies** | Signing is implemented; encryption needs an encryption package. Stated in the README rather than implied, and the encrypted `X-XSRF-TOKEN` header is rejected rather than silently accepted. |
+| Encrypting cookies other than the session | Signing and encryption both work, and `SESSION_ENCRYPT=true` encrypts the session cookie, bound to its own name. There is no `EncryptCookies` middleware yet that names a list of cookies to encrypt on the way out and decrypt on the way in; a route that wants one calls `cookies().encrypt(name, value)` itself. |
 | Redirect-back-with-errors (`back()->withErrors()`) | Sessions and flash data are in place, so this is a redirect helper plus an `$errors` view global — small, but it belongs with a form-rendering example. |
 | `database` and `redis` session drivers | `file` and `memory` exist; the driver interface is four methods. |
 | Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
@@ -196,7 +196,7 @@ a failed-job store, and `defer()` for work too small to queue.
 | `maxExceptions` | Carried in the payload and honoured by the payload contract, but not yet counted: Laravel counts exceptions in the cache per job uuid. The attempt limit and `retryUntil` both work. |
 | `queue:listen`, `queue:restart`, Horizon-style supervision | `queue:work` with `--max-jobs`/`--max-time`/`--stop-when-empty` is what a container or a supervisor wants; restarting is the supervisor's job, not ours. |
 | `sqs`, `beanstalkd`, `sync`-with-delay | No AWS or Beanstalk client in this runtime yet; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
-| Encrypted payloads (`ShouldBeEncrypted`) | Needs the encryption package, which is also what encrypted cookies are waiting on. |
+| Per-property encryption inside a payload | `static encrypted = true` encrypts the whole payload, which is what `ShouldBeEncrypted` does. Encrypting one field and leaving the rest queryable would need a per-property declaration. |
 | Rate-limited and overlapping middleware as *attributes* | Both exist as middleware classes returned from `middleware()`; TypeScript has no runtime attributes. |
 
 Three behaviours worth knowing rather than discovering:
@@ -327,13 +327,46 @@ Three behaviours worth knowing:
   row to belong to, and `route('database', …)` refuses outright rather than writing
   an orphan.
 
+## @elysian/encryption
+
+| Missing | Why |
+| --- | --- |
+| `Crypt::extend`, a driver other than AES-256-GCM | One AEAD, chosen and versioned, rather than a choice a caller can get wrong. Laravel still carries CBC+HMAC for compatibility; there is nothing here to be compatible with. The payload's `v1.` prefix is how a second algorithm would arrive without breaking what is already written. |
+| Reading Laravel's own payload format | A Laravel payload is base64 JSON with `iv`/`value`/`mac`/`tag`. Nothing shares a database with a Laravel app yet, so decoding it would be dead code; if that changes it is a second reader behind the version prefix. |
+| Asymmetric keys, signing, envelope encryption, a KMS | Different problem: this package protects data at rest with a key the app already has. A KMS-backed key would slot in behind `deriveKey`. |
+| Rewriting stored ciphertexts after a rotation | `APP_PREVIOUS_KEYS` keeps old payloads readable indefinitely, which is enough to rotate without downtime, but nothing walks the tables to re-encrypt them onto the new key. That is a per-model migration. |
+
+Five decisions worth knowing rather than discovering:
+
+- **One AEAD does both jobs.** GCM encrypts and authenticates in one pass, so
+  there is no separate MAC to compare and no order-of-operations mistake to make.
+  `node:crypto` in Bun enforces the tag, and it is synchronous, so encryption is
+  not an `await` in the middle of an accessor.
+- **Keys are derived, never used raw.** HKDF with a purpose string means the cookie
+  *signer* and the *encrypter* never share key material, even though both come from
+  `APP_KEY`. Compromising one does not hand over the other.
+- **Context is authenticated, not carried.** `encrypt(value, 'cookie:remember')`
+  binds the purpose into the tag: the payload does not grow, the context does not
+  leak, and lifting a value from one cookie into another fails to decrypt rather
+  than merely looking odd. This is what Laravel's HMAC-of-the-cookie-name prefix
+  buys, without the bytes or the stripping.
+- **Every failure reads the same.** A caller is told "Could not decrypt the
+  payload." whether the version, the length, the tag, the context or the key was
+  wrong. Distinguishing them is how a padding-oracle-shaped attack starts.
+- **`session.encrypt` without the provider warns.** The cookie falls back to being
+  signed rather than failing the boot, but it says so through the log: silently
+  degrading would leave somebody believing a cookie is encrypted when it is not.
+- **Encrypting a column costs you querying it.** `where('editor_note', …)` cannot
+  match a ciphertext, and no amount of care changes that — a fresh nonce per write
+  means the same plaintext never produces the same bytes twice. Encrypt what you
+  read, not what you search by.
+
 ## Not started
 
 Nothing. The roadmap agreed at the start — core, console, view, events, log,
 database, validation, http, auth, cache, queue, scheduler, mail, storage,
-notifications — is complete. What remains is in the per-package tables above, and
-the largest single item is an encryption package: encrypted cookies, encrypted
-queue payloads and `ShouldBeEncrypted` all wait on it.
+notifications — is complete, and so is the encryption package the last three
+items were waiting on. What remains is in the per-package tables above.
 
 ## Watch list
 

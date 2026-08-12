@@ -26,10 +26,12 @@ export {
 export { type MigrationRecord, MigrationRepository } from './migrations/repository.ts'
 export { ModelBuilder, ModelNotFoundError, type Paginated } from './model/builder.ts'
 export {
+  type AttributeEncrypter,
   type CastType,
   castFromDatabase,
   castToDatabase,
-  formatDateTime
+  formatDateTime,
+  setAttributeEncrypter
 } from './model/casts.ts'
 export { type ConnectionResolver, Model, type ModelClass, ModelEvent } from './model/model.ts'
 export {
