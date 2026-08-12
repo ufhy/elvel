@@ -244,6 +244,21 @@ check(
   statusOutput.includes('MIGRATION') && statusOutput.includes('no')
 )
 
+// Everything below reads and writes through models, so give the app a fresh
+// in-memory database as its *default* connection and run the real migrations and
+// seeders against it. The checked-in sqlite file is never touched, and the
+// assertions below do not depend on whatever state it happens to be in.
+app.config.set('database.connections.smoke_default', { driver: 'sqlite', database: ':memory:' })
+app.make('db').setDefaultConnection('smoke_default')
+
+const migrateOutput = plain(
+  await captureOutput(() => app.make('artisan').run(['migrate', '--force']))
+)
+check('the real migrations run on a fresh database', migrateOutput.includes('migration(s) applied'))
+
+const seedOutput = plain(await captureOutput(() => app.make('artisan').run(['db:seed'])))
+check('the real seeders run', seedOutput.includes('Seeding finished'))
+
 section('Validation')
 
 const registered = await app.handle(
@@ -320,9 +335,6 @@ const excluded = (await (
 check('exclude_if drops the field instead of failing it', excluded.passed)
 check('the excluded field is absent from validated()', !('card_number' in excluded.validated))
 
-// The rule reads a real table, so make sure one exists first.
-await captureOutput(() => app.make('artisan').run(['migrate:install']))
-
 const unique = (await (await app.handle(new Request('http://localhost/check/unique'))).json()) as {
   passes: boolean
 }
@@ -340,17 +352,29 @@ async function postJson(path: string, body: unknown, headers: Record<string, str
   )
 }
 
+// These routes run the whole stack: form request → model → resource, against the
+// migrated and seeded database above. Also exercised by hand over the network
+// with `artisan serve` + curl, which is what caught the two bugs this section
+// now guards: `withCount()` lost by `clone()`, and `whenLoaded()` returning the
+// relation *method* instead of the loaded relation.
+
 const created = await postJson('/check/articles', {
   title: '  Trimmed title  ',
+  slug: 'trimmed-title',
   body: 'Long enough body text.',
   status: 'draft'
 })
-const createdBody = (await created.json()) as { created?: Record<string, unknown> }
+const createdBody = (await created.json()) as { data?: Record<string, unknown> }
 
-check('a valid form request passes', created.status === 200)
-check('prepareForValidation ran', createdBody.created?.title === 'Trimmed title')
+check('a valid form request creates a model', created.status === 201)
+check('prepareForValidation ran', createdBody.data?.title === 'Trimmed title')
+check('the model came back with its new key', createdBody.data?.id === 5)
 
-const invalid = await postJson('/check/articles', { title: 'x', status: 'published' })
+const invalid = await postJson('/check/articles', {
+  title: 'x',
+  slug: 'whatever',
+  status: 'published'
+})
 const invalidBody = (await invalid.json()) as { errors?: Record<string, string[]> }
 
 check('an invalid form request is a 422 with the bag', invalid.status === 422)
@@ -363,29 +387,101 @@ check(
   invalidBody.errors?.published_at?.[0]?.includes('required when status is published') === true
 )
 
+const duplicate = await postJson('/check/articles', {
+  title: 'A duplicate slug',
+  slug: 'article-0',
+  body: 'Long enough body text.',
+  status: 'draft'
+})
+const duplicateBody = (await duplicate.json()) as { errors?: Record<string, string[]> }
+
+check('the unique rule reaches the database from a form request', duplicate.status === 422)
+check(
+  'and names the taken field',
+  duplicateBody.errors?.slug?.[0] === 'The slug has already been taken.'
+)
+
 const forbidden = await postJson('/check/articles', { forbidden: 'yes', title: 'x' })
 check('authorize() refusing is a 403, not a 422', forbidden.status === 403)
+check('a refused request leaks no field errors', !('errors' in (await forbidden.json())))
 
 const collection = (await (
-  await app.handle(new Request('http://localhost/check/articles'))
-).json()) as { data?: Array<Record<string, unknown>>; meta?: { total?: number } }
+  await app.handle(new Request('http://localhost/check/articles?perPage=2'))
+).json()) as {
+  data?: Array<Record<string, unknown>>
+  meta?: { total?: number; lastPage?: number }
+}
 
 check('a resource collection is wrapped', Array.isArray(collection.data))
-check('meta travels with the collection', collection.meta?.total === 2)
+check('paginate() limits the page', collection.data?.length === 2)
 check(
-  'a hidden field is absent rather than null',
-  collection.data?.[0] !== undefined && !('notes' in collection.data[0])
+  'pagination totals travel as meta',
+  collection.meta?.total === 5 && collection.meta?.lastPage === 3
 )
-check('merge() flattens into the item', collection.data?.[0]?.self === '/articles/1')
+check('a cast turns 0/1 into a boolean', collection.data?.[0]?.featured === true)
 check(
-  'whenLoaded only includes a loaded relation',
-  !('comments' in (collection.data?.[0] ?? {})) && 'comments' in (collection.data?.[1] ?? {})
+  'a json cast decodes',
+  (collection.data?.[0]?.meta as { index?: number } | undefined)?.index === 0
+)
+check('an accessor with no column appears', String(collection.data?.[0]?.excerpt).endsWith('…'))
+check('withCount survives paginate()', collection.data?.[0]?.commentCount === 2)
+check('and reports zero for a childless row', collection.data?.[1]?.commentCount === 0)
+check('merge() flattens into the item', collection.data?.[0]?.self === '/check/articles/1')
+check(
+  'an unloaded relation is absent, not null',
+  collection.data?.[0] !== undefined && !('comments' in collection.data[0])
+)
+check(
+  'a field the viewer may not see is absent',
+  collection.data?.[0] !== undefined && !('status' in collection.data[0])
 )
 
+const scoped = (await (
+  await app.handle(new Request('http://localhost/check/articles?published=yes'))
+).json()) as { data?: Array<Record<string, unknown>>; meta?: { total?: number } }
+check('a local scope narrows the query', scoped.meta?.total === 2)
+
+const eager = (await (
+  await app.handle(new Request('http://localhost/check/articles/with-comments'))
+).json()) as { data?: Array<{ comments?: Array<Record<string, unknown>> }> }
+
+check(
+  'an eager-loaded relation is nested through its own resource',
+  eager.data?.[0]?.comments?.length === 2
+)
+check('the nested resource shapes the children', eager.data?.[0]?.comments?.[0]?.author === 'Ada')
+check('a row with no children gets an empty relation', eager.data?.[1]?.comments?.length === 0)
+
 const asEditor = (await (
-  await app.handle(new Request('http://localhost/check/articles/1?editor=yes'))
+  await app.handle(new Request('http://localhost/check/articles/1?editor=yes&withComments=yes'))
 ).json()) as { data?: Record<string, unknown> }
-check('a permitted field appears', asEditor.data?.notes === 'internal only')
+check('a permitted field appears', asEditor.data?.status === 'published')
+check(
+  'load() fills the relation after the fact',
+  (asEditor.data?.comments as unknown[] | undefined)?.length === 2
+)
+
+// Captured because the handler reports the exception; the checks stay readable.
+let missingStatus = 0
+await captureOutput(async () => {
+  missingStatus = (await app.handle(new Request('http://localhost/check/articles/999'))).status
+})
+check('a missing model is a 404', missingStatus === 404)
+
+const trashed = (await (
+  await app.handle(new Request('http://localhost/check/articles/5', { method: 'DELETE' }))
+).json()) as { trashed?: boolean; visible?: number; withTrashed?: number }
+
+check('delete() soft deletes', trashed.trashed === true)
+check('the default query stops seeing it', trashed.visible === 4)
+check('withTrashed still does', trashed.withTrashed === 5)
+
+const restored = (await (await postJson('/check/articles/5/restore', {})).json()) as {
+  trashed?: boolean
+  visible?: number
+}
+
+check('restore() brings it back', restored.trashed === false && restored.visible === 5)
 
 // The session routes are deliberately not CSRF-exempt.
 const tokenResponse = await app.handle(new Request('http://localhost/session/token'))

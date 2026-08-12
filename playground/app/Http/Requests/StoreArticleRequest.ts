@@ -1,4 +1,5 @@
 import { FormRequest } from '@elysian/http'
+import { Rule } from '@elysian/validation'
 
 /**
  * Generated with `bun run playground make:request StoreArticle`, then extended.
@@ -21,6 +22,10 @@ export class StoreArticleRequest extends FormRequest {
   rules() {
     return {
       title: 'required|string|min:3',
+      // The object form hits the database through the presence verifier. Only
+      // validated fields reach `validated()`, so a column the model must fill
+      // has to be declared here — as in Laravel.
+      slug: ['required', 'string', Rule.unique('articles', 'slug')],
       body: 'required|string|min:10',
       status: 'required|in:draft,published',
       published_at: 'required_if:status,published'

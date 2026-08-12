@@ -65,13 +65,23 @@ export abstract class JsonResource<T = unknown> {
 
   /** Include only when the relation was eager-loaded, never lazily fetching. */
   protected whenLoaded<V>(relation: string, value?: V | (() => V)): unknown {
-    const model = this.resource as { relationLoaded?: (name: string) => boolean } & Attributes
+    const model = this.resource as {
+      relationLoaded?: (name: string) => boolean
+      getRelation?: (name: string) => unknown
+    } & Attributes
 
     if (typeof model?.relationLoaded !== 'function' || !model.relationLoaded(relation)) {
       return MISSING
     }
 
-    if (value === undefined) return model[relation as keyof typeof model]
+    // `getRelation()`, not `model[relation]`: a relation is declared as a method,
+    // and in JavaScript methods and properties share one namespace — reading the
+    // property yields the function, which JSON.stringify then drops.
+    if (value === undefined) {
+      return typeof model.getRelation === 'function'
+        ? model.getRelation(relation)
+        : model[relation as keyof typeof model]
+    }
 
     return typeof value === 'function' ? (value as () => V)() : value
   }

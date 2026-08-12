@@ -1,40 +1,67 @@
-import { controller } from '@elysian/core'
+import { controller, NotFoundException } from '@elysian/core'
 import { sessionOf, validateRequest } from '@elysian/http'
 import { t } from 'elysia'
+import { Article } from '../../Models/Article.ts'
 import { StoreArticleRequest } from '../Requests/StoreArticleRequest.ts'
 import { ArticleResource } from '../Resources/ArticleResource.ts'
 
-const ARTICLES: ArticleResource['resource'][] = [
-  { id: 1, title: 'First', status: 'published', secret_notes: 'internal only' },
-  {
-    id: 2,
-    title: 'Second',
-    status: 'draft',
-    secret_notes: 'wip',
-    relationLoaded: (name) => name === 'comments',
-    comments: [{ id: 9, body: 'Nice' }]
-  }
-]
-
 /**
- * Exercise surface for `@elysian/http`, asserted by `scripts/smoke.ts`.
+ * Where the packages meet: a form request validates, a model persists, and a
+ * resource serialises. Asserted by `scripts/smoke.ts`, and exercised by hand
+ * with `artisan serve` + curl.
  *
- * These routes sit under `/check/*`, which the playground exempts from CSRF —
- * the CSRF path itself is exercised by `/session/*` below.
+ * These routes sit under `/check/*`, which the playground exempts from CSRF; the
+ * CSRF path itself is exercised by `/session/*` below.
  */
 export default controller('article')
+  /** Paginated, with a relation count, straight through the model. */
+  .get('/check/articles', async ({ query }) => {
+    const articles = Article.query().withCount('comments').orderBy('id')
+
+    if (query.published === 'yes') articles.scope('published')
+
+    const page = await articles.paginate(Number(query.page ?? 1), Number(query.perPage ?? 15))
+
+    return ArticleResource.collection(page.data)
+      .withMeta({
+        total: page.total,
+        currentPage: page.currentPage,
+        lastPage: page.lastPage
+      })
+      .toObjectWithWrapper()
+  })
+
+  /** Eager loading: one extra query for every article's comments, not N. */
+  .get('/check/articles/with-comments', async () => {
+    const articles = await Article.with('comments').orderBy('id').get()
+
+    return ArticleResource.collection(articles).toObjectWithWrapper()
+  })
+
+  .get('/check/articles/:id', async ({ params, query }) => {
+    const article = await Article.find(Number(params.id))
+
+    // A missing row is a 404, rendered by the framework's exception handler.
+    if (!article) throw new NotFoundException(`No article [${params.id}].`)
+
+    if (query.withComments === 'yes') await article.load('comments')
+
+    return new ArticleResource(article, query.editor === 'yes').toObjectWithWrapper()
+  })
+
+  /** Validate, then create — the two packages in one handler. */
   .post(
     '/check/articles',
     async (context) => {
-      // A ValidationError becomes a 422 with the bag; a ForbiddenException a 403.
-      // Both are rendered by HttpServiceProvider, so the handler stays this short.
       const data = await validateRequest(StoreArticleRequest, { body: context.body })
+      const article = await Article.create(data)
 
-      return { created: data }
+      return context.status(201, new ArticleResource(article, true).toObjectWithWrapper())
     },
     {
       body: t.Object({
         title: t.Optional(t.String()),
+        slug: t.Optional(t.String()),
         body: t.Optional(t.String()),
         status: t.Optional(t.String()),
         published_at: t.Optional(t.String()),
@@ -43,13 +70,27 @@ export default controller('article')
     }
   )
 
-  .get('/check/articles', () => ArticleResource.collection(ARTICLES).withMeta({ total: 2 }))
+  /** Soft delete: the row survives, the default query stops seeing it. */
+  .delete('/check/articles/:id', async ({ params }) => {
+    const article = await Article.find(Number(params.id))
+    if (!article) throw new NotFoundException(`No article [${params.id}].`)
 
-  .get('/check/articles/:id', ({ params, query }) => {
-    const article = ARTICLES.find((candidate) => candidate.id === Number(params.id))
-    if (!article) return { data: null }
+    await article.delete()
 
-    return new ArticleResource(article, query.editor === 'yes').toObjectWithWrapper()
+    return {
+      trashed: article.trashed(),
+      visible: await Article.query().count(),
+      withTrashed: await Article.withTrashed().count()
+    }
+  })
+
+  .post('/check/articles/:id/restore', async ({ params }) => {
+    const article = await Article.withTrashed().find(Number(params.id))
+    if (!article) throw new NotFoundException(`No article [${params.id}].`)
+
+    await article.restore()
+
+    return { trashed: article.trashed(), visible: await Article.query().count() }
   })
 
   /**

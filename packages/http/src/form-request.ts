@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@elysian/core'
+import { app, ForbiddenException } from '@elysian/core'
 import { Arr } from '@elysian/support'
 import {
   type Data,
@@ -128,8 +128,27 @@ export abstract class FormRequest {
       messages: this.messages(),
       attributes: this.attributes(),
       stopOnFirstFailure: self.stopOnFirstFailure,
-      verifier: this.verifier
+      verifier: this.verifier ?? FormRequest.containerVerifier()
     })
+  }
+
+  /**
+   * The application's presence verifier, so `unique`/`exists` work without every
+   * caller threading one in — Laravel gets this from the container's validator
+   * factory. Absent when the validation provider isn't registered, or when the
+   * app has no database; the rules themselves raise a clear error then.
+   */
+  private static containerVerifier(): PresenceVerifier | undefined {
+    try {
+      const instance = app()
+
+      return instance.bound('validation.verifier')
+        ? (instance.make('validation.verifier') as PresenceVerifier | undefined)
+        : undefined
+    } catch {
+      // No application booted — a unit test constructing a request by hand.
+      return undefined
+    }
   }
 
   /** Keys present in the payload that no rule mentions. */

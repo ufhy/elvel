@@ -4,3 +4,5 @@ node_modules
 *.tsbuildinfo
 .DS_Store
 bun.lock
+storage/framework/sessions/*.json
+storage/logs/*.log

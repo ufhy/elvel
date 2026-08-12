@@ -936,6 +936,21 @@ describe('relation filters and aggregates', () => {
     expect(users.first()?.name).toBe('Ada')
   })
 
+  test('aggregates survive a clone, so paginate keeps them', async () => {
+    // paginate(), first() and find() all clone the builder; dropping aggregates
+    // there lost every withCount() on a paginated query.
+    const page = await User.query().withCount('posts').orderBy('id').paginate(1, 1)
+
+    expect(page.data.first()?.attributes.posts_count).toBe(2)
+    expect(
+      await User.query()
+        .withCount('posts')
+        .orderBy('id')
+        .first()
+        .then((user) => user?.attributes.posts_count)
+    ).toBe(2)
+  })
+
   test('withMax and withSum aggregate the related column', async () => {
     const users = await User.query().withMax('posts', 'id').orderBy('id').get()
 

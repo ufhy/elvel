@@ -653,6 +653,9 @@ export class ModelBuilder<M extends Model> {
 
     copy.pending.push(...this.pending)
     for (const relation of this.eagerLoad) copy.eagerLoad.add(relation)
+    // Aggregates must survive: paginate(), first() and find() all clone, so
+    // dropping them silently lost every withCount() on a paginated query.
+    copy.aggregates.push(...this.aggregates)
     copy.trashed = this.trashed
 
     return copy

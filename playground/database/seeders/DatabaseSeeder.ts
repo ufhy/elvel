@@ -1,4 +1,5 @@
 import { Seeder, type SeederContext } from '@elysian/database'
+import { ArticleSeeder } from './ArticleSeeder.ts'
 
 /**
  * The seeder `bun run artisan db:seed` runs by default.
@@ -7,8 +8,7 @@ import { Seeder, type SeederContext } from '@elysian/database'
  * bad way to express it. Compose explicitly with `call()`.
  */
 export class DatabaseSeeder extends Seeder {
-  async run({ note }: SeederContext): Promise<void> {
-    // await call(UserSeeder)
-    note('Nothing seeded yet — edit database/seeders/DatabaseSeeder.ts')
+  async run({ call }: SeederContext): Promise<void> {
+    await call(ArticleSeeder)
   }
 }

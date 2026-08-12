@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -317,6 +317,25 @@ describe('JsonResource', () => {
     }).resolve()
 
     expect(withRelation.posts).toEqual([{ id: 9, title: 'Hello' }])
+  })
+
+  test('whenLoaded reads the relation, not the method that declares it', () => {
+    // A model declares a relation as a method, and JavaScript keeps methods and
+    // properties in one namespace — so reading `model.posts` yields the function
+    // and JSON.stringify silently drops the key. `getRelation()` wins.
+    class BareResource extends JsonResource<Record<string, unknown>> {
+      toObject() {
+        return { posts: this.whenLoaded('posts') }
+      }
+    }
+
+    const model = {
+      relationLoaded: (name: string) => name === 'posts',
+      getRelation: (name: string) => (name === 'posts' ? [{ id: 9 }] : undefined),
+      posts: () => 'the relation factory'
+    }
+
+    expect(new BareResource(model).resolve().posts).toEqual([{ id: 9 }])
   })
 
   test('the payload is wrapped, and additional() adds top-level keys', () => {
