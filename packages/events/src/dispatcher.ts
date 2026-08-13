@@ -143,6 +143,31 @@ export class Dispatcher implements EventDispatcher {
   }
 
   /**
+   * Every listener for this event, including those on its ancestors.
+   *
+   * The chain is walked from the event's own class upwards, stopping at
+   * `Object`. Listeners run most-specific first, which is the order a reader
+   * expects and the order that lets a specific listener return `false` to stop
+   * the general ones.
+   */
+  private listenersFor(event: object | string, name: string): StoredListener[] {
+    const own = this.getListeners(name)
+
+    if (typeof event === 'string') return own
+
+    const listeners = [...own]
+    let ancestor = Object.getPrototypeOf(event.constructor) as { name?: string } | null
+
+    while (ancestor && typeof ancestor.name === 'string' && ancestor.name !== '') {
+      if (ancestor.name !== name) listeners.push(...this.getListeners(ancestor.name))
+
+      ancestor = Object.getPrototypeOf(ancestor) as { name?: string } | null
+    }
+
+    return listeners
+  }
+
+  /**
    * Hand one event to the queue.
    *
    * `shouldQueue` is asked here, in the dispatching process, because that is the
@@ -247,7 +272,18 @@ export class Dispatcher implements EventDispatcher {
 
     const responses: unknown[] = []
 
-    for (const listener of this.getListeners(name)) {
+    /**
+     * Listeners registered on an **ancestor** run too.
+     *
+     * Laravel matches a listener registered on an interface the event
+     * implements. TypeScript erases interfaces, so there is nothing at runtime
+     * to match — but a base class survives, and it carries the same meaning:
+     * `listen(DomainEvent, …)` hears every event that extends it.
+     *
+     * Only for class-based events, and only for ancestors somebody actually
+     * registered, so the walk costs nothing on a string event.
+     */
+    for (const listener of this.listenersFor(event, name)) {
       const response = await listener(name, resolved)
 
       if (halt && response !== null && response !== undefined) return response

@@ -52,3 +52,70 @@ export function render<Props>(
 ): Promise<string> {
   return app('view').render(component, props)
 }
+
+/**
+ * Stream a page as it renders — `view()`'s counterpart for slow pages.
+ *
+ * The whole page is rendered before `view()` answers, so a page whose slowest
+ * query takes two seconds shows nothing for two seconds: no title, no layout,
+ * no spinner. Streaming sends the shell immediately and the rest as it comes,
+ * which is the difference between a blank tab and a page that is filling in.
+ *
+ * Each part is a component with its own props, rendered in order. A part that
+ * throws does not take the response with it — the status is long since sent —
+ * so it is replaced by an HTML comment naming the failure and reported, which
+ * is the only honest thing left to do once bytes are on the wire.
+ *
+ * ```ts
+ * .get('/dashboard', () => stream([
+ *   [Shell, { title: 'Dashboard' }],
+ *   [SlowStats, { userId }],
+ *   [Footer, {}]
+ * ]))
+ * ```
+ */
+export function stream(
+  parts: Array<[ViewComponent<never>, unknown]>,
+  init: ResponseInit = {},
+  report?: (error: unknown) => void
+): Response {
+  const factory = app('view')
+
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder()
+
+      for (const [component, props] of parts) {
+        try {
+          controller.enqueue(encoder.encode(await factory.render(component, props as never)))
+        } catch (error) {
+          report?.(error)
+
+          // The status and half the page are already sent; an exception here
+          // would truncate the response with no explanation in the markup.
+          controller.enqueue(
+            encoder.encode(`<!-- part failed: ${escapeComment(String(error))} -->`)
+          )
+        }
+      }
+
+      controller.close()
+    }
+  })
+
+  return new Response(body, {
+    ...init,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      // Nothing downstream may buffer it, or the streaming is undone by a proxy.
+      'cache-control': 'no-transform',
+      'x-accel-buffering': 'no',
+      ...init.headers
+    }
+  })
+}
+
+/** `--` would close the comment early and spill the message into the page. */
+function escapeComment(value: string): string {
+  return value.replaceAll('--', '- -').slice(0, 200)
+}

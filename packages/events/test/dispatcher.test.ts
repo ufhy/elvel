@@ -605,3 +605,61 @@ describe('a queued listener on a pattern', () => {
     expect<string | undefined>(pushed[1]?.event).toBe('order.cancelled')
   })
 })
+
+describe('listening on a base class', () => {
+  class DomainEvent {}
+  class OrderPlaced extends DomainEvent {
+    constructor(readonly id: number) {
+      super()
+    }
+  }
+
+  test('a listener on the ancestor hears the descendant', async () => {
+    const heard: string[] = []
+    const dispatcher = new Dispatcher()
+
+    dispatcher.listen(DomainEvent as never, () => {
+      heard.push('ancestor')
+    })
+    dispatcher.listen(OrderPlaced as never, () => {
+      heard.push('own')
+    })
+
+    await dispatcher.dispatch(new OrderPlaced(1))
+
+    // Laravel matches interfaces; TypeScript erases those, but a base class
+    // survives and carries the same meaning. Most specific first.
+    expect<string[]>(heard).toEqual(['own', 'ancestor'])
+  })
+
+  test('a specific listener can stop the general ones', async () => {
+    const heard: string[] = []
+    const dispatcher = new Dispatcher()
+
+    dispatcher.listen(OrderPlaced as never, () => {
+      heard.push('own')
+
+      return false
+    })
+    dispatcher.listen(DomainEvent as never, () => {
+      heard.push('ancestor')
+    })
+
+    await dispatcher.dispatch(new OrderPlaced(1))
+
+    expect<string[]>(heard).toEqual(['own'])
+  })
+
+  test('a string event walks nothing', async () => {
+    const heard: string[] = []
+    const dispatcher = new Dispatcher()
+
+    dispatcher.listen('order.placed', () => {
+      heard.push('named')
+    })
+
+    await dispatcher.dispatch('order.placed', { id: 1 })
+
+    expect<string[]>(heard).toEqual(['named'])
+  })
+})

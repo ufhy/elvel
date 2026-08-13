@@ -47,7 +47,6 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Suspense / streaming responses | `@kitajs/html` supports it; our `view()` returns a complete `Response`. |
 | Vite integration, asset versioning | The static plugin serves `public/`; there is no manifest reader. |
 
 ## @elysian/events
@@ -58,7 +57,6 @@ a worker instead of the request.
 | Missing | Why |
 | --- | --- |
 | Broadcasting | Needs a driver and a socket layer. |
-| Interface-based listeners (`addInterfaceListeners`) | Class events are matched by name; an interface has no runtime identity in TypeScript. |
 
 ## @elysian/log
 
