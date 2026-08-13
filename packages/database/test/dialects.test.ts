@@ -158,7 +158,7 @@ for (const { name, config } of available) {
 
     class Post extends Model {
       static override table = posts
-      static override fillable = ['title', 'user_id']
+      static override fillable = ['title', 'user_id', 'votes', 'published']
 
       declare id: number
       declare title: string
@@ -197,6 +197,8 @@ for (const { name, config } of available) {
         table.id()
         table.foreignId('user_id')
         table.string('title')
+        table.integer('votes').default(0)
+        table.boolean('published').default(false)
         table.timestamps()
         table.foreign(['user_id']).references(['id']).on(users).cascadeOnDelete()
       })
@@ -886,6 +888,61 @@ for (const { name, config } of available) {
         expect(
           (await Member.query().whereBlind('secret', 'ada@example.com').first()) ?? null
         ).toBeNull()
+      })
+
+      test('ofMany orders by several columns, and can narrow first', async () => {
+        await truncate()
+
+        const ada = await User.create({ name: 'Ada' })
+
+        // Two posts share the top score; the newer one should win the tie.
+        await Post.create({ user_id: ada.id, title: 'low', votes: 1, published: true })
+        await Post.create({ user_id: ada.id, title: 'tie-old', votes: 9, published: false })
+        await Post.create({ user_id: ada.id, title: 'tie-new', votes: 9, published: true })
+
+        class Author extends User {
+          best(): unknown {
+            return this.ofMany(
+              Post as never,
+              [
+                { column: 'votes', aggregate: 'max' },
+                { column: 'id', aggregate: 'max' }
+              ],
+              { foreignKey: 'user_id' }
+            )
+          }
+
+          bestPublished(): unknown {
+            return this.ofMany(Post as never, [{ column: 'votes', aggregate: 'max' }], {
+              foreignKey: 'user_id',
+              narrow: (query) => {
+                query.where('published', true)
+              }
+            })
+          }
+        }
+
+        const author = (await Author.find(ada.id)) as Author
+
+        expect(
+          (
+            (await (
+              author.best() as { getOne(): Promise<Model | undefined> }
+            ).getOne()) as never as {
+              title: string
+            }
+          )?.title
+        ).toBe('tie-new')
+
+        // Narrowing runs before the aggregate: filtering afterwards would ask a
+        // different question, because a row has already been picked by then.
+        expect(
+          (
+            (await (
+              author.bestPublished() as { getOne(): Promise<Model | undefined> }
+            ).getOne()) as never as { title: string }
+          )?.title
+        ).toBe('tie-new')
       })
 
       test('boolean and json casts survive the round trip', async () => {

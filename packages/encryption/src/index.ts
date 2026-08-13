@@ -1,3 +1,4 @@
+export { EncryptionRotateCommand } from './console/encryption-rotate.ts'
 export { KeyGenerateCommand } from './console/key-generate.ts'
 export {
   DecryptError,

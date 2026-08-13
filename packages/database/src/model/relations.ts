@@ -1019,16 +1019,36 @@ export class HasOneThrough<R extends Model> extends HasManyThrough<R> {
  * rows can share a `created_at`: without it the join matches both and the "one"
  * relation quietly returns two.
  */
+/** One column of an `ofMany` ordering, and how to aggregate it. */
+export type OfManyColumn = { column: string; aggregate: 'max' | 'min' }
+
 export class HasOneOfMany<R extends Model> extends Relation<R> {
+  private readonly columns: OfManyColumn[]
+
   constructor(
     related: ModelClass<R>,
     parent: Model,
     private readonly foreignKey: string,
-    private readonly column: string,
-    private readonly aggregate: 'max' | 'min',
-    private readonly localKey = 'id'
+    column: string | OfManyColumn[],
+    aggregate: 'max' | 'min' = 'max',
+    private readonly localKey = 'id',
+    /**
+     * Narrows the subquery before the aggregate is taken.
+     *
+     * `latestOfMany` answers "the newest row"; this answers "the newest row
+     * *that is published*", which is a different row and cannot be had by
+     * filtering afterwards — the aggregate has already picked one by then.
+     */
+    private readonly narrow?: (query: QueryBuilder<Row>) => void
   ) {
     super(related, parent)
+
+    this.columns =
+      typeof column === 'string' ? [{ column, aggregate }] : column.map((entry) => ({ ...entry }))
+
+    if (this.columns.length === 0) {
+      throw new Error('ofMany() needs at least one column to order by.')
+    }
   }
 
   private get relatedTable(): string {
@@ -1057,17 +1077,32 @@ export class HasOneOfMany<R extends Model> extends Relation<R> {
   private constrain(builder: ModelBuilder<R>): ModelBuilder<R> {
     return builder.deferBase((query) => {
       const connection = query.connection
-      const sub = new QueryBuilder<Row>(connection, this.relatedTable)
-        .selectRaw(
-          [
-            `${this.aggregate}(${connection.grammar.wrap(`${this.relatedTable}.${this.column}`)}) as ${connection.grammar.wrap(`${this.column}_aggregate`)}`,
-            // The key breaks a tie on the column, and is aggregated the same way
-            // so the two always describe the same row.
-            `${this.aggregate}(${connection.grammar.wrap(`${this.relatedTable}.${this.keyName}`)}) as ${connection.grammar.wrap(`${this.keyName}_aggregate`)}`,
-            connection.grammar.wrap(`${this.relatedTable}.${this.foreignKey}`)
-          ].join(', ')
+      const selects = this.columns.map(
+        ({ column, aggregate }) =>
+          `${aggregate}(${connection.grammar.wrap(`${this.relatedTable}.${column}`)}) as ${connection.grammar.wrap(`${column}_aggregate`)}`
+      )
+
+      // The key breaks a tie the columns did not, and is aggregated the same way
+      // as the last of them so the two always describe the same row.
+      const last = this.columns[this.columns.length - 1] as OfManyColumn
+
+      // Unless the key is already one of the ordering columns: selecting it
+      // twice gives two `id_aggregate` aliases, which Postgres rejects as
+      // ambiguous — and rightly, since the join could mean either.
+      if (!this.columns.some(({ column }) => column === this.keyName)) {
+        selects.push(
+          `${last.aggregate}(${connection.grammar.wrap(`${this.relatedTable}.${this.keyName}`)}) as ${connection.grammar.wrap(`${this.keyName}_aggregate`)}`
         )
+      }
+
+      selects.push(connection.grammar.wrap(`${this.relatedTable}.${this.foreignKey}`))
+
+      const sub = new QueryBuilder<Row>(connection, this.relatedTable)
+        .selectRaw(selects.join(', '))
         .groupBy(`${this.relatedTable}.${this.foreignKey}`)
+
+      // Applied to the subquery, before the aggregate — see `narrow`.
+      this.narrow?.(sub)
 
       query
         .joinSub(
@@ -1082,6 +1117,16 @@ export class HasOneOfMany<R extends Model> extends Relation<R> {
           '=',
           `${this.relatedTable}.${this.foreignKey}`
         )
+
+      // Every ordering column has to agree, or a second column would have no
+      // effect on which row the join keeps.
+      for (const { column } of this.columns) {
+        query.whereColumn(
+          `${this.alias}.${column}_aggregate`,
+          '=',
+          `${this.relatedTable}.${column}`
+        )
+      }
     })
   }
 

@@ -24,6 +24,7 @@ import {
   MorphOne,
   MorphTo,
   MorphToMany,
+  type OfManyColumn,
   type Relation
 } from './relations.ts'
 
@@ -1123,6 +1124,32 @@ export class Model {
       column,
       'max',
       this.self.primaryKey
+    )
+  }
+
+  /**
+   * One child of many, chosen by an arbitrary ordering — Laravel's `ofMany()`.
+   *
+   * `latestOfMany` is the one-column case. This takes several, applied in order,
+   * so "the highest-priced order, and the newest of those if two tie" is
+   * expressible; and a `narrow` callback that filters the rows *before* the
+   * aggregate runs, which is the only way to ask for "the newest published
+   * article" — filtering afterwards asks a different question, because the
+   * aggregate has already picked a row by then.
+   */
+  ofMany<R extends Model>(
+    related: ModelClass<R>,
+    columns: OfManyColumn[],
+    options: { foreignKey?: string; narrow?: (query: QueryBuilder<Row>) => void } = {}
+  ): HasOneOfMany<R> {
+    return new HasOneOfMany(
+      related,
+      this,
+      options.foreignKey ?? this.foreignKeyName(),
+      columns,
+      'max',
+      this.self.primaryKey,
+      options.narrow
     )
   }
 

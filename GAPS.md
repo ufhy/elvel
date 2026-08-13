@@ -42,7 +42,6 @@ Deliberately absent, with reasons:
 | Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
-| `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
 | `touchIfTouching` guessing the **inverse** relation | Laravel infers the inverse relation's name from the class name; here the pairing must be written down. |
 
 ---
@@ -146,7 +145,6 @@ fake.
 | Missing | Why |
 | --- | --- |
 | Asymmetric keys, signing, envelope encryption, a KMS | Different problem: this package protects data at rest with a key the app already has. A KMS-backed key would slot in behind `deriveKey`. |
-| Rewriting stored ciphertexts after a rotation | `APP_PREVIOUS_KEYS` keeps old payloads readable indefinitely, which is enough to rotate without downtime, but nothing walks the tables to re-encrypt them onto the new key. That is a per-model migration. |
 
 ## Not started
 
