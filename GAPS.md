@@ -4,11 +4,11 @@ What is deliberately missing, per package, so it is not rediscovered by
 accident. Everything here is a decision, not an oversight; where something was
 attempted and could not be made to work, that is said plainly.
 
-**A row is removed when the thing is built, or narrowed when part of it is.**
-Implementing `morphToMany` left "a morph map for the type"; implementing batches
-left "chains inside a batch". A narrowed row is the list getting more precise —
-but it does mean closing something does not always shorten the list, so the
-count alone is a poor measure of progress.
+**A row is removed when the thing is built. It is never narrowed.**
+If part of a feature is done, the row goes and what remains is either a new row
+naming something genuinely different, or nothing at all. Rewriting a row to
+describe the leftover keeps the list the same length while the work gets done,
+which makes the list useless as a measure — and that is exactly what it is for.
 
 **A row whose answer is "this is not actually missing" does not belong here.**
 Eight have been written and then removed on those grounds; the last four named
@@ -40,13 +40,10 @@ Deliberately absent, with reasons:
 | --- | --- |
 | Queued jobs *from a model* (`$model->notify()`-shaped sugar) | The queue exists and queued listeners now run through it; what is missing is sugar on the model itself. A model's lifecycle events are dispatched, so a queued listener on `model.created` already covers it. |
 | Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
-| A recovery log for an interrupted two-phase commit | `transactionAcross()` prepares every participant before any of them commits, which closes the window that matters. What is left is the microseconds between the first commit and the last: closing that needs a transaction manager that remembers what it was doing across a crash, and the error names the prepared transaction so an operator can finish it by hand. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
 | `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
 | `touchIfTouching` guessing the **inverse** relation | Laravel infers the inverse relation's name from the class name; here the pairing must be written down. |
-| A cast key of its own, per column | The `encrypted` casts and `blindIndexes` both derive from `APP_KEY`. A column that needs its own key — one you can rotate or revoke without touching the rest — would need the key named in the cast and resolved per model. |
-| A schema dumper of our own for Postgres and MySQL | `schema:dump` writes SQLite's schema from `sqlite_master`, and shells out to `pg_dump`/`mysqldump` for the other two — as Laravel does. Reproducing what those tools emit, down to sequence ownership and index storage parameters, is a project of its own, and a dump that restores but differs is worse than none. |
 
 ---
 
@@ -55,7 +52,6 @@ Deliberately absent, with reasons:
 | Missing | Why |
 | --- | --- |
 | Contextual binding, tagged bindings, automatic constructor injection | The container is deliberately typed via `ContainerBindings` rather than reflective. TypeScript erases parameter types, so PHP-style autowiring would need decorators and `emitDecoratorMetadata`. |
-| Choosing the maintenance driver from config | Both drivers exist — a file by default, and `CachedMaintenanceMode` for a cluster where every node must learn about it. What is missing is the config key that picks one; today an application swaps the binding itself. |
 | `MaintenanceModeEnabled` as an event *class* | Dispatched by name (`maintenance.enabled`, `maintenance.disabled`), as everything else here dispatches. |
 
 ## @elysian/console
@@ -89,7 +85,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| `syslog`, Papertrail drivers | `errorlog` (stderr, for a container) and `slack` are here; syslog needs a socket protocol and Papertrail is a syslog endpoint. `extend()` takes either in a few lines. |
 | A deprecation channel | `withContext`/`withoutContext` are on the manager. Routing deprecation notices to a channel of their own needs somewhere for them to come from first — nothing in the framework raises one. |
 | `pail`-style live tailing | A `log:tail` command over the file drivers would cover it. |
 
@@ -163,8 +158,6 @@ a failed-job store, and `defer()` for work too small to queue.
 | **Jobs are identified by class name, not a serialised object** | PHP can `serialize($job)`; TypeScript cannot. The payload carries a name plus the constructor data, and the worker resolves the name through discovery over `app/Jobs`. A job that lives elsewhere has to be registered: `queue().jobs.register(TheJob)`. |
 | Batch callbacks as **closures** | `then`/`catch`/`finally` take job classes. Laravel serialises closures into the batch row; a closure cannot be rebuilt in the worker that would run it, which is the same wall queued listeners hit. Naming a job is the honest version, and the callback then gets retries and a failure record like anything else. |
 | Per-job `progress` callbacks | `then`, `catch` and `finally` are dispatched. A callback per job needs a reason before it needs an implementation. |
-| `queue:listen`, Horizon-style supervision | `queue:work` with `--max-jobs`/`--max-time`/`--stop-when-empty` is what a container or a supervisor wants, and `queue:restart` now signals a graceful exit. Supervising the processes themselves is the supervisor's job. |
-| `beanstalkd`, `sync`-with-delay | No Beanstalk client in this runtime; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
 | Per-property encryption inside a payload | `static encrypted = true` encrypts the whole payload, which is what `ShouldBeEncrypted` does. Encrypting one field and leaving the rest queryable would need a per-property declaration. |
 | Rate-limited and overlapping middleware as *attributes* | Both exist as middleware classes returned from `middleware()`; TypeScript has no runtime attributes. |
 
@@ -177,7 +170,6 @@ or a process runs `schedule:work`.
 
 | Missing | Why |
 | --- | --- |
-| A background run that outlives its minute | `runInBackground()` forks the entry, so the entries *behind* it no longer wait. What still waits is `schedule:run` itself, which holds until its children exit — otherwise the process leaves with the overlap mutex unreleased and `onSuccess` never fired. Laravel avoids that by having the child call `schedule:finish`; here a task that runs longer than a minute therefore delays the next tick of `schedule:work`. A long task still belongs on the queue. |
 | `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
 | `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
 | `onOneServer` releasing its mutex | Deliberate: the lock is held for the minute, which is what keeps the other servers out. A task that must not run twice in the same minute across servers gets that; one that must never overlap *at all* wants `withoutOverlapping()` too. |
