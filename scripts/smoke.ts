@@ -2312,6 +2312,39 @@ check(
 // same wall a queued listener hits.
 check('and the then callback ran', finishedBatch.report?.total === 3)
 
+/**
+ * A batch of chains: two rows, three ordered steps each.
+ *
+ * Neither a plain batch nor a plain chain expresses this, and it is the shape
+ * most bulk work has — ten imports that each need fetch, transform, load.
+ */
+const chained = (await (await postJson('/check/queue/batch-chain', { rows: 2 })).json()) as {
+  batch: { id: string; totalJobs: number }
+}
+
+// Six, not two: counting each chain as one job would finish the batch while
+// four of its jobs were still queued.
+check('a chain inside a batch counts all of its links', chained.batch.totalJobs === 6)
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+
+const chainResult = (await (
+  await app.handle(new Request(`http://localhost/check/queue/batch-chain/${chained.batch.id}`))
+).json()) as {
+  batch: { pendingJobs: number; finished: boolean }
+  rows: Array<string | null>
+}
+
+check(
+  'every link runs',
+  chainResult.rows.every((row) => row === 'fetch,transform,load')
+)
+// The point of a chain: the steps of one row are ordered even though the rows
+// are not.
+check('in order, per row', chainResult.rows[0] === 'fetch,transform,load')
+check('and the batch finishes only then', chainResult.batch.finished === true)
+check('with nothing left pending', chainResult.batch.pendingJobs === 0)
+
 const failing = (await (await postJson('/check/queue/batch', { rows: 3, failRow: 1 })).json()) as {
   batch: { id: string }
 }

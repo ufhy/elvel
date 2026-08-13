@@ -80,6 +80,20 @@ export class AppServiceProvider extends ServiceProvider {
       .description('Delete expired rows from the database cache store')
 
     /**
+     * Batch records outlive the work they describe.
+     *
+     * Finished ones are swept daily; cancelled ones need their own window because
+     * a cancelled batch never finishes by design — its remaining jobs are skipped
+     * as they are reserved, so `prune` alone would never touch it. A week is long
+     * enough to still be asked why something was cancelled.
+     */
+    schedule
+      .command('queue:prune-batches', ['--hours', '48', '--cancelled', '168'])
+      .daily()
+      .withoutOverlapping()
+      .description('Drop batch records that are no longer worth keeping')
+
+    /**
      * Two entries a minute apart in behaviour, not in timing.
      *
      * Both are due every minute; while `artisan down` is in force only the second

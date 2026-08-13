@@ -227,6 +227,55 @@ for (const { name, config } of available) {
 
         await batches.cancel(stored.id)
         expect((await batches.find(stored.id))?.cancelled).toBe(true)
+
+        /**
+         * The three sweeps, on a real server, with fixtures of their own.
+         *
+         * Not reusing the batch above: it was finished *and then* cancelled, so
+         * `prune` is entitled to it — which is exactly the overlap that makes a
+         * shared fixture prove nothing about which predicate matched.
+         *
+         * Ages use a negative window, meaning "older than the future": everything
+         * qualifies, so what is under test is the predicate rather than the clock.
+         */
+        const at = Math.floor(Date.now() / 1000)
+
+        // Clear what the assertions above left behind — that batch was finished
+        // *and* cancelled, and counting it here would prove nothing about which
+        // predicate matched.
+        await batches.prune(-1)
+
+        const fixture = async (id: string, extra: Record<string, unknown>) =>
+          batches.store({
+            id: `${id}-${name}`,
+            name: id,
+            totalJobs: 1,
+            pendingJobs: 1,
+            failedJobs: 0,
+            failedJobIds: [],
+            options: {},
+            createdAt: at,
+            ...extra
+          })
+
+        const done = await fixture('done', { pendingJobs: 0, finishedAt: at })
+        const stalled = await fixture('stalled', {})
+        const abandoned = await fixture('abandoned', { cancelledAt: at })
+
+        // Finished only: the other two are untouched.
+        expect(await batches.prune(-1)).toBe(1)
+        expect(await batches.find(done.id)).toBeUndefined()
+        expect(await batches.find(stalled.id)).toBeDefined()
+        expect(await batches.find(abandoned.id)).toBeDefined()
+
+        // A cancelled batch never finishes by design, so `prune` would keep it
+        // for ever — this is the sweep that exists for it.
+        expect(await batches.pruneCancelled(-1)).toBe(1)
+        expect(await batches.find(abandoned.id)).toBeUndefined()
+        expect(await batches.find(stalled.id)).toBeDefined()
+
+        expect(await batches.pruneUnfinished(-1)).toBe(1)
+        expect(await batches.find(stalled.id)).toBeUndefined()
       } finally {
         await (await db.schema()).dropIfExists(batchTable)
         await db.disconnectAll()

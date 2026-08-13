@@ -6,12 +6,13 @@ export {
   type BatchRepository,
   DatabaseBatchRepository
 } from './batch.ts'
-export { PendingBatch } from './bus.ts'
+export { type BatchEntry, PendingBatch } from './bus.ts'
 export { MakeJobCommand } from './console/make-job.ts'
 export { QueueClearCommand } from './console/queue-clear.ts'
 export { QueueFailedCommand } from './console/queue-failed.ts'
 export { QueueFlushCommand } from './console/queue-flush.ts'
 export { QueueForgetCommand } from './console/queue-forget.ts'
+export { QueuePruneBatchesCommand } from './console/queue-prune-batches.ts'
 export { QueueRetryCommand } from './console/queue-retry.ts'
 export { QueueSizeCommand } from './console/queue-size.ts'
 export { QueueFailedTableCommand, QueueTableCommand } from './console/queue-table.ts'

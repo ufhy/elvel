@@ -904,6 +904,38 @@ describe('batches', () => {
   let batches: ArrayBatchRepository
   let dispatched: Array<{ payload: JobPayload; queue: string }>
 
+  /**
+   * A stand-in that builds chain payloads the way the manager does.
+   *
+   * The batch id has to reach every link: the manager passes it down through
+   * `payloadFor`, and a stub that forgot to would make the test pass for the
+   * wrong reason.
+   */
+  function chainingDispatcher(driver?: { push(payload: JobPayload): Promise<unknown> }) {
+    return {
+      batches: () => batches,
+      jobs: { has: () => true, register: () => undefined },
+      dispatch: async (job: AnyJob, options: { batchId?: string; chain?: AnyJob[] }) => {
+        const payload = payloadFor(job.constructor.name, { ...(job.data as object) })
+        payload.batchId = options.batchId
+
+        const chain = (options.chain ?? []).map((link) => {
+          const linked = payloadFor(link.constructor.name, { ...(link.data as object) })
+          linked.batchId = options.batchId
+
+          return linked
+        })
+
+        if (chain.length > 0) payload.chain = chain
+
+        dispatched.push({ payload, queue: 'default' })
+        await driver?.push(payload)
+
+        return payload.uuid
+      }
+    }
+  }
+
   /** A manager-shaped stand-in: enough for PendingBatch, with no application. */
   function dispatcher() {
     return {
@@ -1012,6 +1044,52 @@ describe('batches', () => {
       .dispatch()
 
     expect(Afterwards.seen).toHaveLength(1)
+  })
+
+  test('a chain inside a batch counts as all of its links', async () => {
+    const batch = await new PendingBatch(chainingDispatcher() as never, [
+      new Counted({ label: 'alone' }),
+      [new Counted({ label: 'first' }), new Counted({ label: 'second' })]
+    ]).dispatch()
+
+    // Two entries, three jobs: counting the chain as one would finish the batch
+    // while two of its jobs were still queued.
+    expect<number>(batch.totalJobs).toBe(3)
+    expect<number>(dispatched.length).toBe(2)
+
+    const chained = dispatched[1]?.payload
+
+    // Only the head is queued; the rest travel in its payload.
+    expect<number>(chained?.chain?.length ?? 0).toBe(1)
+    // And every link belongs to the batch, or the count never reaches zero.
+    expect<string | undefined>(chained?.chain?.[0]?.batchId).toBe(batch.id)
+  })
+
+  test('the batch finishes only after every link has run', async () => {
+    const queued: JobPayload[] = []
+    const driver = new SyncQueue('sync', async (job) => {
+      queued.push(job.payload)
+      await runnerFor(driver).run(job)
+    })
+
+    const batch = await new PendingBatch(chainingDispatcher(driver) as never, [
+      [
+        new Counted({ label: 'one' }),
+        new Counted({ label: 'two' }),
+        new Counted({ label: 'three' })
+      ]
+    ])
+      .onSuccess(Afterwards as never)
+      .dispatch()
+
+    const finished = await batch.fresh()
+
+    // In order, which is what a chain is for.
+    expect<string[]>(Counted.ran).toEqual(['one', 'two', 'three'])
+    expect<number | undefined>(finished?.pendingJobs).toBe(0)
+    expect<boolean | undefined>(finished?.finished).toBe(true)
+    // Once, at the end — not after the first link.
+    expect<number>(Afterwards.seen.length).toBe(1)
   })
 
   test('a cancelled batch skips the jobs it cannot delete', async () => {

@@ -132,6 +132,27 @@ export interface BatchRepository {
   cancel(id: string): Promise<void>
   /** Forget finished batches older than this many seconds. */
   prune(olderThanSeconds: number): Promise<number>
+
+  /**
+   * Drop batches that never finished.
+   *
+   * Separate from `prune` because "finished" is the normal end and this is not:
+   * a batch is left unfinished by a worker that died mid-run, or by a job that
+   * failed with `allowFailures` off. Keeping them is how you notice; keeping them
+   * for ever is how the table grows without bound.
+   */
+  pruneUnfinished(olderThanSeconds: number): Promise<number>
+
+  /**
+   * Drop cancelled batches.
+   *
+   * These need their own sweep because a cancelled batch never finishes by
+   * design: its remaining jobs are skipped as they are reserved, so the pending
+   * count stays above zero for work that will never run. Without this they
+   * accumulate for ever, and `prune` — which only takes finished ones — never
+   * touches them.
+   */
+  pruneCancelled(olderThanSeconds: number): Promise<number>
 }
 
 /** Batches in memory. The `sync` connection's, and every test's. */
@@ -181,11 +202,35 @@ export class ArrayBatchRepository implements BatchRepository {
   }
 
   async prune(olderThanSeconds: number): Promise<number> {
+    return this.sweep(
+      olderThanSeconds,
+      (record, cutoff) => record.finishedAt !== undefined && record.finishedAt < cutoff
+    )
+  }
+
+  async pruneUnfinished(olderThanSeconds: number): Promise<number> {
+    return this.sweep(
+      olderThanSeconds,
+      (record, cutoff) => record.finishedAt === undefined && record.createdAt < cutoff
+    )
+  }
+
+  async pruneCancelled(olderThanSeconds: number): Promise<number> {
+    return this.sweep(
+      olderThanSeconds,
+      (record, cutoff) => record.cancelledAt !== undefined && record.createdAt < cutoff
+    )
+  }
+
+  private sweep(
+    olderThanSeconds: number,
+    matches: (record: BatchRecord, cutoff: number) => boolean
+  ): number {
     const cutoff = now() - olderThanSeconds
     let removed = 0
 
     for (const [id, record] of this.batches) {
-      if (record.finishedAt !== undefined && record.finishedAt < cutoff) {
+      if (matches(record, cutoff)) {
         this.batches.delete(id)
         removed += 1
       }
@@ -282,6 +327,22 @@ export class DatabaseBatchRepository implements BatchRepository {
     return (await this.query())
       .whereNotNull('finished_at')
       .where('finished_at', '<', now() - olderThanSeconds)
+      .delete()
+  }
+
+  async pruneUnfinished(olderThanSeconds: number): Promise<number> {
+    // Aged by `created_at`: an unfinished batch has no `finished_at` to age by,
+    // which is the whole reason it needs its own sweep.
+    return (await this.query())
+      .whereNull('finished_at')
+      .where('created_at', '<', now() - olderThanSeconds)
+      .delete()
+  }
+
+  async pruneCancelled(olderThanSeconds: number): Promise<number> {
+    return (await this.query())
+      .whereNotNull('cancelled_at')
+      .where('created_at', '<', now() - olderThanSeconds)
       .delete()
   }
 }

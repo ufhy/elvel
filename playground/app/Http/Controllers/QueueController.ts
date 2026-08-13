@@ -2,6 +2,7 @@ import { cache } from '@elysian/cache'
 import { controller, defer, NotFoundException } from '@elysian/core'
 import { chain, dispatch, dispatchSync, queue } from '@elysian/queue'
 import { t } from 'elysia'
+import { ChainStep } from '../../Jobs/ChainStep.ts'
 import { FlakyProbe } from '../../Jobs/FlakyProbe.ts'
 import { ImportRow } from '../../Jobs/ImportRow.ts'
 import { ReportImport } from '../../Jobs/ReportImport.ts'
@@ -143,6 +144,47 @@ export default controller('queue')
       })
     }
   )
+
+  /**
+   * A batch of **chains**: each row's steps run in order, the rows do not wait.
+   *
+   * This is the shape most bulk work actually has, and neither a plain batch nor
+   * a plain chain says it. The order each row ran in is recorded in the cache so
+   * a test can see it was a chain and not three loose jobs.
+   */
+  .post(
+    '/check/queue/batch-chain',
+    async ({ body }) => {
+      const rows = body.rows ?? 2
+
+      for (let row = 1; row <= rows; row += 1) await cache().forget(`chain:row:${row}`)
+
+      const batch = await queue()
+        .batch(
+          Array.from({ length: rows }, (_entry, index) => [
+            new ChainStep({ row: index + 1, step: 'fetch' }),
+            new ChainStep({ row: index + 1, step: 'transform' }),
+            new ChainStep({ row: index + 1, step: 'load' })
+          ])
+        )
+        .name('import with steps')
+        .onSuccess(ReportImport)
+        .dispatch()
+
+      return { batch: batch.toJSON() }
+    },
+    { body: t.Object({ rows: t.Optional(t.Number()) }) }
+  )
+
+  /** What order each row's steps ran in. */
+  .get('/check/queue/batch-chain/:id', async ({ params }) => {
+    const batch = await queue().batches().find(params.id)
+
+    return {
+      batch: batch?.toJSON() ?? null,
+      rows: await Promise.all([1, 2].map((row) => cache().get(`chain:row:${row}`)))
+    }
+  })
 
   /** How a batch is getting on, and what its callback recorded. */
   .get('/check/queue/batch/:id', async ({ params }) => {

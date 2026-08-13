@@ -362,7 +362,6 @@ a failed-job store, and `defer()` for work too small to queue.
 | **A timeout does not kill the attempt** | Laravel's worker raises a `pcntl` alarm in a forked child. Bun has no way to stop an async function that is already running, so a timeout makes the *worker* stop waiting and fail or retry the job — while the abandoned attempt keeps going in the background. This is the one place where the semantics are genuinely weaker than Laravel's, and it is why `timeout` should be treated as "how long before we give up on you", not "how long before you are stopped". A future `queue:work --isolate` running each job in a child process would close it. |
 | **Jobs are identified by class name, not a serialised object** | PHP can `serialize($job)`; TypeScript cannot. The payload carries a name plus the constructor data, and the worker resolves the name through discovery over `app/Jobs`. A job that lives elsewhere has to be registered: `queue().jobs.register(TheJob)`. |
 | Batch callbacks as **closures** | `then`/`catch`/`finally` take job classes. Laravel serialises closures into the batch row; a closure cannot be rebuilt in the worker that would run it, which is the same wall queued listeners hit. Naming a job is the honest version, and the callback then gets retries and a failure record like anything else. |
-| `Bus::chain()` inside a batch, and a scheduled `batch:prune` | The repository has `prune()`; nothing calls it yet. Chains and batches both exist but do not nest. |
 | Per-job `progress` callbacks | `then`, `catch` and `finally` are dispatched. A callback per job needs a reason before it needs an implementation. |
 | `queue:listen`, `queue:restart`, Horizon-style supervision | `queue:work` with `--max-jobs`/`--max-time`/`--stop-when-empty` is what a container or a supervisor wants; restarting is the supervisor's job, not ours. |
 | `sqs`, `beanstalkd`, `sync`-with-delay | No AWS or Beanstalk client in this runtime yet; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
@@ -386,6 +385,11 @@ Five behaviours worth knowing rather than discovering:
   already zero, so finishing the callback finishes the batch again, which
   dispatches another callback, for ever. The id travels in the callback's data
   instead. Found by a test hanging rather than failing.
+- **A chain inside a batch counts as all of its links.** An array in the job
+  list is a chain, as in Laravel: every link carries the batch id and decrements
+  the count as it succeeds. Counting the chain as one job would fire `onSuccess`
+  while most of the work was still queued. A cancelled batch is why
+  `queue:prune-batches` has a `--cancelled` window of its own — see below.
 - **A cancelled batch's jobs are skipped, not deleted.** A driver has no random
   access and another worker may already hold one, so cancellation is checked when a
   job is reserved. A cancelled batch therefore stays unfinished, with a pending

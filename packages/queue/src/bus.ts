@@ -6,7 +6,7 @@ export type BatchDispatcher = {
   batches(): BatchRepository
   dispatch(
     job: AnyJob,
-    options: { queue?: string; connection?: string; batchId?: string }
+    options: { queue?: string; connection?: string; batchId?: string; chain?: AnyJob[] }
   ): Promise<string>
   jobs: { has(name: string): boolean; register(...jobs: JobClass[]): unknown }
 }
@@ -29,13 +29,22 @@ export type BatchDispatcher = {
  * of the same idea — and it means a callback gets retries and a failure record
  * like anything else that runs in a worker.
  */
+/**
+ * One entry in a batch: a job, or an array of jobs meaning "these in order".
+ *
+ * A chain inside a batch is how you say "each of these ten imports has to run
+ * its own three steps in order, but the ten do not wait for each other" — which
+ * is most bulk work, and neither a plain batch nor a plain chain expresses it.
+ */
+export type BatchEntry = AnyJob | AnyJob[]
+
 export class PendingBatch {
   private batchName = ''
   private readonly options: BatchOptions = {}
 
   constructor(
     private readonly dispatcher: BatchDispatcher,
-    private readonly jobs: AnyJob[]
+    private readonly jobs: BatchEntry[]
   ) {}
 
   name(name: string): this {
@@ -100,11 +109,23 @@ export class PendingBatch {
 
   /** Store the batch, then queue every job with its id attached. */
   async dispatch(): Promise<Batch> {
+    /**
+     * A chain counts as all of its links, not as one job.
+     *
+     * The batch is finished when every link has run: each carries the batch id
+     * and decrements the count as it succeeds, so a total of one per chain would
+     * fire `onSuccess` while most of the work was still queued.
+     */
+    const total = this.jobs.reduce<number>(
+      (count, entry) => count + (Array.isArray(entry) ? entry.length : 1),
+      0
+    )
+
     const batch = await this.dispatcher.batches().store({
       id: crypto.randomUUID(),
       name: this.batchName,
-      totalJobs: this.jobs.length,
-      pendingJobs: this.jobs.length,
+      totalJobs: total,
+      pendingJobs: total,
       failedJobs: 0,
       failedJobIds: [],
       options: this.options,
@@ -114,9 +135,15 @@ export class PendingBatch {
     // Stored before anything is queued, on purpose: a worker fast enough to
     // reserve the first job before the row exists would have nothing to count
     // against.
-    for (const job of this.jobs) {
-      await this.dispatcher.dispatch(job, {
+    for (const entry of this.jobs) {
+      // Only the head of a chain is queued; the rest travel in its payload and
+      // are dispatched one at a time as each predecessor succeeds.
+      const [first, ...rest] = Array.isArray(entry) ? entry : [entry]
+      if (!first) continue
+
+      await this.dispatcher.dispatch(first, {
         batchId: batch.id,
+        ...(rest.length > 0 ? { chain: rest } : {}),
         ...(this.options.queue ? { queue: this.options.queue } : {}),
         ...(this.options.connection ? { connection: this.options.connection } : {})
       })

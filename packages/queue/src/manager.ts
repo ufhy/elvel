@@ -1,6 +1,6 @@
 import type { ApplicationContract } from '@elysian/contracts'
 import { ArrayBatchRepository, type BatchRepository, DatabaseBatchRepository } from './batch.ts'
-import { PendingBatch } from './bus.ts'
+import { type BatchEntry, PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
 import { DatabaseQueue } from './drivers/database.ts'
 import { RedisQueue } from './drivers/redis.ts'
@@ -53,10 +53,22 @@ export class QueueManager {
    * Start a batch — `Bus::batch([...])`.
    *
    * ```ts
-   * await queue().batch([new ImportRow(1), new ImportRow(2)]).then(Notify).dispatch()
+   * await queue().batch([new ImportRow(1), new ImportRow(2)]).onSuccess(Notify).dispatch()
+   * ```
+   *
+   * An array inside the list is a **chain**: those jobs run in order, while the
+   * entries beside them run alongside. That is the shape of most bulk work — ten
+   * imports that each need three steps in sequence — and neither a plain batch
+   * nor a plain chain says it.
+   *
+   * ```ts
+   * await queue().batch([
+   *   [new Fetch(1), new Transform(1), new Load(1)],
+   *   [new Fetch(2), new Transform(2), new Load(2)]
+   * ]).dispatch()
    * ```
    */
-  batch(jobs: AnyJob[]): PendingBatch {
+  batch(jobs: BatchEntry[]): PendingBatch {
     return new PendingBatch(this as never, jobs)
   }
 
@@ -254,8 +266,22 @@ export class QueueManager {
   async payloadFor(job: AnyJob, options: DispatchOptions): Promise<JobPayload> {
     const jobClass = job.constructor as JobClass
 
+    /**
+     * Every link inherits the batch id — Laravel's `prepareBatchedChain`.
+     *
+     * Without it only the first link would count against the batch, so a batch
+     * containing a three-job chain would report itself finished after the first
+     * one succeeded and fire `onSuccess` while two jobs were still to run.
+     */
     const chain: JobPayload[] = []
-    for (const link of options.chain ?? []) chain.push(await this.payloadFor(link, {}))
+    for (const link of options.chain ?? []) {
+      chain.push(
+        await this.payloadFor(
+          link,
+          options.batchId === undefined ? {} : { batchId: options.batchId }
+        )
+      )
+    }
 
     let data = serializeData(job.data) as Record<string, unknown>
     let encrypted = false
