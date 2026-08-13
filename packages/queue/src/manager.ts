@@ -4,6 +4,7 @@ import { type BatchEntry, PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
 import { DatabaseQueue } from './drivers/database.ts'
 import { RedisQueue } from './drivers/redis.ts'
+import { SqsQueue } from './drivers/sqs.ts'
 import { SyncQueue } from './drivers/sync.ts'
 import { ArrayFailedJobStore, DatabaseFailedJobStore } from './failed.ts'
 import { type AnyJob, type JobClass, JobRegistry } from './job.ts'
@@ -363,6 +364,22 @@ export class QueueManager {
           prefix: config.prefix as string | undefined,
           queue: config.queue as string | undefined,
           retryAfter: config.retryAfter as number | undefined
+        })
+
+      case 'sqs':
+        return new SqsQueue(name, {
+          region: config.region as string | undefined,
+          accessKeyId: String(config.accessKeyId ?? process.env.AWS_ACCESS_KEY_ID ?? ''),
+          secretAccessKey: String(
+            config.secretAccessKey ?? process.env.AWS_SECRET_ACCESS_KEY ?? ''
+          ),
+          sessionToken: (config.sessionToken ?? process.env.AWS_SESSION_TOKEN) as
+            | string
+            | undefined,
+          prefix: config.prefix as string | undefined,
+          queue: config.queue as string | undefined,
+          endpoint: config.endpoint as string | undefined,
+          visibilityTimeout: config.visibilityTimeout as number | undefined
         })
 
       default:

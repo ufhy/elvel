@@ -364,7 +364,7 @@ a failed-job store, and `defer()` for work too small to queue.
 | Batch callbacks as **closures** | `then`/`catch`/`finally` take job classes. Laravel serialises closures into the batch row; a closure cannot be rebuilt in the worker that would run it, which is the same wall queued listeners hit. Naming a job is the honest version, and the callback then gets retries and a failure record like anything else. |
 | Per-job `progress` callbacks | `then`, `catch` and `finally` are dispatched. A callback per job needs a reason before it needs an implementation. |
 | `queue:listen`, `queue:restart`, Horizon-style supervision | `queue:work` with `--max-jobs`/`--max-time`/`--stop-when-empty` is what a container or a supervisor wants; restarting is the supervisor's job, not ours. |
-| `sqs`, `beanstalkd`, `sync`-with-delay | No AWS or Beanstalk client in this runtime yet; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
+| `beanstalkd`, `sync`-with-delay | No Beanstalk client in this runtime; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
 | Per-property encryption inside a payload | `static encrypted = true` encrypts the whole payload, which is what `ShouldBeEncrypted` does. Encrypting one field and leaving the rest queryable would need a per-property declaration. |
 | Rate-limited and overlapping middleware as *attributes* | Both exist as middleware classes returned from `middleware()`; TypeScript has no runtime attributes. |
 
@@ -402,6 +402,15 @@ Five behaviours worth knowing rather than discovering:
 - **A released job goes to the back of the queue** on the database driver: the row
   is deleted and re-inserted, so it gets a fresh id rather than jumping ahead of
   work that arrived while it was failing.
+- **SQS owns its own reservations, so it has no `retryAfter`.** A received
+  message is invisible for `visibilityTimeout` and a delete is what finishes it;
+  there is no reserved set to migrate and no expiry sweep. Three consequences
+  are the queue's, not ours: the attempt count is `ApproximateReceiveCount`, so a
+  worker killed before it could release still increments it; `size()` is
+  approximate and sums available, delayed and in-flight, so a "wait until empty"
+  loop on it is a bug; and a delay over 900 seconds is **refused rather than
+  clamped**, because a job arriving hours early is worse than one that never
+  queued.
 - **`retryAfter` must exceed your slowest job.** It is how long a reservation is
   trusted; a job still running when it expires will be picked up a second time,
   which is the same trade Laravel makes.
@@ -643,6 +652,10 @@ uncovered, and why:
 - the S3 disk against AWS itself — the round trip is covered against MinIO
   (`TEST_S3_ENDPOINT`), which is the same protocol, but not against S3's own
   eventual-consistency and region behaviour
+- the `sqs` driver against AWS itself — the round trip is covered against
+  ElasticMQ, which speaks the same query protocol and the same SigV4, but not
+  against AWS's own eventual consistency, its 120,000 in-flight limit, or FIFO
+  queues
 - the queue's `redis` driver against a cluster; single-node Redis is covered, and
   the database driver is covered on SQLite, Postgres 17 and MySQL 9 including the
   two-workers-race case that only a real server can exercise

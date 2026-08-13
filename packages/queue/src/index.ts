@@ -26,6 +26,7 @@ export type {
 } from './contracts.ts'
 export { DatabaseQueue, type DatabaseQueueOptions } from './drivers/database.ts'
 export { RedisQueue, type RedisQueueOptions } from './drivers/redis.ts'
+export { SqsQueue, type SqsQueueOptions } from './drivers/sqs.ts'
 export { SyncQueue, type SyncRunner } from './drivers/sync.ts'
 export {
   ArrayFailedJobStore,

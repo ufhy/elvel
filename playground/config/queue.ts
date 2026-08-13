@@ -30,6 +30,27 @@ export default {
       url: env('REDIS_URL', 'redis://127.0.0.1:6379'),
       queue: 'default',
       retryAfter: 90
+    },
+
+    /**
+     * Amazon SQS, or anything that speaks it — ElasticMQ locally.
+     *
+     * There is no `retryAfter` here because SQS owns the reservation itself: a
+     * received message is invisible for `visibilityTimeout` and a delete is what
+     * finishes it. That timeout must still exceed your slowest job.
+     *
+     * `prefix` is everything before the queue name, account id included, because
+     * a queue's URL is its identity in SQS.
+     */
+    sqs: {
+      driver: 'sqs',
+      region: env('AWS_REGION', 'eu-west-1'),
+      accessKeyId: env('AWS_ACCESS_KEY_ID', ''),
+      secretAccessKey: env('AWS_SECRET_ACCESS_KEY', ''),
+      prefix: env('SQS_PREFIX', ''),
+      endpoint: env('SQS_ENDPOINT', '') || undefined,
+      queue: env('SQS_QUEUE', 'default'),
+      visibilityTimeout: 90
     }
   },
 

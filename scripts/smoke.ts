@@ -1092,7 +1092,54 @@ for (const store of stores) await app.make('cache').store(store).flush()
 section('Queue: dispatch, work, retry, fail')
 
 /** Every connection worth running here — redis only when a server answers. */
-const connections = ['database', ...(redisReachable ? ['redis'] : [])]
+/**
+ * SQS, when something speaks it — ElasticMQ locally.
+ *
+ * The queue is created here because a queue's URL *is* its identity in SQS:
+ * there is no "create on first use". Pointed at a per-run queue so two runs
+ * never share one.
+ */
+const sqsReachable = await (async () => {
+  const endpoint = process.env.SQS_ENDPOINT ?? 'http://127.0.0.1:9324'
+  const account = process.env.SQS_ACCOUNT ?? '000000000000'
+  const name = `elysian-smoke-${Date.now().toString(36)}`
+
+  try {
+    const created = await fetch(`${endpoint}/`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        Action: 'CreateQueue',
+        QueueName: name,
+        Version: '2012-11-05'
+      }).toString()
+    })
+
+    if (!created.ok) throw new Error(String(created.status))
+
+    app.config.set('queue.connections.sqs', {
+      driver: 'sqs',
+      region: 'elasticmq',
+      accessKeyId: 'x',
+      secretAccessKey: 'x',
+      endpoint: `${endpoint}/${account}`,
+      queue: name,
+      visibilityTimeout: 30
+    })
+
+    return true
+  } catch {
+    console.log(`  ${pc.dim('skipping sqs: nothing speaking it on 9324')}`)
+
+    return false
+  }
+})()
+
+const connections = [
+  'database',
+  ...(redisReachable ? ['redis'] : []),
+  ...(sqsReachable ? ['sqs'] : [])
+]
 
 async function queueState(connection: string) {
   return (await (
