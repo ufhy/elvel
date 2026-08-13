@@ -15,6 +15,11 @@ they belong in the prose under each package instead.
 Reviewed against the Laravel 13 documentation and, where behaviour mattered, the
 `laravel/framework` source.
 
+Every row was last checked against the code on 2026-08-13: each one's API was
+grepped for in `packages/*/src`, and four rows that named something already
+implemented were corrected — `Model::withoutTimestamps`, `Log::withoutContext`,
+`connection.transactions.level`, and a duplicate pair about console prompting.
+
 ---
 
 ## @elysian/database — complete for this milestone
@@ -30,7 +35,7 @@ Deliberately absent, with reasons:
 | Queued jobs *from a model* (`$model->notify()`-shaped sugar) | The queue exists and queued listeners now run through it; what is missing is sugar on the model itself. A model's lifecycle events are dispatched, so a queued listener on `model.created` already covers it. |
 | Read/write connection splitting, sticky connections | Needs a second connection per config entry and a read/write router; worth doing when someone has a replica. `ConnectionManager` already keys connections by name, so this is additive. |
 | Database transactions across connections (2PC) | `Bun.SQL` exposes `beginDistributed`, so this is reachable — no design obstacle, just unbuilt. |
-| `DB::transactionLevel()` as a public helper, and rollback callbacks | `connection.transactions.level` reports it, and `afterCommit()` defers work to the outermost commit — which is what queued jobs, listeners and notifications need. An `afterRollback` mirror has no caller yet. |
+| `afterRollback` callbacks | `connection.transactions.level` reports the depth and `afterCommit()` defers work to the outermost commit — which is what queued jobs, listeners and notifications need. The mirror has no caller yet: nothing so far wants to act *because* a transaction failed. |
 | A transaction shared across *connection objects* | Bun.SQL hands the open transaction to the callback, so nested `transaction()` on the **scoped** connection becomes a savepoint, and `afterCommit()` registered on either object lands in the same commit. What cannot work is opening a nested transaction on the *pool* while one is open — Bun refuses, and it is right to. |
 | `whereFullText`, vector/similarity clauses | Dialect-specific and rarely portable; Postgres `tsvector`, MySQL `MATCH`, and pgvector all need their own grammar. |
 | JSON path wheres (`whereJsonContains`, `->>` updates) | Three incompatible syntaxes (`json_extract`, `->>`, `jsonb`). Needs a grammar method per dialect to be correct rather than approximately correct. |
@@ -43,7 +48,7 @@ Deliberately absent, with reasons:
 | Model observers as classes | Lifecycle events are dispatched (`model.created` etc) through `@elysian/events`, so a listener can already react. There is no `Observer` class binding sugar. |
 | `lazyById()`, `chunkByIdDesc` | `chunkById` and `cursorPaginate` walk by key. The lazy (async iterator) form and the descending variant are the same loop with a different shape. |
 | A cursor over **several** columns | The cursor carries one key. Paging by `created_at` with the key as a tie-break needs the compound `where` Laravel builds recursively, and nothing here has asked for it. |
-| `Model::unguarded`, `withoutTimestamps` | `withoutEvents`, `saveQuietly` and `deleteQuietly` are implemented — muted with a flag rather than by swapping the dispatcher, because the dispatcher is shared with the rest of the framework and replacing it would silence listeners that have nothing to do with models. |
+| `Model::unguarded` | `withoutEvents`, `saveQuietly`, `deleteQuietly` and `withoutTimestamps` are implemented — events are muted with a flag rather than by swapping the dispatcher, because the dispatcher is shared with the rest of the framework and replacing it would silence listeners that have nothing to do with models. Mass-assignment is the one guard with no escape hatch. |
 | Custom cast classes (`CastsAttributes`) | Casts are the built-in set plus accessors/mutators, which covers the same ground with less machinery. |
 | Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
 | `DB::listen` as a public helper | Every query already dispatches `QueryExecuted`; a listener on `db.query` is the same thing without a new API. |
@@ -118,8 +123,7 @@ Three things to know about pivots:
 
 | Missing | Why |
 | --- | --- |
-| Prompting for a missing *option*, as opposed to an argument | `@elysian/scheduler` owns `schedule:run` and the cron matcher, so that row is gone. What is left here is interactive input, below. |
-| Prompting for missing required arguments | The parser fails with `missing: "name"` instead. `@clack/prompts` is already a dependency, so this is small. |
+| Prompting for missing arguments or options | Neither is asked for: the parser fails with `missing: "name"` instead. `@clack/prompts` is already a dependency, so this is small. |
 | `stub:publish`, `--pretend` for generators | Stubs are already overridable per project by dropping a file in `stubs/`. |
 | Command isolation / `--no-interaction` conventions | Not yet needed. |
 
@@ -172,7 +176,7 @@ and names the provider — running it in the request would look like it worked.
 | Missing | Why |
 | --- | --- |
 | `syslog`, `errorlog`, Slack, Papertrail drivers | `extend()` is the hook; each is a small driver when someone needs it. |
-| Log deprecation channel, `Log::withoutContext` on the manager | Minor surface. |
+| A deprecation channel | `withContext`/`withoutContext` are on the manager. Routing deprecation notices to a channel of their own needs somewhere for them to come from first — nothing in the framework raises one. |
 | `pail`-style live tailing | A `log:tail` command over the file drivers would cover it. |
 
 ## @elysian/validation
