@@ -30,7 +30,20 @@ export type MaintenancePayload = {
  * that is broken. A mode that cannot be switched on while the database is down is
  * not a maintenance mode.
  */
-export class MaintenanceMode {
+/**
+ * What a maintenance driver has to do.
+ *
+ * Two of them, and the choice is a real trade rather than a preference — see the
+ * note on the cache driver below.
+ */
+export interface MaintenanceDriver {
+  active(): Promise<boolean>
+  data(): Promise<MaintenancePayload | undefined>
+  activate(payload: MaintenancePayload): Promise<void>
+  deactivate(): Promise<boolean>
+}
+
+export class MaintenanceMode implements MaintenanceDriver {
   constructor(private readonly file: string) {}
 
   /** Is the application down? Read per request, so `up` takes effect at once. */
@@ -119,4 +132,59 @@ function sign(expiresAt: number, secret: string): string {
 /** A phrase for `--with-secret`: URL-safe, and long enough not to be guessed. */
 export function generateSecret(): string {
   return randomBytes(16).toString('hex')
+}
+
+/** The slice of a cache store the maintenance driver needs. */
+export type MaintenanceStore = {
+  get<T>(key: string): Promise<T | null>
+  forever(key: string, value: unknown): Promise<boolean>
+  forget(key: string): Promise<boolean>
+  has(key: string): Promise<boolean>
+}
+
+/**
+ * Maintenance mode kept in the **cache**, for a cluster.
+ *
+ * A file lives on one machine, so `artisan down` on a node behind a load
+ * balancer takes exactly that node down and leaves the rest serving. The cache
+ * is shared, which is the whole reason to use it.
+ *
+ * It is not the default, and should not be: the likeliest moment to need
+ * maintenance mode is when the database or Redis is the thing being repaired,
+ * and a switch that needs the broken component is no switch at all. Laravel
+ * makes the same call. Use this when the cluster matters more than that risk,
+ * and keep the file driver in mind for the day the store is down.
+ */
+export class CachedMaintenanceMode {
+  constructor(
+    private readonly store: MaintenanceStore,
+    private readonly key = 'elysian:maintenance'
+  ) {}
+
+  async active(): Promise<boolean> {
+    return this.store.has(this.key)
+  }
+
+  async data(): Promise<MaintenancePayload | undefined> {
+    return (await this.store.get<MaintenancePayload>(this.key)) ?? undefined
+  }
+
+  async activate(payload: MaintenancePayload): Promise<void> {
+    // Forever: a maintenance window that expired on its own would bring the
+    // application back up while the work was still going.
+    await this.store.forever(this.key, payload)
+  }
+
+  async deactivate(): Promise<boolean> {
+    if (!(await this.active())) return false
+
+    await this.store.forget(this.key)
+
+    return true
+  }
+
+  /** Nothing on disk; here so the two drivers share one shape. */
+  get path(): string {
+    return `cache:${this.key}`
+  }
 }

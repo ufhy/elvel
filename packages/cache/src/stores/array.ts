@@ -30,9 +30,28 @@ export class ArrayStore implements Store, LockProvider {
   }
 
   async many<T = unknown>(keys: string[]): Promise<Record<string, T | null>> {
+    // One pass over the map, with no await per key: there is no I/O here, and a
+    // promise per key was pure overhead on the store used by every test.
     const result: Record<string, T | null> = {}
 
-    for (const key of keys) result[key] = await this.get<T>(key)
+    for (const key of keys) {
+      const entry = this.entries.get(this.prefix + key)
+
+      if (entry === undefined) {
+        result[key] = null
+
+        continue
+      }
+
+      if (this.hasExpired(entry)) {
+        this.entries.delete(this.prefix + key)
+        result[key] = null
+
+        continue
+      }
+
+      result[key] = entry.value as T
+    }
 
     return result
   }

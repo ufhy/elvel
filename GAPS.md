@@ -55,7 +55,7 @@ Deliberately absent, with reasons:
 | Missing | Why |
 | --- | --- |
 | Contextual binding, tagged bindings, automatic constructor injection | The container is deliberately typed via `ContainerBindings` rather than reflective. TypeScript erases parameter types, so PHP-style autowiring would need decorators and `emitDecoratorMetadata`. |
-| Maintenance mode in the **cache** | `down`/`up` keep the payload in a file, which is Laravel's default and the only one that works when the thing being repaired is the database or Redis. A cache-backed driver matters for a cluster, where every node has to learn about it — that needs a driver contract and a config key. |
+| Choosing the maintenance driver from config | Both drivers exist — a file by default, and `CachedMaintenanceMode` for a cluster where every node must learn about it. What is missing is the config key that picks one; today an application swaps the binding itself. |
 | `MaintenanceModeEnabled` as an event *class* | Dispatched by name (`maintenance.enabled`, `maintenance.disabled`), as everything else here dispatches. |
 
 ## @elysian/console
@@ -146,7 +146,6 @@ that behaves differently per driver is worse than none.
 | `memcached`, `dynamodb`, `apc`, `octane` drivers | Nothing in this runtime needs them yet, and `extend()` takes a driver in ten lines. |
 | Rate limiter **events** (`RateLimitAttempt`) | The counter and `Limit` live here; naming limiters and applying them is `@elysian/http`, where the request is. Nothing dispatches an event per attempt — a listener would fire on every request, so it needs a reason first. |
 | Event classes (`CacheHit`, `KeyWritten`, …) | Events are dispatched as names — `cache.hit`, `cache.written`, `cache.forgotten`, `cache.flushed` — which is how the rest of the framework dispatches. A listener gets the same payload either way. |
-| `many()` as one round trip on `file` and `array` | Both read key by key. Redis uses `MGET` and the database store one `where in`, which is where it matters. |
 
 Done since this was written: `flexible()` defers its refresh through core's
 `defer()`, so it runs after the response; and `cache:prune` is on a schedule — the

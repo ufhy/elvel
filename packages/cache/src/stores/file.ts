@@ -24,11 +24,18 @@ export class FileStore implements Store, LockProvider {
   }
 
   async many<T = unknown>(keys: string[]): Promise<Record<string, T | null>> {
-    const result: Record<string, T | null> = {}
+    /**
+     * Read concurrently rather than one after another.
+     *
+     * A file store cannot batch the way `MGET` or a `where in` does — there are
+     * still N reads — but they no longer wait for each other, which is the whole
+     * of the difference on a disk that can serve them in parallel.
+     */
+    const values = await Promise.all(
+      keys.map(async (key) => [key, await this.get<T>(key)] as const)
+    )
 
-    for (const key of keys) result[key] = await this.get<T>(key)
-
-    return result
+    return Object.fromEntries(values)
   }
 
   async put(key: string, value: unknown, seconds: number): Promise<boolean> {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Elysia } from 'elysia'
 import { Application } from '../src/application.ts'
+import { CachedMaintenanceMode } from '../src/maintenance.ts'
 import { ServiceProvider } from '../src/service-provider.ts'
 
 let root: string
@@ -352,5 +353,53 @@ describe('shutting down', () => {
     await app.terminate()
 
     expect<number>(count).toBe(1)
+  })
+})
+
+describe('maintenance mode in the cache', () => {
+  const store = () => {
+    const entries = new Map<string, unknown>()
+
+    return {
+      entries,
+      get: async <T>(key: string) => (entries.get(key) ?? null) as T | null,
+      forever: async (key: string, value: unknown) => {
+        entries.set(key, value)
+
+        return true
+      },
+      forget: async (key: string) => entries.delete(key),
+      has: async (key: string) => entries.has(key)
+    }
+  }
+
+  test('down and up are visible to every node sharing the store', async () => {
+    const shared = store()
+
+    // Two application instances, one store: the case a file driver cannot serve,
+    // because a file lives on the machine that wrote it.
+    const first = new CachedMaintenanceMode(shared)
+    const second = new CachedMaintenanceMode(shared)
+
+    expect<boolean>(await second.active()).toBe(false)
+
+    await first.activate({ since: Date.now(), retry: 30, redirect: '/soon' })
+
+    expect<boolean>(await second.active()).toBe(true)
+    expect<unknown>((await second.data())?.redirect).toBe('/soon')
+
+    expect<boolean>(await second.deactivate()).toBe(true)
+    expect<boolean>(await first.active()).toBe(false)
+    // Bringing up something already up is not an error, it is a no-op.
+    expect<boolean>(await first.deactivate()).toBe(false)
+  })
+
+  test('the entry never expires on its own', async () => {
+    const shared = store()
+    await new CachedMaintenanceMode(shared).activate({ since: Date.now() })
+
+    // `forever`, not a TTL: a window that expired by itself would bring the
+    // application back up while the work was still going.
+    expect<boolean>(shared.entries.has('elysian:maintenance')).toBe(true)
   })
 })

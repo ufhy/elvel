@@ -38,9 +38,12 @@ export {
 export {
   BYPASS_COOKIE,
   bypassCookieIsValid,
+  CachedMaintenanceMode,
   generateSecret,
   issueBypassCookie,
+  type MaintenanceDriver,
   MaintenanceMode,
-  type MaintenancePayload
+  type MaintenancePayload,
+  type MaintenanceStore
 } from './maintenance.ts'
 export { ServiceProvider } from './service-provider.ts'
