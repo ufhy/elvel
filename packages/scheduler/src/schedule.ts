@@ -35,15 +35,19 @@ export class Schedule {
   command(command: string, parameters: string[] = []): ScheduledEvent {
     const summary = [command, ...parameters].join(' ')
 
-    return this.add(
-      new ScheduledEvent(async () => {
-        const code = await this.app.make('artisan').run([command, ...parameters])
+    const event = new ScheduledEvent(async () => {
+      const code = await this.app.make('artisan').run([command, ...parameters])
 
-        if (code !== 0) {
-          throw new Error(`Scheduled command [${summary}] exited with code ${code}.`)
-        }
-      }, summary)
-    )
+      if (code !== 0) {
+        throw new Error(`Scheduled command [${summary}] exited with code ${code}.`)
+      }
+    }, summary)
+
+    // Remembered separately from the callback: a child process cannot be handed
+    // a closure, so `runInBackground()` needs the command and its arguments.
+    event.forkable = { name: command, parameters }
+
+    return this.add(event)
   }
 
   /** Push a job onto a queue when the entry is due. */

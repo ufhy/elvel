@@ -1,5 +1,6 @@
 import { Command } from '@elysian/console'
 import { ScheduleRunner } from '../runner.ts'
+import { spawner } from '../spawn.ts'
 
 /**
  * `schedule:run`
@@ -31,6 +32,7 @@ export class ScheduleRunCommand extends Command {
       const label = `${outcome.event} (${outcome.durationMs}ms)`
 
       if (outcome.outcome === 'ran') this.output.tag('DONE', label)
+      else if (outcome.outcome === 'background') this.output.tag('INFO', `${label} — in background`)
       else if (outcome.outcome === 'failed') this.error(`FAIL  ${label}`)
       else this.comment(`SKIP  ${label} — ${outcome.outcome}`)
     }
@@ -40,6 +42,18 @@ export class ScheduleRunCommand extends Command {
 
     if (repeated.ran + repeated.failed > 0) {
       this.output.tag('INFO', `Repeated ${repeated.ran + repeated.failed} sub-minute run(s).`)
+    }
+
+    /**
+     * Wait for the children before leaving.
+     *
+     * A process that exits while one is still going releases no overlap mutex
+     * and fires no `onSuccess`, so the next minute finds the task apparently
+     * still running and skips it — for as long as the mutex lives.
+     */
+    if (runner.backgroundCount > 0) {
+      this.output.tag('INFO', `Waiting for ${runner.backgroundCount} background task(s).`)
+      await runner.waitForBackground()
     }
 
     return result.failed > 0 ? 1 : 0
@@ -56,7 +70,8 @@ export class ScheduleRunCommand extends Command {
         : undefined,
       report: (error: unknown) => this.app.make('exception.handler').report(error),
       // The runner asks once per run; `down` and `up` happen between runs.
-      isDownForMaintenance: () => this.app.isDownForMaintenance()
+      isDownForMaintenance: () => this.app.isDownForMaintenance(),
+      spawn: spawner(this.app)
     }
   }
 }

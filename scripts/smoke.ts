@@ -1703,6 +1703,31 @@ check('and skips what a filter refused', !ran.includes('filtered'))
 check('and does not run what is not due', !ran.includes('not-due'))
 check('reporting each outcome', runOutput.includes('smoke:due') && runOutput.includes('SKIP'))
 
+/**
+ * A forked entry, proved by the pid it records.
+ *
+ * `demo:mark-run` writes its own process id into the cache. If that differs
+ * from this process's, the scheduled command really did run in a child — which
+ * is the whole claim, and the one thing an in-process test cannot make.
+ */
+await app.make('cache').store().forget('schedule:background')
+
+const backgroundOutput = plain(await captureOutput(() => app.make('artisan').run(['schedule:run'])))
+
+const marked = (await app.make('cache').store().get('schedule:background')) as {
+  pid: number
+} | null
+
+check('a background entry runs at all', marked !== null, backgroundOutput.slice(-200))
+check(
+  'and in a process of its own',
+  typeof marked?.pid === 'number' && marked.pid !== process.pid,
+  `child ${marked?.pid} vs scheduler ${process.pid}`
+)
+// The run waits for its children before returning: a process that exited early
+// would release no mutex and fire no onSuccess.
+check('and schedule:run waits for it', backgroundOutput.includes('background'))
+
 // The overlap mutex, through the real cache store.
 let held: (() => void) | undefined
 const gate = new Promise<void>((resolve) => {

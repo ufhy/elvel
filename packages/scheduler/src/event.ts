@@ -34,6 +34,17 @@ export class ScheduledEvent {
 
   private repeatSeconds: number | undefined
 
+  private background = false
+
+  /**
+   * What to run in a child process, when this entry came from `command()`.
+   *
+   * Only a console command can be forked. A closure cannot: the child is a fresh
+   * process, and there is nothing there to rebuild it from — the same wall a
+   * queued closure hits. Laravel's `CallbackEvent` throws for the same reason.
+   */
+  forkable: { name: string; parameters: string[] } | undefined
+
   private descriptionText: string | undefined
   private nameText: string | undefined
 
@@ -449,6 +460,36 @@ export class ScheduledEvent {
 
   get runsOnOneServer(): boolean {
     return this.oneServer
+  }
+
+  /**
+   * Run this entry in a child process, so a slow task does not hold the minute.
+   *
+   * Everything in a schedule otherwise runs one after another in the scheduler's
+   * own process: a task that takes two minutes delays every entry behind it, and
+   * with a minute-by-minute cron that is a schedule quietly falling behind.
+   *
+   * The child is still waited on — by the run as a whole, not by the entries
+   * after it — because the mutex has to be released and `onSuccess`/`onFailure`
+   * have to see the exit code. Laravel achieves that by having the child call
+   * `schedule:finish` when it is done; a long-lived process can simply hold the
+   * promise, which is fewer moving parts and cannot be orphaned by a crash
+   * between the two commands.
+   */
+  runInBackground(): this {
+    if (!this.forkable) {
+      throw new Error(
+        `Only a scheduled command can run in the background; [${this.label}] is a closure, and a child process has nothing to rebuild it from. Dispatch a job instead: schedule().job(...) returns at once.`
+      )
+    }
+
+    this.background = true
+
+    return this
+  }
+
+  get runsInBackground(): boolean {
+    return this.background
   }
 
   get repeatInterval(): number | undefined {

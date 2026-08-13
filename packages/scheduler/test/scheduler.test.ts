@@ -639,3 +639,164 @@ describe('Schedule', () => {
     expect(schedule.flush().events()).toEqual([])
   })
 })
+
+describe('running an entry in the background', () => {
+  /** The same in-memory mutex the runner tests above use. */
+  function memoryMutex(): MutexStore & { keys: Set<string> } {
+    const keys = new Set<string>()
+
+    return {
+      keys,
+      add: async (key: string) => {
+        if (keys.has(key)) return false
+
+        keys.add(key)
+
+        return true
+      },
+      forget: async (key: string) => keys.delete(key),
+      has: async (key: string) => keys.has(key)
+    }
+  }
+
+  /** A command entry, as `Schedule.command()` builds one. */
+  const commandEvent = (name = 'report:build') => {
+    const event = new ScheduledEvent(async () => undefined, name)
+    event.forkable = { name, parameters: ['--force'] }
+
+    return event
+  }
+
+  test('a closure cannot be forked, and says why', () => {
+    const closure = new ScheduledEvent(() => undefined, 'probe')
+
+    // A child process is a fresh one: there is nothing there to rebuild a
+    // closure from, which is the same wall a queued closure hits.
+    expect(() => closure.runInBackground()).toThrow('closure')
+  })
+
+  test('the entries behind it do not wait', async () => {
+    const order: string[] = []
+    let release: (() => void) | undefined
+
+    const runner = new ScheduleRunner({
+      spawn: async () => {
+        order.push('child:started')
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        order.push('child:finished')
+
+        return 0
+      }
+    })
+
+    const slow = commandEvent('slow:task').runInBackground()
+    const quick = new ScheduledEvent(() => order.push('next'), 'next')
+
+    const result = await runner.run([slow, quick])
+
+    // The run is over and the child is still going — that is the whole point.
+    expect<string[]>(order).toEqual(['child:started', 'next'])
+    expect<number>(runner.backgroundCount).toBe(1)
+    // Started counts as ran: whether it succeeds is settled later.
+    expect<number>(result.ran).toBe(2)
+    expect<string | undefined>(result.outcomes[0]?.outcome).toBe('background')
+
+    release?.()
+    await runner.waitForBackground()
+
+    expect<string[]>(order).toEqual(['child:started', 'next', 'child:finished'])
+    expect<number>(runner.backgroundCount).toBe(0)
+  })
+
+  test('the hooks and the exit code arrive when the child does', async () => {
+    const order: string[] = []
+
+    const runner = new ScheduleRunner({ spawn: async () => 0 })
+
+    const event = commandEvent()
+      .before(() => order.push('before'))
+      .onSuccess(() => order.push('success'))
+      .onFailure(() => order.push('failure'))
+      .after(() => order.push('after'))
+      .runInBackground()
+
+    await runner.runEvent(event)
+    await runner.waitForBackground()
+
+    expect<string[]>(order).toEqual(['before', 'success', 'after'])
+    expect<unknown>(event.error).toBeUndefined()
+  })
+
+  test('a non-zero exit is the failure the hooks see', async () => {
+    const reported: unknown[] = []
+    const order: string[] = []
+
+    const runner = new ScheduleRunner({
+      spawn: async () => 3,
+      report: (error) => reported.push(error)
+    })
+
+    const event = commandEvent()
+      .onSuccess(() => order.push('success'))
+      .onFailure(() => order.push('failure'))
+      .runInBackground()
+
+    await runner.runEvent(event)
+    await runner.waitForBackground()
+
+    // An exit code is all a child can tell us, so it becomes the error.
+    expect<string[]>(order).toEqual(['failure'])
+    expect<boolean>((reported[0] as Error).message.includes('exited with code 3')).toBe(true)
+  })
+
+  test('the overlap mutex is released when the child ends, not when it starts', async () => {
+    const mutex = memoryMutex()
+    let release: (() => void) | undefined
+
+    const runner = new ScheduleRunner({
+      mutex,
+      spawn: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+
+        return 0
+      }
+    })
+
+    const event = commandEvent('nightly').withoutOverlapping().runInBackground()
+
+    await runner.runEvent(event)
+
+    // Releasing at spawn time would let the next minute start a second copy of
+    // a task that is still running — which is what withoutOverlapping exists for.
+    const second = commandEvent('nightly').withoutOverlapping().runInBackground()
+    expect<string>(await runner.runEvent(second)).toBe('overlapping')
+
+    release?.()
+    await runner.waitForBackground()
+
+    const third = commandEvent('nightly').withoutOverlapping().runInBackground()
+    expect<string>(await runner.runEvent(third)).toBe('background')
+
+    release?.()
+    await runner.waitForBackground()
+  })
+
+  test('with no spawner it runs in the foreground rather than not at all', async () => {
+    let ran = false
+
+    const event = new ScheduledEvent(() => {
+      ran = true
+    }, 'report:build')
+    event.forkable = { name: 'report:build', parameters: [] }
+    event.runInBackground()
+
+    // A runner built without a spawner — a test harness, or an embedded caller —
+    // must still run the task; silently skipping it would be the worst outcome.
+    expect<string>(await new ScheduleRunner().runEvent(event)).toBe('ran')
+    expect<boolean>(ran).toBe(true)
+  })
+})

@@ -94,6 +94,20 @@ export class AppServiceProvider extends ServiceProvider {
       .description('Drop batch records that are no longer worth keeping')
 
     /**
+     * A forked entry, so a slow task does not hold the minute.
+     *
+     * Everything else here runs in the scheduler's own process, one after
+     * another. This one is spawned as a child running the application's own
+     * `artisan`, which is why only a command can do it — a closure cannot be
+     * handed to a fresh process.
+     */
+    schedule
+      .command('demo:mark-run', ['background'])
+      .everyMinute()
+      .runInBackground()
+      .description('Prove a scheduled command can run in its own process')
+
+    /**
      * Two entries a minute apart in behaviour, not in timing.
      *
      * Both are due every minute; while `artisan down` is in force only the second

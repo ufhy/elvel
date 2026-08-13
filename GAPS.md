@@ -415,15 +415,20 @@ or a process runs `schedule:work`.
 
 | Missing | Why |
 | --- | --- |
-| **`runInBackground` does not fork** | Laravel spawns `php artisan` per entry, so a slow task does not hold the minute. Here every entry runs in the scheduler's own process, one after another: a task that takes two minutes delays the entries behind it. `withoutOverlapping()` keeps the *next minute's* copy of the same task out, which is the part that matters most, and a long task belongs on the queue — `schedule().job(...)` only dispatches, so it returns at once. |
-| `sendOutputTo` / `appendOutputTo` / `emailOutputTo` | Output is inherited rather than captured. Capturing is the easy half; the mail package is now here, so this is only waiting for a reason. |
+| A background run that outlives its minute | `runInBackground()` forks the entry, so the entries *behind* it no longer wait. What still waits is `schedule:run` itself, which holds until its children exit — otherwise the process leaves with the overlap mutex unreleased and `onSuccess` never fired. Laravel avoids that by having the child call `schedule:finish`; here a task that runs longer than a minute therefore delays the next tick of `schedule:work`. A long task still belongs on the queue. |
+| `sendOutputTo` / `appendOutputTo` / `emailOutputTo` | A forked entry inherits stdout rather than capturing it, so a background task's logging still reaches wherever the scheduler's does. Capturing it is a pipe away now that entries fork; there is nothing to redirect it *to* until one of these exists. |
 | `#` (nth weekday) and `W` (nearest weekday) in expressions | `L` is supported because `lastDayOfMonth()` needs it. The other two have no helper pointing at them, and each is a special case in the matcher; `dayMatches` is the place to add them. |
 | `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
 | `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
 | `onOneServer` releasing its mutex | Deliberate: the lock is held for the minute, which is what keeps the other servers out. A task that must not run twice in the same minute across servers gets that; one that must never overlap *at all* wants `withoutOverlapping()` too. |
 
-Three things worth knowing:
+Four things worth knowing:
 
+- **Only a command can run in the background.** A child process is a fresh one
+  with nothing to rebuild a closure from — the same wall a queued closure hits —
+  so `runInBackground()` on a `call()` entry throws instead of quietly running it
+  inline. `schedule().job(...)` is the answer for closure-shaped work: it only
+  dispatches, so it returns at once.
 - **`schedule:test` ignores maintenance mode on purpose.** `schedule:run` skips due
   entries while the application is down unless they declare
   `evenInMaintenanceMode()`; `schedule:test` exists to run one entry *now*, and

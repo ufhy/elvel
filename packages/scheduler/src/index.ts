@@ -20,6 +20,8 @@ export {
   type MutexStore,
   type RunnerOptions,
   type RunResult,
-  ScheduleRunner
+  ScheduleRunner,
+  type Spawner
 } from './runner.ts'
 export { Schedule } from './schedule.ts'
+export { spawner } from './spawn.ts'
