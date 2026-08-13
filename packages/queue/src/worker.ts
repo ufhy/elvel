@@ -23,6 +23,13 @@ export type WorkerOptions = {
   maxTime?: number
   /** Stop as soon as the queue is empty. */
   stopWhenEmpty?: boolean
+  /**
+   * Reads the restart signal — `queue:restart` writes it.
+   *
+   * Injected rather than reached for: this file has no cache and should not grow
+   * one, and a worker without a cache simply never sees a restart.
+   */
+  restartSignal?: () => Promise<number | undefined>
 }
 
 export type WorkerEvents = { dispatch(event: string, payload?: unknown): unknown }
@@ -31,7 +38,7 @@ export type WorkerResult = {
   processed: number
   failed: number
   released: number
-  reason: 'empty' | 'max-jobs' | 'max-time' | 'stopped'
+  reason: 'empty' | 'max-jobs' | 'max-time' | 'restart' | 'stopped'
 }
 
 /** Thrown when an attempt outlives its timeout. */
@@ -105,6 +112,24 @@ export class Worker {
     const result: WorkerResult = { processed: 0, failed: 0, released: 0, reason: 'stopped' }
 
     this.stopping = false
+
+    /**
+     * The signal as it stood when this worker started.
+     *
+     * A worker is a long-lived process holding code a deploy has just replaced;
+     * `queue:restart` bumps this timestamp and every worker finishes its current
+     * job and exits, for the supervisor to start again. Read against the value
+     * from *start-up*, so a worker started after a signal does not quit at once.
+     *
+     * Read **after** `stopping` is cleared, not before: awaiting first lets a
+     * `stop()` arriving in that window be overwritten by the line below, and the
+     * worker then ignores it for ever. An existing test caught exactly that.
+     */
+    // Only awaited when there is a signal to read: `await undefined` still
+    // yields, and that microtask was enough to let a `stop()` land before the
+    // first job was reserved — the same test caught this a second time.
+    const startedWith = options.restartSignal ? await options.restartSignal() : undefined
+
     this.events?.dispatch('queue.worker.starting', { queues })
 
     while (!this.stopping) {
@@ -121,6 +146,13 @@ export class Worker {
           break
         }
 
+        // An idle worker checks too, or a restart during a quiet hour would wait
+        // for the next job to arrive before taking effect.
+        if (await this.shouldRestart(options, startedWith)) {
+          result.reason = 'restart'
+          break
+        }
+
         await Bun.sleep(sleep * 1000)
         continue
       }
@@ -130,6 +162,11 @@ export class Worker {
       result.processed += 1
       if (outcome === 'failed') result.failed += 1
       if (outcome === 'released') result.released += 1
+
+      if (await this.shouldRestart(options, startedWith)) {
+        result.reason = 'restart'
+        break
+      }
 
       if (options.maxJobs && result.processed >= options.maxJobs) {
         result.reason = 'max-jobs'
@@ -363,6 +400,22 @@ export class Worker {
     }
 
     return null
+  }
+
+  /**
+   * Has `queue:restart` been broadcast since this worker started?
+   *
+   * Checked between jobs, never during one: a restart that abandoned an
+   * in-flight job would leave it reserved until its reservation expired, which
+   * is the opposite of a graceful deploy.
+   */
+  private async shouldRestart(
+    options: WorkerOptions,
+    startedWith: number | undefined
+  ): Promise<boolean> {
+    if (!options.restartSignal) return false
+
+    return (await options.restartSignal()) !== startedWith
   }
 
   private exceededTime(startedAt: number, options: WorkerOptions): boolean {

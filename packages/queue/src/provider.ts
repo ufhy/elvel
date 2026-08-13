@@ -7,6 +7,7 @@ import { QueueFailedCommand } from './console/queue-failed.ts'
 import { QueueFlushCommand } from './console/queue-flush.ts'
 import { QueueForgetCommand } from './console/queue-forget.ts'
 import { QueuePruneBatchesCommand } from './console/queue-prune-batches.ts'
+import { QueueRestartCommand } from './console/queue-restart.ts'
 import { QueueRetryCommand } from './console/queue-retry.ts'
 import { QueueSizeCommand } from './console/queue-size.ts'
 import {
@@ -50,6 +51,7 @@ export class QueueServiceProvider extends ServiceProvider {
           QueueForgetCommand,
           QueueFlushCommand,
           QueuePruneBatchesCommand,
+          QueueRestartCommand,
           QueueClearCommand,
           QueueSizeCommand,
           QueueTableCommand,

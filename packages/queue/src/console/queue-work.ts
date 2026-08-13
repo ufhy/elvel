@@ -1,4 +1,5 @@
 import { Command } from '@elysian/console'
+import { RESTART_KEY } from './queue-restart.ts'
 
 /**
  * `queue:work`
@@ -26,7 +27,17 @@ export class QueueWorkCommand extends Command {
       sleep: Number(this.stringOption('sleep') || 3),
       maxJobs: Number(this.stringOption('max-jobs') || 0),
       maxTime: Number(this.stringOption('max-time') || 0),
-      stopWhenEmpty: this.flag('stop-when-empty')
+      stopWhenEmpty: this.flag('stop-when-empty'),
+
+      /**
+       * Where the restart signal lives, when there is a cache to hold it.
+       *
+       * Without one a worker simply never restarts on signal — `queue:restart`
+       * says as much rather than pretending it broadcast something.
+       */
+      restartSignal: this.app.bound('cache')
+        ? async () => (await this.app.make('cache').store().get<number>(RESTART_KEY)) ?? undefined
+        : undefined
     }
 
     if (this.flag('once')) {

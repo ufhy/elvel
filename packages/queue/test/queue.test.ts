@@ -1346,3 +1346,104 @@ describe('maxExceptions', () => {
     expect(cache.values.size).toBe(0)
   })
 })
+
+describe('restarting workers on signal', () => {
+  class Slow extends Job<{ label: string }> {
+    static ran: string[] = []
+
+    async handle(): Promise<void> {
+      Slow.ran.push(this.data.label)
+    }
+  }
+
+  /** A queue in a list — enough to drive a worker, with nothing to set up. */
+  function memoryQueue() {
+    const waiting: JobPayload[] = []
+
+    const driver: QueueDriver = {
+      connectionName: 'memory',
+      defaultQueue: 'default',
+      push: async (payload) => {
+        waiting.push(payload)
+
+        return payload.uuid
+      },
+      later: async (_delay, payload) => {
+        waiting.push(payload)
+
+        return payload.uuid
+      },
+      pop: async () => {
+        const payload = waiting.shift()
+
+        if (!payload) return null
+
+        return {
+          payload,
+          queue: 'default',
+          connectionName: 'memory',
+          attempts: () => 1,
+          delete: async () => undefined,
+          release: async () => undefined,
+          fail: async () => undefined,
+          isDeleted: () => true,
+          isReleased: () => false,
+          hasFailed: () => false
+        }
+      },
+      size: async () => waiting.length,
+      clear: async () => {
+        const count = waiting.length
+        waiting.length = 0
+
+        return count
+      }
+    }
+
+    return driver
+  }
+
+  const runner = () => new JobRunner(new JobRegistry().register(Slow), new ModelRegistry(), {})
+
+  test('a worker stops after the job in hand when the signal changes', async () => {
+    Slow.ran = []
+
+    const driver = memoryQueue()
+    for (const label of ['a', 'b', 'c']) await driver.push(payloadFor('Slow', { label }))
+
+    let signal = 1
+
+    const result = await new Worker(driver, runner()).work(undefined, {
+      // Changes after the first read, as `queue:restart` would mid-run.
+      restartSignal: async () => {
+        const current = signal
+        signal = 2
+
+        return current
+      }
+    })
+
+    // The job in hand finishes; the rest are left for the worker that replaces
+    // this one. Killing mid-job would leave it reserved until it expired.
+    expect<string>(result.reason).toBe('restart')
+    expect<number>(Slow.ran.length).toBe(1)
+    expect<number>(await driver.size()).toBe(2)
+  })
+
+  test('an unchanged signal is not a restart', async () => {
+    Slow.ran = []
+
+    const driver = memoryQueue()
+    await driver.push(payloadFor('Slow', { label: 'a' }))
+
+    const result = await new Worker(driver, runner()).work(undefined, {
+      stopWhenEmpty: true,
+      restartSignal: async () => 7
+    })
+
+    // A worker started *after* a signal must not quit at once, which is why the
+    // comparison is against the value read at start-up.
+    expect<string>(result.reason).toBe('empty')
+    expect<number>(Slow.ran.length).toBe(1)
+  })
+})
