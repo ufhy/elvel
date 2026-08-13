@@ -1,4 +1,4 @@
-import { Collection } from '@elysian/support'
+import { Collection, Str } from '@elysian/support'
 import type { Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import type { ModelBuilder } from './builder.ts'
@@ -450,6 +450,34 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     const touches = (this.parent.constructor as typeof Model).touches
 
     if (touches.includes(this.relationName ?? '')) await this.parent.touch()
+
+    await this.touchRelatedIfTouching()
+  }
+
+  /**
+   * Touch the *related* rows when they name this relation's inverse.
+   *
+   * Laravel infers the inverse from the parent's class name; so does this, and
+   * the guess is deliberately narrow — the plural and the singular of the
+   * parent's own name, camel-cased. `Tag` with `touches = ['articles']` is
+   * therefore bumped when an article attaches it, which is the case that matters:
+   * a cache keyed on a tag's timestamp must expire when its membership changes.
+   *
+   * Only when the related model asked. A guess that touched rows nobody named
+   * would write to every table a pivot points at.
+   */
+  private async touchRelatedIfTouching(): Promise<void> {
+    const related = this.related as typeof Model
+    const wanted = related.touches
+
+    if (wanted.length === 0) return
+
+    const parentName = this.parent.constructor.name
+    const candidates = [Str.camel(Str.plural(parentName)), Str.camel(parentName)]
+
+    if (!candidates.some((name) => wanted.includes(name))) return
+
+    for (const model of await this.query().get()) await model.touch()
   }
 
   /** The property name this relation was reached through, when it can be known. */

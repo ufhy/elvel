@@ -926,3 +926,28 @@ describe('date_format', () => {
     expect<boolean>('at' in (await errors({ at: '13:15 am' }, rules))).toBe(true)
   })
 })
+
+describe('a wildcard in a rule parameter', () => {
+  test('required_if resolves the sibling of the element being checked', async () => {
+    const rules = { 'items.*.to': 'required_if:items.*.kind,gift' }
+
+    const bad = await errors({ items: [{ kind: 'plain' }, { kind: 'gift' }] }, rules)
+
+    // Only the gift needed a recipient — and the rule had to read *that*
+    // element's `kind`, not a field literally called `items.*.kind`.
+    expect<string[]>(Object.keys(bad)).toEqual(['items.1.to'])
+
+    expect<Record<string, string[]>>(
+      await errors({ items: [{ kind: 'gift', to: 'Ada' }] }, rules)
+    ).toEqual({})
+  })
+
+  test('nested wildcards fill in order', async () => {
+    const bad = await errors(
+      { orders: [{ lines: [{ kind: 'gift' }] }] },
+      { 'orders.*.lines.*.to': 'required_if:orders.*.lines.*.kind,gift' }
+    )
+
+    expect<string[]>(Object.keys(bad)).toEqual(['orders.0.lines.0.to'])
+  })
+})

@@ -215,6 +215,7 @@ for (const { name, config } of available) {
       await schema.create(tags, (table) => {
         table.id()
         table.string('label')
+        table.timestamps()
       })
     })
 
@@ -943,6 +944,34 @@ for (const { name, config } of available) {
             ).getOne()) as never as { title: string }
           )?.title
         ).toBe('tie-new')
+      })
+
+      test('attaching touches the related row when it named the inverse', async () => {
+        await truncate()
+
+        const ada = await User.create({ name: 'Ada' })
+        const post = await Post.create({ user_id: ada.id, title: 'Tagged' })
+
+        // The inverse is guessed from the parent's class name: Post -> posts.
+        Tag.touches = ['posts']
+        Tag.timestamps = true
+
+        try {
+          const tag = await Tag.create({ label: 'news' })
+          const before = (await table(tags).where('id', tag.id).first())?.updated_at
+
+          await Bun.sleep(1100)
+          await (post.labels() as never as { attach(id: unknown): Promise<void> }).attach(tag.id)
+
+          const after = (await table(tags).where('id', tag.id).first())?.updated_at
+
+          // A cache keyed on the tag's timestamp has to expire when its
+          // membership changes, and only the tag's own row can say so.
+          expect(String(after)).not.toBe(String(before))
+        } finally {
+          Tag.touches = []
+          Tag.timestamps = false
+        }
       })
 
       test('boolean and json casts survive the round trip', async () => {

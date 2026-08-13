@@ -42,7 +42,6 @@ Deliberately absent, with reasons:
 | Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
-| `touchIfTouching` guessing the **inverse** relation | Laravel infers the inverse relation's name from the class name; here the pairing must be written down. |
 
 ---
 
@@ -73,7 +72,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| A wildcard in the *middle* of a `required_if` field reference | Rule keys expand (`items.*.price` runs once per element, nested wildcards included), but a rule that names *another* field — `required_if:items.*.kind,gift` — does not resolve the sibling relative to the element it is running for. Laravel resolves it against the same index; here the field is read as written. |
 | `File::types()->min()` builder objects, `imageFile()` | `file`, `image`, `mimes`, `mimetypes`, `extensions` and `dimensions` are implemented as string rules over the web `File` a multipart body parses to. The fluent builder is sugar over the same strings. |
 | `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |

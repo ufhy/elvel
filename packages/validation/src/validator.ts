@@ -271,10 +271,23 @@ export class Validator {
       throw new Error(`Validation rule [${rule.name}] does not exist.`)
     }
 
+    /**
+     * `required_if:items.*.kind,gift` has to mean *this* element's sibling.
+     *
+     * Each `*` in a dependent rule's parameters is filled with the key of the
+     * element being validated, in order — so while `items.2.to` is checked, the
+     * rule reads `items.2.kind`. Left as written it points at a field called
+     * literally `items.*.kind`, which never exists, so the rule silently never
+     * fires: the failure mode is a required field that is never required.
+     */
+    const params = DEPENDENT_RULES.has(rule.name)
+      ? fillWildcards(rule.params, explicitKeys(this.patternFor(attribute), attribute))
+      : rule.params
+
     const context: RuleContext = {
       attribute,
       value,
-      params: rule.params,
+      params,
       data: this.data,
       rule: rule.rule,
       siblings,
@@ -466,3 +479,14 @@ export function makeValidator(data: Data, rules: Rules, options?: ValidatorOptio
 }
 
 export type { PresenceVerifier }
+
+/** Replace each `*` with the next explicit key, left to right. */
+function fillWildcards(params: string[], keys: string[]): string[] {
+  if (keys.length === 0) return params
+
+  return params.map((param) => {
+    let index = 0
+
+    return param.replace(/\*/g, () => keys[index++] ?? '*')
+  })
+}
