@@ -95,6 +95,7 @@ export class MailManager {
     return {
       from: this.app.config.get<Address | undefined>('mail.from'),
       alwaysTo: this.app.config.get<Address | undefined>('mail.alwaysTo'),
+      replyTo: this.app.config.get<Address | undefined>('mail.replyTo'),
       render: this.app.bound('view')
         ? // Cast because the factory is typed for its own component shape; the
           // renderer contract in `mailer.ts` is deliberately narrower.

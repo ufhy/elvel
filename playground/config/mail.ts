@@ -18,6 +18,15 @@ export default {
    */
   alwaysTo: env('MAIL_ALWAYS_TO', '') || undefined,
 
+  /**
+   * Reply-To for any mailable that does not name one.
+   *
+   * A default rather than an override — a mailable that names its own address
+   * still wins. For an application that sends from a no-reply address and wants
+   * answers to reach somebody anyway.
+   */
+  replyTo: env('MAIL_REPLY_TO', '') || undefined,
+
   mailers: {
     /** Writes to the log channel. The right default while developing. */
     log: { transport: 'log' },

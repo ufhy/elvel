@@ -1,5 +1,5 @@
 import type { ViewComponent } from '@elysian/contracts'
-import { type Address, type AnyMailable, addresses } from './mailable.ts'
+import { type Address, type AnyMailable, type Attachment, addresses } from './mailable.ts'
 import type { DeliveryResult, SentMessage, Transport } from './message.ts'
 
 /** Renders a view component to HTML. `@elysian/view` satisfies this. */
@@ -18,6 +18,15 @@ export type MailerOptions = {
    * production data, one careless send reaches real customers.
    */
   alwaysTo?: Address
+  /**
+   * Reply-To for any mailable that does not set one — Laravel's `alwaysReplyTo`.
+   *
+   * A default rather than an override, as Laravel's is: it is applied where the
+   * message is built, so a mailable that names its own address still wins. The
+   * use for it is an application that sends from a no-reply address and wants
+   * every answer to reach support anyway.
+   */
+  replyTo?: Address
   render?: ViewRenderer
   events?: { dispatch(event: string, payload?: unknown): unknown }
   /**
@@ -81,7 +90,10 @@ export class Mailer {
       to: addresses(envelope.to),
       cc: addresses(envelope.cc),
       bcc: addresses(envelope.bcc),
-      replyTo: addresses(envelope.replyTo),
+      replyTo:
+        envelope.replyTo === undefined
+          ? addresses(this.options.replyTo)
+          : addresses(envelope.replyTo),
       subject: envelope.subject ?? '',
       html: html ?? ('html' in content ? content.html : undefined),
       text: 'text' in content ? content.text : undefined,
@@ -129,11 +141,23 @@ export class Mailer {
     return this.options.queue(mailable, overrides, delay)
   }
 
-  /** The HTML a mailable would send, for a preview route or a snapshot test. */
+  /**
+   * The HTML a mailable would send, for a preview route or a snapshot test.
+   *
+   * Embedded images are inlined as data URIs here and **only** here. A `cid:`
+   * reference resolves against the message's own attachments, which a browser
+   * showing a preview does not have — so without this every embedded image in a
+   * preview is a broken one, and the person checking the design cannot tell that
+   * from an image that is genuinely missing. What goes to a real client keeps the
+   * `cid:` reference, because that is what makes the image show without the
+   * client fetching anything.
+   */
   async render(mailable: AnyMailable): Promise<string> {
     const message = await this.build(mailable)
 
-    return message.html ?? message.text ?? ''
+    if (message.html === undefined) return message.text ?? ''
+
+    return inlineEmbedded(message.html, message.attachments)
   }
 
   private async renderView(component: ViewComponent<never>, props: unknown): Promise<string> {
@@ -236,4 +260,45 @@ export class PendingMail {
 
     return overrides
   }
+}
+
+/** Replace `cid:` references with data URIs, for a preview. */
+async function inlineEmbedded(html: string, attachments: Attachment[]): Promise<string> {
+  const embedded = attachments.filter((file) => file.cid !== undefined)
+  if (embedded.length === 0) return html
+
+  let rendered = html
+
+  for (const file of embedded) {
+    const bytes = await contentOf(file)
+    if (bytes === undefined) continue
+
+    const uri = `data:${file.contentType ?? 'application/octet-stream'};base64,${bytes}`
+
+    // The cid may appear in more than one `<img>`, and it is matched with its
+    // delimiter so `cid:logo` cannot also rewrite `cid:logo-small`.
+    rendered = rendered
+      .replaceAll(`cid:${file.cid}"`, `${uri}"`)
+      .replaceAll(`cid:${file.cid}'`, `${uri}'`)
+  }
+
+  return rendered
+}
+
+/** An attachment's bytes as base64, whichever form it arrived in. */
+async function contentOf(file: Attachment): Promise<string | undefined> {
+  try {
+    if (file.path !== undefined) {
+      return Buffer.from(await Bun.file(file.path).arrayBuffer()).toString('base64')
+    }
+  } catch {
+    // A preview of a message whose attachment has gone missing should still
+    // render; the reference simply stays as it was.
+    return undefined
+  }
+
+  if (typeof file.content === 'string') return Buffer.from(file.content).toString('base64')
+  if (file.content) return Buffer.from(file.content).toString('base64')
+
+  return undefined
 }

@@ -441,9 +441,6 @@ through the queue package; and `Mail.fake()` for tests.
 | **SMTP is nodemailer, not ours** | Deliberate. Sending mail is an SMTP state machine *and* a MIME encoder — dot-stuffing, header folding, RFC 2047 words, quoted-printable, multipart boundaries — and every one of those is a place where a subtle bug means mail that silently lands in spam. Laravel delegates the same work to Symfony Mailer. nodemailer is one package with no dependencies of its own and it runs on Bun; what we own is the translation and the tests, including a real SMTP session. |
 | Markdown mailables | Needs a markdown parser and a theme to render into. HTML mail here is a JSX view, which is the same renderer the web views use — no second template engine, and the props are typechecked. |
 | `ses` transport | SigV4 request signing, which is a package of its own or a hundred lines of crypto. `mail().extend('ses', …)` takes it when it is wanted. |
-| Inline images resolved from `cid:` in a preview | The transports pass `cid` through, so embedding works in a real client. Laravel additionally rewrites `cid:` to a data URI when *rendering* for a preview; ours shows the raw reference. |
-| `Mail::alwaysFrom` / `alwaysReplyTo` | `alwaysTo` is implemented, because that is the one that prevents an accident. The other two are a config default away. |
-| Attachments from a storage disk | Files come from bytes or a path, so `disk('local').path(…)` and `await disk('s3').bytes(…)` both work; the sugar does not exist. |
 | `Content` carrying its props type | `content()` returns an erased `Content`, and `viewContent(Component, props)` is where the pairing is checked. A generic return type would force every mailable in an application to agree on one props type. |
 
 Two behaviours worth knowing:

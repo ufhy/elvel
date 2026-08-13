@@ -1,8 +1,10 @@
 import { controller, NotFoundException } from '@elysian/core'
-import { mail, mailer, mailTo } from '@elysian/mail'
+import { attachFromDisk, mail, mailer, mailTo } from '@elysian/mail'
 import { queue } from '@elysian/queue'
+import { disk } from '@elysian/storage'
 import { t } from 'elysia'
 import { ArticlePublished } from '../../Mail/ArticlePublished.ts'
+import { InvoiceMail } from '../../Mail/InvoiceMail.ts'
 import { Article } from '../../Models/Article.ts'
 
 /**
@@ -106,6 +108,36 @@ export default controller('mail')
     )
 
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+  })
+
+  /**
+   * An invoice attached from a disk, with an embedded logo.
+   *
+   * `?disk=s3` reads it back out of MinIO over the network, which is the case
+   * worth proving: a path would not have travelled.
+   */
+  .post('/check/mail/invoice', async ({ query }) => {
+    const name = typeof query.disk === 'string' ? query.disk : 'local'
+    const target = disk(name)
+
+    await target.put('invoices/april.pdf', '%PDF-1.4 fake invoice')
+    await target.put('brand/logo.png', 'PNGBYTES')
+
+    const mailable = new InvoiceMail({ name: 'Ada', reference: 'INV-042' }).withFiles([
+      await attachFromDisk(name, 'invoices/april.pdf', { as: 'Invoice-042.pdf' }),
+      await attachFromDisk(name, 'brand/logo.png', { cid: 'logo' })
+    ])
+
+    await mailer('array').send(mailable)
+
+    // The preview inlines the embedded image; what was sent keeps the reference.
+    const preview = await mailer('array').render(mailable)
+
+    return {
+      disk: name,
+      previewInlines: preview.includes('data:image/png;base64,'),
+      previewHasCid: preview.includes('cid:logo')
+    }
   })
 
   /** Which mailables a worker could resolve by name. */

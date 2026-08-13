@@ -3081,6 +3081,36 @@ try {
   })
 
   check('and the new password actually works', withNewPassword.status === 200)
+
+  // -------------------------------------------------- mail: disks and previews
+
+  section('Mail: attachments from a disk')
+
+  await fetch(`http://127.0.0.1:${port}/check/mail/outbox`, { method: 'DELETE' })
+
+  const invoiced = (await (
+    await fetch(`http://127.0.0.1:${port}/check/mail/invoice?disk=local`, { method: 'POST' })
+  ).json()) as { disk: string; previewInlines: boolean; previewHasCid: boolean }
+
+  // A preview shown in a browser has no attachments to resolve `cid:` against,
+  // so every embedded image would be a broken one.
+  check('a preview inlines the embedded image', invoiced.previewInlines)
+  check('and leaves no unresolved reference', !invoiced.previewHasCid)
+
+  const invoiceOutbox = (await (
+    await fetch(`http://127.0.0.1:${port}/check/mail/outbox`)
+  ).json()) as {
+    messages: Array<{ subject: string; htmlHead?: string }>
+  }
+
+  check('the invoice was sent', invoiceOutbox.messages[0]?.subject === 'Invoice INV-042')
+  // What goes to a real client keeps the reference: the client resolves it
+  // against the attachment and shows the image without fetching anything.
+  check(
+    'and what was sent keeps the cid reference',
+    invoiceOutbox.messages[0]?.htmlHead?.includes('cid:logo') === true,
+    invoiceOutbox.messages[0]?.htmlHead
+  )
 } finally {
   app.router.stop()
   await app.make('cache').store().forget('defer:ran')

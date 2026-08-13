@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elysian/core'
-import { type Content, type Envelope, Mailable, viewContent } from '../src/mailable.ts'
+import { attachFromDisk } from '../src/attachments.ts'
+import {
+  type Attachment,
+  type Content,
+  type Envelope,
+  Mailable,
+  viewContent
+} from '../src/mailable.ts'
 import { Mailer } from '../src/mailer.ts'
 import { MailManager } from '../src/manager.ts'
 import type { SentMessage, Transport } from '../src/message.ts'
@@ -766,5 +773,145 @@ describe('Mail.fake()', () => {
     fake.flush()
 
     fake.assertNothingSent()
+  })
+})
+
+// -------------------------------------------------- batch A: defaults, disks
+
+class Embedded extends Mailable<Record<string, never>> {
+  envelope(): Envelope {
+    return { from: 'hello@example.com', to: 'ada@example.com', subject: 'Look' }
+  }
+
+  content(): Content {
+    return { html: '<p><img src="cid:logo"><img src="cid:logo-small"></p>' }
+  }
+
+  override attachments(): Attachment[] {
+    return [
+      { filename: 'logo.png', content: 'PNGBYTES', contentType: 'image/png', cid: 'logo' },
+      {
+        filename: 'small.png',
+        content: 'SMALLBYTES',
+        contentType: 'image/png',
+        cid: 'logo-small'
+      }
+    ]
+  }
+}
+
+describe('a default reply-to', () => {
+  test('is used when the mailable names none', async () => {
+    const message = await mailerWith(new ArrayTransport(), {
+      replyTo: 'support@example.com'
+    }).build(new Welcome({ name: 'Ada' }))
+
+    // The use for it: sending from a no-reply address while still letting an
+    // answer reach somebody.
+    expect<string | undefined>(message.replyTo[0]?.address).toBe('support@example.com')
+  })
+
+  test("but a mailable's own wins", async () => {
+    class Answered extends Welcome {
+      override envelope(): Envelope {
+        return { ...super.envelope(), replyTo: 'ada-team@example.com' }
+      }
+    }
+
+    const message = await mailerWith(new ArrayTransport(), {
+      replyTo: 'support@example.com'
+    }).build(new Answered({ name: 'Ada' }))
+
+    // A default, not an override — this is where Laravel's `alwaysReplyTo`
+    // differs from `alwaysTo`, which forces.
+    expect<number>(message.replyTo.length).toBe(1)
+    expect<string | undefined>(message.replyTo[0]?.address).toBe('ada-team@example.com')
+  })
+})
+
+describe('embedded images in a preview', () => {
+  test('render() inlines them as data URIs', async () => {
+    const html = await mailerWith(new ArrayTransport()).render(new Embedded({}))
+
+    expect<boolean>(html.includes(`data:image/png;base64,${btoa('PNGBYTES')}`)).toBe(true)
+    // Matched with its delimiter, so `cid:logo` cannot also rewrite the longer id.
+    expect<boolean>(html.includes(`data:image/png;base64,${btoa('SMALLBYTES')}`)).toBe(true)
+    expect<boolean>(html.includes('cid:')).toBe(false)
+  })
+
+  test('but what is sent keeps the cid reference', async () => {
+    const transport = new ArrayTransport()
+    await mailerWith(transport).send(new Embedded({}))
+
+    // A real client resolves it against the attachment and shows the image
+    // without fetching anything; a data URI would only make the message bigger.
+    expect<boolean>(transport.messages[0]?.html?.includes('cid:logo') === true).toBe(true)
+  })
+
+  test('a missing file leaves the reference alone rather than failing', async () => {
+    class Broken extends Embedded {
+      override attachments(): Attachment[] {
+        return [{ filename: 'gone.png', path: '/no/such/file.png', cid: 'logo' }]
+      }
+    }
+
+    const html = await mailerWith(new ArrayTransport()).render(new Broken({}))
+
+    // A design review of a message whose image has moved should still render.
+    expect<boolean>(html.includes('cid:logo')).toBe(true)
+  })
+})
+
+describe('attaching from a storage disk', () => {
+  let app: Application
+
+  const disk = {
+    files: new Map<string, Uint8Array>([
+      ['invoices/april.pdf', new TextEncoder().encode('%PDF-1')]
+    ]),
+    async bytes(path: string) {
+      return this.files.get(path) ?? null
+    },
+    async mimeType(path: string) {
+      return path.endsWith('.pdf') ? 'application/pdf' : null
+    }
+  }
+
+  beforeEach(() => {
+    app = new Application(process.cwd())
+    app.instance('storage' as never, { disk: () => disk } as never)
+  })
+
+  test('the bytes travel with the message, not a path', async () => {
+    const attachment = await attachFromDisk('s3', 'invoices/april.pdf')
+
+    // A path only works for a disk that has one, so a queued message would fail
+    // on S3 and a local path handed to another machine is a file that is nowhere.
+    expect<boolean>(attachment.content instanceof Uint8Array).toBe(true)
+    expect<string | undefined>(attachment.path).toBeUndefined()
+  })
+
+  test('the name and type come from the file unless overridden', async () => {
+    const attachment = await attachFromDisk('s3', 'invoices/april.pdf')
+
+    expect<string>(attachment.filename).toBe('april.pdf')
+    // A wrong content type is how a PDF arrives as a download nobody opens.
+    expect<string | undefined>(attachment.contentType).toBe('application/pdf')
+
+    const renamed = await attachFromDisk('s3', 'invoices/april.pdf', {
+      as: 'Invoice.pdf',
+      contentType: 'application/x-pdf',
+      cid: 'invoice'
+    })
+
+    expect<string>(renamed.filename).toBe('Invoice.pdf')
+    expect<string | undefined>(renamed.contentType).toBe('application/x-pdf')
+    expect<string | undefined>(renamed.cid).toBe('invoice')
+  })
+
+  test('a missing file is named in the error', async () => {
+    // The usual cause is a path relative to the wrong disk, and the alternative
+    // is a message that goes out silently missing its invoice.
+    await expect(attachFromDisk('s3', 'invoices/may.pdf')).rejects.toThrow('invoices/may.pdf')
   })
 })
