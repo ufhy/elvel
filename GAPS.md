@@ -86,7 +86,6 @@ and policies on top.
 
 | Missing | Why |
 | --- | --- |
-| Guards and `auth:api` style multi-guard config | There is one session-backed guard, because better-auth models sessions itself. A token guard belongs with its own plugin (`bearer`, `jwt`). |
 
 ## @elysian/queue
 

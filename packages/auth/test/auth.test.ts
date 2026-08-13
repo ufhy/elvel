@@ -557,3 +557,64 @@ describe('migrationFor', () => {
     expect(code).toContain('async down({ schema }: MigrationContext)')
   })
 })
+
+describe('named guards', () => {
+  test('a token guard identifies the caller its own way', async () => {
+    const manager = new AuthManager({} as never)
+
+    manager.extend('api', async (request) => {
+      const token = request.headers.get('authorization')?.replace(/^Bearer /, '')
+
+      return token === 'good-token' ? ({ id: 'svc-1', email: 'svc@example.com' } as never) : null
+    })
+
+    const request = new Request('http://localhost/api/orders', {
+      headers: { authorization: 'Bearer good-token' }
+    })
+
+    await manager.runWith(null, async () => {
+      manager.enterScope(null, request)
+
+      // The session guard sees nobody; the token guard sees the service.
+      expect<boolean>(manager.check()).toBe(false)
+      expect<boolean>(await manager.guard('api').check()).toBe(true)
+      expect<unknown>(await manager.guard('api').id()).toBe('svc-1')
+    })
+  })
+
+  test('the resolver runs per call, so a revoked token stops working', async () => {
+    const manager = new AuthManager({} as never)
+    let revoked = false
+
+    manager.extend('api', async () => (revoked ? null : ({ id: 'svc-1' } as never)))
+
+    const request = new Request('http://localhost/api/orders')
+
+    await manager.runWith(null, async () => {
+      manager.enterScope(null, request)
+
+      expect<boolean>(await manager.guard('api').check()).toBe(true)
+
+      revoked = true
+
+      // Nothing is cached across calls: a token revoked a second ago must not
+      // still be trusted.
+      expect<boolean>(await manager.guard('api').check()).toBe(false)
+    })
+  })
+
+  test('an unknown guard names the ones that exist', () => {
+    const manager = new AuthManager({} as never)
+
+    expect(() => manager.guard('nope')).toThrow('Known guards: session')
+  })
+
+  test('a guard outside a request refuses rather than answering no', () => {
+    const manager = new AuthManager({} as never)
+    manager.extend('api', async () => null)
+
+    // "No user" and "there is no request to read" are different answers, and
+    // conflating them hides a bug in a console command.
+    expect(() => manager.guard('api')).toThrow('only be used inside a request')
+  })
+})

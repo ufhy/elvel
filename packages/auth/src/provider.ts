@@ -188,7 +188,7 @@ export class AuthServiceProvider extends ServiceProvider {
        * calls. Verified by the request-isolation test in `test/auth.test.ts`.
        */
       .onBeforeHandle({ as: 'global' }, ({ request }) => {
-        manager.enterScope(manager.recall(request))
+        manager.enterScope(manager.recall(request), request)
       })
       .derive({ as: 'global' }, ({ request }) => ({
         auth: manager,

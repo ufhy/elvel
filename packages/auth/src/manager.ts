@@ -15,7 +15,8 @@ export type AuthInstance = {
   }
 }
 
-type Scope = { session: AuthSession | null }
+/** What the request scope carries. `request` is what a named guard reads. */
+type Scope = { session: AuthSession | null; request?: Request }
 
 /**
  * The authenticated user for the request in flight.
@@ -64,8 +65,8 @@ export class AuthManager {
    * in its own async context, so two concurrent requests never see each other's
    * user.
    */
-  enterScope(session: AuthSession | null): void {
-    this.storage.enterWith({ session })
+  enterScope(session: AuthSession | null, request?: Request): void {
+    this.storage.enterWith(request === undefined ? { session } : { session, request })
   }
 
   /** Run `callback` with a session already in hand. Used by tests and commands. */
@@ -87,6 +88,69 @@ export class AuthManager {
   user(): AuthUser | null {
     return this.storage.getStore()?.session?.user ?? null
   }
+
+  /**
+   * A named guard — `auth().guard('api').user()`.
+   *
+   * There is one session-backed guard, because better-auth models sessions
+   * itself and a second copy of that would be a second source of truth. What a
+   * second guard *is* for is a different way of **identifying** the caller for
+   * the same request: a bearer token from a mobile client, a signed service
+   * token between two of your own services.
+   *
+   * A guard is registered with a resolver that reads the request and answers
+   * with a user or null. Nothing is cached across requests — the resolver runs
+   * per request, in the scope, so a token that was revoked a second ago is not
+   * still trusted.
+   */
+  extend(name: string, resolver: (request: Request) => Promise<AuthUser | null>): this {
+    this.guards.set(name, resolver)
+
+    return this
+  }
+
+  /** The guard to ask. The default is the session-backed one. */
+  guard(name?: string): {
+    user(): Promise<AuthUser | null>
+    check(): Promise<boolean>
+    id(): Promise<string | number | null>
+  } {
+    if (name === undefined || name === 'session') {
+      const user = this.user()
+
+      return {
+        user: async () => user,
+        check: async () => user !== null,
+        id: async () => user?.id ?? null
+      }
+    }
+
+    const resolver = this.guards.get(name)
+
+    if (!resolver) {
+      const known = ['session', ...this.guards.keys()].join(', ')
+
+      throw new Error(`Auth guard [${name}] is not defined. Known guards: ${known}.`)
+    }
+
+    const request = this.storage.getStore()?.request
+
+    if (!request) {
+      // A guard reads the request; outside one there is nothing to read, and
+      // answering "no user" would be indistinguishable from a real refusal.
+      throw new Error(`Guard [${name}] can only be used inside a request.`)
+    }
+
+    const resolve = async () => resolver(request)
+
+    return {
+      user: resolve,
+      check: async () => (await resolve()) !== null,
+      id: async () => (await resolve())?.id ?? null
+    }
+  }
+
+  private readonly guards = new Map<string, (request: Request) => Promise<AuthUser | null>>()
 
   id(): string | number | null {
     return this.user()?.id ?? null
