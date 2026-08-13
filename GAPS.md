@@ -40,7 +40,7 @@ Deliberately absent, with reasons:
 | --- | --- |
 | Queued jobs *from a model* (`$model->notify()`-shaped sugar) | The queue exists and queued listeners now run through it; what is missing is sugar on the model itself. A model's lifecycle events are dispatched, so a queued listener on `model.created` already covers it. |
 | Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
-| Database transactions across connections (2PC) | `Bun.SQL` exposes `beginDistributed`, so this is reachable — no design obstacle, just unbuilt. |
+| A recovery log for an interrupted two-phase commit | `transactionAcross()` prepares every participant before any of them commits, which closes the window that matters. What is left is the microseconds between the first commit and the last: closing that needs a transaction manager that remembers what it was doing across a crash, and the error names the prepared transaction so an operator can finish it by hand. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
 | `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |

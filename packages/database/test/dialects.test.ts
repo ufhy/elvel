@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Application } from '@elysian/core'
 import { BunSqlConnection, type ConnectionConfig } from '../src/connection/bun-sql.ts'
+import { ConnectionManager } from '../src/connection/manager.ts'
 import { ReadWriteConnection } from '../src/connection/read-write.ts'
 import { Migrator } from '../src/migrations/migrator.ts'
 import { MigrationRepository } from '../src/migrations/repository.ts'
@@ -596,6 +598,92 @@ for (const { name, config } of available) {
         // three, which is the sort of thing one dialect quietly disagrees about.
         expect(first.data.count()).toBe(2)
         expect(second.data.first()?.name).toBe('User 3')
+      })
+
+      /**
+       * Two-phase commit, where the server allows it.
+       *
+       * Postgres ships with `max_prepared_transactions = 0`, which disables prepared
+       * transactions entirely, so this skips there rather than failing: the setting
+       * is the operator's to change and it needs a restart. MySQL's XA is on by
+       * default, which is where this actually runs.
+       */
+      test('a transaction spans two connections, or says it cannot', async () => {
+        const left = `${PREFIX}_2pc_left`
+        const right = `${PREFIX}_2pc_right`
+
+        const application = new Application(process.cwd())
+        application.config.set('database.default', 'two-phase-a')
+        application.config.set('database.connections', {
+          'two-phase-a': config,
+          'two-phase-b': config
+        })
+
+        const manager = new ConnectionManager(application)
+
+        const setup = await manager.connection('two-phase-a')
+
+        await setup.unprepared(`drop table if exists ${setup.grammar.wrapTable(left)}`)
+        await setup.unprepared(`drop table if exists ${setup.grammar.wrapTable(right)}`)
+        await setup.unprepared(`create table ${setup.grammar.wrapTable(left)} (v varchar(20))`)
+        await setup.unprepared(`create table ${setup.grammar.wrapTable(right)} (v varchar(20))`)
+
+        const count = async (table: string) =>
+          Number(
+            (
+              await setup.select<{ n: number | string }>(
+                `select count(*) as n from ${setup.grammar.wrapTable(table)}`
+              )
+            )[0]?.n ?? 0
+          )
+
+        const write = () =>
+          manager.transactionAcross(['two-phase-a', 'two-phase-b'], async (connections) => {
+            await new QueryBuilder(connections['two-phase-a'] as never, left).insert({ v: 'a' })
+            await new QueryBuilder(connections['two-phase-b'] as never, right).insert({ v: 'b' })
+          })
+
+        try {
+          await write()
+        } catch (error) {
+          const message = (error as Error).message
+
+          // Two refusals are legitimate: SQLite has no 2PC at all, and a Postgres
+          // with prepared transactions disabled cannot do it either.
+          if (
+            message.includes('two-phase commit') ||
+            message.includes('prepared transactions are disabled')
+          ) {
+            await setup.unprepared(`drop table ${setup.grammar.wrapTable(left)}`)
+            await setup.unprepared(`drop table ${setup.grammar.wrapTable(right)}`)
+            await manager.disconnectAll()
+
+            return
+          }
+
+          throw error
+        }
+
+        expect(await count(left)).toBe(1)
+        expect(await count(right)).toBe(1)
+
+        // A failure after both have written rolls both back — the window this
+        // exists to close.
+        await expect(
+          manager.transactionAcross(['two-phase-a', 'two-phase-b'], async (connections) => {
+            await new QueryBuilder(connections['two-phase-a'] as never, left).insert({ v: 'no' })
+            await new QueryBuilder(connections['two-phase-b'] as never, right).insert({ v: 'no' })
+
+            throw new Error('the caller changed its mind')
+          })
+        ).rejects.toThrow('changed its mind')
+
+        expect(await count(left)).toBe(1)
+        expect(await count(right)).toBe(1)
+
+        await setup.unprepared(`drop table ${setup.grammar.wrapTable(left)}`)
+        await setup.unprepared(`drop table ${setup.grammar.wrapTable(right)}`)
+        await manager.disconnectAll()
       })
 
       test('a column can be changed on every dialect', async () => {

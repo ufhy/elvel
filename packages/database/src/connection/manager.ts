@@ -123,6 +123,123 @@ export class ConnectionManager {
     this.connections.delete(resolved)
   }
 
+  /**
+   * One transaction across several connections — two-phase commit.
+   *
+   * The problem it solves: two databases that must agree. Writing to each in its
+   * own transaction leaves a window where the first has committed and the second
+   * has not, and a crash in that window is a pair of databases that disagree for
+   * ever with nothing to notice it.
+   *
+   * Both phases, in order. Each connection runs its part and *prepares* — the
+   * work is durable but invisible. Only once every one of them has prepared does
+   * anything commit. A failure before that point rolls all of them back.
+   *
+   * What it cannot promise is the window between the first commit and the last.
+   * That window is microseconds rather than the duration of the work, and closing
+   * it entirely needs a transaction manager with a recovery log — which is what
+   * "we do not need distributed transactions" usually means in practice. A commit
+   * that fails after another has succeeded is reported with the prepared
+   * transaction's name, because that name is how an operator finishes it by hand.
+   */
+  async transactionAcross<T>(
+    names: string[],
+    callback: (connections: Record<string, Connection>) => Promise<T>
+  ): Promise<T> {
+    if (names.length === 0) throw new Error('transactionAcross() needs at least one connection.')
+
+    // One identifier for the whole thing, shared by every participant: that is
+    // what makes an interrupted commit recognisable in `pg_prepared_xacts` or
+    // `XA RECOVER` as belonging to the same piece of work.
+    const identifier = `elysian_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`
+    const participants: Array<{ name: string; connection: DistributedConnection }> = []
+
+    for (const name of names) {
+      const connection = await this.connection(name)
+
+      if (!supportsTwoPhase(connection)) {
+        throw new Error(
+          `Connection [${name}] does not support two-phase commit, so it cannot join a transaction across connections.`
+        )
+      }
+
+      participants.push({ name, connection })
+    }
+
+    /**
+     * A name per participant, sharing one prefix.
+     *
+     * Not one name for all of them: two connections often point at the same
+     * server — a second database on the same Postgres — and that server refuses
+     * a duplicate identifier outright (`XAER_DUPID` on MySQL). The shared prefix
+     * is what still makes them recognisable as one piece of work.
+     */
+    const nameFor = (participant: string) => `${identifier}_${participant}`
+
+    const prepared: Array<{ name: string; connection: DistributedConnection }> = []
+    const scoped: Record<string, Connection> = {}
+    let result!: T
+
+    /**
+     * Every participant's transaction has to be open while the callback runs.
+     *
+     * Bun scopes a distributed transaction to a callback, so they are nested:
+     * prepare the first, and inside it prepare the second, and inside the last
+     * run the caller's work. Preparing them one after another instead would
+     * finish the first before the callback had written anything to it — which is
+     * exactly what the first draft did, and it prepared an empty transaction.
+     */
+    const open = async (remaining: typeof participants): Promise<void> => {
+      const [next, ...rest] = remaining
+
+      if (!next) {
+        result = await callback(scoped)
+
+        return
+      }
+
+      await next.connection.prepareDistributed(nameFor(next.name), async (tx) => {
+        scoped[next.name] = tx
+
+        await open(rest)
+      })
+
+      // Reached only once this participant has prepared successfully.
+      prepared.push(next)
+    }
+
+    try {
+      await open(participants)
+    } catch (error) {
+      for (const participant of prepared) {
+        try {
+          await participant.connection.rollbackDistributed(nameFor(participant.name))
+        } catch {
+          // Reported nowhere: the caller's error is the one worth raising, and a
+          // rollback that fails leaves a prepared transaction the operator will
+          // find by name.
+        }
+      }
+
+      throw error
+    }
+
+    const committed: string[] = []
+
+    for (const participant of prepared) {
+      try {
+        await participant.connection.commitDistributed(nameFor(participant.name))
+        committed.push(participant.name)
+      } catch (error) {
+        throw new Error(
+          `Distributed transaction [${identifier}] committed on [${committed.join(', ') || 'none'}] but failed on [${participant.name}]: ${error instanceof Error ? error.message : String(error)}. Finish it by hand — the prepared name is ${nameFor(participant.name)}.`
+        )
+      }
+    }
+
+    return result
+  }
+
   async disconnectAll(): Promise<void> {
     for (const name of [...this.connections.keys()]) await this.disconnect(name)
   }
@@ -156,4 +273,15 @@ function pickHost(entry: unknown): Record<string, unknown> {
   }
 
   return entry as Record<string, unknown>
+}
+
+/** A connection that can take part in two-phase commit. */
+type DistributedConnection = Connection & {
+  prepareDistributed<T>(name: string, callback: (tx: Connection) => Promise<T>): Promise<T>
+  commitDistributed(name: string): Promise<void>
+  rollbackDistributed(name: string): Promise<void>
+}
+
+function supportsTwoPhase(connection: Connection): connection is DistributedConnection {
+  return typeof (connection as DistributedConnection).prepareDistributed === 'function'
 }

@@ -212,6 +212,46 @@ export class BunSqlConnection implements Connection {
    * service method three frames up opened a transaction — and that is exactly the
    * case `afterCommit` exists for.
    */
+  /**
+   * Prepare a distributed transaction and leave it prepared.
+   *
+   * The first half of two-phase commit: the work runs, the engine writes it
+   * durably, and nothing is visible until someone commits by name. On Postgres
+   * that is `PREPARE TRANSACTION`, on MySQL `XA PREPARE`; SQLite has neither and
+   * says so rather than pretending a local transaction is distributed.
+   *
+   * Exposed on the connection because only it holds the driver handle. Nothing
+   * should call these three directly — `ConnectionManager.transactionAcross()`
+   * is what makes them safe to use.
+   */
+  async prepareDistributed<T>(name: string, callback: (tx: Connection) => Promise<T>): Promise<T> {
+    if (this.config.driver === 'sqlite') {
+      throw new Error(
+        'SQLite has no two-phase commit, so it cannot take part in a transaction across connections.'
+      )
+    }
+
+    let result!: T
+
+    await this.sql.beginDistributed(name, async (tx: unknown) => {
+      const scoped = new BunSqlConnection(this.name, tx as Bun.SQL, this.config, this.dispatcher)
+
+      result = await callback(scoped)
+    })
+
+    return result
+  }
+
+  /** Commit a transaction prepared earlier, by name. */
+  async commitDistributed(name: string): Promise<void> {
+    await this.sql.commitDistributed(name)
+  }
+
+  /** Discard a prepared transaction. */
+  async rollbackDistributed(name: string): Promise<void> {
+    await this.sql.rollbackDistributed(name)
+  }
+
   async afterCommit(callback: () => unknown): Promise<void> {
     const manager = this.transactions
 
