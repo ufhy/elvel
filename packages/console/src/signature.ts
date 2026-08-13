@@ -252,3 +252,53 @@ export function formatUsage(definition: CommandDefinition): string {
 
   return parts.join(' ')
 }
+
+/**
+ * The required arguments an invocation does not supply.
+ *
+ * Parsing leniently rather than catching the error `parseInput` throws: the
+ * kernel needs the *list* to ask about, and "which one" is not recoverable from
+ * a message. Options are not included — an option that is required is a
+ * contradiction, and Laravel's prompting covers arguments only.
+ */
+export function missingArguments(
+  definition: CommandDefinition,
+  argv: string[]
+): ArgumentDefinition[] {
+  const positional: string[] = []
+  let literal = false
+  let index = 0
+
+  while (index < argv.length) {
+    const token = argv[index] as string
+    index += 1
+
+    if (token === '--') {
+      literal = true
+
+      continue
+    }
+
+    if (!literal && token.startsWith('-') && token !== '-') {
+      const name = token.replace(/^--?/, '').split('=')[0] ?? ''
+      const option = definition.options.find(
+        (candidate) => candidate.name === name || candidate.shortcut === name
+      )
+
+      // `--table widgets` is one option and its value; without skipping the
+      // value, `widgets` would be read as the first positional argument and the
+      // command would look complete when it is not.
+      if (option?.acceptsValue && !token.includes('=')) index += 1
+
+      continue
+    }
+
+    positional.push(token)
+  }
+
+  return definition.arguments
+    .filter((argument, position) =>
+      argument.isArray ? positional.length <= position : positional[position] === undefined
+    )
+    .filter((argument) => argument.required)
+}

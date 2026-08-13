@@ -10,6 +10,7 @@ import { MakeProviderCommand } from './commands/make-provider.ts'
 import { MakeViewCommand } from './commands/make-view.ts'
 import { RouteListCommand } from './commands/route-list.ts'
 import { ServeCommand } from './commands/serve.ts'
+import { StubPublishCommand } from './commands/stub-publish.ts'
 import { UpCommand } from './commands/up.ts'
 import { Kernel } from './kernel.ts'
 
@@ -39,7 +40,8 @@ export class ConsoleServiceProvider extends ServiceProvider {
       MakeProviderCommand,
       MakeCommandCommand,
       MakeEventCommand,
-      MakeListenerCommand
+      MakeListenerCommand,
+      StubPublishCommand
     )
 
     // Application commands — discovered, not registered by hand.

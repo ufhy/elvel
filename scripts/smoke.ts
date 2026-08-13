@@ -1989,6 +1989,16 @@ check(
   ['serve', 'route:list', 'about'].every((name) => commandNames.includes(name))
 )
 check('generators registered', commandNames.filter((name) => name?.startsWith('make:')).length >= 7)
+
+const stubList = plain(await captureOutput(() => artisan.run(['stub:publish', '--list'])))
+
+// The stubs live beside the package that owns them, spread across node_modules;
+// finding one by hand is why people give up and edit the generated file instead.
+check('stub:publish lists what it would publish', stubList.includes('controller.stub'))
+check(
+  'from every package that ships stubs',
+  stubList.includes('job.stub') && stubList.includes('mail.stub')
+)
 check('application commands are discovered', commandNames.includes('ping'))
 
 const pingOutput = plain(
@@ -2047,6 +2057,23 @@ const generated = [
 ]
 
 try {
+  /**
+   * `--pretend` shows the file and writes nothing.
+   *
+   * Checked before the real generation, so the assertion that nothing was
+   * written is not satisfied by a file that simply has not been made yet.
+   */
+  const pretended = plain(
+    await captureOutput(() => artisan.run(['make:controller', 'SmokePretend', '--pretend']))
+  )
+
+  check('a generator can be asked what it would do', pretended.includes('would be created'))
+  check('and shows the contents', pretended.includes("controller('smoke-pretend'"))
+  check(
+    'without writing anything',
+    !(await Bun.file(app.appPath('Http', 'Controllers', 'SmokePretendController.ts')).exists())
+  )
+
   await captureOutput(() => artisan.run(['make:controller', 'SmokeThing', '--resource']))
   const controllerSource = await Bun.file(generated[0] as string).text()
   check('make:controller --resource writes a file', controllerSource.length > 0)

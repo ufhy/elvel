@@ -4,7 +4,7 @@ import type { Application } from '@elysian/core'
 import pc from 'picocolors'
 import type { Command } from './command.ts'
 import { Output } from './output.ts'
-import { formatUsage, InputParseError, parseSignature } from './signature.ts'
+import { formatUsage, InputParseError, missingArguments, parseSignature } from './signature.ts'
 
 export type CommandConstructor = (new () => Command) & {
   signature: string
@@ -85,7 +85,9 @@ export class Kernel {
     }
 
     try {
-      const instance = new command().bind(this.app, rest, (nested, nestedArgv = []) =>
+      const supplied = await this.promptForMissing(command, rest)
+
+      const instance = new command().bind(this.app, supplied, (nested, nestedArgv = []) =>
         this.run([nested, ...nestedArgv])
       )
       const status = await instance.handle()
@@ -104,6 +106,46 @@ export class Kernel {
       }
       return 1
     }
+  }
+
+  /**
+   * Ask for the required arguments that were not given.
+   *
+   * `artisan make:model` with nothing after it used to fail with
+   * `missing: "name"`, which is correct and useless — the person already knows
+   * they left it out. Asking is what every generator in every other framework
+   * does, and it is the difference between reading the help and getting on with
+   * it.
+   *
+   * Only when a terminal is attached and `--no-interaction` was not passed: in
+   * CI a prompt is not a question, it is a hang.
+   */
+  private async promptForMissing(command: CommandConstructor, argv: string[]): Promise<string[]> {
+    if (argv.includes('--no-interaction') || argv.includes('-n')) {
+      return argv.filter((token) => token !== '--no-interaction' && token !== '-n')
+    }
+
+    if (!process.stdout.isTTY || !process.stdin.isTTY) return argv
+
+    const definition = parseSignature(command.signature)
+    const missing = missingArguments(definition, argv)
+
+    if (missing.length === 0) return argv
+
+    const answers: string[] = []
+    const labels = (command as { prompts?: Record<string, string> }).prompts ?? {}
+
+    for (const argument of missing) {
+      // The argument's own description makes the better question when there is
+      // one — it is the sentence the author already wrote about it.
+      const question =
+        labels[argument.name] ??
+        (argument.description ? `${argument.description}?` : `What is the ${argument.name}?`)
+
+      answers.push(await this.output.ask(question))
+    }
+
+    return [...argv, ...answers]
   }
 
   private renderList(): void {

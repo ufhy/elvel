@@ -64,9 +64,7 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Prompting for missing arguments or options | Neither is asked for: the parser fails with `missing: "name"` instead. `@clack/prompts` is already a dependency, so this is small. |
-| `stub:publish`, `--pretend` for generators | Stubs are already overridable per project by dropping a file in `stubs/`. |
-| Command isolation / `--no-interaction` conventions | Not yet needed. |
+| Command isolation | Not yet needed. `--no-interaction` exists, because prompting for a missing argument would otherwise hang a CI run. |
 
 ## @elysian/view
 

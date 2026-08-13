@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { formatUsage, InputParseError, parseInput, parseSignature } from '../src/signature.ts'
+import {
+  formatUsage,
+  InputParseError,
+  missingArguments,
+  parseInput,
+  parseSignature
+} from '../src/signature.ts'
 
 describe('parseSignature', () => {
   test('extracts the command name', () => {
@@ -116,5 +122,39 @@ describe('formatUsage', () => {
     const definition = parseSignature('make:controller {name} {extra?} {rest*} {--force}')
 
     expect(formatUsage(definition)).toBe('make:controller <name> [extra] <rest...> [options]')
+  })
+})
+
+describe('what an invocation left out', () => {
+  const definition = parseSignature(
+    'make:model {name : The model name} {extra?} {--force} {--table= : Table name}'
+  )
+
+  test('a required argument that was not given is reported', () => {
+    expect<string[]>(missingArguments(definition, []).map((argument) => argument.name)).toEqual([
+      'name'
+    ])
+  })
+
+  test('nothing is missing once it is there', () => {
+    expect<number>(missingArguments(definition, ['Widget']).length).toBe(0)
+  })
+
+  test('an option and its value are not mistaken for the argument', () => {
+    // `--table widgets` looks like two positional tokens to a naive scan, and
+    // the second would then be read as the name.
+    expect<string[]>(
+      missingArguments(definition, ['--table', 'widgets']).map((argument) => argument.name)
+    ).toEqual(['name'])
+
+    expect<number>(missingArguments(definition, ['--table', 'widgets', 'Widget']).length).toBe(0)
+  })
+
+  test('a flag with no value does not consume the next token', () => {
+    expect<number>(missingArguments(definition, ['--force', 'Widget']).length).toBe(0)
+  })
+
+  test('an optional argument is never asked about', () => {
+    expect<number>(missingArguments(definition, ['Widget']).length).toBe(0)
   })
 })

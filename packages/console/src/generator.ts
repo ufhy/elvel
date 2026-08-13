@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { Str } from '@elysian/support'
 import { Command } from './command.ts'
+import type { CommandDefinition } from './signature.ts'
 
 /**
  * Base class for `make:*` commands.
@@ -11,6 +12,33 @@ import { Command } from './command.ts'
  * mechanism as Artisan's `stub:publish`.
  */
 export abstract class GeneratorCommand extends Command {
+  /**
+   * `--pretend` is added to every generator here rather than to each signature.
+   *
+   * Twenty commands would otherwise have to remember to declare it, and the one
+   * that forgot would reject the flag with "option does not exist" — which reads
+   * as though the feature is missing rather than the declaration.
+   */
+  override get definition(): CommandDefinition {
+    const definition = super.definition
+
+    if (definition.options.some((option) => option.name === 'pretend')) return definition
+
+    return {
+      ...definition,
+      options: [
+        ...definition.options,
+        {
+          name: 'pretend',
+          description: 'Show what would be written, without writing it',
+          acceptsValue: false,
+          isArray: false,
+          default: false
+        }
+      ]
+    }
+  }
+
   /** Stub file name, e.g. `controller.stub`. */
   protected abstract stub(): string
 
@@ -56,6 +84,21 @@ export abstract class GeneratorCommand extends Command {
 
     const stub = await this.readStub()
     const contents = Str.replacePlaceholders(stub, this.replacements(name))
+
+    /**
+     * `--pretend` writes nothing and shows what would have been written.
+     *
+     * Worth having for the same reason `migrate --pretend` is: a generator that
+     * lands a file in the wrong directory is easy to do and tedious to undo,
+     * especially when it is one of several a single command writes.
+     */
+    if (this.flag('pretend')) {
+      this.output.tag('INFO', `${this.type()} would be created: ${this.relative(destination)}`)
+      this.output.line()
+      this.output.comment(contents.trimEnd())
+
+      return 0
+    }
 
     await mkdir(dirname(destination), { recursive: true })
     await Bun.write(destination, contents)
