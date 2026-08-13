@@ -1,4 +1,5 @@
 import { ServiceProvider } from '@elysian/core'
+import { registerCurrentPasswordRule } from '@elysian/http'
 import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
 import { type Dialect, elysianAdapter } from './adapter.ts'
@@ -87,6 +88,10 @@ export class AuthServiceProvider extends ServiceProvider {
         await this.app.make('gate').discoverPolicies(this.app.appPath('Policies'), models)
       }
     }
+
+    // `current_password` needs the signed-in user, so it can only be registered
+    // where auth is: the standalone validator has no way to reach one.
+    registerCurrentPasswordRule(this.app as never)
 
     const auth = await this.instance()
     const manager = new AuthManager(auth)

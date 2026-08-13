@@ -3,6 +3,7 @@ import { Arr } from '@elysian/support'
 import {
   type Data,
   ErrorBag,
+  extendRules,
   type PresenceVerifier,
   type RuleDeclaration,
   ValidationError,
@@ -291,4 +292,57 @@ export async function validateRequest<T extends FormRequest>(
   verifier?: PresenceVerifier
 ): Promise<Data> {
   return new request(context, verifier).validateResolved()
+}
+
+/**
+ * `current_password` — the value must be the signed-in user's password.
+ *
+ * A request-scoped question, which is why it lives here rather than in the
+ * validator: the standalone validator has no session and no user, and a rule
+ * that silently passed without one would be worse than no rule at all — it
+ * guards password changes and account deletion.
+ *
+ * Verification goes to better-auth, because it owns the hash and the algorithm
+ * it was written with. Register it once, in a provider:
+ *
+ * ```ts
+ * registerCurrentPasswordRule(this.app)
+ * ```
+ */
+export function registerCurrentPasswordRule(app: {
+  bound(key: never): boolean
+  make(key: never): unknown
+}): void {
+  extendRules('current_password', async ({ value }: { value: unknown }) => {
+    if (typeof value !== 'string' || value === '') return false
+    if (!app.bound('auth' as never)) return false
+
+    const manager = app.make('auth' as never) as {
+      user(): { email?: string } | null
+      instance: { api: { signInEmail(args: unknown): Promise<unknown> } }
+    }
+
+    const user = manager.user()
+
+    if (!user?.email) return false
+
+    try {
+      /**
+       * Verified by signing in with it, which is the only check better-auth
+       * exposes that does not need the hash.
+       *
+       * `asResponse` keeps the new session's cookie out of the reply — this is a
+       * check, not a login, and issuing a second session as a side effect of
+       * validating a form would be a surprise nobody asked for.
+       */
+      const response = (await manager.instance.api.signInEmail({
+        body: { email: user.email, password: value },
+        asResponse: true
+      })) as Response
+
+      return response.ok
+    } catch {
+      return false
+    }
+  })
 }

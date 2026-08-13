@@ -13,6 +13,7 @@ export { DatabasePresenceVerifier, ValidationServiceProvider, validator } from '
 export {
   DEPENDENT_RULES,
   EXCLUDE_RULES,
+  extendRules,
   IMPLICIT_RULES,
   isFilled,
   RULES,

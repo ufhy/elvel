@@ -38,36 +38,6 @@
         "typescript": "^7.0.2",
       },
     },
-    "apps/kit-probe": {
-      "name": "kit-probe",
-      "dependencies": {
-        "@elysian/auth": "workspace:*",
-        "@elysian/cache": "workspace:*",
-        "@elysian/console": "workspace:*",
-        "@elysian/contracts": "workspace:*",
-        "@elysian/core": "workspace:*",
-        "@elysian/database": "workspace:*",
-        "@elysian/encryption": "workspace:*",
-        "@elysian/events": "workspace:*",
-        "@elysian/http": "workspace:*",
-        "@elysian/log": "workspace:*",
-        "@elysian/mail": "workspace:*",
-        "@elysian/notifications": "workspace:*",
-        "@elysian/queue": "workspace:*",
-        "@elysian/scheduler": "workspace:*",
-        "@elysian/storage": "workspace:*",
-        "@elysian/support": "workspace:*",
-        "@elysian/validation": "workspace:*",
-        "@elysian/view": "workspace:*",
-        "@kitajs/html": "^4.2.13",
-        "better-auth": "1.6.27",
-        "elysia": "^1.4.29",
-      },
-      "devDependencies": {
-        "@types/bun": "^1.3.12",
-        "typescript": "^7.0.2",
-      },
-    },
     "packages/auth": {
       "name": "@elysian/auth",
       "version": "0.0.1",
@@ -76,6 +46,7 @@
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
         "@elysian/database": "workspace:*",
+        "@elysian/http": "workspace:*",
         "@elysian/notifications": "workspace:*",
         "@elysian/support": "workspace:*",
       },
@@ -504,8 +475,6 @@
     "ieee754": ["ieee754@1.2.1", "", {}, "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="],
 
     "jose": ["jose@6.2.8", "", {}, "sha512-Bsdjwm3Qsd/P0jR+BHDe3LytDfY7WBq2HmCCLIwuVRHMuEC9ae7/R474GIUdF1NgCyZjzVo/A9DOiOBtXq8ZoQ=="],
-
-    "kit-probe": ["kit-probe@workspace:apps/kit-probe"],
 
     "kysely": ["kysely@0.29.5", "", {}, "sha512-ooa+eSbBNPTo3MycPEuW5jdrxQdQwdtB3LC3h43FiXQbIry5tR0C5lDG7eealK0E4D7XjrnOP5DIUg/LyjRMYQ=="],
 

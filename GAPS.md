@@ -70,7 +70,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |
 
 ## @elysian/http

@@ -475,6 +475,50 @@ export const RULES: Record<string, RuleHandler> = {
   date: ({ value }) => !Number.isNaN(toDate(value)),
 
   /**
+   * `uncompromised` — the password must not appear in a known breach.
+   *
+   * Checked against Have I Been Pwned with **k-anonymity**: only the first five
+   * characters of the SHA-1 hash leave this process, and the service answers
+   * with every suffix under that prefix. The password itself is never sent, and
+   * cannot be reconstructed from what is.
+   *
+   * A threshold may be given — `uncompromised:5` allows a password seen fewer
+   * than five times. The default is zero, which is the only defensible one for a
+   * new password.
+   *
+   * A network failure **passes**. Refusing to let somebody set a password
+   * because a third-party API is down turns an outage there into an outage here,
+   * and the rule is a safeguard rather than a gate.
+   */
+  uncompromised: async ({ value, params }) => {
+    if (typeof value !== 'string' || value === '') return true
+
+    const threshold = Number(params[0] ?? 0)
+    const digest = new Bun.CryptoHasher('sha1').update(value).digest('hex').toUpperCase()
+    const prefix = digest.slice(0, 5)
+    const suffix = digest.slice(5)
+
+    try {
+      const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+        headers: { 'add-padding': 'true' },
+        signal: AbortSignal.timeout(3000)
+      })
+
+      if (!response.ok) return true
+
+      for (const line of (await response.text()).split('\n')) {
+        const [candidate, count] = line.trim().split(':')
+
+        if (candidate === suffix) return Number(count ?? 0) <= threshold
+      }
+
+      return true
+    } catch {
+      return true
+    }
+  },
+
+  /**
    * `date_format:Y-m-d` — the value must match the shape exactly.
    *
    * Stricter than `date`, and that is the point: `date` accepts anything
@@ -791,4 +835,14 @@ export function matchesDateFormat(value: string, format: string): boolean {
   return (
     date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   )
+}
+
+/**
+ * Add a rule at runtime — Laravel's `Validator::extend`.
+ *
+ * For the rules a package can only answer in context: `current_password` needs
+ * the signed-in user, which the standalone validator has no way to reach.
+ */
+export function extendRules(name: string, handler: RuleHandler): void {
+  RULES[name] = handler
 }
