@@ -89,7 +89,7 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| `syslog`, `errorlog`, Slack, Papertrail drivers | `extend()` is the hook; each is a small driver when someone needs it. |
+| `syslog`, Papertrail drivers | `errorlog` (stderr, for a container) and `slack` are here; syslog needs a socket protocol and Papertrail is a syslog endpoint. `extend()` takes either in a few lines. |
 | A deprecation channel | `withContext`/`withoutContext` are on the manager. Routing deprecation notices to a channel of their own needs somewhere for them to come from first — nothing in the framework raises one. |
 | `pail`-style live tailing | A `log:tail` command over the file drivers would cover it. |
 

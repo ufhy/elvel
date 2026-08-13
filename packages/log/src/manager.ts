@@ -9,7 +9,13 @@ import type {
 import { ConsoleDriver } from './drivers/console.ts'
 import { DailyDriver, FileDriver } from './drivers/file.ts'
 import { JsonDriver } from './drivers/json.ts'
-import { MemoryDriver, NullDriver, StackDriver } from './drivers/misc.ts'
+import {
+  ErrorLogDriver,
+  MemoryDriver,
+  NullDriver,
+  SlackDriver,
+  StackDriver
+} from './drivers/misc.ts'
 import { severityOf } from './levels.ts'
 import { Logger } from './logger.ts'
 
@@ -182,6 +188,26 @@ export class LogManager implements LoggerContract {
 
         return new StackDriver(channels.map((channel) => this.driverFor(channel)))
       }
+
+      case 'errorlog':
+        return new ErrorLogDriver()
+
+      case 'slack':
+        return new SlackDriver(
+          {
+            url: String(resolved.url ?? ''),
+            username: resolved.username as string | undefined,
+            emoji: resolved.emoji as string | undefined,
+            level: (resolved.level as string | undefined) ?? 'error'
+          },
+          (error) => {
+            // Straight to stderr: reporting a logging failure through the log is
+            // how a broken channel becomes an infinite loop.
+            process.stderr.write(
+              `[log] slack delivery failed: ${error instanceof Error ? error.message : String(error)}\n`
+            )
+          }
+        )
 
       case 'memory':
         return new MemoryDriver()
