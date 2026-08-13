@@ -1,4 +1,5 @@
 export { ErrorBag } from './error-bag.ts'
+export { FileRule, kilobytesFor } from './files.ts'
 export {
   humanizeAttribute,
   interpolate,

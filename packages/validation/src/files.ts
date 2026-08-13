@@ -191,3 +191,101 @@ async function jpeg(file: File): Promise<SniffedImage> {
 
   return { type: 'image/jpeg', width: 0, height: 0 }
 }
+
+/**
+ * A fluent builder for file rules — Laravel's `File::types(...)->max(...)`.
+ *
+ * Sugar over the string rules, and honestly labelled as such: `toString()`
+ * produces exactly what you would have written by hand. The reason to prefer it
+ * is that `File.image().max('2mb')` cannot be misspelled, where
+ * `'image|max:2048'` can — and a misspelled rule name throws, while a
+ * misspelled *size unit* silently validates against a different number.
+ */
+export class FileRule {
+  private readonly rules: string[] = ['file']
+
+  static types(mimes: string | string[]): FileRule {
+    const rule = new FileRule()
+    rule.rules.push(`mimetypes:${(Array.isArray(mimes) ? mimes : [mimes]).join(',')}`)
+
+    return rule
+  }
+
+  /** Any image the parser can sniff. `svg` is opt-in — it can carry script. */
+  static image(allowSvg = false): FileRule {
+    const rule = new FileRule()
+    rule.rules.push(allowSvg ? 'image:allow_svg' : 'image')
+
+    return rule
+  }
+
+  static default(): FileRule {
+    return new FileRule()
+  }
+
+  extensions(list: string | string[]): this {
+    this.rules.push(`extensions:${(Array.isArray(list) ? list : [list]).join(',')}`)
+
+    return this
+  }
+
+  /** Kilobytes, or a suffixed size: `'2mb'`, `'500kb'`, `'1gb'`. */
+  min(size: number | string): this {
+    this.rules.push(`min:${kilobytesFor(size)}`)
+
+    return this
+  }
+
+  max(size: number | string): this {
+    this.rules.push(`max:${kilobytesFor(size)}`)
+
+    return this
+  }
+
+  between(min: number | string, max: number | string): this {
+    this.rules.push(`between:${kilobytesFor(min)},${kilobytesFor(max)}`)
+
+    return this
+  }
+
+  dimensions(constraints: Record<string, number | string>): this {
+    const parts = Object.entries(constraints).map(([key, value]) => `${key}=${value}`)
+
+    this.rules.push(`dimensions:${parts.join(',')}`)
+
+    return this
+  }
+
+  /** Anything the builder does not cover, appended as written. */
+  rule(rule: string): this {
+    this.rules.push(rule)
+
+    return this
+  }
+
+  toString(): string {
+    return this.rules.join('|')
+  }
+}
+
+/**
+ * `'2mb'` is 2048 kilobytes.
+ *
+ * Every size rule counts kilobytes, which is a unit nobody thinks in — writing
+ * `max:2048` and meaning two megabytes is the kind of arithmetic that goes wrong
+ * once and then goes unnoticed. A bare number is still kilobytes, so the old
+ * spelling keeps working.
+ */
+export function kilobytesFor(size: number | string): number {
+  if (typeof size === 'number') return size
+
+  const match = /^(\d+(?:\.\d+)?)\s*(kb|mb|gb|tb)?$/i.exec(size.trim())
+
+  if (!match) throw new Error(`[${size}] is not a size. Use a number of kilobytes, or "2mb".`)
+
+  const amount = Number(match[1])
+  const unit = (match[2] ?? 'kb').toLowerCase()
+  const factor = { kb: 1, mb: 1024, gb: 1024 * 1024, tb: 1024 * 1024 * 1024 }[unit] ?? 1
+
+  return Math.round(amount * factor)
+}

@@ -215,6 +215,7 @@ export class NestedRules {
 
 export type RuleDeclaration =
   | string
+  | { toString(): string }
   | DatabaseRule
   | ClosureRule
   | ConditionalRules

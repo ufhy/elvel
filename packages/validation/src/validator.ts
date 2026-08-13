@@ -1,5 +1,6 @@
 import { Arr } from '@elysian/support'
 import { ErrorBag } from './error-bag.ts'
+import { FileRule } from './files.ts'
 import { humanizeAttribute, interpolate, resolveMessage, typeOf } from './messages.ts'
 import {
   DEPENDENT_RULES,
@@ -130,6 +131,10 @@ export class Validator {
 
       // A function is a rule in its own right; it carries its own message, so
       // there is nothing to look up in the catalogue.
+      // A builder is its own string: `File.image().max('2mb')` is exactly what
+      // you would have written by hand, and says so through `toString()`.
+      if (entry instanceof FileRule) return Validator.parse(entry.toString())
+
       if (typeof entry === 'function') {
         return [{ name: 'closure', params: [], closure: entry as ClosureRule }]
       }

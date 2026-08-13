@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { FileRule, kilobytesFor } from '../src/files.ts'
 import { Rule } from '../src/types.ts'
 import { ValidationError, Validator } from '../src/validator.ts'
 
@@ -949,5 +950,43 @@ describe('a wildcard in a rule parameter', () => {
     )
 
     expect<string[]>(Object.keys(bad)).toEqual(['orders.0.lines.0.to'])
+  })
+})
+
+describe('the file rule builder', () => {
+  test('it produces exactly the string you would have written', () => {
+    expect<string>(FileRule.image().max('2mb').toString()).toBe('file|image|max:2048')
+    expect<string>(FileRule.types(['application/pdf']).extensions('pdf').toString()).toBe(
+      'file|mimetypes:application/pdf|extensions:pdf'
+    )
+    expect<string>(FileRule.default().between('500kb', '1mb').toString()).toBe(
+      'file|between:500,1024'
+    )
+  })
+
+  test('sizes are read in the unit people think in', () => {
+    // Every size rule counts kilobytes. Writing max:2048 and meaning two
+    // megabytes is arithmetic that goes wrong once and then goes unnoticed.
+    expect<number>(kilobytesFor('2mb')).toBe(2048)
+    expect<number>(kilobytesFor('1gb')).toBe(1_048_576)
+    expect<number>(kilobytesFor(512)).toBe(512)
+    expect(() => kilobytesFor('2 bananas')).toThrow('is not a size')
+  })
+
+  test('svg is opt-in, because it can carry script', () => {
+    expect<string>(FileRule.image().toString()).toBe('file|image')
+    expect<string>(FileRule.image(true).toString()).toBe('file|image:allow_svg')
+  })
+
+  test('a builder is accepted wherever a rule string is', async () => {
+    const file = new File(['x'], 'note.txt', { type: 'text/plain' })
+
+    expect<Record<string, string[]>>(
+      await errors({ upload: file }, { upload: FileRule.default().max('1mb') })
+    ).toEqual({})
+
+    expect<boolean>(
+      'upload' in (await errors({ upload: file }, { upload: FileRule.types('application/pdf') }))
+    ).toBe(true)
   })
 })
