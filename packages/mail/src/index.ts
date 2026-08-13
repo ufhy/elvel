@@ -24,6 +24,16 @@ export {
 } from './message.ts'
 export { MailServiceProvider } from './provider.ts'
 export { MailableRegistry, type QueuedMailData, SendQueuedMail } from './queued.ts'
+export {
+  amzDate,
+  type Credentials,
+  canonicalRequest,
+  type SigningRequest,
+  signingKey,
+  signRequest,
+  stringToSign,
+  uriEncode
+} from './sigv4.ts'
 export { ArrayTransport } from './transports/array.ts'
 export { FailoverTransport, RoundRobinTransport } from './transports/fallback.ts'
 export {
@@ -33,4 +43,5 @@ export {
   ResendTransport
 } from './transports/http.ts'
 export { LogTransport, type LogWriter } from './transports/log.ts'
+export { type SesOptions, SesTransport } from './transports/ses.ts'
 export { type SmtpOptions, SmtpTransport } from './transports/smtp.ts'

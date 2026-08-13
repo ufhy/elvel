@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
+import { createHmac } from 'node:crypto'
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elysian/database'
+import { canonicalRequest, signingKey, stringToSign } from '@elysian/mail'
 import { ScheduleRunner } from '@elysian/scheduler'
 import pc from 'picocolors'
 
@@ -3111,6 +3113,101 @@ try {
     invoiceOutbox.messages[0]?.htmlHead?.includes('cid:logo') === true,
     invoiceOutbox.messages[0]?.htmlHead
   )
+
+  // --------------------------------------------------------------- SES, signed
+
+  section('Mail: SES over a signed request')
+
+  /**
+   * A stand-in for SES that recomputes the signature and refuses a request that
+   * does not match.
+   *
+   * A stub that accepted anything would prove only that a POST was made. This
+   * one derives the same signing key and rebuilds the canonical request from
+   * what actually arrived over the socket, so a transport that signs the wrong
+   * headers, body or path gets a 403 here exactly as it would from AWS.
+   */
+  const sesSecret = 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY'
+  let sesRequest: { verified: boolean; content: Record<string, unknown> } | undefined
+
+  const sesStub = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const body = await request.text()
+      const authorization = request.headers.get('authorization') ?? ''
+      const parts =
+        /Credential=[^/]+\/(\d{8})\/([^/]+)\/([^/]+)\/aws4_request, SignedHeaders=([^,]+), Signature=([0-9a-f]+)/.exec(
+          authorization
+        )
+
+      if (!parts) return Response.json({ message: 'unsigned' }, { status: 403 })
+
+      const [, date, region, service, signedHeaders, signature] = parts as unknown as string[]
+      const headers: Record<string, string> = {}
+      for (const name of (signedHeaders as string).split(';')) {
+        headers[name] = request.headers.get(name) ?? ''
+      }
+
+      const { canonical } = canonicalRequest({
+        method: request.method,
+        url: request.url,
+        headers,
+        body
+      })
+
+      const expected = createHmac(
+        'sha256',
+        signingKey(sesSecret, date as string, region as string, service as string)
+      )
+        .update(
+          stringToSign(
+            canonical,
+            `${date}/${region}/${service}/aws4_request`,
+            request.headers.get('x-amz-date') ?? ''
+          )
+        )
+        .digest('hex')
+
+      const parsed = JSON.parse(body) as { Content: Record<string, unknown> }
+      sesRequest = { verified: expected === signature, content: parsed.Content }
+
+      if (expected !== signature) {
+        return Response.json({ message: 'signature mismatch' }, { status: 403 })
+      }
+
+      return Response.json({ MessageId: 'ses-smoke-id' })
+    }
+  })
+
+  try {
+    app.config.set('mail.mailers.ses', {
+      transport: 'ses',
+      region: 'eu-west-1',
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: sesSecret,
+      endpoint: `http://127.0.0.1:${sesStub.port}`
+    })
+
+    const viaSes = (await (
+      await fetch(`http://127.0.0.1:${port}/check/mail/send/1?mailer=ses`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: 'ada@example.com' })
+      })
+    ).json()) as { sent?: string; id?: string }
+
+    check('a message goes out through SES', viaSes.sent === 'ses', JSON.stringify(viaSes))
+    check('and SES answers with its message id', viaSes.id === 'ses-smoke-id')
+    // The signature is what stands between this transport and a 403 nobody can
+    // explain; recomputing it is the only check worth making.
+    check('the request was signed correctly', sesRequest?.verified === true)
+    check(
+      'with no attachment it goes as Simple content',
+      sesRequest?.content.Simple !== undefined && sesRequest?.content.Raw === undefined
+    )
+  } finally {
+    sesStub.stop(true)
+  }
 } finally {
   app.router.stop()
   await app.make('cache').store().forget('defer:ran')

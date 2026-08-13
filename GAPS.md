@@ -440,11 +440,14 @@ through the queue package; and `Mail.fake()` for tests.
 | --- | --- |
 | **SMTP is nodemailer, not ours** | Deliberate. Sending mail is an SMTP state machine *and* a MIME encoder — dot-stuffing, header folding, RFC 2047 words, quoted-printable, multipart boundaries — and every one of those is a place where a subtle bug means mail that silently lands in spam. Laravel delegates the same work to Symfony Mailer. nodemailer is one package with no dependencies of its own and it runs on Bun; what we own is the translation and the tests, including a real SMTP session. |
 | Markdown mailables | Needs a markdown parser and a theme to render into. HTML mail here is a JSX view, which is the same renderer the web views use — no second template engine, and the props are typechecked. |
-| `ses` transport | SigV4 request signing, which is a package of its own or a hundred lines of crypto. `mail().extend('ses', …)` takes it when it is wanted. |
 | `Content` carrying its props type | `content()` returns an erased `Content`, and `viewContent(Component, props)` is where the pairing is checked. A generic return type would force every mailable in an application to agree on one props type. |
 
-Two behaviours worth knowing:
+Three behaviours worth knowing:
 
+- **SES is signed here, not by an SDK.** `sigv4.ts` passes AWS's own published
+  test vectors, which are committed under `packages/mail/test/fixtures/sigv4`.
+  One of them — `post-x-www-form-urlencoded` — has files that disagree with each
+  other, so only its canonical request is asserted; the reason is in the test.
 - **`alwaysTo` keeps the originals.** Redirected recipients are written to
   `X-Elysian-To`/`Cc`/`Bcc` rather than dropped, so a message caught on staging can
   still be traced to who it was for.

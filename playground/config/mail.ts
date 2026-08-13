@@ -49,6 +49,22 @@ export default {
 
     resend: { transport: 'resend', key: env('RESEND_KEY', '') },
 
+    /**
+     * Amazon SES v2, signed with SigV4 here rather than through the AWS SDK.
+     *
+     * `endpoint` is for a VPC endpoint or a local double; leave it empty and the
+     * region decides the address.
+     */
+    ses: {
+      transport: 'ses',
+      region: env('AWS_REGION', 'eu-west-1'),
+      accessKeyId: env('AWS_ACCESS_KEY_ID', ''),
+      secretAccessKey: env('AWS_SECRET_ACCESS_KEY', ''),
+      sessionToken: env('AWS_SESSION_TOKEN', '') || undefined,
+      endpoint: env('SES_ENDPOINT', '') || undefined,
+      configurationSet: env('SES_CONFIGURATION_SET', '') || undefined
+    },
+
     /** Try SMTP, fall back to writing the message to the log. */
     failover: { transport: 'failover', mailers: ['smtp', 'log'] }
   }

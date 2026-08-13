@@ -8,6 +8,7 @@ import { ArrayTransport } from './transports/array.ts'
 import { FailoverTransport, RoundRobinTransport } from './transports/fallback.ts'
 import { MailgunTransport, PostmarkTransport, ResendTransport } from './transports/http.ts'
 import { LogTransport } from './transports/log.ts'
+import { SesTransport } from './transports/ses.ts'
 import { SmtpTransport } from './transports/smtp.ts'
 
 export type MailerConfig = { transport: string } & Record<string, unknown>
@@ -228,6 +229,17 @@ export class MailManager {
           key: String(config.key ?? ''),
           domain: String(config.domain ?? ''),
           endpoint: config.endpoint as string | undefined
+        })
+
+      case 'ses':
+        return new SesTransport({
+          region: String(config.region ?? 'us-east-1'),
+          accessKeyId: String(config.accessKeyId ?? ''),
+          secretAccessKey: String(config.secretAccessKey ?? ''),
+          sessionToken: config.sessionToken as string | undefined,
+          endpoint: config.endpoint as string | undefined,
+          configurationSet: config.configurationSet as string | undefined,
+          fromArn: config.fromArn as string | undefined
         })
 
       case 'failover':
