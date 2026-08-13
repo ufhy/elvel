@@ -17,6 +17,24 @@ export type WriteOptions = {
  * leave the root is refused rather than resolved: without Flysystem between us
  * and the filesystem, that check is ours to make.
  */
+/**
+ * Thrown by the `orFail` reads, when a caller would rather not check.
+ *
+ * The plain reads answer `null` for a missing file, which is right for the
+ * common case — a missing avatar is not an error. It is wrong for the other
+ * one: reading a config or an import that *must* exist, where `null` flows on
+ * and fails somewhere far away with no mention of the path.
+ */
+export class MissingFileError extends Error {
+  constructor(
+    readonly disk: string,
+    readonly path: string
+  ) {
+    super(`File [${path}] does not exist on the ${disk} disk.`)
+    this.name = 'MissingFileError'
+  }
+}
+
 export interface Disk {
   readonly name: string
 
@@ -32,6 +50,12 @@ export interface Disk {
 
   /** Contents as bytes, or null when the file is not there. */
   bytes(path: string): Promise<Uint8Array | null>
+
+  /** Contents as text, or `MissingFileError` when the file is not there. */
+  getOrFail(path: string): Promise<string>
+
+  /** Contents as bytes, or `MissingFileError` when the file is not there. */
+  bytesOrFail(path: string): Promise<Uint8Array>
 
   /** Parsed JSON, or null when the file is missing or unparseable. */
   json<T = unknown>(path: string): Promise<T | null>
@@ -77,7 +101,14 @@ export interface Disk {
 
   allDirectories(directory?: string): Promise<string[]>
 
-  makeDirectory(path: string): Promise<boolean>
+  /**
+   * Create a directory, optionally with a visibility of its own.
+   *
+   * A private file inside a world-readable directory is still listed by anything
+   * that can read the directory, so the two settings are separate questions and
+   * this is where the second one is answered.
+   */
+  makeDirectory(path: string, visibility?: Visibility): Promise<boolean>
 
   deleteDirectory(path: string): Promise<boolean>
 

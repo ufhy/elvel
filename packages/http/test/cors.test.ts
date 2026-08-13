@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   actualHeaders,
   corsConfig,
+  corsFor,
   isCorsRequest,
   isOriginAllowed,
   isPreflight,
@@ -211,5 +212,50 @@ describe('preflight headers', () => {
 
     expect(headers['Access-Control-Allow-Credentials']).toBeUndefined()
     expect(headers['Access-Control-Expose-Headers']).toBeUndefined()
+  })
+})
+
+describe('per-route overrides', () => {
+  const global = corsConfig({ paths: ['api/*'], allowedOrigins: ['https://app.example.com'] })
+
+  const overrides = [
+    { paths: ['api/public/*'], allowedOrigins: ['*'] },
+    { paths: ['api/*'], supportsCredentials: true }
+  ]
+
+  const at = (path: string) =>
+    new Request(`http://localhost/${path}`, {
+      headers: { origin: 'https://somewhere.test' }
+    })
+
+  test('a matching override widens only its own paths', () => {
+    // One public endpoint inside an API that otherwise answers your own front
+    // end — the case a single global config cannot express without widening
+    // everything.
+    expect<boolean>(
+      isOriginAllowed(corsFor(at('api/public/rates'), global, overrides), 'https://somewhere.test')
+    ).toBe(true)
+    expect<boolean>(
+      isOriginAllowed(corsFor(at('api/orders'), global, overrides), 'https://somewhere.test')
+    ).toBe(false)
+  })
+
+  test('the first match wins, so a specific rule goes above a broad one', () => {
+    const config = corsFor(at('api/public/rates'), global, overrides)
+
+    // The broad `api/*` rule would have turned credentials on; the specific rule
+    // matched first and did not.
+    expect<boolean>(config.supportsCredentials).toBe(false)
+    expect<boolean>(corsFor(at('api/orders'), global, overrides).supportsCredentials).toBe(true)
+  })
+
+  test('an override keeps every decision it does not mention', () => {
+    const config = corsFor(at('api/orders'), global, overrides)
+
+    expect<string[]>(config.allowedOrigins).toEqual(['https://app.example.com'])
+  })
+
+  test('no override leaves the global config alone', () => {
+    expect<unknown>(corsFor(at('api/orders'), global, [])).toEqual(global)
   })
 })

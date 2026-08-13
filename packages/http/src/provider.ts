@@ -9,7 +9,9 @@ import { CookieJar } from './cookies.ts'
 import {
   actualHeaders,
   type CorsConfig,
+  type CorsOverride,
   corsConfig,
+  corsFor,
   isCorsRequest,
   isPreflight,
   pathMatches,
@@ -142,7 +144,11 @@ export class HttpServiceProvider extends ServiceProvider {
     // Before sessions and CSRF: a preflight carries no cookies and must be
     // answered even when the request that follows it would be refused.
     const cors = corsConfig(this.config<Partial<CorsConfig>>('cors', {}))
-    if (cors.paths.length > 0) this.use(this.corsPlugin(cors))
+    const overrides = this.config<CorsOverride[]>('cors.overrides', [])
+
+    if (cors.paths.length > 0 || overrides.length > 0) {
+      this.use(this.corsPlugin(cors, overrides))
+    }
 
     const sessionName = this.config<string>('session.cookie', 'elysian_session')
 
@@ -184,9 +190,11 @@ export class HttpServiceProvider extends ServiceProvider {
    * 403: the browser is what turns the absence into an error, and a 403 would
    * break same-origin callers of the same route.
    */
-  private corsPlugin(config: CorsConfig) {
+  private corsPlugin(global: CorsConfig, overrides: CorsOverride[] = []) {
     return new Elysia({ name: 'elysian:cors' })
       .onRequest(({ request, set }) => {
+        const config = corsFor(request, global, overrides)
+
         if (!pathMatches(config, request)) return undefined
         if (!isPreflight(request)) return undefined
 
@@ -199,6 +207,8 @@ export class HttpServiceProvider extends ServiceProvider {
         return new Response(null, { status: 204, headers: set.headers as HeadersInit })
       })
       .onAfterHandle({ as: 'global' }, ({ request, set }) => {
+        const config = corsFor(request, global, overrides)
+
         if (!pathMatches(config, request)) return
 
         for (const [header, value] of Object.entries(actualHeaders(config, request))) {

@@ -1,7 +1,7 @@
 import { chmod, mkdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
 import { Glob } from 'bun'
-import type { Disk, Visibility, Writable, WriteOptions } from '../contracts.ts'
+import { type Disk, MissingFileError, type Visibility, type Writable, type WriteOptions } from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename, withinRoot } from '../paths.ts'
 
 export type LocalDiskOptions = {
@@ -239,10 +239,32 @@ export class LocalDisk implements Disk {
     return this.directories(directory, true)
   }
 
-  async makeDirectory(path: string): Promise<boolean> {
-    await mkdir(this.path(path), { recursive: true, mode: this.modes.directory })
+  async makeDirectory(path: string, visibility?: Visibility): Promise<boolean> {
+    const target = this.path(path)
+
+    await mkdir(target, { recursive: true, mode: this.modes.directory })
+
+    // A private file inside a world-readable directory is still listed by
+    // anything that can read the directory, so this is a separate decision.
+    if (visibility) await this.applyVisibility(target, visibility)
 
     return true
+  }
+
+  async getOrFail(path: string): Promise<string> {
+    const contents = await this.get(path)
+
+    if (contents === null) throw new MissingFileError(this.name, path)
+
+    return contents
+  }
+
+  async bytesOrFail(path: string): Promise<Uint8Array> {
+    const contents = await this.bytes(path)
+
+    if (contents === null) throw new MissingFileError(this.name, path)
+
+    return contents
   }
 
   async deleteDirectory(path: string): Promise<boolean> {

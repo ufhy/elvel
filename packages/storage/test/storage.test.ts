@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Application } from '@elysian/core'
-import type { Disk } from '../src/contracts.ts'
+import { type Disk, MissingFileError } from '../src/contracts.ts'
 import { LocalDisk } from '../src/disks/local.ts'
 import { MemoryDisk } from '../src/disks/memory.ts'
 import { grantsPublicRead, S3Disk } from '../src/disks/s3.ts'
@@ -686,5 +686,35 @@ describe('the ?acl request itself', () => {
 
     expect<string>(await anonymous.getVisibility('a.txt')).toBe('public')
     expect<typeof seen>(seen).toBeUndefined()
+  })
+})
+
+describe('reads that refuse to return null', () => {
+  test('getOrFail names the disk and the path', async () => {
+    const disk = new MemoryDisk('memory')
+
+    await disk.put('there.txt', 'here')
+
+    expect<string>(await disk.getOrFail('there.txt')).toBe('here')
+
+    // `null` for a missing config flows on and fails somewhere far away with no
+    // mention of which file was missing.
+    await expect(disk.getOrFail('gone.txt')).rejects.toThrow('[gone.txt] does not exist')
+    await expect(disk.bytesOrFail('gone.txt')).rejects.toThrow(MissingFileError)
+  })
+
+  test('a directory can be created with a visibility of its own', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'elysian-visibility-'))
+    const disk = new LocalDisk('local', { root, visibility: 'private' })
+
+    try {
+      await disk.makeDirectory('public-things', 'public')
+
+      // A private file in a world-readable directory is still listed by anyone
+      // who can read the directory, so the two are separate decisions.
+      expect<string>(await disk.getVisibility('public-things')).toBe('public')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

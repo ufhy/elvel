@@ -1,6 +1,6 @@
 import { signRequest } from '@elysian/support'
 import { S3Client } from 'bun'
-import type { CloudDisk, Visibility, Writable, WriteOptions } from '../contracts.ts'
+import { type CloudDisk, MissingFileError, type Visibility, type Writable, type WriteOptions } from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename } from '../paths.ts'
 
 export type S3DiskOptions = {
@@ -214,6 +214,22 @@ export class S3Disk implements CloudDisk {
    * Returning true rather than throwing keeps code that works on both kinds of
    * disk from having to know which it has.
    */
+  async getOrFail(path: string): Promise<string> {
+    const contents = await this.get(path)
+
+    if (contents === null) throw new MissingFileError(this.name, path)
+
+    return contents
+  }
+
+  async bytesOrFail(path: string): Promise<Uint8Array> {
+    const contents = await this.bytes(path)
+
+    if (contents === null) throw new MissingFileError(this.name, path)
+
+    return contents
+  }
+
   async makeDirectory(): Promise<boolean> {
     return true
   }

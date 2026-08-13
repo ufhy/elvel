@@ -86,7 +86,6 @@ limiting, CORS and trusted proxies.
 
 | Missing | Why |
 | --- | --- |
-| Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |
 
 ## @elysian/auth
 
@@ -130,7 +129,6 @@ and presigning needs no network.
 
 | Missing | Why |
 | --- | --- |
-| Directory visibility, `MissingFile` exceptions, chunked/multipart upload helpers | Not needed yet; Bun's S3 writer already does multipart for large writes. |
 
 ## @elysian/notifications
 

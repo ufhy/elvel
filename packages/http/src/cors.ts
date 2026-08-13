@@ -41,6 +41,38 @@ export function corsConfig(partial: Partial<CorsConfig> = {}): CorsConfig {
   return { ...CORS_DEFAULTS, ...partial }
 }
 
+/**
+ * A rule that overrides the global CORS config for some paths.
+ *
+ * The case this exists for: one public endpoint that any site may call, inside
+ * an API that otherwise answers only your own front end. Expressing that with a
+ * single global config means widening it for everything, which is how an
+ * internal endpoint ends up reachable from anywhere.
+ */
+export type CorsOverride = Partial<CorsConfig> & { paths: string[] }
+
+/**
+ * The CORS config that applies to this request.
+ *
+ * First match wins, and the order is the order they are written — a specific
+ * rule therefore goes above a broad one, the same way route matching reads.
+ * Each override is merged over the global config rather than replacing it, so a
+ * rule that only names `allowedOrigins` keeps every other decision.
+ */
+export function corsFor(
+  request: Request,
+  global: CorsConfig,
+  overrides: CorsOverride[] = []
+): CorsConfig {
+  for (const override of overrides) {
+    const candidate = { ...global, paths: override.paths }
+
+    if (pathMatches(candidate, request)) return { ...global, ...override }
+  }
+
+  return global
+}
+
 /** A request carrying an `Origin`, which is what makes it cross-origin at all. */
 export function isCorsRequest(request: Request): boolean {
   return request.headers.has('origin')
