@@ -1,3 +1,27 @@
+/**
+ * A custom cast — `CastsAttributes`.
+ *
+ * `get` turns the stored value into what the attribute reads as; `set` turns an
+ * assignment back into what the column stores. Both receive the model and the
+ * whole attribute row, because a cast like Money may live in two columns.
+ */
+export interface CastsAttributes<TGet = unknown, TSet = unknown> {
+  get(model: unknown, key: string, value: unknown, attributes: Record<string, unknown>): TGet
+  set(model: unknown, key: string, value: TSet, attributes: Record<string, unknown>): unknown
+}
+
+/** A cast entry: a built-in name, a cast instance, or a class to construct. */
+export type CastEntry = CastType | CastsAttributes | (new () => CastsAttributes)
+
+/** Resolve a cast entry to an instance, or undefined for the built-in names. */
+export function customCast(entry: CastEntry | undefined): CastsAttributes | undefined {
+  if (entry === undefined || typeof entry === 'string') return undefined
+
+  // A class is constructed once per call site; a cast must therefore be
+  // stateless, which is also Laravel's contract for it.
+  return typeof entry === 'function' ? new entry() : entry
+}
+
 export type CastType =
   | 'int'
   | 'integer'

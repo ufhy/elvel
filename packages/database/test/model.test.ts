@@ -2003,3 +2003,105 @@ describe('small model-layer completions', () => {
     expect(loaded?.attributes.bio).toBe('No bio yet.')
   })
 })
+
+describe('third database wave', () => {
+  test('a custom cast class transforms both directions', async () => {
+    class MoneyCast {
+      get(_model: unknown, _key: string, value: unknown): { amount: number } | null {
+        return value === null || value === undefined ? null : { amount: Number(value) / 100 }
+      }
+
+      set(_model: unknown, _key: string, value: { amount: number } | null): unknown {
+        return value === null ? null : Math.round(value.amount * 100)
+      }
+    }
+
+    class Priced extends Model {
+      static override table = 'priced'
+      static override timestamps = false
+      static override fillable = ['price']
+      static override casts = { price: new MoneyCast() } as never
+    }
+
+    const schema = new SchemaBuilder(connection)
+    await schema.create('priced', (table) => {
+      table.id()
+      table.integer('price')
+    })
+
+    const row = await Priced.create({ price: { amount: 19.99 } })
+
+    // Stored as cents; read back as money.
+    const raw = await connection.select<{ price: number }>('select price from priced')
+    expect(Number(raw[0]?.price)).toBe(1999)
+    expect(
+      (Priced.hydrate(raw[0] as never).getAttribute('price') as { amount: number }).amount
+    ).toBe(19.99)
+    void row
+  })
+
+  test('a multi-column cursor breaks timestamp ties with the key', async () => {
+    // Six users, three sharing one timestamp: the tie the key exists to break.
+    for (const index of [1, 2, 3, 4, 5, 6]) {
+      const user = await User.create({ name: `User ${index}` })
+      await user.update({
+        created_at: index <= 3 ? '2026-01-01 00:00:00' : '2026-01-02 00:00:00'
+      } as never)
+    }
+
+    const seen: string[] = []
+    let cursor: string | null = null
+
+    while (true) {
+      const page = await User.query().cursorPaginate(2, cursor, ['created_at', 'id'])
+      seen.push(...page.data.map((user) => user.name).all())
+      cursor = page.nextCursor
+      if (!cursor) break
+    }
+
+    // Every row exactly once — a single-column cursor over created_at would skip
+    // or repeat inside the tie.
+    expect(seen).toEqual(['User 1', 'User 2', 'User 3', 'User 4', 'User 5', 'User 6'])
+  })
+
+  test('touches bumps the parent when a child is saved', async () => {
+    class TouchyComment extends Model {
+      static override table = 'touchy_comments'
+      static override fillable = ['body', 'article_id']
+      static override touches = ['article']
+      static override timestamps = false
+
+      article() {
+        return this.belongsTo(TouchedArticle, 'article_id')
+      }
+    }
+
+    class TouchedArticle extends Model {
+      static override table = 'articles_touched'
+      static override fillable = ['title']
+
+      declare id: number
+    }
+
+    const schema = new SchemaBuilder(connection)
+    await schema.create('articles_touched', (table) => {
+      table.id()
+      table.string('title')
+      table.timestamps()
+    })
+    await schema.create('touchy_comments', (table) => {
+      table.id()
+      table.string('body')
+      table.foreignId('article_id')
+    })
+
+    const article = await TouchedArticle.create({ title: 'Hello' })
+    await connection.statement(`update articles_touched set updated_at = '2020-01-01 00:00:00'`)
+
+    await TouchyComment.create({ body: 'First!', article_id: article.id })
+
+    const touched = await TouchedArticle.find(article.id)
+    // The comment changed; the article's timestamp is how a cache learns that.
+    expect(String(touched?.attributes.updated_at)).not.toBe('2020-01-01 00:00:00')
+  })
+})

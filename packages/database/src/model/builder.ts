@@ -782,17 +782,53 @@ export class ModelBuilder<M extends Model> {
   async cursorPaginate(
     perPage = 15,
     cursor?: string | null,
-    column?: string
+    columns?: string | string[]
   ): Promise<CursorPage<M>> {
-    const key = column ?? (this.model as typeof Model).primaryKey
+    /**
+     * Several columns page like a phone book: surname first, and the given name
+     * only breaks ties. `['created_at', 'id']` therefore compiles to
+     * `created_at > ? OR (created_at = ? AND id > ?)` — the key at the end is what
+     * makes a page boundary exact when two rows share a timestamp, and it should
+     * almost always be there.
+     */
+    const keys =
+      columns === undefined
+        ? [(this.model as typeof Model).primaryKey]
+        : Array.isArray(columns)
+          ? columns
+          : [columns]
+
     const decoded = decodeCursor(cursor)
+    const backwards = decoded?.pointsBackwards === true
+    const operator = backwards ? '<' : '>'
 
     const page = this.clone().deferBase((query) => {
-      query.reorder(key, decoded?.pointsBackwards ? 'desc' : 'asc')
+      query.reorder()
+      for (const key of keys) query.orderBy(key, backwards ? 'desc' : 'asc')
 
-      if (decoded) {
-        query.where(key, decoded.pointsBackwards ? '<' : '>', decoded.value as never)
-      }
+      if (!decoded) return
+
+      const values = Array.isArray(decoded.value) ? decoded.value : [decoded.value]
+
+      /**
+       * The compound where, built from the outside in — Laravel's recursive
+       * `addCursorConditions`, iteratively: each level fixes the columns before it
+       * with `=` and moves the one at hand with `>`/`<`.
+       */
+      query.where((outer) => {
+        for (let index = 0; index < keys.length; index += 1) {
+          const clause = (nested: typeof outer) => {
+            for (let fixed = 0; fixed < index; fixed += 1) {
+              nested.where(keys[fixed] as string, '=', values[fixed] as never)
+            }
+
+            nested.where(keys[index] as string, operator, values[index] as never)
+          }
+
+          if (index === 0) clause(outer)
+          else outer.orWhere((nested) => clause(nested as typeof outer))
+        }
+      })
     })
 
     // One more than asked for: its presence is how "there is a next page" is
@@ -803,21 +839,21 @@ export class ModelBuilder<M extends Model> {
 
     // Reading backwards returns rows in reverse; the caller wants them the way
     // round they would have been read forwards.
-    const ordered = decoded?.pointsBackwards ? [...rows].reverse() : rows
+    const ordered = backwards ? [...rows].reverse() : rows
 
-    const first = ordered[0]?.attributes[key]
-    const last = ordered[ordered.length - 1]?.attributes[key]
+    const valuesOf = (model: M | undefined) =>
+      model === undefined ? undefined : keys.map((key) => model.attributes[key])
+
+    const first = valuesOf(ordered[0])
+    const last = valuesOf(ordered[ordered.length - 1])
 
     return {
       data: new Collection(ordered),
       perPage,
       nextCursor:
-        (decoded?.pointsBackwards ? true : hasMore) && last !== undefined
-          ? encodeCursor(last, false)
-          : null,
+        (backwards ? true : hasMore) && last !== undefined ? encodeCursor(last, false) : null,
       previousCursor:
-        (decoded === undefined ? false : decoded.pointsBackwards ? hasMore : true) &&
-        first !== undefined
+        (decoded === undefined ? false : backwards ? hasMore : true) && first !== undefined
           ? encodeCursor(first, true)
           : null
     }

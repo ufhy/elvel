@@ -3,7 +3,14 @@ import { Collection } from '@elysian/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { ModelBuilder } from './builder.ts'
-import { type CastType, castFromDatabase, castToDatabase, formatDateTime } from './casts.ts'
+import {
+  type CastEntry,
+  type CastType,
+  castFromDatabase,
+  castToDatabase,
+  customCast,
+  formatDateTime
+} from './casts.ts'
 import {
   BelongsTo,
   BelongsToMany,
@@ -82,7 +89,7 @@ export class Model {
   /** Columns mass assignment refuses. `['*']` blocks everything, as Laravel does. */
   static guarded: string[] = ['*']
 
-  static casts: Record<string, CastType> = {}
+  static casts: Record<string, CastEntry> = {}
 
   /** Columns removed from `toObject()`/`toJSON()`. */
   static hidden: string[] = []
@@ -233,6 +240,27 @@ export class Model {
    * replacing it would silence a listener that has nothing to do with models.
    */
   private static muted = false
+
+  /**
+   * Relations whose parents' `updated_at` this model bumps — Laravel's `touches`.
+   *
+   * `static touches = ['post']` on a Comment means saving or deleting a comment
+   * touches its post: a cache keyed on the post's timestamp must expire when a
+   * comment changes, and the post's own row is the only place that can say so.
+   */
+  static touches: string[] = []
+
+  /** Touch every relation `static touches` names. */
+  private async touchRelations(): Promise<void> {
+    for (const name of this.self.touches) {
+      const relation = (this as Record<string, unknown>)[name]
+      if (typeof relation !== 'function') continue
+
+      const owner = await (relation.call(this) as { get(): Promise<Model | undefined> }).get()
+
+      await owner?.touch()
+    }
+  }
 
   /** Aliases for polymorphic types — `Relation::morphMap`. */
   private static morphAliases = new Map<string, ModelClass<Model>>()
@@ -426,7 +454,12 @@ export class Model {
     const value = this.attributes[key]
     const cast = this.self.casts[key]
 
-    if (cast) return castFromDatabase(value, cast)
+    // A custom cast class outranks the built-in names: it was written for this
+    // attribute specifically, and it sees the whole row.
+    const custom = customCast(cast as CastEntry | undefined)
+    if (custom) return custom.get(this, key, value, this.attributes)
+
+    if (cast) return castFromDatabase(value, cast as CastType)
 
     // Timestamps are dates even without an explicit cast, as in Laravel.
     if (this.isDateColumn(key) && value !== null && value !== undefined) {
@@ -444,9 +477,24 @@ export class Model {
     }
 
     const cast = this.self.casts[key]
+    const custom = customCast(cast as CastEntry | undefined)
+
+    if (custom) {
+      const stored = custom.set(this, key, value, this.attributes)
+
+      // A cast may return several columns — Money returning amount and currency —
+      // and a plain object is how it says so, exactly as Laravel reads it.
+      if (stored !== null && typeof stored === 'object' && !Array.isArray(stored)) {
+        Object.assign(this.attributes, stored as Row)
+      } else {
+        this.attributes[key] = stored
+      }
+
+      return this
+    }
 
     this.attributes[key] = cast
-      ? castToDatabase(value, cast)
+      ? castToDatabase(value, cast as CastType)
       : value instanceof Date
         ? formatDateTime(value)
         : value
@@ -622,6 +670,7 @@ export class Model {
 
     if (saved) {
       await this.fireEvent('saved')
+      await this.touchRelations()
       this.syncOriginal()
     }
 
@@ -774,6 +823,12 @@ export class Model {
     }
 
     await this.fireEvent('deleted')
+
+    /**
+     * After the delete, and while the foreign keys are still in the attributes:
+     * the comment is gone, but the post it counted against has still changed.
+     */
+    await this.touchRelations()
 
     return true
   }

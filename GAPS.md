@@ -41,9 +41,7 @@ Deliberately absent, with reasons:
 | Column *modification* (`->change()`) | Changing a column is not portable: SQLite requires a table rebuild. Adding, dropping and renaming columns are supported, and `hasIndex`/`getIndexListing` read each dialect's own catalogue. |
 | `morphToMany` **through** another relation | `Model.morphMap({article: Article})` now aliases the stored type, `getMorphClass()` resolves it in both directions, and `morphTo` consults the map for unlisted types. Reaching a morph pivot *through* a second relation remains unbuilt. |
 | `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
-| A pivot that touches its parent (`touchIfTouching`) | Attaching does not bump the parent's `updated_at`. |
-| A cursor over **several** columns | The cursor carries one key. Paging by `created_at` with the key as a tie-break needs the compound `where` Laravel builds recursively, and nothing here has asked for it. |
-| Custom cast classes (`CastsAttributes`) | Casts are the built-in set plus accessors/mutators, which covers the same ground with less machinery. |
+| `touchIfTouching` guessing the **inverse** relation | `static touches` bumps named parents on save and delete, and a pivot write touches a parent that declared the relation. Laravel additionally guesses the inverse relation's name from the class; here the pairing is written down. |
 | Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
 | `migrate --isolated`, `--squash`, `schema:dump` | Needs an advisory lock and a schema dumper per dialect. |
 

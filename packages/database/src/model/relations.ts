@@ -439,6 +439,29 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     model.setRelation(this.pivotAccessor, pivot)
   }
 
+  /**
+   * Bump the parent's `updated_at` if it declared this relation in `touches`.
+   *
+   * Laravel's `touchIfTouching`, minus the inverse guess: attach/detach/sync are
+   * pivot writes, so the related rows did not change — only the parent's view of
+   * them did, and only a parent that asked is told.
+   */
+  protected async touchIfTouching(): Promise<void> {
+    const touches = (this.parent.constructor as typeof Model).touches
+
+    if (touches.includes(this.relationName ?? '')) await this.parent.touch()
+  }
+
+  /** The property name this relation was reached through, when it can be known. */
+  relationName?: string
+
+  /** Name this relation so `touches` can find it — set by `as()` or explicitly. */
+  named(name: string): this {
+    this.relationName = name
+
+    return this
+  }
+
   /** Insert pivot rows, ignoring pairs that already exist. */
   async attach(ids: unknown | unknown[], attributes: Row = {}): Promise<void> {
     const now = new Date()
@@ -455,6 +478,8 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
 
     const query = await ((this.related as typeof Model).query() as ModelBuilder<R>).base()
     await query.clone().from(this.pivotTable).insertOrIgnore(values)
+
+    await this.touchIfTouching()
   }
 
   /** `created_at`/`updated_at` for a write, when the relation asked for them. */
@@ -475,7 +500,11 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
       pivot.whereIn(this.relatedPivotKey, Array.isArray(ids) ? ids : [ids])
     }
 
-    return pivot.delete()
+    const deleted = await pivot.delete()
+
+    await this.touchIfTouching()
+
+    return deleted
   }
 
   /** Make the pivot rows exactly `ids`. */
