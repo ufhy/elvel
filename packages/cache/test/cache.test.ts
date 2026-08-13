@@ -372,6 +372,109 @@ for (const candidate of candidates) {
       expect(order).toEqual(['first:start', 'first:end', 'second'])
     })
 
+    test('funnel lets N through at once and no more', async () => {
+      let inside = 0
+      let peak = 0
+      const refused: boolean[] = []
+
+      const worker = () =>
+        cache
+          .funnel('reports')
+          .limit(3)
+          .releaseAfter(10)
+          .then(async () => {
+            inside += 1
+            peak = Math.max(peak, inside)
+            await Bun.sleep(60)
+            inside -= 1
+
+            return 'done'
+          })
+
+      const results = await Promise.all([worker(), worker(), worker(), worker(), worker()])
+
+      for (const result of results) if (result === false) refused.push(true)
+
+      // Three at a time is the whole point; two callers find every slot taken.
+      expect<number>(peak).toBe(3)
+      expect<number>(refused.length).toBe(2)
+    })
+
+    test('a slot is given back even when the callback throws', async () => {
+      const funnel = () => cache.funnel('fragile').limit(1).releaseAfter(30)
+
+      await expect(
+        funnel().then(() => {
+          throw new Error('boom')
+        })
+      ).rejects.toThrow('boom')
+
+      // Otherwise the funnel narrows by one every time something fails, and
+      // nobody gets in again until releaseAfter has elapsed.
+      expect<unknown>(await funnel().then(() => 'in')).toBe('in')
+    })
+
+    test('block() waits for a slot rather than refusing', async () => {
+      const order: string[] = []
+
+      const holder = cache
+        .funnel('narrow')
+        .limit(1)
+        .releaseAfter(10)
+        .then(async () => {
+          order.push('first:start')
+          await Bun.sleep(60)
+          order.push('first:end')
+        })
+
+      const waiter = (async () => {
+        await Bun.sleep(10)
+
+        return cache
+          .funnel('narrow')
+          .limit(1)
+          .releaseAfter(10)
+          .betweenBlockedAttemptsSleepFor(20)
+          .block(5, () => order.push('second'))
+      })()
+
+      await Promise.all([holder, waiter])
+
+      expect<string[]>(order).toEqual(['first:start', 'first:end', 'second'])
+    })
+
+    test('block() gives up on the clock, not on attempts', async () => {
+      const occupied = cache.funnel('full').limit(1).releaseAfter(10)
+      const running = occupied.then(() => Bun.sleep(200))
+
+      // Let the holder take the only slot before the waiter starts.
+      await Bun.sleep(20)
+
+      const blocked = cache
+        .funnel('full')
+        .limit(1)
+        .releaseAfter(10)
+        .betweenBlockedAttemptsSleepFor(20)
+
+      // A slow driver must not quietly stretch the timeout, so the wait is
+      // measured against the clock rather than counted in attempts.
+      await expect(blocked.block(0.1)).rejects.toThrow(LockTimeoutError)
+
+      await running
+    })
+
+    test('free() reports what is left', async () => {
+      const funnel = cache.funnel('gauge').limit(2).releaseAfter(10)
+
+      expect<number>(await funnel.free()).toBe(2)
+
+      await funnel.then(async () => {
+        expect<number>(await funnel.free()).toBe(1)
+      })
+
+      expect<number>(await funnel.free()).toBe(2)
+    })
+
     test('restoreLock releases a lock taken elsewhere', async () => {
       const lock = cache.lock('handoff', 30)
       await lock.acquire()

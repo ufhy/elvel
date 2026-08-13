@@ -3208,6 +3208,39 @@ try {
   } finally {
     sesStub.stop(true)
   }
+
+  // ------------------------------------------------------------ cache: funnel
+
+  section('Cache: a semaphore over the network')
+
+  /**
+   * Concurrency that a single process cannot fake.
+   *
+   * Six requests at once against a funnel of two: at most two may be inside
+   * together, and the other four are refused rather than queued. The peak is
+   * counted in the cache itself, so it is the store's view and not this
+   * script's.
+   */
+  for (const store of ['array', 'file', 'redis']) {
+    await fetch(`http://127.0.0.1:${port}/check/cache/funnel?store=${store}`, { method: 'DELETE' })
+
+    const attempts = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        fetch(`http://127.0.0.1:${port}/check/cache/funnel?store=${store}&limit=2&hold=150`, {
+          method: 'POST'
+        }).then((response) => response.json() as Promise<{ entered: boolean; peak: number }>)
+      )
+    )
+
+    const entered = attempts.filter((attempt) => attempt.entered).length
+    const peak = Math.max(...attempts.map((attempt) => attempt.peak))
+
+    check(`${store}: two callers get in at once`, entered === 2, `entered ${entered}`)
+    // The ceiling is the point: a peak of three means the semaphore leaked.
+    check(`${store}: and never a third`, peak === 2, `peak ${peak}`)
+
+    await fetch(`http://127.0.0.1:${port}/check/cache/funnel?store=${store}`, { method: 'DELETE' })
+  }
 } finally {
   app.router.stop()
   await app.make('cache').store().forget('defer:ran')

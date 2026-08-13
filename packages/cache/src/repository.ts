@@ -1,4 +1,5 @@
 import { defer } from '@elysian/core'
+import { Funnel } from './funnel.ts'
 import { isLockProvider, type Lock, LockTimeoutError, type Store } from './store.ts'
 import { NamespacedStore, TagSet } from './tags.ts'
 
@@ -317,6 +318,17 @@ export class Repository {
     const result = await this.lock(key, lockFor, owner).block(waitFor, callback)
 
     return result as T
+  }
+
+  /**
+   * A semaphore: at most N callers at a time — Laravel's `funnel()`.
+   *
+   * `withoutOverlapping()` is the N=1 case. Anything else — three concurrent
+   * calls to an API, four report generators that would exhaust memory — needs
+   * this, and doing it with one lock turns concurrent work into a queue.
+   */
+  funnel(name: string): Funnel {
+    return new Funnel(name, (slot, seconds) => this.lock(slot, seconds))
   }
 
   // --------------------------------------------------------------------- tags

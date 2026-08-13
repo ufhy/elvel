@@ -328,7 +328,6 @@ that behaves differently per driver is worse than none.
 | --- | --- |
 | **JSON, not a binary format, for stored values** | A `Date` comes back as an ISO string and a class instance loses its identity on every driver except `array`, which stores values as they were given. The trade is deliberate: the payload stays readable in `redis-cli` and in the cache table, and every runtime we target can parse it. Cache plain data, or re-hydrate on read. |
 | `memcached`, `dynamodb`, `apc`, `octane` drivers | Nothing in this runtime needs them yet, and `extend()` takes a driver in ten lines. |
-| `funnel()` / `ConcurrencyLimiter` | `withoutOverlapping()` covers the common case (one at a time); a semaphore for *N* at a time is a separate primitive. |
 | Rate limiter **events** (`RateLimitAttempt`) | The counter and `Limit` live here; naming limiters and applying them is `@elysian/http`, where the request is. Nothing dispatches an event per attempt — a listener would fire on every request, so it needs a reason first. |
 | Event classes (`CacheHit`, `KeyWritten`, …) | Events are dispatched as names — `cache.hit`, `cache.written`, `cache.forgotten`, `cache.flushed` — which is how the rest of the framework dispatches. A listener gets the same payload either way. |
 | `many()` as one round trip on `file` and `array` | Both read key by key. Redis uses `MGET` and the database store one `where in`, which is where it matters. |
@@ -337,8 +336,13 @@ Done since this was written: `flexible()` defers its refresh through core's
 `defer()`, so it runs after the response; and `cache:prune` is on a schedule — the
 playground registers it hourly.
 
-Two behaviours worth knowing rather than discovering:
+Three behaviours worth knowing rather than discovering:
 
+- **`funnel()` works on every driver, unlike Laravel's.** Laravel acquires a
+  slot with a Lua script, which ties it to Redis. A `Lock` here is already atomic
+  on every store, so N named locks are a semaphore that behaves the same on
+  `array`, `file`, `database` and `redis` — at the cost of up to N round trips to
+  find a free slot instead of one.
 - **Tagged entries linger.** Flushing a tag rotates its id, so every key written
   under the old namespace becomes unreachable at once — but the entries stay until
   their own TTL runs out. That is what lets tags work without an index of which

@@ -139,3 +139,48 @@ export default controller('cache')
 
     return { cleared: true }
   })
+
+  /**
+   * A semaphore, over whichever store is named — `?store=redis&hold=120`.
+   *
+   * Each request takes a slot, holds it for `hold` milliseconds and reports the
+   * highest number that were inside together. Run several at once and the peak
+   * must never exceed the limit, whichever driver is behind it.
+   */
+  .post('/check/cache/funnel', async ({ query }) => {
+    const repository = cache(typeof query.store === 'string' ? query.store : undefined)
+    const hold = Number(query.hold ?? 120)
+    const slots = Number(query.limit ?? 2)
+
+    const entered = await repository
+      .funnel('playground:funnel')
+      .limit(slots)
+      .releaseAfter(30)
+      .then(async () => {
+        const inside = (await repository.increment('playground:funnel:inside')) as number
+
+        // The peak is kept in the cache rather than in this process: with more
+        // than one worker, a counter in memory would report each one's own view.
+        const peak = Number((await repository.get('playground:funnel:peak')) ?? 0)
+        if (inside > peak) await repository.forever('playground:funnel:peak', inside)
+
+        await Bun.sleep(hold)
+        await repository.decrement('playground:funnel:inside')
+
+        return true
+      })
+
+    return {
+      entered: entered !== false,
+      peak: Number((await repository.get('playground:funnel:peak')) ?? 0)
+    }
+  })
+
+  .delete('/check/cache/funnel', async ({ query }) => {
+    const repository = cache(typeof query.store === 'string' ? query.store : undefined)
+
+    await repository.forget('playground:funnel:inside')
+    await repository.forget('playground:funnel:peak')
+
+    return { cleared: true }
+  })
