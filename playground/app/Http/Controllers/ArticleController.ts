@@ -2,6 +2,7 @@ import { controller, NotFoundException } from '@elysian/core'
 import { sessionOf, validateRequest } from '@elysian/http'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
+import { Tag } from '../../Models/Tag.ts'
 import { StoreArticleRequest } from '../Requests/StoreArticleRequest.ts'
 import { StoreOrderRequest } from '../Requests/StoreOrderRequest.ts'
 import { ArticleResource } from '../Resources/ArticleResource.ts'
@@ -43,6 +44,53 @@ export default controller('article')
     const data = await validateRequest(StoreOrderRequest, { body: context.body })
 
     return { validated: data }
+  })
+
+  /**
+   * Tags through a polymorphic pivot, with the extra columns read back.
+   *
+   * The pivot's own data — who attached the tag, and when — lives on
+   * `tag.pivot`, not on the tag, which is what stops a pivot column from
+   * overwriting a column of the same name on the model.
+   */
+  .post(
+    '/check/articles/:id/tags',
+    async ({ params, body }) => {
+      const article = await Article.find(Number(params.id))
+      if (!article) throw new NotFoundException(`No article [${params.id}].`)
+
+      const tag =
+        (await Tag.query().where('label', body.label).first()) ??
+        (await Tag.create({ label: body.label }))
+
+      await article.tags().attach(tag.id, { added_by: body.addedBy ?? 'nobody' })
+
+      const tags = await article.tags().get()
+
+      return {
+        tags: tags.all().map((entry) => {
+          const pivot = entry.getRelation('pivot') as { attributes: Record<string, unknown> }
+
+          return {
+            label: entry.label,
+            addedBy: pivot.attributes.added_by,
+            type: pivot.attributes.taggable_type,
+            attachedAt: pivot.attributes.created_at
+          }
+        })
+      }
+    },
+    { body: t.Object({ label: t.String(), addedBy: t.Optional(t.String()) }) }
+  )
+
+  /** The inverse: which articles carry this tag. */
+  .get('/check/tags/:label/articles', async ({ params }) => {
+    const tag = await Tag.query().where('label', params.label).first()
+    if (!tag) throw new NotFoundException(`No tag [${params.label}].`)
+
+    const articles = await tag.articles().get()
+
+    return { articles: articles.all().map((article) => article.title) }
   })
 
   /** Eager loading: one extra query for every article's comments, not N. */

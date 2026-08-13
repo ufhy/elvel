@@ -1,5 +1,6 @@
 import { Model } from '@elysian/database'
 import { Comment } from './Comment.ts'
+import { Tag } from './Tag.ts'
 
 /**
  * Generated with `bun run playground make:model Article -m -f`, then extended.
@@ -48,6 +49,16 @@ export class Article extends Model {
   /** better-auth's user ids are strings, so this column is one too. */
   declare author_id: string | null
   declare editor_note: string | null
+
+  /**
+   * Tags, through a pivot shared with every other taggable model.
+   *
+   * `withPivot('added_by')` reads the extra column back, and `withTimestamps()`
+   * writes the pair on attach — both arrive on `article.tags[0].pivot`.
+   */
+  tags() {
+    return this.morphToMany(Tag, 'taggable').withPivot('added_by').withTimestamps()
+  }
 
   comments() {
     return this.hasMany(Comment)

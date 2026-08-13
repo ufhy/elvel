@@ -2,7 +2,8 @@ import { Collection } from '@elysian/support'
 import type { Row } from '../connection/connection.ts'
 import type { QueryBuilder } from '../query/builder.ts'
 import type { ModelBuilder } from './builder.ts'
-import type { Model, ModelClass } from './model.ts'
+import { formatDateTime } from './casts.ts'
+import { type Model, type ModelClass, Pivot } from './model.ts'
 
 /**
  * A relation is a query plus the knowledge of how to attach its results to a
@@ -231,23 +232,86 @@ export class BelongsTo<R extends Model> extends Relation<R> {
 
 /** `post.tags()` — many-to-many through a pivot table. */
 export class BelongsToMany<R extends Model> extends Relation<R> {
+  /** Extra pivot columns to read back, beyond the two keys. */
+  protected pivotColumns: string[] = []
+  /** Constraints on the pivot table itself, as `wherePivot()` adds them. */
+  protected pivotWheres: Array<[string, unknown]> = []
+  /** Values written on every attach — how a morph pivot stores its type. */
+  protected pivotValues: Record<string, unknown> = {}
+  protected pivotAccessor = 'pivot'
+  protected pivotModel?: typeof Pivot
+  protected timestampColumns?: { createdAt: string; updatedAt: string }
+
   constructor(
     related: ModelClass<R>,
     parent: Model,
-    private readonly pivotTable: string,
-    private readonly foreignPivotKey: string,
-    private readonly relatedPivotKey: string,
-    private readonly parentKey = 'id',
-    private readonly relatedKey = 'id'
+    protected readonly pivotTable: string,
+    protected readonly foreignPivotKey: string,
+    protected readonly relatedPivotKey: string,
+    protected readonly parentKey = 'id',
+    protected readonly relatedKey = 'id'
   ) {
     super(related, parent)
+  }
+
+  /**
+   * Read these pivot columns back with the related models.
+   *
+   * They arrive aliased as `pivot_<column>` and are moved onto the accessor after
+   * hydration — Laravel's approach, and the reason a pivot's `created_at` cannot
+   * overwrite the related model's own.
+   */
+  withPivot(...columns: Array<string | string[]>): this {
+    this.pivotColumns.push(...columns.flat())
+
+    return this
+  }
+
+  /**
+   * Maintain `created_at`/`updated_at` on the pivot rows.
+   *
+   * In Laravel this is `withPivot` plus writing them on attach, and it is the same
+   * here: the columns have to be read back for `pivot.created_at` to exist at all.
+   */
+  withTimestamps(createdAt = 'created_at', updatedAt = 'updated_at'): this {
+    this.timestampColumns = { createdAt, updatedAt }
+
+    return this.withPivot(createdAt, updatedAt)
+  }
+
+  /** Hydrate the pivot as this model rather than a plain `Pivot`. */
+  using(pivot: typeof Pivot): this {
+    this.pivotModel = pivot
+
+    return this
+  }
+
+  /** Call the pivot something else — `->as('membership')`. */
+  as(accessor: string): this {
+    this.pivotAccessor = accessor
+
+    return this
+  }
+
+  /** Constrain by a pivot column, which a `where()` on the related cannot. */
+  wherePivot(column: string, value: unknown): this {
+    this.pivotWheres.push([column, value])
+
+    return this
+  }
+
+  /** Constrain by a pivot column *and* write it on every attach. */
+  withPivotValue(column: string, value: unknown): this {
+    this.pivotValues[column] = value
+
+    return this.withPivot(column).wherePivot(column, value)
   }
 
   query(): ModelBuilder<R> {
     const relatedTable = (this.related as typeof Model).getTable()
 
-    return ((this.related as typeof Model).query() as ModelBuilder<R>)
-      .select(`${relatedTable}.*`)
+    const builder = ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .select(`${relatedTable}.*`, ...this.aliasedPivotColumns())
       .join(
         this.pivotTable,
         `${this.pivotTable}.${this.relatedPivotKey}`,
@@ -258,17 +322,67 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
         `${this.pivotTable}.${this.foreignPivotKey}`,
         this.parent.attributes[this.parentKey]
       ) as ModelBuilder<R>
+
+    for (const [column, value] of this.pivotWheres) {
+      builder.where(`${this.pivotTable}.${column}`, value)
+    }
+
+    return builder
   }
 
   async get(): Promise<Collection<R>> {
-    return this.query().get()
+    const models = await this.query().get()
+
+    for (const model of models.all()) this.hydratePivot(model)
+
+    return models
+  }
+
+  /**
+   * `pivot_<column>` for every column worth reading back.
+   *
+   * The two keys are always included, because a pivot with neither is not much
+   * of a pivot — and `pivot.user_id` is what a caller reaches for first.
+   */
+  protected aliasedPivotColumns(): string[] {
+    const columns = [this.foreignPivotKey, this.relatedPivotKey, ...this.pivotColumns]
+
+    return [...new Set(columns)].map((column) => `${this.pivotTable}.${column} as pivot_${column}`)
+  }
+
+  /** Move the `pivot_*` attributes onto the accessor, and off the model. */
+  protected hydratePivot(model: Model): void {
+    const values: Row = {}
+
+    for (const [key, value] of Object.entries(model.attributes)) {
+      if (!key.startsWith('pivot_')) continue
+
+      values[key.slice('pivot_'.length)] = value
+      delete model.attributes[key]
+    }
+
+    model.syncOriginal()
+
+    const pivot = (this.pivotModel ?? Pivot).fromAttributes(
+      values,
+      this.pivotTable,
+      this.foreignPivotKey,
+      this.relatedPivotKey
+    )
+
+    model.setRelation(this.pivotAccessor, pivot)
   }
 
   /** Insert pivot rows, ignoring pairs that already exist. */
-  async attach(ids: unknown | unknown[]): Promise<void> {
+  async attach(ids: unknown | unknown[], attributes: Row = {}): Promise<void> {
+    const now = new Date()
+
     const values = (Array.isArray(ids) ? ids : [ids]).map((id) => ({
       [this.foreignPivotKey]: this.parent.attributes[this.parentKey],
-      [this.relatedPivotKey]: id
+      [this.relatedPivotKey]: id,
+      ...this.pivotValues,
+      ...this.timestampsFor(now, true),
+      ...attributes
     }))
 
     if (values.length === 0) return
@@ -277,12 +391,19 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     await query.clone().from(this.pivotTable).insertOrIgnore(values)
   }
 
+  /** `created_at`/`updated_at` for a write, when the relation asked for them. */
+  protected timestampsFor(now: Date, creating: boolean): Row {
+    if (!this.timestampColumns) return {}
+
+    const stamp = formatDateTime(now)
+
+    return creating
+      ? { [this.timestampColumns.createdAt]: stamp, [this.timestampColumns.updatedAt]: stamp }
+      : { [this.timestampColumns.updatedAt]: stamp }
+  }
+
   async detach(ids?: unknown | unknown[]): Promise<number> {
-    const query = await ((this.related as typeof Model).query() as ModelBuilder<R>).base()
-    const pivot = query
-      .clone()
-      .from(this.pivotTable)
-      .where(this.foreignPivotKey, this.parent.attributes[this.parentKey])
+    const pivot = await this.pivotQuery()
 
     if (ids !== undefined) {
       pivot.whereIn(this.relatedPivotKey, Array.isArray(ids) ? ids : [ids])
@@ -318,7 +439,9 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   async updateExistingPivot(id: unknown, values: Row): Promise<number> {
     const pivot = await this.pivotQuery()
 
-    return pivot.where(this.relatedPivotKey, id).update(values)
+    return pivot
+      .where(this.relatedPivotKey, id)
+      .update({ ...values, ...this.timestampsFor(new Date(), false) })
   }
 
   /** The related ids currently attached. */
@@ -328,13 +451,19 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     return (await pivot.pluck(this.relatedPivotKey)).all()
   }
 
-  private async pivotQuery(): Promise<QueryBuilder<Row>> {
+  protected async pivotQuery(): Promise<QueryBuilder<Row>> {
     const query = await ((this.related as typeof Model).query() as ModelBuilder<R>).base()
 
-    return query
+    const pivot = query
       .clone()
       .from(this.pivotTable)
       .where(this.foreignPivotKey, this.parent.attributes[this.parentKey])
+
+    // A morph pivot lives in a table shared by several parents, so every write and
+    // every read has to carry the type as well as the key.
+    for (const [column, value] of this.pivotWheres) pivot.where(column, value)
+
+    return pivot
   }
 
   existsConstraint(parentTable: string) {
@@ -360,8 +489,12 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
 
     // The pivot's parent key is selected alongside the related columns so the
     // dictionary can be built without a second round trip.
-    const rows = await ((this.related as typeof Model).query() as ModelBuilder<R>)
-      .select(`${relatedTable}.*`, `${this.pivotTable}.${this.foreignPivotKey} as pivot_parent_key`)
+    const eager = ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .select(
+        `${relatedTable}.*`,
+        `${this.pivotTable}.${this.foreignPivotKey} as pivot_parent_key`,
+        ...this.aliasedPivotColumns()
+      )
       .join(
         this.pivotTable,
         `${this.pivotTable}.${this.relatedPivotKey}`,
@@ -369,14 +502,25 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
         `${relatedTable}.${this.relatedKey}`
       )
       .whereIn(`${this.pivotTable}.${this.foreignPivotKey}`, keys)
-      .get()
+
+    // The same constraints the lazy path applies, or an eager load would return
+    // rows a `->get()` on the same relation refuses — including a morph's type.
+    for (const [column, value] of this.pivotWheres) {
+      eager.where(`${this.pivotTable}.${column}`, value)
+    }
+
+    const rows = await eager.get()
 
     const grouped = new Map<string, R[]>()
 
     for (const row of rows.all()) {
       const pivotKey = row.attributes.pivot_parent_key
       delete row.attributes.pivot_parent_key
-      row.syncOriginal()
+
+      // Before syncOriginal: hydratePivot moves the `pivot_*` attributes off the
+      // model, and an original that still held them would report every eagerly
+      // loaded model as dirty.
+      this.hydratePivot(row)
 
       if (pivotKey === null || pivotKey === undefined) continue
 
@@ -393,6 +537,40 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
         new Collection(key === null || key === undefined ? [] : (grouped.get(String(key)) ?? []))
       )
     }
+  }
+}
+
+/**
+ * `post.tags()` and `tag.posts()` — a many-to-many where one side is polymorphic.
+ *
+ * `BelongsToMany` with one more pivot column: `<name>_type`. What decides its
+ * value is the **direction**, and that is the whole subtlety:
+ *
+ * - `morphToMany` is the owner side (`post.tags()`), so the pivot stores the
+ *   *parent's* type — `posts`.
+ * - `morphedByMany` is the inverse (`tag.posts()`), so it stores the *related*
+ *   model's type, because that is what the rows on the other side are.
+ *
+ * Getting that backwards produces a relation that silently returns nothing, which
+ * is why the constructor takes the flag rather than leaving it to the caller.
+ */
+export class MorphToMany<R extends Model> extends BelongsToMany<R> {
+  constructor(
+    related: ModelClass<R>,
+    parent: Model,
+    name: string,
+    pivotTable: string,
+    foreignPivotKey: string,
+    relatedPivotKey: string,
+    morphType: string,
+    parentKey = 'id',
+    relatedKey = 'id'
+  ) {
+    super(related, parent, pivotTable, foreignPivotKey, relatedPivotKey, parentKey, relatedKey)
+
+    // Constrains reads *and* is written on every attach, so a pivot row can never
+    // be created without the type that makes it findable again.
+    this.withPivotValue(`${name}_type`, morphType)
   }
 }
 

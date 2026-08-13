@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { BunSqlConnection, type ConnectionConfig } from '../src/connection/bun-sql.ts'
 import { Migrator } from '../src/migrations/migrator.ts'
 import { MigrationRepository } from '../src/migrations/repository.ts'
-import { Model } from '../src/model/model.ts'
+import { Model, type Pivot } from '../src/model/model.ts'
 import { QueryBuilder } from '../src/query/builder.ts'
 import { SchemaBuilder } from '../src/schema/builder.ts'
 
@@ -109,6 +109,8 @@ for (const { name, config } of available) {
 
     const users = `${PREFIX}_users`
     const posts = `${PREFIX}_posts`
+    const tags = `${PREFIX}_tags`
+    const taggables = `${PREFIX}_taggables`
 
     class User extends Model {
       static override table = users
@@ -124,6 +126,25 @@ for (const { name, config } of available) {
       articles() {
         return this.hasMany(Post, 'user_id')
       }
+
+      labels() {
+        return this.morphToMany(Tag, 'taggable', taggables, 'taggable_id', 'tag_id')
+          .withPivot('note')
+          .withTimestamps()
+      }
+    }
+
+    class Tag extends Model {
+      static override table = tags
+      static override fillable = ['label']
+      static override timestamps = false
+
+      declare id: number
+      declare label: string
+
+      taggedUsers() {
+        return this.morphedByMany(User, 'taggable', taggables, 'tag_id', 'taggable_id')
+      }
     }
 
     class Post extends Model {
@@ -135,6 +156,10 @@ for (const { name, config } of available) {
 
       author() {
         return this.belongsTo(User, 'user_id')
+      }
+
+      labels() {
+        return this.morphToMany(Tag, 'taggable', taggables, 'taggable_id', 'tag_id')
       }
     }
 
@@ -164,9 +189,25 @@ for (const { name, config } of available) {
         table.timestamps()
         table.foreign(['user_id']).references(['id']).on(users).cascadeOnDelete()
       })
+
+      await schema.create(taggables, (table) => {
+        table.foreignId('tag_id')
+        table.foreignId('taggable_id')
+        table.string('taggable_type')
+        table.string('note').nullable()
+        table.timestamp('created_at').nullable()
+        table.timestamp('updated_at').nullable()
+      })
+
+      await schema.create(tags, (table) => {
+        table.id()
+        table.string('label')
+      })
     })
 
     afterAll(async () => {
+      await schema.dropIfExists(taggables)
+      await schema.dropIfExists(tags)
       await schema.dropIfExists(posts)
       await schema.dropIfExists(users)
       await connection.disconnect()
@@ -177,6 +218,8 @@ for (const { name, config } of available) {
     }
 
     async function truncate() {
+      await table(taggables).delete()
+      await table(tags).delete()
       await table(posts).delete()
       await table(users).delete()
     }
@@ -427,6 +470,34 @@ for (const { name, config } of available) {
 
         await found?.delete()
         expect(await User.query().count()).toBe(0)
+      })
+
+      test('a polymorphic many-to-many round trips, with its pivot columns', async () => {
+        await truncate()
+
+        const user = await User.create({ name: 'Ada' })
+        const post = await Post.create({ title: 'Hello', user_id: user.id })
+        const tag = await Tag.create({ label: 'maths' })
+
+        await user.labels().attach(tag.id, { note: 'from the user' })
+        await post.labels().attach(tag.id)
+
+        // One pivot table, two parent types, and neither sees the other's rows —
+        // which is the whole reason the type column is written on attach.
+        expect((await user.labels().get()).count()).toBe(1)
+        expect((await post.labels().get()).count()).toBe(1)
+
+        const pivot = (await user.labels().get()).all()[0]?.getRelation('pivot') as Pivot
+
+        expect(pivot.attributes.note).toBe('from the user')
+        expect(pivot.attributes.taggable_type).toBe(users)
+        // withTimestamps writes them on attach, whatever the dialect calls its
+        // timestamp type.
+        expect(pivot.attributes.created_at).toBeTruthy()
+
+        // The inverse names the *related* type, so this returns the user and not
+        // the post.
+        expect((await tag.taggedUsers().get()).count()).toBe(1)
       })
 
       test('boolean and json casts survive the round trip', async () => {

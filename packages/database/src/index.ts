@@ -35,7 +35,13 @@ export {
   formatDateTime,
   setAttributeEncrypter
 } from './model/casts.ts'
-export { type ConnectionResolver, Model, type ModelClass, ModelEvent } from './model/model.ts'
+export {
+  type ConnectionResolver,
+  Model,
+  type ModelClass,
+  ModelEvent,
+  Pivot
+} from './model/model.ts'
 export {
   BelongsTo,
   BelongsToMany,
@@ -47,6 +53,7 @@ export {
   MorphOne,
   MorphOneOrMany,
   MorphTo,
+  MorphToMany,
   Relation
 } from './model/relations.ts'
 export { DatabaseServiceProvider } from './provider.ts'

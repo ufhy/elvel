@@ -27,9 +27,10 @@ Deliberately absent, with reasons:
 | `whereFullText`, vector/similarity clauses | Dialect-specific and rarely portable; Postgres `tsvector`, MySQL `MATCH`, and pgvector all need their own grammar. |
 | JSON path wheres (`whereJsonContains`, `->>` updates) | Three incompatible syntaxes (`json_extract`, `->>`, `jsonb`). Needs a grammar method per dialect to be correct rather than approximately correct. |
 | `Schema::hasIndex`, column *modification* (`->change()`) | Changing a column is not portable: SQLite requires a table rebuild. Adding, dropping and renaming columns are supported. |
-| `morphedByMany` / `morphToMany` | `morphTo`, `morphOne`, `morphMany` and `belongsToMany` are done; the many-to-many morph needs a pivot with a type column. |
+| `morphToMany` **through** another relation, and morph maps for it | Both directions work, with the type written on attach so a pivot row can never be created without the column that makes it findable. What is missing is `morphTo`-style aliasing: the type stored is the table name, not a name from a morph map. |
 | `hasOneThrough`, `latestOfMany`/`oldestOfMany` | `hasManyThrough` is done; these are variations on it. |
-| Pivot **models** (`using()`), pivot timestamps, `withPivot` columns | Pivot rows are read as plain columns. Attach/detach/sync/toggle/updateExistingPivot work. |
+| `wherePivotIn`/`wherePivotBetween`, `orderByPivot` | `withPivot`, `withTimestamps`, `using()`, `as()`, `wherePivot` and `withPivotValue` are implemented. The rest are the same mechanism with a different operator. |
+| A pivot that touches its parent (`touchIfTouching`) | Attaching does not bump the parent's `updated_at`. |
 | Model observers as classes | Lifecycle events are dispatched (`model.created` etc) through `@elysian/events`, so a listener can already react. There is no `Observer` class binding sugar. |
 | `chunkById`, cursor pagination | `chunk()` and `lazy()` are implemented with offset paging, which is correct but slower on large tables and can skip rows if the set changes mid-walk. |
 | `Model::withoutEvents`, `saveQuietly` | Straightforward once needed. |
@@ -37,6 +38,22 @@ Deliberately absent, with reasons:
 | Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
 | `DB::listen` as a public helper | Every query already dispatches `QueryExecuted`; a listener on `db.query` is the same thing without a new API. |
 | `migrate --isolated`, `--squash`, `schema:dump` | Needs an advisory lock and a schema dumper per dialect. |
+
+Three things to know about pivots:
+
+- **Pivot columns travel aliased and are then moved.** They are selected as
+  `pivot_<column>` and lifted onto the accessor after hydration, which is what
+  stops a pivot's `created_at` from overwriting the model's own. The aliases are
+  removed *before* `syncOriginal`, or every eagerly loaded model would report
+  itself dirty.
+- **A pivot model is built by assignment, not by `fill()`.** `fill` honours
+  `fillable` and a pivot declares none, so constructing one with its attributes
+  produced an empty pivot — silently. `hydrate()` bypasses fill for the same
+  reason.
+- **The morph direction decides whose type is stored.** `morphToMany` stores the
+  parent's, `morphedByMany` the related model's. Backwards, the relation returns
+  nothing at all rather than failing, so both directions are covered by tests on
+  SQLite, Postgres and MySQL.
 
 **Verified limits of the databases themselves**, not of this code:
 

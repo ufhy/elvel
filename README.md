@@ -528,6 +528,18 @@ class ArticleResource extends JsonResource<Article> {
 }
 ```
 
+```ts
+article.tags()            // morphToMany: the pivot stores this model's type
+  .withPivot('added_by')  // read the extra column back, onto `tag.pivot`
+  .withTimestamps()       // and stamp it on attach
+
+tag.articles()            // morphedByMany: the pivot names the *related* type
+```
+
+Pivot columns are selected as `pivot_<column>` and moved onto the accessor after
+hydration, so a pivot's `created_at` cannot overwrite the model's own. `using()`
+hydrates them as a `Pivot` subclass of your own, and `as()` renames the accessor.
+
 Sessions are driver-based (`file`, `memory`) with Laravel's flash semantics: a
 flashed value survives exactly one further request, implemented with the same
 `_flash.new` → `_flash.old` ageing. CSRF compares `_token` or `X-CSRF-TOKEN`

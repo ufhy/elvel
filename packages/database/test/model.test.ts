@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { BunSqlConnection } from '../src/connection/bun-sql.ts'
 import { ModelNotFoundError } from '../src/model/builder.ts'
 import { setAttributeEncrypter } from '../src/model/casts.ts'
-import { Model } from '../src/model/model.ts'
+import { Model, Pivot } from '../src/model/model.ts'
 import { SchemaBuilder } from '../src/schema/builder.ts'
 
 class User extends Model {
@@ -30,8 +30,36 @@ class User extends Model {
     return this.belongsToMany(Tag)
   }
 
+  /** The same pivot, read back with its extra columns and timestamps. */
+  rolesTags() {
+    return this.belongsToMany(Tag).withPivot('role').withTimestamps()
+  }
+
+  /** A pivot hydrated as a model of its own. */
+  memberships() {
+    return this.belongsToMany(Tag).withPivot('role').using(Membership).as('membership')
+  }
+
+  /** Only the pivot rows with this role — a constraint on the pivot itself. */
+  editorTags() {
+    return this.belongsToMany(Tag).withPivot('role').wherePivot('role', 'editor')
+  }
+
+  /** The owner side of a polymorphic many-to-many. */
+  taggedWith() {
+    return this.morphToMany(Tag, 'taggable').withPivot('note')
+  }
+
   static scopeActive(query: { where(column: string, value: unknown): unknown }) {
     query.where('active', 1)
+  }
+}
+
+class Membership extends Pivot {
+  declare role: string | null
+
+  shouts(): string {
+    return String(this.role ?? '').toUpperCase()
   }
 }
 
@@ -42,6 +70,10 @@ class Post extends Model {
   declare id: number
   declare title: string
   declare user_id: number
+
+  taggedWith() {
+    return this.morphToMany(Tag, 'taggable')
+  }
 
   author() {
     return this.belongsTo(User)
@@ -73,6 +105,15 @@ class Tag extends Model {
 
   declare id: number
   declare label: string
+
+  /** The inverse side: the pivot's type column names *these* models. */
+  posts() {
+    return this.morphedByMany(Post, 'taggable')
+  }
+
+  users() {
+    return this.morphedByMany(User, 'taggable')
+  }
 }
 
 class Trashable extends Model {
@@ -137,7 +178,16 @@ beforeEach(async () => {
   await schema.create('tag_user', (table) => {
     table.foreignId('user_id')
     table.foreignId('tag_id')
+    table.string('role').nullable()
+    table.timestamp('created_at').nullable()
+    table.timestamp('updated_at').nullable()
     table.primary(['user_id', 'tag_id'])
+  })
+  await schema.create('taggables', (table) => {
+    table.foreignId('tag_id')
+    table.foreignId('taggable_id')
+    table.string('taggable_type')
+    table.string('note').nullable()
   })
   await schema.create('trashables', (table) => {
     table.id()
@@ -1264,5 +1314,207 @@ describe('encrypted casts', () => {
     // to search by.
     expect(await Secretive.query().where('email', 'ada@example.com').count()).toBe(0)
     expect(await Secretive.query().where('name', 'Ada').count()).toBe(1)
+  })
+})
+
+describe('pivot columns', () => {
+  test('withPivot reads the extra columns back', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id, { role: 'editor' })
+
+    const [attached] = (await user.rolesTags().get()).all()
+    const pivot = attached?.getRelation('pivot') as Pivot
+
+    expect(pivot.attributes.role).toBe('editor')
+    expect(Number(pivot.attributes.user_id)).toBe(user.id)
+  })
+
+  test('the pivot columns are moved off the model', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id, { role: 'editor' })
+
+    const [attached] = (await user.rolesTags().get()).all()
+
+    // A pivot's `created_at` must not overwrite the model's own, which is why
+    // they travel aliased and are moved rather than merged.
+    expect(attached?.attributes).not.toHaveProperty('pivot_role')
+    expect(attached?.attributes).not.toHaveProperty('role')
+    expect(attached?.label).toBe('maths')
+  })
+
+  test('withTimestamps stamps the pivot row', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id)
+
+    const pivot = (await user.rolesTags().get()).all()[0]?.getRelation('pivot') as Pivot
+
+    expect(pivot.attributes.created_at).toBeTruthy()
+    expect(pivot.attributes.updated_at).toBe(pivot.attributes.created_at as never)
+  })
+
+  test('updateExistingPivot touches updated_at but not created_at', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id, { role: 'editor' })
+    const before = (await user.rolesTags().get()).all()[0]?.getRelation('pivot') as Pivot
+
+    await Bun.sleep(1100)
+    await user.rolesTags().updateExistingPivot(tag.id, { role: 'owner' })
+
+    const after = (await user.rolesTags().get()).all()[0]?.getRelation('pivot') as Pivot
+
+    expect(after.attributes.role).toBe('owner')
+    expect(after.attributes.created_at).toBe(before.attributes.created_at as never)
+    expect(after.attributes.updated_at).not.toBe(before.attributes.updated_at as never)
+  })
+
+  test('using() hydrates a pivot model with its own behaviour', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.memberships().attach(tag.id, { role: 'editor' })
+
+    const membership = (await user.memberships().get())
+      .all()[0]
+      ?.getRelation('membership') as Membership
+
+    expect(membership).toBeInstanceOf(Membership)
+    expect(membership.shouts()).toBe('EDITOR')
+    // `as()` renames the accessor, so the default one is gone.
+    expect((await user.memberships().get()).all()[0]?.getRelation('pivot')).toBeUndefined()
+  })
+
+  test('a pivot model knows the table it came from', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.memberships().attach(tag.id, { role: 'editor' })
+
+    const membership = (await user.memberships().get())
+      .all()[0]
+      ?.getRelation('membership') as Membership
+
+    // A pivot class is shared between relations, so the table comes from the
+    // relation rather than from the class name.
+    expect(membership.getTable()).toBe('tag_user')
+  })
+
+  test('wherePivot filters on the pivot, which a where on the related cannot', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const editor = await Tag.create({ label: 'maths' })
+    const reader = await Tag.create({ label: 'physics' })
+
+    await user.rolesTags().attach(editor.id, { role: 'editor' })
+    await user.rolesTags().attach(reader.id, { role: 'reader' })
+
+    const found = await user.editorTags().get()
+
+    expect(found.map((tag) => tag.label).all()).toEqual(['maths'])
+  })
+
+  test('eager loading hydrates the pivot too', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id, { role: 'editor' })
+
+    const [loaded] = (await User.with('rolesTags').get()).all()
+    const tags = loaded?.getRelation('rolesTags') as { all(): Model[] }
+    const pivot = tags.all()[0]?.getRelation('pivot') as Pivot
+
+    expect(pivot.attributes.role).toBe('editor')
+  })
+
+  test('and does not leave the eagerly loaded models dirty', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id, { role: 'editor' })
+
+    const [loaded] = (await User.with('rolesTags').get()).all()
+    const tags = loaded?.getRelation('rolesTags') as { all(): Model[] }
+
+    // The `pivot_*` columns are removed after the original snapshot is taken, so
+    // a model that nobody touched must still report itself as clean.
+    expect(tags.all()[0]?.isDirty()).toBe(false)
+  })
+})
+
+describe('polymorphic many-to-many', () => {
+  test('the owner side stores its own type', async () => {
+    const post = await Post.create({ title: 'Hello' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await post.taggedWith().attach(tag.id)
+
+    expect((await post.taggedWith().get()).map((entry) => entry.label).all()).toEqual(['maths'])
+  })
+
+  test('two parents of different types share one pivot table', async () => {
+    const post = await Post.create({ title: 'Hello' })
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await post.taggedWith().attach(tag.id)
+    await user.taggedWith().attach(tag.id, { note: 'from the user' })
+
+    // Same tag, same table, different types — and neither sees the other's row.
+    expect((await post.taggedWith().get()).count()).toBe(1)
+    expect((await user.taggedWith().get()).count()).toBe(1)
+
+    const pivot = (await user.taggedWith().get()).all()[0]?.getRelation('pivot') as Pivot
+    expect(pivot.attributes.note).toBe('from the user')
+    expect(pivot.attributes.taggable_type).toBe('users')
+  })
+
+  test('the inverse names the related type, not the parent', async () => {
+    const post = await Post.create({ title: 'Hello' })
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await post.taggedWith().attach(tag.id)
+    await user.taggedWith().attach(tag.id)
+
+    // `tag.posts()` must return the post and not the user, which is exactly what
+    // gets it backwards if the type is taken from the parent.
+    expect((await tag.posts().get()).map((entry) => entry.title).all()).toEqual(['Hello'])
+    expect((await tag.users().get()).map((entry) => entry.name).all()).toEqual(['Ada'])
+  })
+
+  test('detaching one type leaves the other attached', async () => {
+    const post = await Post.create({ title: 'Hello' })
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await post.taggedWith().attach(tag.id)
+    await user.taggedWith().attach(tag.id)
+
+    await post.taggedWith().detach()
+
+    expect((await post.taggedWith().get()).count()).toBe(0)
+    expect((await user.taggedWith().get()).count()).toBe(1)
+  })
+
+  test('eager loading is constrained by the type as well', async () => {
+    const post = await Post.create({ title: 'Hello' })
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await post.taggedWith().attach(tag.id)
+    await user.taggedWith().attach(tag.id)
+
+    const [loadedPost] = (await Post.with('taggedWith').get()).all()
+    const tags = loadedPost?.getRelation('taggedWith') as { all(): Model[] }
+
+    // An eager load that forgot the type would return both rows and quietly
+    // double the collection.
+    expect(tags.all()).toHaveLength(1)
   })
 })

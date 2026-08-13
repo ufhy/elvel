@@ -13,6 +13,7 @@ import {
   MorphMany,
   MorphOne,
   MorphTo,
+  MorphToMany,
   type Relation
 } from './relations.ts'
 
@@ -465,7 +466,15 @@ export class Model {
   private async baseQuery(): Promise<QueryBuilder<Row>> {
     const connection = await Model.getConnection(this.self.connection)
 
-    return new QueryBuilder<Row>(connection, this.self.getTable())
+    // The *instance* decides the table. Almost always the class's, but a pivot
+    // learns its table from the relation that built it, and saving one has to
+    // reach that table rather than a guess made from the class name.
+    return new QueryBuilder<Row>(connection, this.getTable())
+  }
+
+  /** This instance's table. Overridden by a pivot, which is told its own. */
+  getTable(): string {
+    return this.self.getTable()
   }
 
   async save(): Promise<boolean> {
@@ -768,6 +777,61 @@ export class Model {
     return new MorphOne(related, this, name, morphType, this.self.primaryKey)
   }
 
+  /**
+   * `post.tags()` — this model's side of a polymorphic many-to-many.
+   *
+   * The pivot stores this model's type, so `taggables` can hold tags for posts
+   * and videos at once without two tables.
+   */
+  morphToMany<R extends Model>(
+    related: ModelClass<R>,
+    name: string,
+    pivotTable?: string,
+    foreignPivotKey?: string,
+    relatedPivotKey?: string,
+    morphType = this.self.getTable()
+  ): MorphToMany<R> {
+    return new MorphToMany(
+      related,
+      this,
+      name,
+      pivotTable ?? `${name}s`,
+      foreignPivotKey ?? `${name}_id`,
+      relatedPivotKey ?? `${Model.snake(related.name)}_${related.primaryKey}`,
+      morphType,
+      this.self.primaryKey
+    )
+  }
+
+  /**
+   * `tag.posts()` — the inverse, where the *related* models are the polymorphic
+   * ones.
+   *
+   * The pivot's type column then holds the related model's type rather than this
+   * one's, which is the only difference and the easiest thing to get backwards.
+   */
+  morphedByMany<R extends Model>(
+    related: ModelClass<R>,
+    name: string,
+    pivotTable?: string,
+    foreignPivotKey?: string,
+    relatedPivotKey?: string,
+    morphType = related.getTable()
+  ): MorphToMany<R> {
+    return new MorphToMany(
+      related,
+      this,
+      name,
+      pivotTable ?? `${name}s`,
+      // The keys swap with the direction: this model is now the "related" one as
+      // far as the pivot's column names are concerned.
+      foreignPivotKey ?? `${Model.snake(this.self.name)}_${this.self.primaryKey}`,
+      relatedPivotKey ?? `${name}_id`,
+      morphType,
+      this.self.primaryKey
+    )
+  }
+
   hasManyThrough<R extends Model>(
     related: ModelClass<R>,
     through: ModelClass<Model>,
@@ -859,5 +923,83 @@ export class Model {
 
   private async fireEvent(name: string): Promise<void> {
     await Model.dispatcher?.dispatch(new ModelEvent(`${Model.snake(this.self.name)}.${name}`, this))
+  }
+}
+
+/**
+ * A pivot row, as a model — `Illuminate\Database\Eloquent\Relations\Pivot`.
+ *
+ * Declared **here**, beside `Model`, rather than in a file of its own: a subclass
+ * in a separate module that `relations.ts` also imports produces a cycle, and the
+ * symptom is "Cannot access 'Model' before initialization" at import time rather
+ * than anything that points at the cycle. The cache package learned this the same
+ * way with `TaggedCache`.
+ *
+ * The table is set per instance rather than declared, because a pivot class is
+ * usually shared: `Membership` is the pivot for `users`↔`teams` and knows its table
+ * only from the relation that built it.
+ */
+export class Pivot extends Model {
+  static override timestamps = false
+
+  /**
+   * Pivot tables often have no `id`, so nothing may address a row by one.
+   *
+   * Writes go through the relation (`updateExistingPivot`, `detach`), which keys on
+   * the two foreign columns.
+   */
+  static override incrementing = false
+
+  private pivotTable?: string
+  private pivotParentKey?: string
+  private pivotRelatedKey?: string
+
+  /**
+   * Build one from a row the relation already read.
+   *
+   * The attributes are **assigned**, not filled: `fill()` honours `fillable`, and
+   * a pivot declares none — so constructing with them silently produced an empty
+   * pivot. `hydrate()` bypasses fill for exactly the same reason, and this is the
+   * pivot's version of it.
+   */
+  static fromAttributes<T extends Pivot>(
+    this: new (
+      attributes?: Row
+    ) => T,
+    attributes: Row,
+    table: string,
+    foreignKey: string,
+    relatedKey: string,
+    exists = true
+  ): T {
+    const pivot = new this()
+
+    pivot.attributes = { ...attributes }
+    pivot.usePivot(table, foreignKey, relatedKey)
+    pivot.exists = exists
+    pivot.syncOriginal()
+
+    return pivot
+  }
+
+  usePivot(table: string, foreignKey: string, relatedKey: string): this {
+    this.pivotTable = table
+    this.pivotParentKey = foreignKey
+    this.pivotRelatedKey = relatedKey
+
+    return this
+  }
+
+  /** The table this instance belongs to, whatever the class says. */
+  override getTable(): string {
+    return this.pivotTable ?? (this.constructor as typeof Model).getTable()
+  }
+
+  get foreignKey(): string | undefined {
+    return this.pivotParentKey
+  }
+
+  get relatedKey(): string | undefined {
+    return this.pivotRelatedKey
   }
 }

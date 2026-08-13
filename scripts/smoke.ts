@@ -2281,6 +2281,30 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// ------------------------------------------------------- polymorphic pivots
+
+section('Polymorphic many-to-many')
+
+const tagged = (await (
+  await postJson('/check/articles/1/tags', { label: 'algebra', addedBy: 'ada' })
+).json()) as { tags: Array<{ label: string; addedBy: string; type: string; attachedAt: string }> }
+
+const attached = tagged.tags.find((entry) => entry.label === 'algebra')
+
+check('a tag attaches through the morph pivot', attached !== undefined)
+// The pivot's own columns live on `pivot`, not on the tag — which is what stops a
+// pivot column from overwriting one of the model's.
+check('withPivot reads the extra column back', attached?.addedBy === 'ada')
+check('and the type is written on attach', attached?.type === 'articles')
+check('withTimestamps stamps the row', typeof attached?.attachedAt === 'string')
+
+const inverse = (await (
+  await app.handle(new Request('http://localhost/check/tags/algebra/articles'))
+).json()) as { articles: string[] }
+
+// morphedByMany names the *related* type; getting that backwards returns nothing.
+check('the inverse finds the article', inverse.articles.length > 0)
+
 // ------------------------------------------------------------ maintenance mode
 
 section('Maintenance mode')
