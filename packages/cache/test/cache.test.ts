@@ -79,12 +79,12 @@ const candidates: Candidate[] = [
       await schema.create('cache', (table) => {
         table.string('key').primary()
         table.text('value')
-        table.integer('expiration')
+        table.bigInteger('expiration')
       })
       await schema.create('cache_locks', (table) => {
         table.string('key').primary()
         table.string('owner')
-        table.integer('expiration')
+        table.bigInteger('expiration')
       })
 
       return {
@@ -94,6 +94,104 @@ const candidates: Candidate[] = [
     }
   }
 ]
+
+/**
+ * The database store against a real server.
+ *
+ * SQLite covers the SQL; a server covers what SQLite cannot be asked about. The
+ * store leans on an upsert and a `for update` read, and both are dialect
+ * specific — a statement can be perfectly plausible and still be rejected, or
+ * worse, accepted with different locking semantics.
+ *
+ * Its own tables per run, so two suites against one server never collide.
+ */
+const SERVER_STORES: Array<{ name: string; config: Record<string, unknown> }> = [
+  {
+    name: 'database:postgres',
+    config: process.env.TEST_POSTGRES_URL
+      ? { driver: 'postgres', url: process.env.TEST_POSTGRES_URL }
+      : {
+          driver: 'postgres',
+          host: '127.0.0.1',
+          port: 5432,
+          username: 'postgres',
+          database: 'postgres'
+        }
+  },
+  {
+    name: 'database:mysql',
+    config: process.env.TEST_MYSQL_URL
+      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
+      : { driver: 'mysql', host: '127.0.0.1', port: 3309, username: 'root', database: 'mysql' }
+  }
+]
+
+for (const server of SERVER_STORES) {
+  const suffix = `${Date.now().toString(36)}_${server.name.split(':')[1]}`
+  const table = `cache_${suffix}`
+  const lockTable = `cache_locks_${suffix}`
+
+  const open = async () => {
+    const app = new Application(process.cwd())
+    app.config.set('database.default', 'cache-server')
+    app.config.set('database.connections.cache-server', server.config)
+
+    const db = new ConnectionManager(app)
+    const schema = await db.schema()
+
+    await schema.dropIfExists(table)
+    await schema.dropIfExists(lockTable)
+
+    await schema.create(table, (blueprint) => {
+      blueprint.string('key').primary()
+      blueprint.text('value')
+      blueprint.bigInteger('expiration')
+    })
+    await schema.create(lockTable, (blueprint) => {
+      blueprint.string('key').primary()
+      blueprint.string('owner')
+      blueprint.bigInteger('expiration')
+    })
+
+    return { app, db, schema }
+  }
+
+  const reachable = await (async () => {
+    try {
+      const { db, schema } = await open()
+
+      await schema.dropIfExists(table)
+      await schema.dropIfExists(lockTable)
+      await db.disconnectAll()
+
+      return true
+    } catch (error) {
+      console.log(
+        `  skipping ${server.name}: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`
+      )
+
+      return false
+    }
+  })()
+
+  if (!reachable) continue
+
+  candidates.push({
+    name: server.name,
+    make: async () => {
+      const { db, schema } = await open()
+
+      return {
+        store: new DatabaseStore(db, { table, lockTable, prefix: 't:' }),
+        dispose: async () => {
+          await schema.dropIfExists(table)
+          await schema.dropIfExists(lockTable)
+          await db.disconnectAll()
+        }
+      }
+    }
+  })
+}
 
 if (redisAvailable) {
   candidates.push({
@@ -676,12 +774,12 @@ describe('DatabaseStore', () => {
     await schema.create('cache', (table) => {
       table.string('key').primary()
       table.text('value')
-      table.integer('expiration')
+      table.bigInteger('expiration')
     })
     await schema.create('cache_locks', (table) => {
       table.string('key').primary()
       table.string('owner')
-      table.integer('expiration')
+      table.bigInteger('expiration')
     })
 
     store = new DatabaseStore(db)

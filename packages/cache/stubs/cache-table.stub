@@ -13,14 +13,22 @@ export default class extends Migration {
     await schema.create('{{ table }}', (table) => {
       table.string('key').primary()
       table.text('value')
-      table.integer('expiration')
+      /**
+       * A big integer, not an integer.
+       *
+       * "Forever" is written as a timestamp far in the future — past 2038, and so
+       * past what a 32-bit integer holds. Postgres and MySQL both refuse it with
+       * "out of range"; SQLite accepts it, which is exactly why this was only
+       * found by running the cache suite against a real server.
+       */
+      table.bigInteger('expiration')
       table.index(['expiration'])
     })
 
     await schema.create('{{ table }}_locks', (table) => {
       table.string('key').primary()
       table.string('owner')
-      table.integer('expiration')
+      table.bigInteger('expiration')
     })
   }
 

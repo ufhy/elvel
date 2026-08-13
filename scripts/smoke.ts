@@ -3233,11 +3233,26 @@ try {
     )
 
     const entered = attempts.filter((attempt) => attempt.entered).length
+    const refused = attempts.length - entered
     const peak = Math.max(...attempts.map((attempt) => attempt.peak))
 
-    check(`${store}: two callers get in at once`, entered === 2, `entered ${entered}`)
-    // The ceiling is the point: a peak of three means the semaphore leaked.
-    check(`${store}: and never a third`, peak === 2, `peak ${peak}`)
+    check(`${store}: callers get in`, entered >= 1, `entered ${entered}`)
+    // Six at once against two slots: some must be turned away, which is what
+    // separates a funnel from a queue.
+    check(
+      `${store}: and the rest are refused rather than queued`,
+      refused > 0,
+      `refused ${refused}`
+    )
+    /**
+     * The ceiling, which is the only invariant here.
+     *
+     * Not "exactly two were inside together" — whether two overlap depends on
+     * how fast the driver hands out a slot, and on the file store the first
+     * caller can finish before the second gets one. A peak above the limit is a
+     * leak; a peak below it is scheduling.
+     */
+    check(`${store}: and never more than the limit`, peak <= 2 && peak >= 1, `peak ${peak}`)
 
     await fetch(`http://127.0.0.1:${port}/check/cache/funnel?store=${store}`, { method: 'DELETE' })
   }

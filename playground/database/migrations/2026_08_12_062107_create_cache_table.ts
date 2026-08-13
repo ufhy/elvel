@@ -13,14 +13,14 @@ export default class extends Migration {
     await schema.create('cache', (table) => {
       table.string('key').primary()
       table.text('value')
-      table.integer('expiration')
+      table.bigInteger('expiration')
       table.index(['expiration'])
     })
 
     await schema.create('cache_locks', (table) => {
       table.string('key').primary()
       table.string('owner')
-      table.integer('expiration')
+      table.bigInteger('expiration')
     })
   }
 
