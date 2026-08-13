@@ -141,6 +141,19 @@ export class Migrator {
     }))
   }
 
+  /**
+   * Has anything ever been migrated on this connection?
+   *
+   * Distinct from `status()`, which reports the last batch: a squashed schema
+   * may only be loaded into a database where *no* migration has run, and the
+   * last batch being empty does not prove that.
+   */
+  async hasRunAnyMigrations(): Promise<boolean> {
+    if (!(await this.repository.repositoryExists())) return false
+
+    return (await this.repository.getRan()).length > 0
+  }
+
   private async allRecords() {
     // Status must work before `migrate` has ever run, so a missing tracking
     // table means "nothing has run" rather than an error.

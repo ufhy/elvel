@@ -1786,6 +1786,90 @@ check(
 )
 check('and it is the child that wrote it', capturedLog.includes(`pid ${marked?.pid}`))
 
+// ------------------------------------------------------- schema dump, squashed
+
+section('Schema: dump and load')
+
+const dumpPath = join(app.storagePath('framework'), 'smoke-schema.sql')
+
+await captureOutput(() => app.make('artisan').run(['schema:dump', `--path=${dumpPath}`]))
+
+const dumped = await Bun.file(dumpPath).text()
+
+// SQLite stores its own DDL, capitals and all — the dump is what the engine
+// said, not what our grammar would have written.
+check('schema:dump writes the tables', /create table/i.test(dumped))
+// The rows matter as much as the tables: without them `migrate` would replay
+// every migration on top of the schema it just loaded.
+check('and the migrations that produced them', dumped.includes('insert into "migrations"'))
+
+/**
+ * The squash, in a child process with its own database.
+ *
+ * Deliberately not by swapping this application's config: the session driver and
+ * every model already hold a connection built from it, and putting it back does
+ * not put them back — the first attempt failed three sections later with
+ * "no such table: sessions", which is a fair description of what config
+ * mutation does to a running application.
+ */
+const freshDatabase = join(app.storagePath('framework'), 'smoke-squashed.sqlite')
+await rm(freshDatabase, { force: true })
+
+const squashRun = Bun.spawnSync(
+  [process.execPath, 'artisan.ts', 'migrate', `--schema-path=${dumpPath}`],
+  {
+    cwd: join(import.meta.dir, '..', 'playground'),
+    env: { ...process.env, DB_CONNECTION: 'sqlite', DB_DATABASE: freshDatabase }
+  }
+)
+
+const squashOutput = plain(squashRun.stdout.toString() + squashRun.stderr.toString())
+
+check(
+  'migrate loads a stored schema on an empty database',
+  squashOutput.includes('Loading stored schema'),
+  squashOutput.slice(0, 200)
+)
+check('with nothing left pending', squashOutput.includes('Nothing to migrate'))
+
+const squashed = await BunSqlConnection.make('squashed', {
+  driver: 'sqlite',
+  database: freshDatabase
+})
+const squashedTables = await squashed.select<{ name: string }>(
+  "select name from sqlite_master where type='table'"
+)
+const squashedRows = await squashed.select<{ n: number }>('select count(*) as n from migrations')
+
+// The tables are there, and so is the record of which migrations produced them
+// — without that, `migrate` would replay all of them on the next run.
+check(
+  'the tables arrive without running a migration',
+  squashedTables.some((row) => row.name === 'articles')
+)
+check('and the migration rows come with them', Number(squashedRows[0]?.n ?? 0) > 0)
+
+await squashed.disconnect()
+await rm(freshDatabase, { force: true })
+await rm(dumpPath, { force: true })
+
+const isolated = plain(
+  await captureOutput(async () => {
+    await app.make('cache').store().forget('elysian:command:migrate')
+    await app.make('cache').store().add('elysian:command:migrate', 'held', 60)
+    await app.make('artisan').run(['migrate', '--isolated'])
+  })
+)
+
+// Zero, not a failure: a deploy runs this on every node and exactly one should
+// do the work while the others carry on.
+check(
+  '--isolated stands aside when another copy holds the lock',
+  isolated.includes('already running')
+)
+
+await app.make('cache').store().forget('elysian:command:migrate')
+
 // The overlap mutex, through the real cache store.
 let held: (() => void) | undefined
 const gate = new Promise<void>((resolve) => {

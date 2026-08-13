@@ -84,6 +84,34 @@ export class Kernel {
       return 0
     }
 
+    /**
+     * `--isolated`: run only if no other copy holds the lock.
+     *
+     * Exits **0** when it cannot, which looks wrong and is not: a deploy runs
+     * `migrate --isolated` on every node, and exactly one of them should do the
+     * work while the others carry on. A failure code there would fail the
+     * deploy on every node but one.
+     */
+    if (rest.includes('--isolated')) {
+      const released = await this.acquireIsolationLock(name, command)
+
+      if (!released) return 0
+
+      try {
+        return await this.execute(
+          command,
+          rest.filter((token) => token !== '--isolated')
+        )
+      } finally {
+        await released()
+      }
+    }
+
+    return this.execute(command, rest)
+  }
+
+  /** Run one resolved command, with its missing arguments filled in. */
+  private async execute(command: CommandConstructor, rest: string[]): Promise<number> {
     try {
       const supplied = await this.promptForMissing(command, rest)
 
@@ -105,6 +133,46 @@ export class Kernel {
         this.output.comment(error.stack ?? '')
       }
       return 1
+    }
+  }
+
+  /**
+   * Take the isolation lock, returning how to release it — or nothing.
+   *
+   * The lock lives in the cache, because the point is to exclude a *different
+   * process*, often on a different machine. Without a cache store there is
+   * nothing to exclude with, and saying so beats running anyway while claiming
+   * to be isolated.
+   */
+  private async acquireIsolationLock(
+    name: string,
+    command: CommandConstructor
+  ): Promise<(() => Promise<void>) | undefined> {
+    if (!(command as { isolatable?: boolean }).isolatable) {
+      this.output.error(`The ${name} command cannot be run with --isolated.`)
+
+      return undefined
+    }
+
+    if (!this.app.bound('cache')) {
+      this.output.error('--isolated needs a cache store. Register CacheServiceProvider.')
+
+      return undefined
+    }
+
+    const store = this.app.make('cache').store()
+    const key = `elysian:command:${name}`
+
+    // An expiry, not a bare flag: a process killed mid-command must not lock the
+    // command out for ever, and an hour is longer than any command should be.
+    if (!(await store.add(key, new Date().toISOString(), 3600))) {
+      this.output.comment(`The ${name} command is already running elsewhere.`)
+
+      return undefined
+    }
+
+    return async () => {
+      await store.forget(key)
     }
   }
 

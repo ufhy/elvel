@@ -31,6 +31,17 @@ export abstract class Command implements CommandContract {
   static signature = ''
   static description = ''
 
+  /**
+   * May this command be run with `--isolated`?
+   *
+   * Declared per command because the lock is only meaningful where a second
+   * copy would do damage — `migrate` on every node of a deploy at once, a
+   * nightly import started twice by an overlapping cron. Marking everything
+   * isolatable would invite locks on commands where refusing to run is worse
+   * than running twice.
+   */
+  static isolatable = false
+
   protected readonly output = new Output()
 
   protected app!: Application

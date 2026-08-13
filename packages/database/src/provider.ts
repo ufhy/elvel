@@ -14,6 +14,7 @@ import { MigrateRefreshCommand } from './console/migrate-refresh.ts'
 import { MigrateResetCommand } from './console/migrate-reset.ts'
 import { MigrateRollbackCommand } from './console/migrate-rollback.ts'
 import { MigrateStatusCommand } from './console/migrate-status.ts'
+import { SchemaDumpCommand } from './console/schema-dump.ts'
 import { Model } from './model/model.ts'
 
 declare module '@elysian/contracts' {
@@ -43,6 +44,7 @@ export class DatabaseServiceProvider extends ServiceProvider {
       .make('artisan')
       .register(
         MigrateCommand,
+        SchemaDumpCommand,
         MigrateRollbackCommand,
         MigrateResetCommand,
         MigrateRefreshCommand,
