@@ -29,6 +29,9 @@ export class DatabaseServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
+    // A model reaches the container for notifications and encryption.
+    Model.useApplication(this.app)
+
     // Models resolve their connection lazily through the manager, so a model
     // file can be imported before the database is reachable.
     Model.setConnectionResolver((name) => this.app.make('db').connection(name))

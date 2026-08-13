@@ -72,6 +72,22 @@ export class AuthServiceProvider extends ServiceProvider {
       this.app.make('artisan').register(AuthSchemaCommand, MakePolicyCommand)
     }
 
+    /**
+     * Policies are discovered before anything can authorise.
+     *
+     * The model registry is the same one the queue uses to rebuild payloads, so
+     * a model reachable by a worker is reachable by a policy — one discovery
+     * mechanism rather than two that can disagree.
+     */
+    if (this.app.bound('db')) {
+      const models = (this.app.make('db' as never) as { models?: { get(name: string): unknown } })
+        .models
+
+      if (models) {
+        await this.app.make('gate').discoverPolicies(this.app.appPath('Policies'), models)
+      }
+    }
+
     const auth = await this.instance()
     const manager = new AuthManager(auth)
 

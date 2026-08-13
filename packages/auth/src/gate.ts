@@ -1,3 +1,5 @@
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { type Policy, type PolicyLike, type PolicyResult, policyAllowsGuests } from './policy.ts'
 import { AuthorizationError, AuthorizationResponse } from './response.ts'
 
@@ -79,6 +81,53 @@ export class Gate {
     this.policies.set(subject, policy)
 
     return this
+  }
+
+  /**
+   * Find policies by name — Laravel's policy auto-discovery.
+   *
+   * `ArticlePolicy` in the given directory is registered for the model called
+   * `Article`, resolved from the model registry the application already keeps
+   * for queue payloads. Laravel guesses the *namespace*; here the guess is the
+   * class name, which is the part that carries the same meaning.
+   *
+   * Explicit registration still wins: this only fills in what nobody named, so
+   * `gate.policy(Article, SomethingElse)` is never overridden by a file that
+   * happens to be called `ArticlePolicy`.
+   */
+  async discoverPolicies(
+    directory: string,
+    models: { get(name: string): unknown }
+  ): Promise<number> {
+    let entries: string[]
+
+    try {
+      entries = await readdir(directory)
+    } catch {
+      // No policies directory is the ordinary case, not an error.
+      return 0
+    }
+
+    let found = 0
+
+    for (const entry of entries.sort()) {
+      if (!/\.(ts|js|mts|mjs)$/.test(entry) || entry.endsWith('.d.ts')) continue
+
+      const module = (await import(join(directory, entry))) as Record<string, unknown>
+
+      for (const exported of Object.values(module)) {
+        if (typeof exported !== 'function' || !exported.name.endsWith('Policy')) continue
+
+        const subject = models.get(exported.name.replace(/Policy$/, ''))
+
+        if (!subject || this.policies.has(subject as Subject)) continue
+
+        this.policy(subject as Subject, exported as PolicyLike)
+        found += 1
+      }
+    }
+
+    return found
   }
 
   /**

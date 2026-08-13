@@ -1,4 +1,4 @@
-import type { EventDispatcher } from '@elysian/contracts'
+import type { ApplicationContract, EventDispatcher } from '@elysian/contracts'
 import { Collection } from '@elysian/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
@@ -127,6 +127,22 @@ export class Model {
   static CREATED_AT = 'created_at'
   static UPDATED_AT = 'updated_at'
   static DELETED_AT = 'deleted_at'
+
+  /**
+   * The application, when there is one — for the few things a model reaches out
+   * to (notifications, encryption). Undefined outside a booted application, so
+   * a model used in isolation still works.
+   */
+  static applicationOrUndefined(): ApplicationContract | undefined {
+    return Model.application
+  }
+
+  /** Set by the database provider at boot. */
+  static useApplication(application: ApplicationContract): void {
+    Model.application = application
+  }
+
+  private static application?: ApplicationContract
 
   private static resolver?: ConnectionResolver
   private static dispatcher?: EventDispatcher
@@ -271,6 +287,49 @@ export class Model {
    * comment changes, and the post's own row is the only place that can say so.
    */
   static touches: string[] = []
+
+  /**
+   * Send a notification to this model — Laravel's `$model->notify()`.
+   *
+   * The model is the notifiable: `routeNotificationFor`, `getKey` and `email`
+   * are what the notification package asks for, and a model has all three.
+   *
+   * Resolved through the container rather than imported, so the database package
+   * keeps working with no notifications package present — and says which
+   * provider to register when there is not one.
+   */
+  async notify(notification: unknown): Promise<void> {
+    const application = Model.applicationOrUndefined()
+
+    if (!application?.bound('notifications')) {
+      throw new Error(
+        `[${this.self.name}] cannot notify: register NotificationServiceProvider in config/app.ts.`
+      )
+    }
+
+    await (
+      application.make('notifications' as never) as {
+        send(notifiable: unknown, notification: unknown): Promise<void>
+      }
+    ).send(this, notification)
+  }
+
+  /** Send now, even if the notification asked to be queued. */
+  async notifyNow(notification: unknown): Promise<void> {
+    const application = Model.applicationOrUndefined()
+
+    if (!application?.bound('notifications')) {
+      throw new Error(
+        `[${this.self.name}] cannot notify: register NotificationServiceProvider in config/app.ts.`
+      )
+    }
+
+    await (
+      application.make('notifications' as never) as {
+        sendNow(notifiable: unknown, notification: unknown): Promise<void>
+      }
+    ).sendNow(this, notification)
+  }
 
   /** Touch every relation `static touches` names. */
   private async touchRelations(): Promise<void> {
