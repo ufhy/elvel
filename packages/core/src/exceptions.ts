@@ -121,7 +121,63 @@ export class ExceptionHandler implements ExceptionHandlerContract {
       payload.stack = error.stack?.split('\n').map((line) => line.trim())
     }
 
-    return Response.json(payload, { status, headers: ExceptionHandler.headersOf(error) })
+    const headers = ExceptionHandler.headersOf(error)
+
+    /**
+     * A browser gets HTML; everything else gets JSON.
+     *
+     * Decided from `Accept`, and only when the client asked for HTML *before*
+     * JSON — an API client sending a wildcard Accept still gets JSON, which is what makes
+     * this safe to apply to every route rather than only to web ones. A 403 from
+     * a policy rendered as `"message":"..."` in a browser window is the shape
+     * that made this worth doing.
+     */
+    if (wantsHtml(_context.request)) {
+      return new Response(this.renderHtml(status, payload, debug), {
+        status,
+        headers: { ...headers, 'content-type': 'text/html; charset=utf-8' }
+      })
+    }
+
+    return Response.json(payload, { status, headers })
+  }
+
+  /**
+   * The HTML for an error page.
+   *
+   * Deliberately one self-contained document with no stylesheet link: an error
+   * page that depends on an asset pipeline is an error page that renders as
+   * unstyled text on the day the asset pipeline is what broke. Override this
+   * method to render one of the application's own views instead.
+   */
+  protected renderHtml(status: number, payload: Record<string, unknown>, debug: boolean): string {
+    const title = escapeHtml(String(payload.message ?? 'Something went wrong.'))
+    const stack =
+      debug && Array.isArray(payload.stack)
+        ? `<pre>$escapeHtml((payload.stack as string[]).join('\n'))</pre>`
+        : ''
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${status}</title>
+<style>
+  body { font: 16px/1.6 system-ui, sans-serif; margin: 0; display: grid; place-items: center; min-height: 100vh; color: #1a1a1a; background: #fafafa; }
+  main { max-width: 42rem; padding: 2rem; }
+  h1 { font-size: 4rem; margin: 0; letter-spacing: -0.03em; }
+  p { color: #555; margin: 0.5rem 0 0; }
+  pre { margin-top: 1.5rem; padding: 1rem; overflow-x: auto; background: #fff; border: 1px solid #e5e5e5; border-radius: 0.5rem; font-size: 0.8rem; color: #444; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #f2f2f2; background: #131313; }
+    p { color: #a0a0a0; }
+    pre { background: #1c1c1c; border-color: #2a2a2a; color: #cfcfcf; }
+  }
+</style>
+</head>
+<body><main><h1>${status}</h1><p>${title}</p>${stack}</main></body>
+</html>`
   }
 
   /** Headers an exception asked to be sent with it. */
@@ -209,4 +265,30 @@ export class ExceptionHandler implements ExceptionHandlerContract {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
   }
+}
+
+/**
+ * Did the client ask for HTML *before* JSON?
+ *
+ * A browser sends `text/html` ahead of everything; an API client sends
+ * `application/json`, or a wildcard. Checking the order rather than mere presence is
+ * what keeps a fetch() from being handed an error page it cannot parse.
+ */
+export function wantsHtml(request: Request): boolean {
+  const accept = request.headers.get('accept') ?? ''
+
+  if (!accept.includes('text/html')) return false
+
+  const json = accept.indexOf('application/json')
+
+  return json === -1 || accept.indexOf('text/html') < json
+}
+
+/** Enough escaping for a message that may carry a path or a class name. */
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
 }

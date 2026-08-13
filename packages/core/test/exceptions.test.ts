@@ -145,3 +145,43 @@ describe('reporting', () => {
     }
   })
 })
+
+describe('error pages for a browser', () => {
+  const handler = () => new ExceptionHandler(new Application(process.cwd()))
+
+  const at = (accept: string) => new Request('http://localhost/orders', { headers: { accept } })
+
+  test('a browser gets HTML, an API client gets JSON', async () => {
+    const html = handler().render(new NotFoundException('No such order.'), {
+      request: at('text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
+    })
+
+    expect<number>(html.status).toBe(404)
+    expect<string | null>(html.headers.get('content-type')).toContain('text/html')
+    expect<boolean>((await html.text()).includes('No such order.')).toBe(true)
+
+    const json = handler().render(new NotFoundException('No such order.'), {
+      request: at('application/json')
+    })
+
+    expect<string | null>(json.headers.get('content-type')).toContain('application/json')
+  })
+
+  test('a wildcard Accept still gets JSON', () => {
+    // A fetch() sending */* must not be handed a page it cannot parse.
+    const response = handler().render(new NotFoundException('gone'), { request: at('*/*') })
+
+    expect<string | null>(response.headers.get('content-type')).toContain('application/json')
+  })
+
+  test('the message is escaped', async () => {
+    const response = handler().render(new NotFoundException('<script>alert(1)</script>'), {
+      request: at('text/html')
+    })
+
+    const body = await response.text()
+
+    expect<boolean>(body.includes('<script>alert(1)</script>')).toBe(false)
+    expect<boolean>(body.includes('&lt;script&gt;')).toBe(true)
+  })
+})
