@@ -1,3 +1,4 @@
+import { app } from '@elysian/core'
 import { BAGGED, DEFAULT_BAG, ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
 import { currentScope } from './scope.ts'
 import type { Session } from './session.ts'
@@ -145,6 +146,18 @@ export class Redirect {
   /** 301 rather than 302, for a move that is meant to be remembered. */
   permanent(): this {
     this.status = 301
+
+    return this
+  }
+
+  /**
+   * Go to a named route — `redirect().route('articles.show', { id })`.
+   *
+   * The point of naming: this line survives the path changing, and fails at boot
+   * rather than at a user's click if the name stops matching one.
+   */
+  route(name: string, parameters: Record<string, unknown> = {}): this {
+    this.target = app('routes').to(name, parameters)
 
     return this
   }

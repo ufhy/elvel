@@ -1,5 +1,5 @@
 import { controller, NotFoundException } from '@elysian/core'
-import { sessionOf, validateRequest } from '@elysian/http'
+import { redirect, route, routes, sessionOf, validateRequest } from '@elysian/http'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 import type { Comment } from '../../Models/Comment.ts'
@@ -16,6 +16,18 @@ import { ArticleResource } from '../Resources/ArticleResource.ts'
  * These routes sit under `/check/*`, which the playground exempts from CSRF; the
  * CSRF path itself is exercised by `/session/*` below.
  */
+/**
+ * Names for the routes other code links to.
+ *
+ * Registered here, beside the routes themselves, so a path and its name change
+ * together — and `verify()` refuses to boot if they ever stop matching.
+ */
+routes().names({
+  'articles.index': '/check/articles',
+  'articles.show': '/check/articles/:id',
+  'articles.restore': '/check/articles/:id/restore'
+})
+
 export default controller('article')
   /** Paginated, with a relation count, straight through the model. */
   .get('/check/articles', async ({ query }) => {
@@ -100,6 +112,27 @@ export default controller('article')
    * One query for every article, and each keeps its own row — which is what a
    * `limit 1` on the same query would get wrong.
    */
+  /** URLs built from names, and a redirect that goes through one. */
+  .get('/check/articles/links', ({ query }) => {
+    if (query.redirect === 'yes') return redirect().route('articles.show', { id: 7 }).toResponse()
+
+    return {
+      index: route('articles.index', { page: 2 }),
+      show: route('articles.show', { id: 7 }),
+      absolute: route('articles.show', { id: 7 }, true),
+      // A name nobody registered is an error at the call, not a broken link.
+      unknown: (() => {
+        try {
+          route('articles.missing')
+
+          return null
+        } catch (error) {
+          return (error as Error).message
+        }
+      })()
+    }
+  })
+
   .get('/check/articles/latest-comments', async () => {
     const articles = await Article.with('latestComment').orderBy('id').get()
 

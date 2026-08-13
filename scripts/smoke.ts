@@ -2454,6 +2454,33 @@ try {
   // leave somebody wondering where their sign-in page went.
   check('an unknown kit is refused', unknownKit.exitCode === 1)
 
+  // --------------------------------------------------------------- route names
+
+  section('Named routes')
+
+  const links = (await (
+    await app.handle(new Request('http://localhost/check/articles/links'))
+  ).json()) as { index: string; show: string; absolute: string; unknown: string | null }
+
+  check('a name becomes a path', links.show === '/check/articles/7', links.show)
+  // Leftover parameters become the query string, which is what makes
+  // route('articles.index', { page: 2 }) read the way it does.
+  check('and leftovers become the query string', links.index === '/check/articles?page=2')
+  check('absolute prefixes the configured origin', links.absolute.startsWith('http'))
+  // A name nobody registered fails where it is written, not as a broken link.
+  check(
+    'an unknown name throws where it is called',
+    links.unknown?.includes('not defined') === true
+  )
+
+  const named = await app.handle(new Request('http://localhost/check/articles/links?redirect=yes'))
+
+  check('redirect().route() goes there', named.headers.get('location') === '/check/articles/7')
+
+  // Boot verified every name against Elysia's own route table — a name pointing
+  // at a path no route answers would have thrown before this line ran.
+  check('every registered name matched a real route', app.make('routes').has('articles.show'))
+
   await rm(kitTarget, { recursive: true, force: true })
   await rm(join(app.basePath(), '..', '.smoke-kit-bad'), { recursive: true, force: true })
 

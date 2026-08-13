@@ -114,7 +114,6 @@ limiting, CORS and trusted proxies.
 
 | Missing | Why |
 | --- | --- |
-| A named-route `redirect()->route('articles.show', …)` | `redirect()` takes a path, `back()` resolves the previous URL, and both flash. Named routes do not exist here: Elysia routes are declared as strings on a plugin, so there is no name table to look one up in. |
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
 | A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
 | Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |

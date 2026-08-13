@@ -18,6 +18,7 @@ import {
 import { TokenMismatchError, tokensMatch } from './csrf.ts'
 import { maintenancePlugin } from './maintenance.ts'
 import { PREVIOUS_URL_KEY } from './redirect.ts'
+import { RouteRegistry } from './routes.ts'
 import { enterRequestScope } from './scope.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
 import { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
@@ -28,6 +29,7 @@ declare module '@elysian/contracts' {
     'session.driver': SessionDriver
     cookies: CookieJar
     limiters: LimiterRegistry
+    routes: RouteRegistry
   }
 }
 
@@ -107,6 +109,15 @@ export class HttpServiceProvider extends ServiceProvider {
     // Registered rather than booted: a provider's `boot()` is where an
     // application defines its limiters, and half of those run before this one.
     this.app.singleton('limiters', () => new LimiterRegistry())
+
+    // Same reason: controllers name their routes while they are being mounted,
+    // which happens before this provider boots.
+    this.app.singleton('routes', () => {
+      const registry = new RouteRegistry()
+      registry.origin = this.config<string>('app.url', '').replace(/\/$/, '')
+
+      return registry
+    })
   }
 
   override async boot(): Promise<void> {
@@ -146,6 +157,19 @@ export class HttpServiceProvider extends ServiceProvider {
      * The session cookie is always excepted: it is signed by the plugin above, and
      * encrypting it a second time here would leave a value neither half can read.
      */
+    /**
+     * A name that points at no route is a boot failure, not a 404 later.
+     *
+     * Read from Elysia's own table, after every controller has mounted, so it
+     * sees what was actually registered rather than what was meant to be.
+     */
+    this.app.booted(() => {
+      const router = (this.app as unknown as { router?: { routes?: Array<{ path: string }> } })
+        .router
+
+      if (router?.routes) this.app.make('routes').verify(router.routes)
+    })
+
     this.use(
       cookiePlugin(this.app.make('cookies'), {
         except: [sessionName, ...this.config<string[]>('cookies.except', [])]

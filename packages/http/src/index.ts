@@ -78,6 +78,8 @@ export {
   MISSING,
   ResourceCollection
 } from './resource.ts'
+export { route, routes } from './route-helpers.ts'
+export { RouteRegistry } from './routes.ts'
 export {
   currentScope,
   enterRequestScope,

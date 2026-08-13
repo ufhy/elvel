@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { errorBags, errors, hasOld, MessageBag, old } from '../src/errors.ts'
 import { back, intended, previousUrl, redirect } from '../src/redirect.ts'
+import { RouteRegistry } from '../src/routes.ts'
 import { withRequestScope } from '../src/scope.ts'
 import { MemorySessionDriver, Session } from '../src/session.ts'
 
@@ -294,5 +295,81 @@ describe('guest() and intended()', () => {
     withRequestScope({ request: posted, session }, () => redirect('/login').guest())
 
     expect<string>(inRequest(() => intended('/dashboard').location)).toBe('/dashboard')
+  })
+})
+
+describe('named routes', () => {
+  const registry = () =>
+    new RouteRegistry().names({
+      'articles.index': '/articles',
+      'articles.show': '/articles/:id',
+      'articles.comment': '/articles/:id/comments/:comment',
+      'files.show': '/files/{path}'
+    })
+
+  test('parameters fill the placeholders, in either syntax', () => {
+    const routes = registry()
+
+    expect<string>(routes.to('articles.show', { id: 12 })).toBe('/articles/12')
+    expect<string>(routes.to('files.show', { path: 'report' })).toBe('/files/report')
+    expect<string>(routes.to('articles.comment', { id: 1, comment: 2 })).toBe(
+      '/articles/1/comments/2'
+    )
+  })
+
+  test('what is left over becomes the query string', () => {
+    expect<string>(registry().to('articles.index', { page: 2, sort: 'new' })).toBe(
+      '/articles?page=2&sort=new'
+    )
+  })
+
+  test('a value is encoded, so a slash cannot invent a segment', () => {
+    expect<string>(registry().to('articles.show', { id: 'a/b' })).toBe('/articles/a%2Fb')
+  })
+
+  test('a missing parameter names the route and the parameter', () => {
+    // The alternative is a URL with `:id` still in it, which 404s a long way
+    // from the call that built it.
+    expect(() => registry().to('articles.show', {})).toThrow('[articles.show] needs a [id]')
+  })
+
+  test('an unknown name lists what is known', () => {
+    expect(() => registry().to('articles.edit')).toThrow('Known: articles.comment')
+  })
+
+  test('absolute prefixes the configured origin', () => {
+    const routes = registry()
+    routes.origin = 'https://example.com'
+
+    expect<string>(routes.to('articles.show', { id: 1 }, true)).toBe(
+      'https://example.com/articles/1'
+    )
+  })
+
+  test('a name cannot be taken twice by different paths', () => {
+    // Two routes under one name means route() returns whichever registered last,
+    // and the loser is a link nobody notices is wrong.
+    expect(() => registry().name('articles.show', '/posts/:id')).toThrow('already taken')
+
+    // The same path twice is not a conflict — a controller mounted twice is fine.
+    expect(() => registry().name('articles.show', '/articles/:id')).not.toThrow()
+  })
+
+  test('verify() refuses a name that points nowhere', () => {
+    const routes = registry()
+
+    expect(() =>
+      routes.verify([{ path: '/articles' }, { path: '/articles/:id' }, { path: '/files/:path' }])
+    ).toThrow('articles.comment')
+
+    expect(() =>
+      routes.verify([
+        { path: '/articles' },
+        // A different parameter name is the same route shape.
+        { path: '/articles/:article' },
+        { path: '/articles/:article/comments/:id' },
+        { path: '/files/:file' }
+      ])
+    ).not.toThrow()
   })
 })
