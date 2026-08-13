@@ -152,6 +152,7 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/database": "workspace:*",
         "@elysian/support": "workspace:*",
         "@elysian/validation": "workspace:*",
       },

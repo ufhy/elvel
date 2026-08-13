@@ -2515,6 +2515,36 @@ check('up brings it back', (await maintenance.active()) === false)
 const live = await app.handle(new Request('http://localhost/health'))
 check('and requests are answered again', live.status === 200)
 
+// ------------------------------------------------------------ session drivers
+
+section('Session drivers')
+
+const sessionDriver = app.make('session.driver')
+
+// The playground runs on `database`, which is the configuration that works on
+// more than one machine — a file session lives on whichever container wrote it.
+check(
+  'the configured driver is the database one',
+  sessionDriver.constructor.name === 'DatabaseSessionDriver'
+)
+
+const probeId = `smoke${Date.now()}`
+
+await sessionDriver.write(probeId, { visits: 1 })
+check(
+  'a session round trips through the table',
+  ((await sessionDriver.read(probeId)) as { visits?: number })?.visits === 1
+)
+
+const sessionRow = await (await app.make('db').table('sessions')).where('id', probeId).first()
+
+// Base64, so a payload with quotes or emoji cannot break the column on its way in.
+check('the payload is stored base64', /^[A-Za-z0-9+/=]+$/.test(String(sessionRow?.payload)))
+check('with a unix last_activity to sweep by', Number(sessionRow?.last_activity) > 0)
+
+await sessionDriver.destroy(probeId)
+check('and destroy removes it', (await sessionDriver.read(probeId)) === undefined)
+
 // ------------------------------------------------ forms: errors and old input
 
 section('Forms: redirect back with errors')

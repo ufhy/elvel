@@ -1,5 +1,6 @@
 export { MakeRequestCommand } from './console/make-request.ts'
 export { MakeResourceCommand } from './console/make-resource.ts'
+export { SessionTableCommand } from './console/session-table.ts'
 export { CookieJar, type CookieOptions, timingSafeEqual } from './cookies.ts'
 export {
   actualHeaders,
@@ -67,6 +68,7 @@ export {
   type SessionDriver,
   sessionOf
 } from './session.ts'
+export { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
 export {
   type LimiterCallback,
   type LimiterContext,

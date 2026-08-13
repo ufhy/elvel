@@ -3,6 +3,7 @@ import { flushDeferred, ServiceProvider } from '@elysian/core'
 import { Elysia } from 'elysia'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
+import { SessionTableCommand } from './console/session-table.ts'
 import { CookieJar } from './cookies.ts'
 import {
   actualHeaders,
@@ -18,6 +19,7 @@ import { maintenancePlugin } from './maintenance.ts'
 import { PREVIOUS_URL_KEY } from './redirect.ts'
 import { enterRequestScope } from './scope.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
+import { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
 import { LimiterRegistry } from './throttle.ts'
 
 declare module '@elysian/contracts' {
@@ -38,13 +40,55 @@ export class HttpServiceProvider extends ServiceProvider {
       const driver = this.config<string>('session.driver', 'file')
 
       if (driver === 'memory') return new MemorySessionDriver()
+
       if (driver === 'file') {
         return new FileSessionDriver(
           this.config('session.path', join(app.storagePath('framework'), 'sessions'))
         )
       }
 
-      throw new Error(`Session driver [${driver}] is not supported.`)
+      /**
+       * A table, so more than one process can share a session.
+       *
+       * The moment an application runs in two containers, a file session lives on
+       * whichever machine wrote it and people are logged out at random.
+       */
+      if (driver === 'database') {
+        if (!app.bound('db')) {
+          throw new Error(
+            'The database session driver needs DatabaseServiceProvider. Register it, then run: artisan session:table && artisan migrate'
+          )
+        }
+
+        const table = this.config<string>('session.table', 'sessions')
+        const connection = this.config<string | undefined>('session.connection', undefined)
+
+        return new DatabaseSessionDriver(() => app.make('db').table(table, connection) as never)
+      }
+
+      // `redis` is the cache driver by another name, exactly as in Laravel: any
+      // configured store will do, and the store's own expiry does the collecting.
+      if (driver === 'redis' || driver === 'cache') {
+        if (!app.bound('cache')) {
+          throw new Error(
+            `The ${driver} session driver needs CacheServiceProvider. Register it in config/app.ts.`
+          )
+        }
+
+        const store = this.config<string | undefined>(
+          'session.store',
+          driver === 'redis' ? 'redis' : undefined
+        )
+
+        return new CacheSessionDriver(
+          app.make('cache').store(store) as never,
+          this.config<number>('session.lifetime', 7200)
+        )
+      }
+
+      throw new Error(
+        `Session driver [${driver}] is not supported. Use file, database, redis, cache or memory.`
+      )
     })
 
     this.app.singleton('cookies', (app) => {
@@ -66,7 +110,9 @@ export class HttpServiceProvider extends ServiceProvider {
 
   override async boot(): Promise<void> {
     if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(MakeRequestCommand, MakeResourceCommand)
+      this.app
+        .make('artisan')
+        .register(MakeRequestCommand, MakeResourceCommand, SessionTableCommand)
     }
 
     /**

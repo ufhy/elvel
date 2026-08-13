@@ -23,6 +23,7 @@ DB_CONNECTION=sqlite
 DB_DATABASE=database/database.sqlite
 DB_FOREIGN_KEYS=true
 
+# file works on one machine. database needs: artisan session:table && artisan migrate
 SESSION_DRIVER=file
 SESSION_CSRF=true
 # Encrypt the session cookie instead of only signing it.

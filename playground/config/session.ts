@@ -16,6 +16,21 @@ export default {
   lifetime: Number(env('SESSION_LIFETIME', 7200)),
 
   /**
+   * Where sessions are kept: `file`, `database`, `redis`, `cache` or `memory`.
+   *
+   * `file` is right for one machine and wrong for two: the session lives on
+   * whichever container wrote it, so behind a load balancer people are logged out
+   * at random. `database` needs `artisan session:table && artisan migrate`.
+   */
+  table: env('SESSION_TABLE', 'sessions'),
+
+  /** Connection for the database driver. Undefined means the app's default. */
+  connection: undefined,
+
+  /** Cache store for the redis/cache driver. Undefined means the default store. */
+  store: env('SESSION_STORE', '') || undefined,
+
+  /**
    * CSRF protection for state-changing requests.
    *
    * The session cookie holds only a signed id, so it is signed rather than

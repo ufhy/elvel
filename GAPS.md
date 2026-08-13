@@ -224,7 +224,6 @@ limiting, CORS and trusted proxies.
 | A named-route `redirect()->route('articles.show', …)` | `redirect()` takes a path, `back()` resolves the previous URL, and both flash. Named routes do not exist here: Elysia routes are declared as strings on a plugin, so there is no name table to look one up in. |
 | `redirect()->guest()` and the intended-URL dance | Needs somewhere to record where the guest was going, which is the login redirect belonging to `@elysian/auth`. |
 | A `ViewErrorBag` with **named** bags (`$errors->login->first(...)`) | One bag. Named bags exist for two forms on one page; `errors()` would take the name, and nothing needs it yet. |
-| `database` and `redis` session drivers | `file` and `memory` exist; the driver interface is four methods. |
 | Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
 | A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
@@ -566,7 +565,6 @@ Docker does.
 | Missing | Why |
 | --- | --- |
 | Starter kits (Breeze/Jetstream-shaped) | The template is one landing page. Auth *endpoints* are mounted and better-auth is a dependency, but there is no sign-in view, no dashboard and no scaffolding switch that writes them. |
-| A `sessions` table generator | There is no `database` session driver yet (see `@elysian/http`), so `session:table` would write a migration nothing reads. |
 | Publishing to npm | `bun create elysian my-app` cannot work until `create-elysian` is on npm; the README says so rather than implying it. |
 | `--kit`/`--minimal` variants | One template, so nothing to choose between. A minimal variant would mean maintaining two. |
 
