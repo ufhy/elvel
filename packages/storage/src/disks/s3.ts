@@ -1,3 +1,4 @@
+import { signRequest } from '@elysian/support'
 import { S3Client } from 'bun'
 import type { CloudDisk, Visibility, Writable, WriteOptions } from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename } from '../paths.ts'
@@ -225,19 +226,113 @@ export class S3Disk implements CloudDisk {
   }
 
   /**
-   * S3 has no per-object visibility we can read back without extra permissions,
-   * so this reports the disk's default rather than guessing per key.
+   * The object's real ACL, read from the bucket.
+   *
+   * An object is public when its ACL grants `READ` to the `AllUsers` group, which
+   * is exactly how Flysystem decides it. Anything else — including a grant to an
+   * authenticated-users group — is private, because "anyone with the link" is the
+   * only question this answers.
+   *
+   * A bucket that refuses `GetObjectAcl` falls back to the disk's default rather
+   * than throwing. Many buckets are configured with ACLs disabled entirely
+   * (`BucketOwnerEnforced`), and on one of those the permission is not merely
+   * missing — the concept is. Failing here would make a `files()` listing that
+   * reports visibility unusable on the most common modern setup.
    */
-  async getVisibility(): Promise<Visibility> {
-    return this.options.visibility ?? 'private'
+  async getVisibility(path: string): Promise<Visibility> {
+    const response = await this.acl('GET', path)
+
+    if (!response?.ok) return this.options.visibility ?? 'private'
+
+    return grantsPublicRead(await response.text()) ? 'public' : 'private'
   }
 
+  /**
+   * Change the ACL in place — `PutObjectAcl`.
+   *
+   * The sub-resource request rather than a rewrite: rewriting means downloading
+   * and re-uploading the whole object to change one flag, which on a large file
+   * is minutes of transfer and a new version in a versioned bucket.
+   *
+   * Where the ACL sub-resource is not implemented or not permitted, the rewrite
+   * is still the fallback — it is slower but it works, and a `setVisibility` that
+   * silently did nothing would be worse than either.
+   */
   async setVisibility(path: string, visibility: Visibility): Promise<boolean> {
-    // Rewriting the object is the only way to change its ACL through this client.
+    const response = await this.acl('PUT', path, {
+      'x-amz-acl': visibility === 'public' ? 'public-read' : 'private'
+    })
+
+    if (response?.ok) return true
+
     const bytes = await this.bytes(path)
     if (!bytes) return false
 
     return this.put(path, bytes, { visibility })
+  }
+
+  /**
+   * A signed request to the `?acl` sub-resource.
+   *
+   * Signed here rather than through Bun's client, which covers object operations
+   * but does not expose sub-resources. Returns undefined when there are no
+   * credentials to sign with, so a disk configured for a public bucket degrades
+   * to its default instead of throwing.
+   */
+  private async acl(
+    method: 'GET' | 'PUT',
+    path: string,
+    headers: Record<string, string> = {}
+  ): Promise<Response | undefined> {
+    const accessKeyId = this.options.accessKeyId ?? process.env.AWS_ACCESS_KEY_ID
+    const secretAccessKey = this.options.secretAccessKey ?? process.env.AWS_SECRET_ACCESS_KEY
+
+    if (!accessKeyId || !secretAccessKey) return undefined
+
+    const url = `${this.objectUrl(path)}?acl`
+
+    try {
+      return await fetch(url, {
+        method,
+        headers: signRequest(
+          {
+            method,
+            url,
+            headers,
+            region: this.options.region ?? 'us-east-1',
+            service: 's3',
+            now: new Date()
+          },
+          {
+            accessKeyId,
+            secretAccessKey,
+            sessionToken: this.options.sessionToken ?? process.env.AWS_SESSION_TOKEN
+          }
+        )
+      })
+    } catch {
+      // A bucket that cannot be reached is not a visibility answer; the caller
+      // gets the disk's default, and every other operation will report the
+      // failure loudly enough on its own.
+      return undefined
+    }
+  }
+
+  /**
+   * Where the object actually lives — never the CDN.
+   *
+   * `url()` can be pointed at a CDN, and a signed request to a CDN is a signature
+   * over the wrong host.
+   */
+  private objectUrl(path: string): string {
+    const key = this.key(path)
+    const endpoint = this.options.endpoint?.replace(/\/$/, '')
+
+    if (endpoint) return `${endpoint}/${this.options.bucket}/${key}`
+
+    const region = this.options.region ?? 'us-east-1'
+
+    return `https://${this.options.bucket}.s3.${region}.amazonaws.com/${key}`
   }
 
   /**
@@ -358,4 +453,26 @@ export class S3Disk implements CloudDisk {
 
     return { files: files.sort(), directories: [...directories].sort() }
   }
+}
+
+/** The `AllUsers` group, which is what "public" means on an S3 ACL. */
+const ALL_USERS = 'http://acs.amazonaws.com/groups/global/AllUsers'
+
+/**
+ * Does this ACL document grant read to everyone?
+ *
+ * Parsed with a regular expression rather than an XML parser: the document is
+ * one shape, defined by AWS, and the question asked of it is a single boolean.
+ * Each `<Grant>` is examined whole so a grantee in one grant cannot pair with a
+ * permission from the next.
+ */
+export function grantsPublicRead(xml: string): boolean {
+  for (const grant of xml.match(/<Grant>[\s\S]*?<\/Grant>/g) ?? []) {
+    const uri = /<URI>([^<]*)<\/URI>/.exec(grant)?.[1]
+    const permission = /<Permission>([^<]*)<\/Permission>/.exec(grant)?.[1]
+
+    if (uri === ALL_USERS && permission === 'READ') return true
+  }
+
+  return false
 }

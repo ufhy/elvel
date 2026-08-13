@@ -24,16 +24,6 @@ export {
 } from './message.ts'
 export { MailServiceProvider } from './provider.ts'
 export { MailableRegistry, type QueuedMailData, SendQueuedMail } from './queued.ts'
-export {
-  amzDate,
-  type Credentials,
-  canonicalRequest,
-  type SigningRequest,
-  signingKey,
-  signRequest,
-  stringToSign,
-  uriEncode
-} from './sigv4.ts'
 export { ArrayTransport } from './transports/array.ts'
 export { FailoverTransport, RoundRobinTransport } from './transports/fallback.ts'
 export {

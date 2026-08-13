@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
+import { canonicalRequest, signingKey, stringToSign } from '@elysian/support'
 import type { SentMessage } from '../src/message.ts'
-import { canonicalRequest, signingKey, stringToSign } from '../src/sigv4.ts'
 import { SesTransport } from '../src/transports/ses.ts'
 
 const CREDENTIALS = {

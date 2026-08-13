@@ -3,8 +3,8 @@ import { createHmac } from 'node:crypto'
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elysian/database'
-import { canonicalRequest, signingKey, stringToSign } from '@elysian/mail'
 import { ScheduleRunner } from '@elysian/scheduler'
+import { canonicalRequest, signingKey, stringToSign } from '@elysian/support'
 import pc from 'picocolors'
 
 /**

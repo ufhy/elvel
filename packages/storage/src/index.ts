@@ -9,7 +9,7 @@ export {
 } from './contracts.ts'
 export { LocalDisk, type LocalDiskOptions } from './disks/local.ts'
 export { MemoryDisk } from './disks/memory.ts'
-export { S3Disk, type S3DiskOptions } from './disks/s3.ts'
+export { grantsPublicRead, S3Disk, type S3DiskOptions } from './disks/s3.ts'
 export { disk, storage } from './helpers.ts'
 export { type DiskConfig, type DiskFactory, StorageManager } from './manager.ts'
 export { StorageServiceProvider } from './provider.ts'

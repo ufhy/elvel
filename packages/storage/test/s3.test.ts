@@ -180,3 +180,60 @@ describe.skipIf(!reachable)('S3, against a real bucket', () => {
     }
   })
 })
+
+describe.skipIf(!reachable)('per-object visibility, read from the bucket', () => {
+  const disk = (visibility: 'public' | 'private' = 'private') =>
+    new S3Disk('s3', {
+      bucket,
+      endpoint,
+      accessKeyId,
+      secretAccessKey,
+      visibility,
+      prefix: `acl-${Date.now().toString(36)}`
+    })
+
+  test('a private write reads back as private', async () => {
+    const s3 = disk()
+
+    try {
+      await s3.put('secret.txt', 'shh')
+
+      expect<string>(await s3.getVisibility('secret.txt')).toBe('private')
+    } finally {
+      await s3.delete('secret.txt')
+    }
+  })
+
+  test('a public write reads back as public', async () => {
+    const s3 = disk()
+
+    try {
+      await s3.put('poster.txt', 'everyone', { visibility: 'public' })
+
+      // The real ACL, not the disk's default — the disk here defaults to private.
+      expect<string>(await s3.getVisibility('poster.txt')).toBe('public')
+    } finally {
+      await s3.delete('poster.txt')
+    }
+  })
+
+  test('setVisibility changes it without rewriting the object', async () => {
+    const s3 = disk()
+
+    try {
+      await s3.put('flip.txt', 'contents')
+
+      expect<boolean>(await s3.setVisibility('flip.txt', 'public')).toBe(true)
+      expect<string>(await s3.getVisibility('flip.txt')).toBe('public')
+
+      expect<boolean>(await s3.setVisibility('flip.txt', 'private')).toBe(true)
+      expect<string>(await s3.getVisibility('flip.txt')).toBe('private')
+
+      // The bytes are untouched by an ACL change, which is the point of using
+      // the sub-resource rather than re-uploading.
+      expect<string | null>(await s3.get('flip.txt')).toBe('contents')
+    } finally {
+      await s3.delete('flip.txt')
+    }
+  })
+})

@@ -6,7 +6,7 @@ import { Application } from '@elysian/core'
 import type { Disk } from '../src/contracts.ts'
 import { LocalDisk } from '../src/disks/local.ts'
 import { MemoryDisk } from '../src/disks/memory.ts'
-import { S3Disk } from '../src/disks/s3.ts'
+import { grantsPublicRead, S3Disk } from '../src/disks/s3.ts'
 import { StorageManager } from '../src/manager.ts'
 import { normalisePath, PathOutsideDiskError, withinRoot } from '../src/paths.ts'
 import { contentDisposition, download, fileResponse } from '../src/response.ts'
@@ -547,5 +547,144 @@ describe('StorageManager', () => {
     await manager.disk('public').put('real.txt', 'on disk')
 
     expect(await Bun.file(join(root, 'public/real.txt')).text()).toBe('on disk')
+  })
+})
+
+describe('reading an S3 ACL document', () => {
+  const acl = (grants: string) =>
+    `<?xml version="1.0"?><AccessControlPolicy><AccessControlList>${grants}</AccessControlList></AccessControlPolicy>`
+
+  const owner =
+    '<Grant><Grantee><ID>owner</ID></Grantee><Permission>FULL_CONTROL</Permission></Grant>'
+  const everyone =
+    '<Grant><Grantee><URI>http://acs.amazonaws.com/groups/global/AllUsers</URI></Grantee><Permission>READ</Permission></Grant>'
+
+  test('a grant of READ to AllUsers is what public means', () => {
+    expect<boolean>(grantsPublicRead(acl(owner + everyone))).toBe(true)
+  })
+
+  test('an owner-only ACL is private', () => {
+    expect<boolean>(grantsPublicRead(acl(owner))).toBe(false)
+  })
+
+  test('AllUsers with only WRITE is not public read', () => {
+    const writeOnly = everyone.replace('READ', 'WRITE')
+
+    expect<boolean>(grantsPublicRead(acl(owner + writeOnly))).toBe(false)
+  })
+
+  test('the authenticated-users group is not everyone', () => {
+    // "Anyone with the link" is the only question this answers, and a signed-in
+    // AWS principal is not that.
+    const authenticated = everyone.replace('AllUsers', 'AuthenticatedUsers')
+
+    expect<boolean>(grantsPublicRead(acl(authenticated))).toBe(false)
+  })
+
+  test('a grantee cannot pair with the next grant’s permission', () => {
+    // Each grant is examined whole; matching URI and Permission independently
+    // would read this pair as public.
+    const split =
+      '<Grant><Grantee><URI>http://acs.amazonaws.com/groups/global/AllUsers</URI></Grantee><Permission>WRITE</Permission></Grant>' +
+      '<Grant><Grantee><ID>owner</ID></Grantee><Permission>READ</Permission></Grant>'
+
+    expect<boolean>(grantsPublicRead(acl(split))).toBe(false)
+  })
+
+  test('an empty or unparseable document is private', () => {
+    expect<boolean>(grantsPublicRead('')).toBe(false)
+    expect<boolean>(grantsPublicRead('<AccessDenied/>')).toBe(false)
+  })
+})
+
+describe('the ?acl request itself', () => {
+  let server: ReturnType<typeof Bun.serve>
+  let seen: { method: string; url: string; acl?: string; authorization?: string } | undefined
+  let answer: Response | undefined
+
+  beforeEach(() => {
+    seen = undefined
+    server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+
+        if (url.search === '?acl') {
+          seen = {
+            method: request.method,
+            url: request.url,
+            ...(request.headers.get('x-amz-acl') === null
+              ? {}
+              : { acl: request.headers.get('x-amz-acl') as string }),
+            ...(request.headers.get('authorization') === null
+              ? {}
+              : { authorization: request.headers.get('authorization') as string })
+          }
+
+          return answer ?? new Response('<AccessControlPolicy/>')
+        }
+
+        return new Response(null, { status: 404 })
+      }
+    })
+  })
+
+  afterEach(() => {
+    server.stop(true)
+    answer = undefined
+  })
+
+  const disk = (visibility: 'public' | 'private' = 'private') =>
+    new S3Disk('s3', {
+      bucket: 'bucket',
+      endpoint: `http://127.0.0.1:${server.port}`,
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: 'secret',
+      region: 'eu-west-1',
+      visibility,
+      // A CDN in front, to prove the signed request does not go there.
+      url: 'https://cdn.example.com'
+    })
+
+  test('it is signed, and aimed at the object rather than the CDN', async () => {
+    await disk().getVisibility('reports/q1.pdf')
+
+    expect<string | undefined>(seen?.method).toBe('GET')
+    expect<string | undefined>(seen?.url).toBe(
+      `http://127.0.0.1:${server.port}/bucket/reports/q1.pdf?acl`
+    )
+    // A signature over the CDN's host authorises nothing at the bucket.
+    expect<boolean>(seen?.authorization?.startsWith('AWS4-HMAC-SHA256 ') === true).toBe(true)
+    expect<boolean>(seen?.authorization?.includes('/eu-west-1/s3/aws4_request') === true).toBe(true)
+  })
+
+  test('setVisibility sends the ACL as a header, not a new object', async () => {
+    expect<boolean>(await disk().setVisibility('reports/q1.pdf', 'public')).toBe(true)
+
+    expect<string | undefined>(seen?.method).toBe('PUT')
+    // Re-uploading to change one flag is minutes of transfer on a large file.
+    expect<string | undefined>(seen?.acl).toBe('public-read')
+  })
+
+  test('a bucket that refuses the ACL falls back to the default', async () => {
+    answer = new Response('<Error><Code>AccessDenied</Code></Error>', { status: 403 })
+
+    // Buckets with ACLs disabled entirely are the common modern setup; throwing
+    // there would make visibility unusable rather than merely unknown.
+    expect<string>(await disk('public').getVisibility('reports/q1.pdf')).toBe('public')
+    expect<string>(await disk('private').getVisibility('reports/q1.pdf')).toBe('private')
+  })
+
+  test('with no credentials there is nothing to sign, and no request', async () => {
+    const anonymous = new S3Disk('s3', {
+      bucket: 'bucket',
+      endpoint: `http://127.0.0.1:${server.port}`,
+      accessKeyId: '',
+      secretAccessKey: '',
+      visibility: 'public'
+    })
+
+    expect<string>(await anonymous.getVisibility('a.txt')).toBe('public')
+    expect<typeof seen>(seen).toBeUndefined()
   })
 })

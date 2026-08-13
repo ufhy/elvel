@@ -232,6 +232,7 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/support": "workspace:*",
       },
     },
     "packages/support": {

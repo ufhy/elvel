@@ -466,13 +466,15 @@ and presigning needs no network.
 | `ftp` / `sftp` disks | Neither has a Bun-native client, so each means a dependency. `storage().extend()` takes one in a few lines when it is wanted. |
 | `Storage::disk()->response()` as a framework helper on the http side | `fileResponse()` and `download()` return a plain `Response`, which is all a handler needs. There is no `->response()` on the disk itself because a disk should not know about HTTP. |
 | `putFileAs` deriving a name from the file's hash | Names are random UUIDs, which do not collide. Content-addressing is a different feature — it deduplicates — and belongs where that is wanted. |
-| Per-object visibility on S3 read back from the bucket | `getVisibility()` reports the disk's default. Reading an object's real ACL needs `GetObjectAcl`, which needs a permission most buckets do not grant. |
 | `temporaryUploadUrl` on the local disk | There is nothing to sign against: a local file is served by whatever serves the directory. The disk says so rather than inventing a scheme. |
-| Attaching a disk file to mail directly | Mail takes `path` or bytes, so `disk('local').path(…)` already works for a local disk, and `await disk('s3').bytes(…)` for a bucket. A `Storage::disk()->attach()` sugar is not there. |
 | Directory visibility, `MissingFile` exceptions, chunked/multipart upload helpers | Not needed yet; Bun's S3 writer already does multipart for large writes. |
 
-Three behaviours worth knowing:
+Four behaviours worth knowing:
 
+- **A bucket that refuses `GetObjectAcl` reports the disk's default.** Buckets
+  with ACLs disabled entirely (`BucketOwnerEnforced`) are the common modern
+  setup, and there the permission is not missing — the concept is. Throwing would
+  make visibility unusable rather than merely unknown.
 - **A path that leaves the disk is refused, not rewritten.** `../../.env`,
   `/etc/passwd` and a `..` that walks out through a symlink all throw
   `PathOutsideDiskError`. Stripping the segments instead would silently turn a

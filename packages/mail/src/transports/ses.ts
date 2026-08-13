@@ -1,7 +1,7 @@
+import { type Credentials, signRequest } from '@elysian/support'
 import MailComposer from 'nodemailer/lib/mail-composer'
 import { formatAddress } from '../mailable.ts'
 import type { DeliveryResult, SentMessage, Transport } from '../message.ts'
-import { type Credentials, signRequest } from '../sigv4.ts'
 
 export type SesOptions = Credentials & {
   region: string
@@ -29,7 +29,7 @@ export type SesOptions = Credentials & {
  * own for SMTP, and no more correct for being written twice.
  *
  * The request is signed with SigV4 rather than reaching for the AWS SDK, which
- * would be hundreds of packages to sign one POST. See `sigv4.ts`: it passes
+ * would be hundreds of packages to sign one POST. See `@elysian/support`'s `sigv4.ts`: it passes
  * AWS's own published test vectors.
  */
 export class SesTransport implements Transport {
