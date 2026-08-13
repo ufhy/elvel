@@ -4,6 +4,7 @@ export {
   elysianAdapter,
   migrationFor
 } from './adapter.ts'
+export { diffMigrationFor, schemaShape } from './adapter.ts'
 export { AuthSchemaCommand } from './console/auth-schema.ts'
 export { MakePolicyCommand } from './console/make-policy.ts'
 export {
