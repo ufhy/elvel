@@ -13,6 +13,47 @@
 export type ProxyOptions = {
   /** Addresses whose forwarding headers are believed, or `'*'` for any. */
   trustedProxies?: string[] | '*'
+  /**
+   * Which forwarding headers to believe. Every one, unless you say otherwise.
+   *
+   * The reason to narrow it is a proxy that does not send a header at all: AWS's
+   * load balancer sends `X-Forwarded-For`, `-Proto` and `-Port` but never
+   * `-Host`, so a client that sends its own `X-Forwarded-Host` would have it
+   * believed — and host is what URL generation and password-reset links are built
+   * from. `trustedHeaders: ['for', 'proto', 'port']` is Symfony's
+   * `HEADER_X_FORWARDED_AWS_ELB` written out.
+   */
+  trustedHeaders?: readonly ForwardedHeader[]
+}
+
+/** The forwarding headers this package understands. */
+export type ForwardedHeader = 'for' | 'proto' | 'host' | 'port' | 'prefix'
+
+const ALL_HEADERS: readonly ForwardedHeader[] = ['for', 'proto', 'host', 'port', 'prefix']
+
+/** Symfony's `HEADER_X_FORWARDED_AWS_ELB`: everything the balancer actually sends. */
+export const AWS_ELB_HEADERS: readonly ForwardedHeader[] = ['for', 'proto', 'port']
+
+function believes(options: ProxyOptions, header: ForwardedHeader): boolean {
+  return (options.trustedHeaders ?? ALL_HEADERS).includes(header)
+}
+
+/** The first entry of a comma-separated forwarding header, from a trusted proxy. */
+function forwarded(
+  request: Request,
+  socket: SocketAddress,
+  options: ProxyOptions,
+  header: ForwardedHeader
+): string | undefined {
+  if (!believes(options, header)) return undefined
+  if (!isTrustedProxy(normalise(socket?.address ?? ''), options)) return undefined
+
+  const value = request.headers.get(`x-forwarded-${header}`)
+  if (value === null) return undefined
+
+  const first = value.split(',')[0]?.trim()
+
+  return first === undefined || first === '' ? undefined : first
 }
 
 /** The address Elysia saw, before any header is considered. */
@@ -42,15 +83,9 @@ export function clientIp(
   options: ProxyOptions = {}
 ): string {
   const direct = normalise(socket?.address ?? '')
+  const claimed = forwarded(request, socket, options, 'for')
 
-  if (!isTrustedProxy(direct, options)) return direct
-
-  const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded === null) return direct
-
-  const first = forwarded.split(',')[0]?.trim()
-
-  return first === undefined || first === '' ? direct : normalise(first)
+  return claimed === undefined ? direct : normalise(claimed)
 }
 
 /**
@@ -75,11 +110,7 @@ export function clientProtocol(
 ): string {
   const fallback = new URL(request.url).protocol.replace(':', '')
 
-  if (!isTrustedProxy(socket?.address ?? '', options)) return fallback
-
-  const forwarded = request.headers.get('x-forwarded-proto')
-
-  return forwarded === null ? fallback : (forwarded.split(',')[0]?.trim() ?? fallback)
+  return forwarded(request, socket, options, 'proto') ?? fallback
 }
 
 /** The host the client asked for, honouring `X-Forwarded-Host` from a trusted proxy. */
@@ -90,9 +121,88 @@ export function clientHost(
 ): string {
   const fallback = request.headers.get('host') ?? new URL(request.url).host
 
-  if (!isTrustedProxy(socket?.address ?? '', options)) return fallback
+  return forwarded(request, socket, options, 'host') ?? fallback
+}
 
-  const forwarded = request.headers.get('x-forwarded-host')
+/**
+ * The path the application is mounted under, from `X-Forwarded-Prefix`.
+ *
+ * A gateway that routes `/api/orders` to this application's `/orders` strips the
+ * prefix on the way in and sends it in this header. Without it every link the
+ * application generates points at `/orders` — a URL that exists only inside the
+ * cluster, so the redirect after a form submission 404s for everyone outside it.
+ *
+ * Empty string when there is no prefix, and never a trailing slash, so it can be
+ * concatenated with a path that always starts with one.
+ */
+export function clientPrefix(
+  request: Request,
+  socket: SocketAddress,
+  options: ProxyOptions = {}
+): string {
+  const prefix = forwarded(request, socket, options, 'prefix')
+  if (prefix === undefined) return ''
 
-  return forwarded === null ? fallback : (forwarded.split(',')[0]?.trim() ?? fallback)
+  const trimmed = prefix.replace(/\/+$/, '')
+
+  return trimmed === '' || trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
+/**
+ * The port the client connected to, from `X-Forwarded-Port`.
+ *
+ * Needed because the socket's port is the one the proxy talks to — usually 8080
+ * or a random container port — and building an absolute URL from it sends people
+ * to an address that is not reachable from outside.
+ */
+export function clientPort(
+  request: Request,
+  socket: SocketAddress,
+  options: ProxyOptions = {}
+): number | undefined {
+  const port = forwarded(request, socket, options, 'port')
+
+  if (port !== undefined) {
+    const parsed = Number.parseInt(port, 10)
+
+    if (Number.isInteger(parsed) && parsed > 0 && parsed <= 65535) return parsed
+  }
+
+  // The host header can carry it too, and a proxy that sends `-Host` with a port
+  // has already told us; falling back keeps the two answers consistent.
+  const host = clientHost(request, socket, options)
+  const separator = host.lastIndexOf(':')
+
+  if (separator !== -1 && !host.includes(']', separator)) {
+    const parsed = Number.parseInt(host.slice(separator + 1), 10)
+
+    if (Number.isInteger(parsed)) return parsed
+  }
+
+  return clientProtocol(request, socket, options) === 'https' ? 443 : 80
+}
+
+/**
+ * The absolute URL the client actually asked for, prefix and all.
+ *
+ * This is what a redirect to a named route, a signed URL, or a link in an email
+ * has to be built from: everything the process itself can see describes the
+ * inside of the cluster.
+ */
+export function clientUrl(
+  request: Request,
+  socket: SocketAddress,
+  options: ProxyOptions = {}
+): string {
+  const protocol = clientProtocol(request, socket, options)
+  const host = clientHost(request, socket, options)
+  const port = clientPort(request, socket, options)
+  const { pathname, search } = new URL(request.url)
+
+  // Only when it is not the default for the scheme — a `:443` in a link is not
+  // wrong, but it is the kind of detail people report as a bug.
+  const standard = (protocol === 'https' && port === 443) || (protocol === 'http' && port === 80)
+  const authority = host.includes(':') || standard ? host : `${host}:${port}`
+
+  return `${protocol}://${authority}${clientPrefix(request, socket, options)}${pathname}${search}`
 }

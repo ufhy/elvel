@@ -1,6 +1,9 @@
-import { ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
+import { BAGGED, DEFAULT_BAG, ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
 import { currentScope } from './scope.ts'
 import type { Session } from './session.ts'
+
+/** Session key holding where a guest was going before being sent to sign in. */
+export const INTENDED_URL_KEY = 'url.intended'
 
 /** Session key holding the previous URL, so `back()` works without a Referer. */
 export const PREVIOUS_URL_KEY = '_previous.url'
@@ -49,11 +52,34 @@ export class Redirect {
    * a form request and an `after()` check, say — and the second must not erase
    * what the first reported.
    */
-  withErrors(errors: ErrorsInput): this {
+  withErrors(errors: ErrorsInput, bag: string = DEFAULT_BAG): this {
     const incoming = normalise(errors)
-    const existing = this.session?.get<Record<string, string[]>>(ERRORS_KEY) ?? {}
+    const existing = this.session?.get<Record<string, unknown>>(ERRORS_KEY) ?? {}
 
-    this.flashes.push([ERRORS_KEY, { ...existing, ...incoming }])
+    if (bag === DEFAULT_BAG && !(BAGGED in existing)) {
+      this.flashes.push([ERRORS_KEY, { ...existing, ...incoming }])
+
+      return this
+    }
+
+    /**
+     * Named bags are kept under a sentinel key rather than beside the fields.
+     *
+     * Two forms on one page each need their own errors — without that, a failed
+     * sign-up lights up the sign-in form's inputs. The sentinel is what keeps a
+     * field genuinely called `login` from being mistaken for a bag.
+     */
+    const bags = {
+      ...((existing[BAGGED] as Record<string, Record<string, string[]>>) ?? {})
+    }
+
+    if (!(BAGGED in existing) && Object.keys(existing).length > 0) {
+      bags[DEFAULT_BAG] = existing as Record<string, string[]>
+    }
+
+    bags[bag] = { ...(bags[bag] ?? {}), ...incoming }
+
+    this.flashes.push([ERRORS_KEY, { [BAGGED]: bags }])
 
     return this
   }
@@ -92,6 +118,26 @@ export class Redirect {
    */
   back(): this {
     this.target = previousUrl()
+
+    return this
+  }
+
+  /**
+   * Send a guest to sign in, remembering where they were going.
+   *
+   * Only a GET is remembered. Storing the URL of a POST would send someone, after
+   * signing in, to an address that only answers a form submission — a 405, or
+   * worse a repeated action.
+   */
+  guest(): this {
+    const scope = currentScope()
+    const request = scope?.request
+
+    if (request && request.method === 'GET') {
+      const url = new URL(request.url)
+
+      scope?.session.put(INTENDED_URL_KEY, url.pathname + url.search)
+    }
 
     return this
   }
@@ -169,6 +215,21 @@ export function previousUrl(): string {
   const referer = scope?.request.headers.get('referer')
 
   return referer ?? '/'
+}
+
+/**
+ * Go where the guest was originally going — `redirect()->intended()`.
+ *
+ * Pulled rather than read: an intended URL is used once, and leaving it behind
+ * would send the *next* sign-in somewhere the person had forgotten about.
+ */
+export function intended(fallback = '/', status = 302): Redirect {
+  const scope = currentScope()
+  const target = scope?.session.get<string>(INTENDED_URL_KEY)
+
+  scope?.session.forget(INTENDED_URL_KEY)
+
+  return new Redirect(target ?? fallback, status)
 }
 
 /** `back()` as a standalone helper, for a handler that only needs the redirect. */

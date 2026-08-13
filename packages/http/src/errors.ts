@@ -69,13 +69,60 @@ export class MessageBag {
  * {errors().has('email') && <p class="error">{errors().first('email')}</p>}
  * ```
  */
-export function errors(): MessageBag {
+export const DEFAULT_BAG = 'default'
+
+/**
+ * The errors flashed into the session by the last request.
+ *
+ * `errors()` reads the default bag; `errors('login')` reads a named one, which is
+ * what two forms on one page need — without names, the sign-up form's failures
+ * would light up the sign-in form's fields.
+ */
+export function errors(bag: string = DEFAULT_BAG): MessageBag {
   const scope = currentScope()
   if (!scope) return new MessageBag()
 
-  const flashed = scope.session.get<Record<string, string[]>>(ERRORS_KEY)
+  const flashed = scope.session.get<Record<string, unknown>>(ERRORS_KEY) ?? {}
 
-  return new MessageBag(flashed ?? {})
+  return new MessageBag(readBag(flashed, bag))
+}
+
+/** Which bags were flashed. Empty when the last request succeeded. */
+export function errorBags(): string[] {
+  const scope = currentScope()
+  if (!scope) return []
+
+  const flashed = scope.session.get<Record<string, unknown>>(ERRORS_KEY) ?? {}
+
+  return isBagged(flashed)
+    ? Object.keys(flashed[BAGGED] as object)
+    : Object.keys(flashed).length > 0
+      ? [DEFAULT_BAG]
+      : []
+}
+
+/**
+ * Marks a flashed value as holding several named bags.
+ *
+ * A sentinel rather than a shape test: a field genuinely called `default` must
+ * not turn a plain bag into a bagged one.
+ */
+export const BAGGED = '__bags'
+
+function isBagged(flashed: Record<string, unknown>): boolean {
+  return typeof flashed[BAGGED] === 'object' && flashed[BAGGED] !== null
+}
+
+function readBag(flashed: Record<string, unknown>, bag: string): Record<string, string[]> {
+  if (!isBagged(flashed)) {
+    // No names in play: everything is the default bag, and a named read finds
+    // nothing rather than accidentally matching a field.
+    return bag === DEFAULT_BAG ? (flashed as Record<string, string[]>) : {}
+  }
+
+  const bags = flashed[BAGGED] as Record<string, Record<string, string[]>>
+
+  return bags[bag] ?? {}
 }
 
 /**

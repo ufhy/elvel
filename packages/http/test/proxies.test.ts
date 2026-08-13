@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { clientHost, clientIp, clientProtocol, isTrustedProxy } from '../src/proxies.ts'
+import {
+  AWS_ELB_HEADERS,
+  clientHost,
+  clientIp,
+  clientPort,
+  clientPrefix,
+  clientProtocol,
+  clientUrl,
+  isTrustedProxy
+} from '../src/proxies.ts'
 
 const request = (headers: Record<string, string> = {}) =>
   new Request('http://localhost/orders', { headers })
@@ -90,5 +99,113 @@ describe('protocol and host', () => {
         trustedProxies: '*'
       })
     ).toBe('https')
+  })
+})
+
+const trusted = { trustedProxies: ['10.0.0.1'] }
+const proxy = socket('10.0.0.1')
+
+describe('the mount prefix', () => {
+  test('a gateway that strips /api tells us so', () => {
+    // Without this every generated link points at `/orders`, which exists only
+    // inside the cluster.
+    expect<string>(clientPrefix(request({ 'x-forwarded-prefix': '/api' }), proxy, trusted)).toBe(
+      '/api'
+    )
+  })
+
+  test('a trailing slash is dropped and a missing one added', () => {
+    expect<string>(clientPrefix(request({ 'x-forwarded-prefix': '/api/' }), proxy, trusted)).toBe(
+      '/api'
+    )
+    expect<string>(clientPrefix(request({ 'x-forwarded-prefix': 'api' }), proxy, trusted)).toBe(
+      '/api'
+    )
+    expect<string>(clientPrefix(request({ 'x-forwarded-prefix': '/' }), proxy, trusted)).toBe('')
+  })
+
+  test('an untrusted client cannot claim one', () => {
+    expect<string>(
+      clientPrefix(request({ 'x-forwarded-prefix': '/api' }), socket('203.0.113.9'), trusted)
+    ).toBe('')
+  })
+
+  test('no header is no prefix', () => {
+    expect<string>(clientPrefix(request(), proxy, trusted)).toBe('')
+  })
+})
+
+describe('the client port', () => {
+  test('the forwarded port wins', () => {
+    expect<number | undefined>(
+      clientPort(request({ 'x-forwarded-port': '8443' }), proxy, trusted)
+    ).toBe(8443)
+  })
+
+  test('a nonsense port falls through rather than poisoning a URL', () => {
+    expect<number | undefined>(
+      clientPort(request({ 'x-forwarded-port': 'nope' }), proxy, trusted)
+    ).toBe(80)
+  })
+
+  test('the host header carries it when the port header does not', () => {
+    expect<number | undefined>(
+      clientPort(request({ 'x-forwarded-host': 'shop.test:8080' }), proxy, trusted)
+    ).toBe(8080)
+  })
+
+  test('otherwise it is the default for the scheme', () => {
+    expect<number | undefined>(clientPort(request(), proxy, trusted)).toBe(80)
+    expect<number | undefined>(
+      clientPort(request({ 'x-forwarded-proto': 'https' }), proxy, trusted)
+    ).toBe(443)
+  })
+})
+
+describe('narrowing which headers are believed', () => {
+  test("AWS's balancer never sends a host, so a claimed one is ignored", () => {
+    const spoofed = request({ 'x-forwarded-host': 'evil.test', 'x-forwarded-proto': 'https' })
+    const options = { ...trusted, trustedHeaders: AWS_ELB_HEADERS }
+
+    // Host is what a password-reset link is built from; believing a claimed one
+    // sends the link to the attacker.
+    expect<string>(clientHost(spoofed, proxy, options)).toBe('localhost')
+    expect<string>(clientProtocol(spoofed, proxy, options)).toBe('https')
+  })
+})
+
+describe('the URL the client actually asked for', () => {
+  test('scheme, host and prefix all come from the proxy', () => {
+    const forwarded = request({
+      'x-forwarded-proto': 'https',
+      'x-forwarded-host': 'shop.test',
+      'x-forwarded-prefix': '/api'
+    })
+
+    expect<string>(clientUrl(forwarded, proxy, trusted)).toBe('https://shop.test/api/orders')
+  })
+
+  test('a non-standard port is kept and a standard one is not', () => {
+    expect<string>(
+      clientUrl(
+        request({ 'x-forwarded-host': 'shop.test', 'x-forwarded-port': '8080' }),
+        proxy,
+        trusted
+      )
+    ).toBe('http://shop.test:8080/orders')
+
+    expect<string>(
+      clientUrl(
+        request({ 'x-forwarded-proto': 'https', 'x-forwarded-host': 'shop.test' }),
+        proxy,
+        trusted
+      )
+    ).toBe('https://shop.test/orders')
+  })
+
+  test('with no proxy it is just the request', () => {
+    expect<string>(clientUrl(request(), socket('203.0.113.9'), trusted)).toBe(
+      'http://localhost/orders'
+    )
   })
 })

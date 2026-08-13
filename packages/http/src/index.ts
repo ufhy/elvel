@@ -1,6 +1,18 @@
 export { MakeRequestCommand } from './console/make-request.ts'
 export { MakeResourceCommand } from './console/make-resource.ts'
 export { SessionTableCommand } from './console/session-table.ts'
+export {
+  CookieBag,
+  cookie,
+  currentCookieBag,
+  enterCookieBag,
+  forgetCookie,
+  type QueuedCookie,
+  queueCookie,
+  readCookies,
+  withCookieBag
+} from './cookie-bag.ts'
+export { type CookieMiddlewareOptions, cookiePlugin } from './cookie-plugin.ts'
 export { CookieJar, type CookieOptions, timingSafeEqual } from './cookies.ts'
 export {
   actualHeaders,
@@ -22,7 +34,10 @@ export {
   tokensMatch
 } from './csrf.ts'
 export {
+  BAGGED,
+  DEFAULT_BAG,
   ERRORS_KEY,
+  errorBags,
   errors,
   hasOld,
   MessageBag,
@@ -33,15 +48,22 @@ export { FormRequest, type RequestContext, validateRequest } from './form-reques
 export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
+  AWS_ELB_HEADERS,
   clientHost,
   clientIp,
+  clientPort,
+  clientPrefix,
   clientProtocol,
+  clientUrl,
+  type ForwardedHeader,
   isTrustedProxy,
   type ProxyOptions
 } from './proxies.ts'
 export {
   back,
   type ErrorsInput,
+  INTENDED_URL_KEY,
+  intended,
   PREVIOUS_URL_KEY,
   previousUrl,
   Redirect,

@@ -2833,6 +2833,135 @@ try {
   }
 
   check('an IPv4 client is reported as IPv4, not ::ffff:', address.ip === '127.0.0.1')
+
+  // ----------------------------------------------------------- cookies, bags
+
+  section('Cookies and error bags')
+
+  /** One browser: carries whatever the last response set, like a real client. */
+  const jar = new Map<string, string>()
+
+  const browser = async (path: string, init: RequestInit = {}): Promise<Response> => {
+    const header = [...jar.entries()].map(([name, value]) => `${name}=${value}`).join('; ')
+
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+      ...init,
+      redirect: 'manual',
+      headers: { ...(init.headers ?? {}), ...(header === '' ? {} : { cookie: header }) }
+    })
+
+    for (const line of response.headers.getSetCookie()) {
+      const pair = line.split(';')[0] ?? ''
+      const separator = pair.indexOf('=')
+      if (separator === -1) continue
+
+      jar.set(pair.slice(0, separator), pair.slice(separator + 1))
+    }
+
+    return response
+  }
+
+  const setCookie = await browser('/cookies/set?value=dark')
+  const queuedBack = (await setCookie.json()) as { queued: string | null }
+
+  // Set and read in the same request: the browser has not sent it back yet, so a
+  // handler that changes a preference and renders would render the old one.
+  check('a queued cookie reads back within the same request', queuedBack.queued === 'dark')
+
+  const preferenceHeader =
+    setCookie.headers.getSetCookie().find((line) => line.startsWith('preference=')) ?? ''
+
+  check('the cookie goes out alongside the session cookie', preferenceHeader !== '')
+  // The whole point: what the browser holds is opaque, so it cannot be edited
+  // into something the application would believe.
+  check(
+    'and its value is not the plain text',
+    preferenceHeader !== '' && !preferenceHeader.includes('dark'),
+    preferenceHeader
+  )
+
+  const readBack = (await (await browser('/cookies/read')).json()) as { preference: string | null }
+
+  check('the browser sends it back and it arrives decrypted', readBack.preference === 'dark')
+
+  const forged = await fetch(`http://127.0.0.1:${port}/cookies/read`, {
+    headers: { cookie: 'preference=admin' }
+  })
+
+  check(
+    'a hand-written cookie is dropped rather than believed',
+    ((await forged.json()) as { preference: string | null }).preference === null
+  )
+
+  await browser('/cookies/forget')
+  const afterForget = (await (await browser('/cookies/read')).json()) as {
+    preference: string | null
+  }
+
+  check('and a forget clears it for good', afterForget.preference === null)
+
+  // Named bags: two forms on one page, each with its own errors.
+  const csrf = (await (await browser('/session/token')).json()) as { token: string }
+
+  await browser('/cookies/register', {
+    method: 'POST',
+    headers: { 'x-csrf-token': csrf.token }
+  })
+  await browser('/cookies/login', {
+    method: 'POST',
+    headers: { 'x-csrf-token': csrf.token }
+  })
+
+  const bags = (await (await browser('/cookies/bags')).json()) as {
+    bags: string[]
+    register: string | null
+    login: string | null
+    fallback: string | null
+  }
+
+  check('two named bags survive the redirect side by side', bags.bags.join() === 'login,register')
+  check('each form reads only its own', bags.register === 'is taken' && bags.login === 'is wrong')
+  // Without names, the failed sign-up would light up the sign-in form's field.
+  check('and the default bag stays empty', bags.fallback === null)
+
+  const sentToSignIn = await browser('/cookies/private')
+
+  check('a guest is sent to sign in', sentToSignIn.headers.get('location') === '/cookies/sign-in')
+
+  const afterSignIn = await browser('/cookies/sign-in')
+
+  check(
+    'and comes back to where they were going',
+    afterSignIn.headers.get('location') === '/cookies/private'
+  )
+
+  const secondSignIn = await browser('/cookies/sign-in')
+
+  // Used once: left behind, it would send the next sign-in somewhere the person
+  // had long forgotten about.
+  check(
+    'the intended URL is spent, not remembered',
+    secondSignIn.headers.get('location') === '/cookies/home'
+  )
+
+  const behindGateway = (await (
+    await fetch(`http://127.0.0.1:${port}/cookies/whereami`, {
+      headers: {
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'shop.example.com',
+        'x-forwarded-prefix': '/api/'
+      }
+    })
+  ).json()) as { url: string; prefix: string }
+
+  // Everything the process can see describes the inside of the cluster; a link
+  // built from it 404s for everybody outside.
+  check(
+    'a gateway prefix reaches URL generation',
+    behindGateway.url === 'https://shop.example.com/api/cookies/whereami',
+    behindGateway.url
+  )
+  check('and the trailing slash is not doubled', behindGateway.prefix === '/api')
 } finally {
   app.router.stop()
   await app.make('cache').store().forget('defer:ran')

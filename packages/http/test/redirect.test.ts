@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { errors, hasOld, MessageBag, old } from '../src/errors.ts'
-import { back, previousUrl, redirect } from '../src/redirect.ts'
+import { errorBags, errors, hasOld, MessageBag, old } from '../src/errors.ts'
+import { back, intended, previousUrl, redirect } from '../src/redirect.ts'
 import { withRequestScope } from '../src/scope.ts'
 import { MemorySessionDriver, Session } from '../src/session.ts'
 
@@ -210,5 +210,89 @@ describe('MessageBag', () => {
     expect(empty.isEmpty()).toBe(true)
     expect(empty.all()).toEqual([])
     expect(empty.first()).toBeUndefined()
+  })
+})
+
+describe('named error bags', () => {
+  test('a named bag does not light up the other form', async () => {
+    // Two forms on one page: the sign-up failure must not mark the sign-in
+    // form's email field, which is the whole reason bags have names.
+    await inRequest(async () => {
+      await redirect('/back').withErrors({ email: 'is taken' }, 'register').toResponse()
+    })
+    await session.save()
+
+    expect<string | undefined>(inRequest(() => errors('register').first('email'))).toBe('is taken')
+    expect<boolean>(inRequest(() => errors('login').has('email'))).toBe(false)
+    expect<boolean>(inRequest(() => errors().has('email'))).toBe(false)
+  })
+
+  test('two named bags live side by side', async () => {
+    await inRequest(async () => {
+      await redirect('/back').withErrors({ email: 'is taken' }, 'register').toResponse(true)
+    })
+
+    await inRequest(async () => {
+      await redirect('/back').withErrors({ password: 'is wrong' }, 'login').toResponse()
+    })
+    await session.save()
+
+    expect<string[]>(inRequest(() => errorBags().sort())).toEqual(['login', 'register'])
+    expect<string | undefined>(inRequest(() => errors('login').first('password'))).toBe('is wrong')
+    expect<string | undefined>(inRequest(() => errors('register').first('email'))).toBe('is taken')
+  })
+
+  test('unnamed errors are the default bag, readable both ways', async () => {
+    await inRequest(async () => {
+      await redirect('/back').withErrors({ email: 'is invalid' }).toResponse()
+    })
+    await session.save()
+
+    expect<string | undefined>(inRequest(() => errors().first('email'))).toBe('is invalid')
+    expect<string | undefined>(inRequest(() => errors('default').first('email'))).toBe('is invalid')
+    expect<string[]>(inRequest(() => errorBags())).toEqual(['default'])
+  })
+
+  test('a field called `default` is not mistaken for a bag', async () => {
+    await inRequest(async () => {
+      await redirect('/back').withErrors({ default: 'is invalid' }).toResponse()
+    })
+    await session.save()
+
+    // Without the sentinel, `errors('default')` would read the *field* as a bag
+    // and hand back a list of characters.
+    expect<string[]>(inRequest(() => errors().get('default'))).toEqual(['is invalid'])
+  })
+
+  test('nothing flashed means no bags', () => {
+    expect<string[]>(inRequest(() => errorBags())).toEqual([])
+    expect<string[]>(errorBags()).toEqual([])
+  })
+})
+
+describe('guest() and intended()', () => {
+  test('a guest sent to sign in comes back to where they were going', () => {
+    inRequest(() => redirect('/login').guest(), {})
+
+    expect<string>(inRequest(() => intended().location)).toBe('/subscribe')
+  })
+
+  test('the intended URL is used once', () => {
+    inRequest(() => redirect('/login').guest())
+    inRequest(() => intended())
+
+    // Left behind, it would send the *next* sign-in somewhere the person had
+    // long forgotten about.
+    expect<string>(inRequest(() => intended('/dashboard').location)).toBe('/dashboard')
+  })
+
+  test('a POST is not remembered', () => {
+    const posted = new Request('http://localhost/subscribe', { method: 'POST' })
+
+    // Sending someone to a URL that only answers a form submission is a 405 at
+    // best and a repeated charge at worst.
+    withRequestScope({ request: posted, session }, () => redirect('/login').guest())
+
+    expect<string>(inRequest(() => intended('/dashboard').location)).toBe('/dashboard')
   })
 })

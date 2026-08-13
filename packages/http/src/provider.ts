@@ -4,6 +4,7 @@ import { Elysia } from 'elysia'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
 import { SessionTableCommand } from './console/session-table.ts'
+import { cookiePlugin } from './cookie-plugin.ts'
 import { CookieJar } from './cookies.ts'
 import {
   actualHeaders,
@@ -132,9 +133,24 @@ export class HttpServiceProvider extends ServiceProvider {
     const cors = corsConfig(this.config<Partial<CorsConfig>>('cors', {}))
     if (cors.paths.length > 0) this.use(this.corsPlugin(cors))
 
-    if (this.config<boolean>('session.enabled', true) === false) return
+    const sessionName = this.config<string>('session.cookie', 'elysian_session')
 
-    this.use(await this.sessionPlugin())
+    if (this.config<boolean>('session.enabled', true) !== false) {
+      this.use(await this.sessionPlugin())
+    }
+
+    /**
+     * After the session plugin, because both write `Set-Cookie` and this one
+     * appends to what is already there.
+     *
+     * The session cookie is always excepted: it is signed by the plugin above, and
+     * encrypting it a second time here would leave a value neither half can read.
+     */
+    this.use(
+      cookiePlugin(this.app.make('cookies'), {
+        except: [sessionName, ...this.config<string[]>('cookies.except', [])]
+      })
+    )
   }
 
   /**

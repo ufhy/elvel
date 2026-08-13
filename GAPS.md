@@ -220,15 +220,11 @@ limiting, CORS and trusted proxies.
 
 | Missing | Why |
 | --- | --- |
-| Encrypting cookies other than the session | Signing and encryption both work, and `SESSION_ENCRYPT=true` encrypts the session cookie, bound to its own name. There is no `EncryptCookies` middleware yet that names a list of cookies to encrypt on the way out and decrypt on the way in; a route that wants one calls `cookies().encrypt(name, value)` itself. |
 | A named-route `redirect()->route('articles.show', …)` | `redirect()` takes a path, `back()` resolves the previous URL, and both flash. Named routes do not exist here: Elysia routes are declared as strings on a plugin, so there is no name table to look one up in. |
-| `redirect()->guest()` and the intended-URL dance | Needs somewhere to record where the guest was going, which is the login redirect belonging to `@elysian/auth`. |
-| A `ViewErrorBag` with **named** bags (`$errors->login->first(...)`) | One bag. Named bags exist for two forms on one page; `errors()` would take the name, and nothing needs it yet. |
 | Typed `session` in a standalone controller | Elysia types a context from the plugins that instance uses, and the derive is registered globally by the provider. `sessionOf(context)` is the single documented narrowing. |
 | `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
 | A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
 | Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |
-| `X-Forwarded-Prefix`, AWS ELB's header | `X-Forwarded-For`, `-Proto` and `-Host` are honoured from a trusted proxy. The other two are a branch each when something needs them. |
 
 Three things to know about maintenance mode:
 
