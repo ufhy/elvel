@@ -11,8 +11,11 @@ import {
   SIZE_RULES
 } from './rules.ts'
 import {
+  type ClosureRule,
+  ConditionalRules,
   type Data,
   DatabaseRule,
+  NestedRules,
   type ParsedRule,
   type PresenceVerifier,
   type RuleContext,
@@ -75,10 +78,14 @@ export class Validator {
     private readonly options: ValidatorOptions = {}
   ) {
     for (const [attribute, declaration] of Object.entries(rules)) {
-      const parsed = Validator.parse(declaration)
+      // `Rule.when()` is answered here, against the data as given: the rules a
+      // conditional produces then behave exactly like written ones, wildcards
+      // and all.
+      const resolved =
+        declaration instanceof ConditionalRules ? declaration.resolve(this.data) : declaration
 
       if (!attribute.includes('*')) {
-        this.rules[attribute] = parsed
+        this.rules[attribute] = Validator.parse(resolved)
         continue
       }
 
@@ -86,6 +93,18 @@ export class Validator {
       // matching data contributes nothing — the rule on `items` reports that.
       for (const expanded of expandWildcard(this.data, attribute)) {
         this.patterns.set(expanded, attribute)
+
+        /**
+         * `Rule.forEach()` is asked once per element, which is the whole point:
+         * the callback sees the element it is deciding rules for. Anything else
+         * is parsed once and shared.
+         */
+        const parsed = Validator.parse(
+          resolved instanceof NestedRules
+            ? resolved.callback(Arr.get(this.data, expanded), expanded, this.data)
+            : resolved
+        )
+
         this.rules[expanded] = [...(this.rules[expanded] ?? []), ...parsed]
       }
     }
@@ -108,6 +127,14 @@ export class Validator {
       if (entry instanceof DatabaseRule) {
         return [{ name: entry.name, params: [], rule: entry }]
       }
+
+      // A function is a rule in its own right; it carries its own message, so
+      // there is nothing to look up in the catalogue.
+      if (typeof entry === 'function') {
+        return [{ name: 'closure', params: [], closure: entry as ClosureRule }]
+      }
+
+      if (entry instanceof ConditionalRules) return Validator.parse(entry.resolve({}))
 
       const trimmed = String(entry).trim()
       if (trimmed === '') return []
@@ -215,6 +242,28 @@ export class Validator {
     }
 
     if (!this.isValidatable(attribute, rule, value, siblings)) return true
+
+    if (rule.closure) {
+      const outcome = await rule.closure({
+        attribute,
+        value,
+        params: [],
+        data: this.data,
+        siblings,
+        pattern: this.patternFor(attribute),
+        verifier: this.options.verifier
+      })
+
+      if (typeof outcome === 'string') {
+        // The closure's own message, used verbatim: it was written for this
+        // failure, and a catalogue entry could only be vaguer.
+        this.errors.add(attribute, outcome)
+
+        return false
+      }
+
+      return true
+    }
 
     const handler = RULES[rule.name]
 

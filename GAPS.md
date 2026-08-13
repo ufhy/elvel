@@ -100,11 +100,9 @@ a worker instead of the request.
 | Missing | Why |
 | --- | --- |
 | A wildcard in the *middle* of a `required_if` field reference | Rule keys expand (`items.*.price` runs once per element, nested wildcards included), but a rule that names *another* field — `required_if:items.*.kind,gift` — does not resolve the sibling relative to the element it is running for. Laravel resolves it against the same index; here the field is read as written. |
-| `Rule::forEach` | `distinct`, `array:a,b`, `list`, `required_array_keys` and `contains` are implemented on top of the expansion. What is missing is deciding the *rules* per element at runtime, which needs closure rules first. |
 | `File::types()->min()` builder objects, `imageFile()` | `file`, `image`, `mimes`, `mimetypes`, `extensions` and `dimensions` are implemented as string rules over the web `File` a multipart body parses to. The fluent builder is sugar over the same strings. |
 | `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
 | `date_format`, timezone-aware comparisons | `Date.parse` covers ISO dates; a format parser is its own small project. |
-| `Rule::when`, closure rules, custom rule classes | `after()` covers the same ground for now. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |
 
 ## @elysian/http

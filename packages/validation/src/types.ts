@@ -6,6 +6,8 @@ export type ParsedRule = {
   params: string[]
   /** Present for object rules such as `Rule.unique(...)`. */
   rule?: DatabaseRule
+  /** Present for a rule written as a function. */
+  closure?: ClosureRule
 }
 
 export type RuleContext = {
@@ -118,6 +120,49 @@ export const Rule = {
     return new ExistsRule(table, column)
   },
 
+  /**
+   * Apply rules only when a condition holds — `Rule.when()`.
+   *
+   * The condition is a function of the data and is asked at validation time, not
+   * when the rules are declared: `required_if` covers the common case, and this
+   * is for the ones a string cannot express.
+   */
+  when(
+    condition: boolean | ((data: Data) => boolean),
+    rules: RuleDeclaration,
+    otherwise: RuleDeclaration = []
+  ): ConditionalRules {
+    return new ConditionalRules(
+      typeof condition === 'function' ? condition : () => condition,
+      rules,
+      otherwise
+    )
+  },
+
+  /** The mirror of `when`. */
+  unless(
+    condition: boolean | ((data: Data) => boolean),
+    rules: RuleDeclaration,
+    otherwise: RuleDeclaration = []
+  ): ConditionalRules {
+    const test = typeof condition === 'function' ? condition : () => condition
+
+    return new ConditionalRules((data) => !test(data), rules, otherwise)
+  },
+
+  /**
+   * Rules decided per element — `Rule.forEach()`.
+   *
+   * The callback sees the element and its attribute, so a list whose items are
+   * validated differently depending on their own contents finally has a way to
+   * say so.
+   */
+  forEach(
+    callback: (value: unknown, attribute: string, data: Data) => RuleDeclaration
+  ): NestedRules {
+    return new NestedRules(callback)
+  },
+
   in(values: Array<string | number>): string {
     return `in:${values.join(',')}`
   },
@@ -131,7 +176,50 @@ export const Rule = {
   }
 }
 
-export type RuleDeclaration = string | DatabaseRule | Array<string | DatabaseRule>
+/**
+ * A rule written as a function — Laravel's closure rule.
+ *
+ * Return `true` (or nothing) to pass, or a **message** to fail with. Laravel
+ * calls a `$fail` callback; returning the message is the same information with
+ * one less moving part, and it makes the rule usable in a `.map()`.
+ *
+ * ```ts
+ * validator(data, {
+ *   slug: ['required', ({ value }) => (banned.has(value) ? 'That slug is taken.' : true)]
+ * })
+ * ```
+ */
+export type ClosureRule = (
+  context: RuleContext
+) => string | true | void | Promise<string | true | void>
+
+/** `Rule.when(...)` — rules chosen from the data, at validation time. */
+export class ConditionalRules {
+  constructor(
+    readonly condition: (data: Data) => boolean,
+    readonly rules: RuleDeclaration,
+    readonly otherwise: RuleDeclaration = []
+  ) {}
+
+  resolve(data: Data): RuleDeclaration {
+    return this.condition(data) ? this.rules : this.otherwise
+  }
+}
+
+/** `Rule.forEach(...)` — rules decided per element of a wildcard. */
+export class NestedRules {
+  constructor(
+    readonly callback: (value: unknown, attribute: string, data: Data) => RuleDeclaration
+  ) {}
+}
+
+export type RuleDeclaration =
+  | string
+  | DatabaseRule
+  | ClosureRule
+  | ConditionalRules
+  | NestedRules
+  | Array<string | DatabaseRule | ClosureRule | ConditionalRules | NestedRules>
 
 export type Rules = Record<string, RuleDeclaration>
 

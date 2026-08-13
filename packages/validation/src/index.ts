@@ -19,9 +19,12 @@ export {
   sizeOf
 } from './rules.ts'
 export {
+  type ClosureRule,
+  ConditionalRules,
   type Data,
   DatabaseRule,
   ExistsRule,
+  NestedRules,
   type ParsedRule,
   type PresenceVerifier,
   Rule,

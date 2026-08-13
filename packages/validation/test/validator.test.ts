@@ -797,3 +797,92 @@ describe('file rules', () => {
     expect(Object.keys(messages)).toEqual(['photos.1'])
   })
 })
+
+describe('rules written as functions', () => {
+  test('a closure passes by returning true and fails with its message', async () => {
+    const check = new Validator(
+      { slug: 'taken', other: 'free' },
+      {
+        slug: ['required', ({ value }) => (value === 'taken' ? 'That slug is taken.' : true)],
+        other: [({ value }) => (value === 'taken' ? 'That slug is taken.' : true)]
+      }
+    )
+
+    expect<boolean>(await check.passes()).toBe(false)
+    // The closure's own message, verbatim: it was written for this failure.
+    expect<string | undefined>(check.errors.first('slug')).toBe('That slug is taken.')
+    expect<boolean>(check.errors.has('other')).toBe(false)
+  })
+
+  test('it sees the whole payload, which is why it exists', async () => {
+    const check = new Validator(
+      { start: 5, end: 3 },
+      { end: [({ value, data }) => (Number(value) > Number(data.start) ? true : 'Too early.')] }
+    )
+
+    expect<boolean>(await check.passes()).toBe(false)
+    expect<string | undefined>(check.errors.first('end')).toBe('Too early.')
+  })
+
+  test('an async closure is awaited', async () => {
+    const check = new Validator(
+      { code: 'x' },
+      {
+        code: [
+          async ({ value }) => {
+            await Bun.sleep(1)
+
+            return value === 'x' ? 'Reserved.' : true
+          }
+        ]
+      }
+    )
+
+    expect<boolean>(await check.passes()).toBe(false)
+  })
+})
+
+describe('Rule.when and Rule.unless', () => {
+  test('rules apply only when the condition holds', async () => {
+    const rules = { card: Rule.when((data) => data.kind === 'card', 'required|digits:4') }
+
+    expect<boolean>(await new Validator({ kind: 'cash' }, rules).passes()).toBe(true)
+    expect<boolean>(await new Validator({ kind: 'card' }, rules).passes()).toBe(false)
+    expect<boolean>(await new Validator({ kind: 'card', card: '4111' }, rules).passes()).toBe(true)
+  })
+
+  test('the otherwise branch is applied when it does not', async () => {
+    const rules = { note: Rule.when(false, 'required', 'max:3') }
+
+    expect<boolean>(await new Validator({ note: 'ab' }, rules).passes()).toBe(true)
+    expect<boolean>(await new Validator({ note: 'abcd' }, rules).passes()).toBe(false)
+  })
+
+  test('unless is the mirror', async () => {
+    const rules = { card: Rule.unless((data) => data.kind === 'cash', 'required') }
+
+    expect<boolean>(await new Validator({ kind: 'cash' }, rules).passes()).toBe(true)
+    expect<boolean>(await new Validator({ kind: 'card' }, rules).passes()).toBe(false)
+  })
+})
+
+describe('Rule.forEach', () => {
+  test('each element decides its own rules', async () => {
+    const check = new Validator(
+      { items: [{ kind: 'gift', to: '' }, { kind: 'plain' }] },
+      {
+        // Rules per element, chosen from the element itself.
+        'items.*.to': Rule.forEach((_value, attribute, data) => {
+          const index = attribute.split('.')[1] as string
+          const kind = (data.items as Array<{ kind: string }>)[Number(index)]?.kind
+
+          return kind === 'gift' ? 'required' : []
+        })
+      }
+    )
+
+    expect<boolean>(await check.passes()).toBe(false)
+    // Only the gift needed a recipient.
+    expect<string[]>(check.errors.keys()).toEqual(['items.0.to'])
+  })
+})
