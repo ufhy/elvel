@@ -1,6 +1,7 @@
 import { ServiceProvider } from '@elysian/core'
 import { Str } from '@elysian/support'
 import { Elysia } from 'elysia'
+import { LogTailCommand } from './console/log-tail.ts'
 import { LogManager } from './manager.ts'
 
 declare module '@elysian/contracts' {
@@ -21,6 +22,8 @@ export class LogServiceProvider extends ServiceProvider {
   }
 
   override boot(): void {
+    if (this.app.bound('artisan')) this.app.make('artisan').register(LogTailCommand)
+
     // Resolve now so a bad channel or level fails at boot, not on first write.
     this.app.make('log').channel()
 

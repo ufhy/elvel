@@ -62,7 +62,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| `pail`-style live tailing | A `log:tail` command over the file drivers would cover it. |
 
 ## @elysian/validation
 

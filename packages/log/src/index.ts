@@ -1,3 +1,5 @@
+export { LogTailCommand } from './console/log-tail.ts'
+
 import { app } from '@elysian/core'
 
 export type { LogContext, LogDriver, LoggerContract, LogLevel, LogRecord } from '@elysian/contracts'
