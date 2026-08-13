@@ -4,6 +4,14 @@ What is deliberately missing, per package, so it is not rediscovered by
 accident. Everything here is a decision, not an oversight; where something was
 attempted and could not be made to work, that is said plainly.
 
+**A row is removed only when nothing is left to say.** Finishing something usually
+replaces its row with a narrower one — implementing `morphToMany` left "a morph map
+for the type", implementing batches left "chains inside a batch" — so the list gets
+*longer* as the framework gets more complete. That is the list becoming more
+precise, not the work growing. What must never appear here is a row whose answer is
+"this is not actually missing": four of those were written and then removed, and
+they belong in the prose under each package instead.
+
 Reviewed against the Laravel 13 documentation and, where behaviour mattered, the
 `laravel/framework` source.
 
@@ -131,7 +139,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| Broadcasting to a queue | Queued listeners and `afterCommit` are implemented — see the notes below. Broadcasting is the row that remains, and it needs a socket layer, not a queue. |
 | Broadcasting | Needs a driver and a socket layer. |
 | Interface-based listeners (`addInterfaceListeners`) | Class events are matched by name; an interface has no runtime identity in TypeScript. |
 | A queued listener on a **wildcard** | A wildcard listener is handed the resolved event name as well as the payload, and only one payload can travel. `listen('order.*', SomeQueuedListener)` throws rather than delivering something different in the worker. |
@@ -364,13 +371,17 @@ a failed-job store, and `defer()` for work too small to queue.
 | Batch callbacks as **closures** | `then`/`catch`/`finally` take job classes. Laravel serialises closures into the batch row; a closure cannot be rebuilt in the worker that would run it, which is the same wall queued listeners hit. Naming a job is the honest version, and the callback then gets retries and a failure record like anything else. |
 | `Bus::chain()` inside a batch, and a scheduled `batch:prune` | The repository has `prune()`; nothing calls it yet. Chains and batches both exist but do not nest. |
 | Per-job `progress` callbacks | `then`, `catch` and `finally` are dispatched. A callback per job needs a reason before it needs an implementation. |
-| `maxExceptions` without a cache | Counted now, in the cache, keyed by the payload's uuid — it has to survive a release and a different worker reserving the job, and the payload is rewritten on every release. With no cache registered the attempt limit is the only limit. |
 | `queue:listen`, `queue:restart`, Horizon-style supervision | `queue:work` with `--max-jobs`/`--max-time`/`--stop-when-empty` is what a container or a supervisor wants; restarting is the supervisor's job, not ours. |
 | `sqs`, `beanstalkd`, `sync`-with-delay | No AWS or Beanstalk client in this runtime yet; `extend()` takes a driver. A delay on `sync` is meaningless — there is nothing to wait in — so it runs immediately rather than blocking the request. |
 | Per-property encryption inside a payload | `static encrypted = true` encrypts the whole payload, which is what `ShouldBeEncrypted` does. Encrypting one field and leaving the rest queryable would need a per-property declaration. |
 | Rate-limited and overlapping middleware as *attributes* | Both exist as middleware classes returned from `middleware()`; TypeScript has no runtime attributes. |
 
 Five behaviours worth knowing rather than discovering:
+
+- **`maxExceptions` needs a cache.** The count is kept there, keyed by the
+  payload's uuid, because it has to survive a release and a different worker
+  reserving the job — the payload is rewritten on every release. With no cache
+  registered the attempt limit is the only limit.
 
 - **The callbacks are `onSuccess`/`onFailure`/`onFinished`, not
   `then`/`catch`/`finally`.** A class with a `then` member is a thenable, so
@@ -413,10 +424,14 @@ or a process runs `schedule:work`.
 | `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
 | `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
 | `onOneServer` releasing its mutex | Deliberate: the lock is held for the minute, which is what keeps the other servers out. A task that must not run twice in the same minute across servers gets that; one that must never overlap *at all* wants `withoutOverlapping()` too. |
-| `schedule:test` honouring maintenance mode | `schedule:run` skips due entries while the application is down unless they declare `evenInMaintenanceMode()`. `schedule:test` deliberately does not: it exists to run one entry *now*, and refusing that during maintenance would remove the only way to check a task before bringing the site back. |
 
-Two things worth knowing:
+Three things worth knowing:
 
+- **`schedule:test` ignores maintenance mode on purpose.** `schedule:run` skips due
+  entries while the application is down unless they declare
+  `evenInMaintenanceMode()`; `schedule:test` exists to run one entry *now*, and
+  refusing that during maintenance would remove the only way to check a task before
+  bringing the site back.
 - **`schedule:run` must be called every minute.** It runs what is due *in that
   minute*; calling it every five minutes silently drops four minutes of entries.
   That is cron's contract, not a limitation added here.
@@ -556,12 +571,16 @@ Docker does.
 | Missing | Why |
 | --- | --- |
 | Starter kits (Breeze/Jetstream-shaped) | The template is one landing page. Auth *endpoints* are mounted and better-auth is a dependency, but there is no sign-in view, no dashboard and no scaffolding switch that writes them. |
-| Migrations in the box | Laravel's skeleton carries `users`, `cache` and `jobs` migrations. Ours carries none: better-auth's tables depend on `config/auth.ts`, so they are generated with `auth:schema`, and the rest are only needed when a driver changes. `create-elysian` prints those steps rather than assuming them. |
 | A `sessions` table generator | There is no `database` session driver yet (see `@elysian/http`), so `session:table` would write a migration nothing reads. |
 | Publishing to npm | `bun create elysian my-app` cannot work until `create-elysian` is on npm; the README says so rather than implying it. |
 | `--kit`/`--minimal` variants | One template, so nothing to choose between. A minimal variant would mean maintaining two. |
 
-Two things this cost, worth remembering rather than re-learning:
+One thing worth knowing, and two worth remembering:
+
+- **No migrations ship in the box.** Laravel's skeleton carries `users`, `cache`
+  and `jobs`; better-auth's tables depend on `config/auth.ts`, so they are
+  generated with `auth:schema`, and the rest are only needed when a driver changes.
+  `create-elysian` prints those steps rather than assuming them.
 
 - **The template drifted for eight packages and nothing noticed.** Every package
   was exercised by the playground, where the wiring was written by hand, so a new
