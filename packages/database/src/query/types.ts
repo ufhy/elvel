@@ -11,6 +11,8 @@ export type WhereClause =
   | { type: 'exists'; query: QueryComponents; not: boolean; boolean: Boolean_ }
   | { type: 'nested'; wheres: WhereClause[]; boolean: Boolean_ }
   | { type: 'raw'; sql: string; bindings: unknown[]; boolean: Boolean_ }
+  | { type: 'jsonContains'; column: string; value: unknown; not: boolean; boolean: Boolean_ }
+  | { type: 'fullText'; columns: string[]; value: string; boolean: Boolean_ }
 
 export type JoinClause = {
   type: 'inner' | 'left' | 'right' | 'cross'

@@ -1,6 +1,37 @@
 import { Grammar } from '../grammar.ts'
 
 export class SQLiteGrammar extends Grammar {
+  /** `json_extract("meta", '$."theme"')` — SQLite's one JSON accessor. */
+  protected override wrapJsonSelector(value: string): string {
+    const { column, path } = this.jsonPathParts(value)
+
+    return `json_extract(${super.wrap(column)}, ${this.jsonPath(path)})`
+  }
+
+  /**
+   * `exists (select 1 from json_each(...) where value is ?)`.
+   *
+   * SQLite has no `json_contains`; walking the array with `json_each` is what
+   * Laravel's grammar does too. `is` rather than `=`, so a null element can match.
+   */
+  protected override compileJsonContains(
+    column: string,
+    value: unknown,
+    not: boolean,
+    bindings: unknown[]
+  ): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const target =
+      path.length > 0
+        ? `json_extract(${super.wrap(field)}, ${this.jsonPath(path)})`
+        : super.wrap(field)
+
+    // The raw value, not JSON-encoded: json_each yields scalars.
+    bindings.push(value)
+
+    return `${not ? 'not ' : ''}exists (select 1 from json_each(${target}) where json_each.value is ${this.parameter(bindings.length)})`
+  }
+
   get dialect(): 'sqlite' {
     return 'sqlite'
   }

@@ -69,10 +69,31 @@ export abstract class Grammar {
       return `${this.wrap((target as string).trim())} as ${this.wrapValue((alias as string).trim())}`
     }
 
+    // `meta->theme` reaches into a JSON column. Dialect-specific, so each grammar
+    // says how — and an engine with no JSON support says so instead of quoting the
+    // arrow as if it were part of a column name.
+    if (value.includes('->')) return this.wrapJsonSelector(value)
+
     return value
       .split('.')
       .map((segment) => this.wrapValue(segment))
       .join('.')
+  }
+
+  /** `meta->a->b` split into the real column and the path below it. */
+  protected jsonPathParts(value: string): { column: string; path: string[] } {
+    const [column, ...path] = value.split('->')
+
+    return { column: (column as string).trim(), path: path.map((segment) => segment.trim()) }
+  }
+
+  /** `'$."a"."b"'` — the SQL/JSON path both SQLite and MySQL address by. */
+  protected jsonPath(path: string[]): string {
+    return `'$${path.map((segment) => `."${segment.replaceAll('"', '""')}"`).join('')}'`
+  }
+
+  protected wrapJsonSelector(_value: string): string {
+    throw new Error(`This database engine does not support JSON paths (\`column->key\`).`)
   }
 
   wrapTable(table: string | Expression): string {
@@ -146,6 +167,19 @@ export abstract class Grammar {
     return { sql: parts.join(' '), bindings }
   }
 
+  protected compileJsonContains(
+    _column: string,
+    _value: unknown,
+    _not: boolean,
+    _bindings: unknown[]
+  ): string {
+    throw new Error('This database engine does not support JSON contains operations.')
+  }
+
+  protected compileFullText(_columns: string[], _value: string, _bindings: unknown[]): string {
+    throw new Error('This database engine does not support full-text search.')
+  }
+
   /** `for update` / `lock in share mode`. SQLite has no row locks. */
   protected compileLock(_lock: 'update' | 'share'): string {
     return ''
@@ -207,6 +241,14 @@ export abstract class Grammar {
         const low = this.parameter(bindings.length - 1)
         const high = this.parameter(bindings.length)
         return `${this.wrap(where.column)} ${where.not ? 'not between' : 'between'} ${low} and ${high}`
+      }
+
+      case 'jsonContains': {
+        return this.compileJsonContains(where.column, where.value, where.not, bindings)
+      }
+
+      case 'fullText': {
+        return this.compileFullText(where.columns, where.value, bindings)
       }
 
       case 'exists': {

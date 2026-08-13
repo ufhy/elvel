@@ -3,7 +3,7 @@ import type { Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import type { ModelBuilder } from './builder.ts'
 import { formatDateTime } from './casts.ts'
-import { type Model, type ModelClass, Pivot } from './model.ts'
+import { Model, type ModelClass, Pivot } from './model.ts'
 
 /**
  * A relation is a query plus the knowledge of how to attach its results to a
@@ -658,7 +658,12 @@ export class MorphTo extends Relation<Model> {
   }
 
   private classFor(type: unknown): ModelClass<Model> | undefined {
-    return typeof type === 'string' ? this.types[type] : undefined
+    if (typeof type !== 'string') return undefined
+
+    // The caller's explicit table map first, then the global morph map — so a
+    // relation declared before aliases existed keeps working, and an aliased type
+    // resolves without being listed twice.
+    return this.types[type] ?? Model.morphClassFor(type)
   }
 
   query(): ModelBuilder<Model> {

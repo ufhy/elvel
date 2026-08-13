@@ -175,6 +175,24 @@ export class ModelBuilder<M extends Model> {
     })
   }
 
+  whereJsonContains(column: string, value: unknown): this {
+    return this.defer((query) => {
+      query.whereJsonContains(column, value)
+    })
+  }
+
+  whereJsonDoesntContain(column: string, value: unknown): this {
+    return this.defer((query) => {
+      query.whereJsonDoesntContain(column, value)
+    })
+  }
+
+  whereFullText(columns: string | string[], value: string): this {
+    return this.defer((query) => {
+      query.whereFullText(columns, value)
+    })
+  }
+
   whereLike(column: string, value: string): this {
     return this.defer((query) => {
       query.whereLike(column, value)

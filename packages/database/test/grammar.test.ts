@@ -356,3 +356,64 @@ describe('boolean defaults', () => {
     expect(new PostgresSchemaGrammar().compile(plan)[0]).toContain('default true')
   })
 })
+
+describe('JSON paths and containment', () => {
+  const contains = (value: unknown): QueryComponents =>
+    query({
+      wheres: [{ type: 'jsonContains', column: 'meta->tags', value, not: false, boolean: 'and' }]
+    })
+
+  const path = (): QueryComponents =>
+    query({
+      wheres: [
+        { type: 'basic', column: 'meta->theme', operator: '=', value: 'dark', boolean: 'and' }
+      ]
+    })
+
+  test('a -> column compiles per dialect', () => {
+    expect(sqlite.compileSelect(path()).sql).toContain(`json_extract("meta", '$."theme"')`)
+    // Unquoted on MySQL, so the comparison is against the string, not `"dark"`.
+    expect(mysql.compileSelect(path()).sql).toContain('json_unquote(json_extract(`meta`')
+
+    const nested = query({
+      wheres: [
+        {
+          type: 'basic',
+          column: 'meta->prefs->theme',
+          operator: '=',
+          value: 'dark',
+          boolean: 'and'
+        }
+      ]
+    })
+    expect(postgres.compileSelect(nested).sql).toContain(`("meta")::jsonb->'prefs'->>'theme'`)
+  })
+
+  test('whereJsonContains compiles per dialect', () => {
+    // SQLite walks the array with json_each; there is no json_contains there.
+    expect(sqlite.compileSelect(contains('a')).sql).toContain('exists (select 1 from json_each(')
+    expect(mysql.compileSelect(contains('a')).sql).toContain('json_contains(')
+    expect(postgres.compileSelect(contains('a')).sql).toContain(`->'tags' @> $1::jsonb`)
+  })
+
+  test('the bindings differ where the semantics do', () => {
+    // json_each yields scalars, so SQLite binds the raw value; the other two
+    // compare documents, so they bind JSON.
+    expect(sqlite.compileSelect(contains('a')).bindings).toEqual(['a'])
+    expect(mysql.compileSelect(contains('a')).bindings).toEqual(['"a"'])
+    // Raw on Postgres too — Bun's driver JSON-encodes a jsonb-cast parameter
+    // itself, so stringifying here would encode it twice.
+    expect(postgres.compileSelect(contains('a')).bindings).toEqual(['a'])
+  })
+
+  test('full text compiles on mysql and postgres, and refuses on sqlite', () => {
+    const fullText = (): QueryComponents =>
+      query({
+        wheres: [{ type: 'fullText', columns: ['title', 'body'], value: 'needle', boolean: 'and' }]
+      })
+
+    expect(mysql.compileSelect(fullText()).sql).toContain('match (`title`, `body`) against (')
+    expect(postgres.compileSelect(fullText()).sql).toContain('plainto_tsquery')
+    expect(() => sqlite.compileSelect(fullText())).toThrow(/does not support full-text/)
+  })
+})

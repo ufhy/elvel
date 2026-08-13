@@ -51,6 +51,9 @@ export interface Connection {
    */
   afterCommit(callback: () => unknown): Promise<void>
 
+  /** The mirror: compensation that runs only if the transaction rolls back. */
+  afterRollback(callback: () => unknown): void
+
   disconnect(): Promise<void>
 }
 

@@ -128,6 +128,38 @@ export class QueryBuilder<T extends Row = Row> {
 
   // ------------------------------------------------------------------ wheres
 
+  /**
+   * The column's JSON value contains this — `whereJsonContains('meta->tags', 'a')`.
+   *
+   * Containment, not equality: on an array it asks "is this a member", which is
+   * the question `where('meta->tags', ...)` cannot express.
+   */
+  whereJsonContains(column: string, value: unknown, not = false): this {
+    this.query.wheres.push({ type: 'jsonContains', column, value, not, boolean: 'and' })
+    return this
+  }
+
+  whereJsonDoesntContain(column: string, value: unknown): this {
+    return this.whereJsonContains(column, value, true)
+  }
+
+  /**
+   * Full-text search — `whereFullText(['title', 'body'], 'needle')`.
+   *
+   * MySQL wants a FULLTEXT index and Postgres a tsvector; each grammar emits its
+   * own form, and SQLite refuses with an explanation rather than pretending with
+   * a LIKE.
+   */
+  whereFullText(columns: string | string[], value: string): this {
+    this.query.wheres.push({
+      type: 'fullText',
+      columns: Array.isArray(columns) ? columns : [columns],
+      value,
+      boolean: 'and'
+    })
+    return this
+  }
+
   where(column: string, operator: Operator, value?: Value): this
   where(column: string, value: Value): this
   where(callback: (query: QueryBuilder<T>) => void): this

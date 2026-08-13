@@ -234,6 +234,56 @@ export class Model {
    */
   private static muted = false
 
+  /** Aliases for polymorphic types — `Relation::morphMap`. */
+  private static morphAliases = new Map<string, ModelClass<Model>>()
+
+  /**
+   * Register short names for polymorphic types — `Relation::morphMap`.
+   *
+   * Without one, a morph column stores the table name, which welds the database
+   * to a code-level naming choice: rename the class (and so the table) and every
+   * stored `taggable_type` stops resolving. An alias is a name you commit to.
+   */
+  static morphMap(map: Record<string, ModelClass<Model>>): void {
+    for (const [alias, model] of Object.entries(map)) Model.morphAliases.set(alias, model)
+  }
+
+  /** The name this model stores in a morph column: its alias, or its table. */
+  static getMorphClass(): string {
+    for (const [alias, model] of Model.morphAliases) {
+      if (model === (this as unknown as ModelClass<Model>)) return alias
+    }
+
+    return this.getTable()
+  }
+
+  /** Resolve a stored morph type: an alias first, a table name second. */
+  static morphClassFor(type: string): ModelClass<Model> | undefined {
+    return Model.morphAliases.get(type)
+  }
+
+  /** Is the mass-assignment guard off right now? See `unguarded`. */
+  private static guardsDisabled = false
+
+  /**
+   * Run `body` with the mass-assignment guard off — `Model::unguarded`.
+   *
+   * For a seeder or an import that builds models from data *you* wrote: the guard
+   * exists to keep request input out of columns it should not reach, and neither
+   * of those is request input. Restored in a `finally` for the same reason
+   * `withoutEvents` is — a throw must not leave the whole application unguarded.
+   */
+  static async unguarded<T>(body: () => T | Promise<T>): Promise<T> {
+    const wasDisabled = Model.guardsDisabled
+    Model.guardsDisabled = true
+
+    try {
+      return await body()
+    } finally {
+      Model.guardsDisabled = wasDisabled
+    }
+  }
+
   /**
    * Run `body` with model events silenced — `Model::withoutEvents`.
    *
@@ -455,6 +505,7 @@ export class Model {
   }
 
   isFillable(key: string): boolean {
+    if (Model.guardsDisabled) return true
     if (this.self.fillable.length > 0) return this.self.fillable.includes(key)
 
     if (this.self.guarded.includes('*')) {
@@ -847,7 +898,7 @@ export class Model {
   morphMany<R extends Model>(
     related: ModelClass<R>,
     name: string,
-    morphType = this.self.getTable()
+    morphType = this.self.getMorphClass()
   ): MorphMany<R> {
     return new MorphMany(related, this, name, morphType, this.self.primaryKey)
   }
@@ -855,7 +906,7 @@ export class Model {
   morphOne<R extends Model>(
     related: ModelClass<R>,
     name: string,
-    morphType = this.self.getTable()
+    morphType = this.self.getMorphClass()
   ): MorphOne<R> {
     return new MorphOne(related, this, name, morphType, this.self.primaryKey)
   }
@@ -872,7 +923,7 @@ export class Model {
     pivotTable?: string,
     foreignPivotKey?: string,
     relatedPivotKey?: string,
-    morphType = this.self.getTable()
+    morphType = this.self.getMorphClass()
   ): MorphToMany<R> {
     return new MorphToMany(
       related,
@@ -899,7 +950,7 @@ export class Model {
     pivotTable?: string,
     foreignPivotKey?: string,
     relatedPivotKey?: string,
-    morphType = related.getTable()
+    morphType = related.getMorphClass()
   ): MorphToMany<R> {
     return new MorphToMany(
       related,

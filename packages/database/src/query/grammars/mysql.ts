@@ -1,6 +1,45 @@
 import { Grammar } from '../grammar.ts'
 
 export class MySqlGrammar extends Grammar {
+  /**
+   * `json_unquote(json_extract(...))` — unquoted, so `where meta->theme = 'dark'`
+   * compares the string and not the JSON literal `"dark"`.
+   */
+  protected override wrapJsonSelector(value: string): string {
+    const { column, path } = this.jsonPathParts(value)
+
+    return `json_unquote(json_extract(${super.wrap(column)}, ${this.jsonPath(path)}))`
+  }
+
+  protected override compileJsonContains(
+    column: string,
+    value: unknown,
+    not: boolean,
+    bindings: unknown[]
+  ): string {
+    const { column: field, path } = this.jsonPathParts(column)
+
+    // JSON-encoded: json_contains compares documents, not scalars.
+    bindings.push(JSON.stringify(value))
+
+    const pathArg = path.length > 0 ? `, ${this.jsonPath(path)}` : ''
+
+    return `${not ? 'not ' : ''}json_contains(${super.wrap(field)}, ${this.parameter(bindings.length)}${pathArg})`
+  }
+
+  /** `match (...) against (? in natural language mode)` — needs a FULLTEXT index. */
+  protected override compileFullText(
+    columns: string[],
+    value: string,
+    bindings: unknown[]
+  ): string {
+    bindings.push(value)
+
+    const wrapped = columns.map((column) => super.wrap(column)).join(', ')
+
+    return `match (${wrapped}) against (${this.parameter(bindings.length)} in natural language mode)`
+  }
+
   protected override quote = '`'
 
   // Widened so MariaDbGrammar can narrow it without breaking the contract.

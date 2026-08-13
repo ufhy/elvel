@@ -575,6 +575,24 @@ for (const { name, config } of available) {
         }
       })
 
+      test('JSON paths and containment behave the same everywhere', async () => {
+        await truncate()
+
+        await User.create({ name: 'Ada', meta: { theme: 'dark', tags: ['a', 'b'] } })
+        await User.create({ name: 'Linus', meta: { theme: 'light', tags: ['c'] } })
+
+        // The same three queries against three engines with three JSON dialects:
+        // the point of putting this in the matrix at all.
+        const dark = await User.query().where('meta->theme', 'dark').get()
+        expect(dark.map((user) => user.name).all()).toEqual(['Ada'])
+
+        const tagged = await User.query().whereJsonContains('meta->tags', 'a').get()
+        expect(tagged.map((user) => user.name).all()).toEqual(['Ada'])
+
+        const not = await User.query().whereJsonDoesntContain('meta->tags', 'a').get()
+        expect(not.map((user) => user.name).all()).toEqual(['Linus'])
+      })
+
       test('boolean and json casts survive the round trip', async () => {
         await truncate()
 

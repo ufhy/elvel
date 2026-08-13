@@ -224,6 +224,16 @@ export class BunSqlConnection implements Connection {
     await manager.afterCommit(callback)
   }
 
+  /**
+   * Run `callback` only if the enclosing transaction rolls back.
+   *
+   * Outside a transaction it is dropped: there is nothing that can fail in the
+   * way this compensates for.
+   */
+  afterRollback(callback: () => unknown): void {
+    this.transactions?.afterRollback(callback)
+  }
+
   async transaction<T>(callback: (tx: Connection) => Promise<T>, attempts = 1): Promise<T> {
     let lastError: unknown
 
@@ -285,7 +295,7 @@ export class BunSqlConnection implements Connection {
 
         return result
       } catch (error) {
-        manager.rollback()
+        await manager.rollback()
 
         lastError = error
 
