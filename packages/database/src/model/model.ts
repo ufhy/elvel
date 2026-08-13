@@ -184,6 +184,46 @@ export class Model {
     return this.constructor as typeof Model
   }
 
+  /**
+   * Are model events muted right now?
+   *
+   * A flag rather than swapping the dispatcher for a null one, which is Laravel's
+   * approach: the dispatcher here is shared with the rest of the framework, and
+   * replacing it would silence a listener that has nothing to do with models.
+   */
+  private static muted = false
+
+  /**
+   * Run `body` with model events silenced — `Model::withoutEvents`.
+   *
+   * A seeder or a migration that fires `created` for ten thousand rows is doing
+   * work nobody asked for; more importantly a listener may dispatch a job, and a
+   * backfill should not.
+   *
+   * Restored in a `finally`, so a throw inside the callback cannot leave the whole
+   * application muted — the failure mode that makes this worth writing carefully.
+   */
+  static async withoutEvents<T>(body: () => T | Promise<T>): Promise<T> {
+    const wasMuted = Model.muted
+    Model.muted = true
+
+    try {
+      return await body()
+    } finally {
+      Model.muted = wasMuted
+    }
+  }
+
+  /** Save without firing `saving`/`saved`/`created`/`updated`. */
+  async saveQuietly(): Promise<boolean> {
+    return Model.withoutEvents(() => this.save())
+  }
+
+  /** Delete without firing `deleting`/`deleted`. */
+  async deleteQuietly(): Promise<boolean> {
+    return Model.withoutEvents(() => this.delete())
+  }
+
   /** `users` from `User`, unless `static table` says otherwise. */
   static getTable(): string {
     if (this.table) return this.table
@@ -984,6 +1024,8 @@ export class Model {
   }
 
   private async fireEvent(name: string): Promise<void> {
+    if (Model.muted) return
+
     await Model.dispatcher?.dispatch(new ModelEvent(`${Model.snake(this.self.name)}.${name}`, this))
   }
 }

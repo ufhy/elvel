@@ -2281,6 +2281,54 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// ------------------------------------------------------------ cursor paging
+
+section('Cursor pagination')
+
+const firstPage = (await (
+  await app.handle(new Request('http://localhost/check/articles/cursor?perPage=2'))
+).json()) as {
+  data: Array<{ id: number }>
+  nextCursor: string | null
+  previousCursor: string | null
+}
+
+check('a cursor page returns its rows', firstPage.data.length === 2)
+check('and no previous cursor on the first page', firstPage.previousCursor === null)
+// It travels in a URL, so it has to survive one unescaped.
+check(
+  'the cursor is URL-safe',
+  firstPage.nextCursor !== null && encodeURIComponent(firstPage.nextCursor) === firstPage.nextCursor
+)
+
+const secondPage = (await (
+  await app.handle(
+    new Request(`http://localhost/check/articles/cursor?perPage=2&cursor=${firstPage.nextCursor}`)
+  )
+).json()) as { data: Array<{ id: number }>; previousCursor: string | null }
+
+check(
+  'the next page continues where the first stopped',
+  (secondPage.data[0]?.id ?? 0) > (firstPage.data[1]?.id ?? 0)
+)
+check('and can point back', secondPage.previousCursor !== null)
+
+const backPage = (await (
+  await app.handle(
+    new Request(
+      `http://localhost/check/articles/cursor?perPage=2&cursor=${secondPage.previousCursor}`
+    )
+  )
+).json()) as { data: Array<{ id: number }> }
+
+// Reading backwards returns rows in reverse; a caller wants them the way round
+// they were going.
+check(
+  'paging back returns the first page, in order',
+  backPage.data.map((article) => article.id).join() ===
+    firstPage.data.map((article) => article.id).join()
+)
+
 // ------------------------------------------------------------- one of many
 
 section('One of many')

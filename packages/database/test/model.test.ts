@@ -1651,3 +1651,199 @@ describe('one of many', () => {
     expect((await linus.latestPost().getOne())?.title).toBe('linus post')
   })
 })
+
+describe('walking a large table', () => {
+  beforeEach(async () => {
+    for (const index of [1, 2, 3, 4, 5, 6, 7]) {
+      await User.create({ name: `User ${index}` })
+    }
+  })
+
+  test('chunkById visits every row', async () => {
+    const seen: string[] = []
+
+    await User.query().chunkById(3, (models) => {
+      seen.push(...models.map((user) => user.name).all())
+    })
+
+    expect(seen).toHaveLength(7)
+    expect(seen[0]).toBe('User 1')
+    expect(seen[6]).toBe('User 7')
+  })
+
+  test('and keeps visiting them while rows are deleted underneath it', async () => {
+    const seen: string[] = []
+
+    await User.query().chunkById(2, async (models) => {
+      seen.push(...models.map((user) => user.name).all())
+
+      // Deleting as you walk is the commonest reason to chunk, and the case that
+      // breaks offset paging: every delete shifts the next page back by one, so
+      // an offset walk silently skips rows.
+      for (const user of models.all()) await user.delete()
+    })
+
+    expect(seen).toHaveLength(7)
+    expect(await User.query().count()).toBe(0)
+  })
+
+  test('returning false stops the walk', async () => {
+    let pages = 0
+
+    await User.query().chunkById(2, () => {
+      pages += 1
+
+      return false
+    })
+
+    expect(pages).toBe(1)
+  })
+
+  test('chunk() by offset is the one that skips', async () => {
+    const seen: string[] = []
+
+    await User.query().chunk(2, async (models) => {
+      seen.push(...models.map((user) => user.name).all())
+
+      for (const user of models.all()) await user.delete()
+    })
+
+    // Documented rather than fixed: `chunk` pages by offset, so deleting while
+    // walking moves the window past rows that were never handed over. This is why
+    // `chunkById` exists, and the test says so out loud.
+    expect(seen.length).toBeLessThan(7)
+  })
+
+  test('cursorPaginate walks forwards', async () => {
+    const first = await User.query().cursorPaginate(3)
+
+    expect(first.data.count()).toBe(3)
+    expect(first.data.first()?.name).toBe('User 1')
+    expect(first.previousCursor).toBeNull()
+    expect(first.nextCursor).not.toBeNull()
+
+    const second = await User.query().cursorPaginate(3, first.nextCursor)
+
+    expect(second.data.map((user) => user.name).all()).toEqual(['User 4', 'User 5', 'User 6'])
+  })
+
+  test('the last page has no next cursor', async () => {
+    const second = await User.query().cursorPaginate(
+      4,
+      (await User.query().cursorPaginate(4)).nextCursor
+    )
+
+    expect(second.data.count()).toBe(3)
+    expect(second.nextCursor).toBeNull()
+  })
+
+  test('and back again, in the order they would have been read', async () => {
+    const first = await User.query().cursorPaginate(3)
+    const second = await User.query().cursorPaginate(3, first.nextCursor)
+    const back = await User.query().cursorPaginate(3, second.previousCursor)
+
+    // Reading backwards returns rows in reverse; a caller wants them the way round
+    // they were going.
+    expect(back.data.map((user) => user.name).all()).toEqual(['User 1', 'User 2', 'User 3'])
+  })
+
+  test('a rubbish cursor is the first page, not an error', async () => {
+    // It arrives from a URL, so it arrives from a stranger.
+    const page = await User.query().cursorPaginate(2, 'not-a-cursor')
+
+    expect(page.data.first()?.name).toBe('User 1')
+  })
+
+  test('the cursor survives a URL', async () => {
+    const first = await User.query().cursorPaginate(2)
+
+    expect(first.nextCursor).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(encodeURIComponent(first.nextCursor as string)).toBe(first.nextCursor as string)
+  })
+})
+
+describe('quiet writes', () => {
+  test('saveQuietly fires nothing', async () => {
+    const seen: string[] = []
+
+    Model.setEventDispatcher({
+      dispatch: (event: { name?: string }) => {
+        seen.push(String(event.name))
+
+        return Promise.resolve([])
+      }
+    } as never)
+
+    try {
+      const user = await User.create({ name: 'Ada' })
+      expect(seen.length).toBeGreaterThan(0)
+
+      seen.length = 0
+      user.name = 'Grace'
+      await user.saveQuietly()
+
+      expect(seen).toEqual([])
+      expect((await User.find(user.id))?.name).toBe('Grace')
+    } finally {
+      Model.setEventDispatcher(undefined)
+    }
+  })
+
+  test('withoutEvents restores the dispatcher even when the body throws', async () => {
+    const seen: string[] = []
+
+    Model.setEventDispatcher({
+      dispatch: (event: { name?: string }) => {
+        seen.push(String(event.name))
+
+        return Promise.resolve([])
+      }
+    } as never)
+
+    try {
+      await expect(
+        Model.withoutEvents(async () => {
+          await User.create({ name: 'Quiet' })
+
+          throw new Error('nope')
+        })
+      ).rejects.toThrow('nope')
+
+      expect(seen).toEqual([])
+
+      // The failure that makes this worth writing carefully: a throw leaving the
+      // whole application muted.
+      await User.create({ name: 'Loud' })
+      expect(seen.length).toBeGreaterThan(0)
+    } finally {
+      Model.setEventDispatcher(undefined)
+    }
+  })
+
+  test('nested withoutEvents does not unmute early', async () => {
+    const seen: string[] = []
+
+    Model.setEventDispatcher({
+      dispatch: (event: { name?: string }) => {
+        seen.push(String(event.name))
+
+        return Promise.resolve([])
+      }
+    } as never)
+
+    try {
+      await Model.withoutEvents(async () => {
+        await Model.withoutEvents(async () => {
+          await User.create({ name: 'Inner' })
+        })
+
+        // The inner block restores what it found, not "unmuted".
+        await User.create({ name: 'Outer' })
+      })
+
+      expect(seen).toEqual([])
+    } finally {
+      Model.setEventDispatcher(undefined)
+    }
+  })
+})

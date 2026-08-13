@@ -33,12 +33,25 @@ Deliberately absent, with reasons:
 | `wherePivotIn`/`wherePivotBetween`, `orderByPivot` | `withPivot`, `withTimestamps`, `using()`, `as()`, `wherePivot` and `withPivotValue` are implemented. The rest are the same mechanism with a different operator. |
 | A pivot that touches its parent (`touchIfTouching`) | Attaching does not bump the parent's `updated_at`. |
 | Model observers as classes | Lifecycle events are dispatched (`model.created` etc) through `@elysian/events`, so a listener can already react. There is no `Observer` class binding sugar. |
-| `chunkById`, cursor pagination | `chunk()` and `lazy()` are implemented with offset paging, which is correct but slower on large tables and can skip rows if the set changes mid-walk. |
-| `Model::withoutEvents`, `saveQuietly` | Straightforward once needed. |
+| `lazyById()`, `chunkByIdDesc` | `chunkById` and `cursorPaginate` walk by key. The lazy (async iterator) form and the descending variant are the same loop with a different shape. |
+| A cursor over **several** columns | The cursor carries one key. Paging by `created_at` with the key as a tie-break needs the compound `where` Laravel builds recursively, and nothing here has asked for it. |
+| `Model::unguarded`, `withoutTimestamps` | `withoutEvents`, `saveQuietly` and `deleteQuietly` are implemented — muted with a flag rather than by swapping the dispatcher, because the dispatcher is shared with the rest of the framework and replacing it would silence listeners that have nothing to do with models. |
 | Custom cast classes (`CastsAttributes`) | Casts are the built-in set plus accessors/mutators, which covers the same ground with less machinery. |
 | Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
 | `DB::listen` as a public helper | Every query already dispatches `QueryExecuted`; a listener on `db.query` is the same thing without a new API. |
 | `migrate --isolated`, `--squash`, `schema:dump` | Needs an advisory lock and a schema dumper per dialect. |
+
+Two things to know about walking a table:
+
+- **`chunk()` pages by offset and `chunkById` pages by key**, and the difference
+  shows the moment rows are deleted while walking — which is the commonest reason
+  to chunk at all. Every delete shifts the offset window back by one, so an offset
+  walk silently skips rows it never handed over. There is a test that deletes as it
+  goes and asserts `chunk()` sees fewer than it should, because that behaviour is
+  worth pinning rather than discovering.
+- **A cursor page has no total.** Knowing one costs a `count(*)` over the whole
+  set, which is the expense cursor pagination exists to avoid. What it buys is a
+  page that cannot repeat or skip a row when something is inserted mid-read.
 
 Two things to know about the single-row relations:
 

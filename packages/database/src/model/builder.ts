@@ -14,6 +14,23 @@ export type Paginated<M> = {
 }
 
 /**
+ * A page reached by remembering where the last one ended.
+ *
+ * No `total` and no `lastPage`, on purpose: knowing them costs a `count(*)` over
+ * the whole set, which is the expense cursor pagination exists to avoid. What it
+ * buys is stability — an offset page silently repeats or skips rows when
+ * something is inserted while a user is reading.
+ */
+export type CursorPage<M> = {
+  data: Collection<M>
+  perPage: number
+  /** Pass back as `cursor` to get the next page. Null at the end. */
+  nextCursor: string | null
+  /** Null on the first page. */
+  previousCursor: string | null
+}
+
+/**
  * A query builder that returns models instead of rows.
  *
  * It defers to the underlying `QueryBuilder` for SQL, adds hydration, eager
@@ -638,6 +655,98 @@ export class ModelBuilder<M extends Model> {
     return (await this.base()).delete()
   }
 
+  /**
+   * Walk the table by **key**, not by offset — `chunkById`.
+   *
+   * `chunk()` pages with `offset`, and that is correct only while nothing changes
+   * underneath it: delete a row from an earlier page and everything shifts back
+   * one, so the next page skips a row that was never seen. Deleting *as you walk*
+   * — which is the commonest reason to chunk at all — does exactly that.
+   *
+   * Remembering the last key instead means each page asks for `where id > ?`, and
+   * neither an insert nor a delete can move the boundary.
+   */
+  async chunkById(
+    size: number,
+    callback: (models: Collection<M>) => Promise<unknown> | unknown,
+    column?: string
+  ): Promise<void> {
+    const key = column ?? (this.model as typeof Model).primaryKey
+    let lastId: unknown
+
+    while (true) {
+      const page = this.clone().deferBase((query) => {
+        // Any order the caller set is replaced: walking by key requires the key's
+        // order, and honouring both would page in one order while filtering in
+        // another.
+        query.reorder(key, 'asc')
+
+        if (lastId !== undefined) query.where(key, '>', lastId as never)
+      })
+
+      const models = await page.limit(size).get()
+
+      if (models.isEmpty()) return
+      if ((await callback(models)) === false) return
+
+      lastId = models.all()[models.count() - 1]?.attributes[key]
+
+      if (models.count() < size) return
+      if (lastId === undefined || lastId === null) return
+    }
+  }
+
+  /**
+   * One page, addressed by a cursor rather than a number — `cursorPaginate`.
+   *
+   * The cursor carries the last row's key, base64url-encoded as Laravel's is, so
+   * it can travel in a URL. `previousCursor` points *backwards* from the first row
+   * of this page, which is what makes paging back work without counting.
+   */
+  async cursorPaginate(
+    perPage = 15,
+    cursor?: string | null,
+    column?: string
+  ): Promise<CursorPage<M>> {
+    const key = column ?? (this.model as typeof Model).primaryKey
+    const decoded = decodeCursor(cursor)
+
+    const page = this.clone().deferBase((query) => {
+      query.reorder(key, decoded?.pointsBackwards ? 'desc' : 'asc')
+
+      if (decoded) {
+        query.where(key, decoded.pointsBackwards ? '<' : '>', decoded.value as never)
+      }
+    })
+
+    // One more than asked for: its presence is how "there is a next page" is
+    // answered without a second query.
+    const models = await page.limit(perPage + 1).get()
+    const hasMore = models.count() > perPage
+    const rows = hasMore ? models.all().slice(0, perPage) : models.all()
+
+    // Reading backwards returns rows in reverse; the caller wants them the way
+    // round they would have been read forwards.
+    const ordered = decoded?.pointsBackwards ? [...rows].reverse() : rows
+
+    const first = ordered[0]?.attributes[key]
+    const last = ordered[ordered.length - 1]?.attributes[key]
+
+    return {
+      data: new Collection(ordered),
+      perPage,
+      nextCursor:
+        (decoded?.pointsBackwards ? true : hasMore) && last !== undefined
+          ? encodeCursor(last, false)
+          : null,
+      previousCursor:
+        (decoded === undefined ? false : decoded.pointsBackwards ? hasMore : true) &&
+        first !== undefined
+          ? encodeCursor(first, true)
+          : null
+    }
+  }
+
   async chunk(
     size: number,
     callback: (models: Collection<M>) => Promise<unknown> | unknown
@@ -687,5 +796,31 @@ export class ModelNotFoundError extends Error {
         : `No query results for ${model} [${String(id)}].`
     )
     this.name = 'ModelNotFoundError'
+  }
+}
+
+/** `{ value, pointsBackwards }`, base64url — the shape Laravel's Cursor encodes. */
+function encodeCursor(value: unknown, pointsBackwards: boolean): string {
+  return Buffer.from(JSON.stringify({ value, pointsBackwards })).toString('base64url')
+}
+
+function decodeCursor(
+  cursor: string | null | undefined
+): { value: unknown; pointsBackwards: boolean } | undefined {
+  if (!cursor) return undefined
+
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString()) as {
+      value?: unknown
+      pointsBackwards?: unknown
+    }
+
+    if (parsed.value === undefined) return undefined
+
+    return { value: parsed.value, pointsBackwards: parsed.pointsBackwards === true }
+  } catch {
+    // A cursor is a URL parameter, so it arrives from a user: rubbish means the
+    // first page, not a 500.
+    return undefined
   }
 }

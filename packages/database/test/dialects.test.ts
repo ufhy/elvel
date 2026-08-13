@@ -532,6 +532,29 @@ for (const { name, config } of available) {
         )
       })
 
+      test('chunkById and cursorPaginate walk by key on every dialect', async () => {
+        await truncate()
+
+        for (const index of [1, 2, 3, 4, 5]) {
+          await User.create({ name: `User ${index}` })
+        }
+
+        const seen: string[] = []
+        await User.query().chunkById(2, (models) => {
+          seen.push(...models.map((user) => user.name).all())
+        })
+
+        expect(seen).toHaveLength(5)
+
+        const first = await User.query().cursorPaginate(2)
+        const second = await User.query().cursorPaginate(2, first.nextCursor)
+
+        // `where key > ?` and a replaced order have to compile the same on all
+        // three, which is the sort of thing one dialect quietly disagrees about.
+        expect(first.data.count()).toBe(2)
+        expect(second.data.first()?.name).toBe('User 3')
+      })
+
       test('boolean and json casts survive the round trip', async () => {
         await truncate()
 

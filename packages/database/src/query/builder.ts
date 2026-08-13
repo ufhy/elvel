@@ -293,9 +293,17 @@ export class QueryBuilder<T extends Row = Row> {
     return this.orderBy(column, 'asc')
   }
 
-  reorder(): this {
+  /**
+   * Drop every order, optionally replacing it with one.
+   *
+   * Laravel's signature, and the replacement form is what key-based walking needs:
+   * paging by key requires the key's order, and leaving a caller's `orderBy` in
+   * place would page in one order while filtering in another.
+   */
+  reorder(column?: string, direction: 'asc' | 'desc' = 'asc'): this {
     this.query.orders = []
-    return this
+
+    return column === undefined ? this : this.orderBy(column, direction)
   }
 
   limit(count: number): this {

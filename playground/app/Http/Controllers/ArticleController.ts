@@ -111,6 +111,25 @@ export default controller('article')
     }
   })
 
+  /**
+   * A page addressed by a cursor rather than a number.
+   *
+   * No total and no last page: knowing either costs a `count(*)` over the whole
+   * table, which is the expense this exists to avoid. What it buys is a page that
+   * cannot repeat or skip a row when something is inserted mid-read.
+   */
+  .get('/check/articles/cursor', async ({ query }) => {
+    const page = await Article.query()
+      .orderBy('id')
+      .cursorPaginate(Number(query.perPage ?? 2), (query.cursor as string) ?? null)
+
+    return {
+      data: page.data.all().map((article) => ({ id: article.id, title: article.title })),
+      nextCursor: page.nextCursor,
+      previousCursor: page.previousCursor
+    }
+  })
+
   /** Eager loading: one extra query for every article's comments, not N. */
   .get('/check/articles/with-comments', async () => {
     const articles = await Article.with('comments').orderBy('id').get()

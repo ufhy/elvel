@@ -537,6 +537,10 @@ tag.articles()            // morphedByMany: the pivot names the *related* type
 ```
 
 ```ts
+Article.query().chunkById(500, handle)    // by key: safe to delete while walking
+Article.query().cursorPaginate(15, cursor)
+await user.saveQuietly()                  // no model events
+
 user.latestOfMany(Post, 'created_at')     // one per parent, even eagerly loaded
 country.hasOneThrough(Post, User)         // one row across an intermediate table
 ```
