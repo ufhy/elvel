@@ -698,7 +698,13 @@ It reaches three places:
 [`GAPS.md`](GAPS.md) records what is deliberately missing in every finished
 package, and why — including one thing that was attempted and could not be made
 to work (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
-`@kitajs/ts-html-plugin`).
+`@kitajs/ts-html-plugin`). It holds only what is absent, so finishing something
+shortens it.
+
+[`BEHAVIOURS.md`](BEHAVIOURS.md) is the other half: behaviour that *does* exist
+and is easy to misread from the outside — why a cancelled batch never finishes,
+why a `..` that stays inside a disk is allowed, why the day-of-month rule is
+POSIX's and not the obvious one.
 
 ## Roadmap
 

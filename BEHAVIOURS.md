@@ -1,0 +1,404 @@
+# Behaviours worth knowing
+
+Why some things here work the way they do — the decisions that are easy to
+misread from the outside, and the failures that led to them.
+
+This is not a list of what is missing; that is `GAPS.md`, and it stays a list of
+gaps so that finishing something visibly shortens it. Everything below is
+behaviour that already exists and would otherwise have to be rediscovered.
+
+---
+
+
+## @elysian/database — complete for this milestone
+
+Two things to know about walking a table:
+
+- **`chunk()` pages by offset and `chunkById` pages by key**, and the difference
+  shows the moment rows are deleted while walking — which is the commonest reason
+  to chunk at all. Every delete shifts the offset window back by one, so an offset
+  walk silently skips rows it never handed over. There is a test that deletes as it
+  goes and asserts `chunk()` sees fewer than it should, because that behaviour is
+  worth pinning rather than discovering.
+- **A cursor page has no total.** Knowing one costs a `count(*)` over the whole
+  set, which is the expense cursor pagination exists to avoid. What it buys is a
+  page that cannot repeat or skip a row when something is inserted mid-read.
+
+Two things to know about the single-row relations:
+
+- **`latestOfMany` is a joined subquery, not `orderBy().limit(1)`.** The limit is
+  right for one parent and silently wrong for an eager load, where it returns one
+  row for the entire set — so the first parent gets its newest child and everyone
+  else gets nothing. What is joined is `max(column)` grouped per parent.
+- **The key is aggregated alongside the column.** Two children can share a
+  `created_at`, and without the key in the join the aggregate matches both — a
+  "one" relation quietly returning two. There is a test that creates the tie on
+  purpose.
+
+Three things to know about pivots:
+
+- **Pivot columns travel aliased and are then moved.** They are selected as
+  `pivot_<column>` and lifted onto the accessor after hydration, which is what
+  stops a pivot's `created_at` from overwriting the model's own. The aliases are
+  removed *before* `syncOriginal`, or every eagerly loaded model would report
+  itself dirty.
+- **A pivot model is built by assignment, not by `fill()`.** `fill` honours
+  `fillable` and a pivot declares none, so constructing one with its attributes
+  produced an empty pivot — silently. `hydrate()` bypasses fill for the same
+  reason.
+- **The morph direction decides whose type is stored.** `morphToMany` stores the
+  parent's, `morphedByMany` the related model's. Backwards, the relation returns
+  nothing at all rather than failing, so both directions are covered by tests on
+  SQLite, Postgres and MySQL.
+
+**Verified limits of the databases themselves**, not of this code:
+
+- MySQL refuses to `truncate` a table a foreign key points at, however empty the
+  child is. Use `delete()`. The grammar does not silently disable foreign key
+  checks.
+- MySQL implicitly commits DDL, so a failing migration cannot be rolled back
+  there. Migrations are wrapped in a transaction on SQLite and Postgres only —
+  it is not pretended for MySQL.
+- MySQL's system schema `mysql` does **not** enforce InnoDB foreign keys. The
+  dialect test suite provisions its own database because of it.
+- Lazy loading a relation cannot be synchronous on Bun: reaching the database is
+  async, so `user.posts` cannot return rows the way `$user->posts` does. Relations
+  are methods (`await user.posts().get()`), and `with()` prevents the N+1.
+
+
+## @elysian/events
+
+Four things to know about a queued listener:
+
+- **It is a class, not a closure.** A worker is a different process, so only a name
+  travels — the same constraint jobs have. `QueuedListener` is what a worker can
+  resolve; anything in `app/Listeners` is discovered, and `artisan make:listener X
+  --event Y --queued` writes one.
+- **The event is rebuilt from its class, not handed over as data.** `app/Events` is
+  discovered into a registry, and the payload is poured into an instance without
+  running the constructor — so `event.label()` and `event instanceof OrderShipped`
+  still work inside the worker. An unregistered event still delivers its fields;
+  what it loses is exactly those two things.
+- **`shouldQueue(event)` is asked in the dispatching process.** That is the only
+  place that still has the request's state to decide with.
+- **`afterCommit` holds the push until the outermost transaction commits**, and
+  drops it entirely if that transaction rolls back. Without it a worker can reserve
+  the job first and find none of the rows the event is about. Outside a transaction
+  there is nothing to wait for, so it pushes at once.
+
+The dispatcher itself knows nothing about queues: the push arrives as a hook that
+`QueueServiceProvider` installs. A queued listener with no queue registered throws
+and names the provider — running it in the request would look like it worked.
+
+
+## @elysian/validation
+
+Four things to know about file rules:
+
+- **The bytes decide, not the headers.** `image` and `mimes` sniff the file's
+  signature; a script renamed `avatar.png` arrives claiming `image/png` and
+  nothing else about it disagrees. `extensions` is the opposite rule on purpose —
+  it checks the *name* and says nothing about the contents.
+- **Only a handful of formats can be sniffed** — PNG, JPEG, GIF, BMP, WebP. For
+  anything else `mimes` falls back to the type the client declared, which is a
+  claim; `mimetypes:` takes a media type directly, and the extension table is
+  deliberately short rather than pretending to cover everything.
+- **A size rule on an upload is kilobytes.** `max:2048` is 2MB, matching Laravel,
+  and the message says "kilobytes" rather than "characters".
+- **Executable extensions are refused unless named.** `mimes:txt` will not accept
+  `run.sh` or `x.phar`; `mimes:php` will. Laravel blocks the PHP family the same
+  way, widened here to the obvious shell and Windows cases.
+
+Three things to know about wildcard rules:
+
+- **Expansion walks the pattern, it does not filter the data.** `items.*.price`
+  against `items: [{ price: 1 }, {}]` produces `items.1.price` even though nothing
+  is there — an attribute that does not exist cannot fail `required`, and "you
+  forgot the price on the second line" is the whole point.
+- **A missing or wrong-typed collection reports itself, once.** With `items`
+  absent, `items.*.price` contributes nothing and the rule on `items` is what
+  fails. Inventing `items.0.price` would report one problem twice, in a place the
+  sender never wrote.
+- **`distinct`'s scope is the pattern.** `orders.*.lines.*` compares every line of
+  every order against every other, because that is what the pattern names; scoping
+  it per order means writing the rule per order.
+
+
+## @elysian/http
+
+Three things to know about maintenance mode:
+
+- **The payload is a file, not the cache.** The likeliest moment to need
+  maintenance mode is when the database or Redis is the thing that is broken, and a
+  mode that cannot be switched on then is not a maintenance mode.
+- **`--render` renders when `down` runs**, not per request, and the HTML is stored
+  in the payload. The reason to be down is often that the application cannot serve a
+  page; asking it to render one then is asking the broken thing to explain itself.
+- **The bypass cookie carries a MAC over its own expiry, never the secret.** So a
+  copied cookie is a temporary problem rather than a permanent key, and the phrase
+  never reaches a browser's history or storage. Visiting the secret URL redirects to
+  `/` for the same reason.
+
+Four things to know about the form loop:
+
+- **`errors()` and `old()` read a request scope, not props.** A view here is a JSX
+  component, so there is no template scope to share `$errors` into; threading a
+  message bag through every component between the handler and the input it belongs
+  to is the plumbing that makes people skip validation feedback. The scope is
+  entered from a **synchronous** hook, because `enterWith` inside an async `derive`
+  is already lost by the time the handler runs.
+- **A failure redirects for a browser and 422s for a client**, decided by four
+  signals: `X-Requested-With`, `Accept`, a **JSON request body**, and no `Accept` at
+  all. The body signal was missing at first, and the playground's API routes started
+  receiving redirects they could not follow.
+- **A thrown redirect must persist the session; a returned one must not.**
+  `onAfterHandle` is what saves, and it does not run on the error path — so a thrown
+  redirect saves before throwing. Doing both saves the session twice, which ages the
+  flash twice and destroys it before the next request reads it. Both halves were
+  found by driving the form over the network.
+- **A password is never flashed.** `withInput()` drops `password`,
+  `password_confirmation`, `current_password` and `token` at every depth, along with
+  uploads, rather than trusting each caller to remember.
+
+Four things to know about the middleware:
+
+- **`throttle()` is scoped to the plugin it is used in.** Putting one on a
+  controller limits every route in that file against one budget; a `routeGroup()`
+  per limit is how two routes get two budgets. The first draft of the playground
+  controller got this wrong and reported one limit's numbers for another limit's
+  route.
+- **Two windows need two counters.** A named limiter returning
+  `[perMinute(3).by(ip), perDay(50).by(ip)]` describes one subject through two
+  windows, so the window length is part of the counter key: sharing one counter
+  makes every request count twice and the tighter limit trip at half its stated
+  number. That happened, and driving it over the network is what showed it. The
+  headers report the *tightest* remaining rather than the last one read.
+- **A refused CORS request is a normal response without the headers.** Answering
+  403 would break same-origin callers of the same route — the browser is what turns
+  the absence into an error. A refused origin is told nothing at all: not the
+  methods, not the credentials flag, not the max-age.
+- **`X-Forwarded-For` is believed only from a proxy you named.** Behind a load
+  balancer you must trust it, or one rate limit is shared by the whole internet;
+  directly exposed you must not, or a caller forges a fresh identity per request.
+  `::ffff:127.0.0.1` is normalised to `127.0.0.1`, because Bun reports an IPv4
+  client that way and a limiter comparing against the plain form would silently
+  never match — an exemption that never fires being worse than none, since it
+  looks like one.
+
+
+## @elysian/auth
+
+Two things to know when using it:
+
+- The auth endpoints are registered per HTTP verb rather than through `all()`,
+  and the provider must boot *before* the view provider: Elysia treats an `ALL`
+  route as a fallback, so the static asset handler's `GET /*` would answer the
+  auth endpoints first.
+- The request scope is entered from a **synchronous** `onBeforeHandle`.
+  `AsyncLocalStorage.enterWith` applies to the rest of the current execution, and
+  an `await` restores the frame its continuation was scheduled with — so entering
+  the scope inside an async `derive` is lost by the time the handler runs. There
+  is a test for this arrangement, because it depends on Elysia not emitting an
+  `await` for a synchronous hook.
+
+
+## @elysian/cache
+
+Three behaviours worth knowing rather than discovering:
+
+- **`funnel()` works on every driver, unlike Laravel's.** Laravel acquires a
+  slot with a Lua script, which ties it to Redis. A `Lock` here is already atomic
+  on every store, so N named locks are a semaphore that behaves the same on
+  `array`, `file`, `database` and `redis` — at the cost of up to N round trips to
+  find a free slot instead of one.
+- **Tagged entries linger.** Flushing a tag rotates its id, so every key written
+  under the old namespace becomes unreachable at once — but the entries stay until
+  their own TTL runs out. That is what lets tags work without an index of which
+  keys belong to which tag, and it is Laravel's design too.
+- **`flush()` on Redis scans this store's prefix** rather than issuing `FLUSHDB`,
+  which would take another application's keys with it. With no prefix configured
+  there is nothing to scan for, and it does flush the database.
+
+
+## @elysian/queue
+
+Five behaviours worth knowing rather than discovering:
+
+- **`maxExceptions` needs a cache.** The count is kept there, keyed by the
+  payload's uuid, because it has to survive a release and a different worker
+  reserving the job — the payload is rewritten on every release. With no cache
+  registered the attempt limit is the only limit.
+
+- **The callbacks are `onSuccess`/`onFailure`/`onFinished`, not
+  `then`/`catch`/`finally`.** A class with a `then` member is a thenable, so
+  `await queue().batch([...])` would call it with `resolve` and `reject` where job
+  classes are expected. The scheduler dropped its own `then()` alias for the same
+  reason; here the linter caught it.
+- **A batch callback must not belong to its own batch.** Dispatching `then` with
+  the batch id in its *payload* makes the batch count its own callback: pending is
+  already zero, so finishing the callback finishes the batch again, which
+  dispatches another callback, for ever. The id travels in the callback's data
+  instead. Found by a test hanging rather than failing.
+- **A chain inside a batch counts as all of its links.** An array in the job
+  list is a chain, as in Laravel: every link carries the batch id and decrements
+  the count as it succeeds. Counting the chain as one job would fire `onSuccess`
+  while most of the work was still queued. A cancelled batch is why
+  `queue:prune-batches` has a `--cancelled` window of its own — see below.
+- **A cancelled batch's jobs are skipped, not deleted.** A driver has no random
+  access and another worker may already hold one, so cancellation is checked when a
+  job is reserved. A cancelled batch therefore stays unfinished, with a pending
+  count for work that will never run — Laravel behaves the same way.
+- **`app.handle()` never runs deferred callbacks.** Elysia fires
+  `onAfterResponse` when a response is transmitted, and an in-process
+  `app.handle()` transmits nothing. A test that needs `defer()` should call
+  `flushDeferred()` itself, or drive a real socket — the smoke test does the
+  latter.
+- **A released job goes to the back of the queue** on the database driver: the row
+  is deleted and re-inserted, so it gets a fresh id rather than jumping ahead of
+  work that arrived while it was failing.
+- **SQS owns its own reservations, so it has no `retryAfter`.** A received
+  message is invisible for `visibilityTimeout` and a delete is what finishes it;
+  there is no reserved set to migrate and no expiry sweep. Three consequences
+  are the queue's, not ours: the attempt count is `ApproximateReceiveCount`, so a
+  worker killed before it could release still increments it; `size()` is
+  approximate and sums available, delayed and in-flight, so a "wait until empty"
+  loop on it is a bug; and a delay over 900 seconds is **refused rather than
+  clamped**, because a job arriving hours early is worse than one that never
+  queued.
+- **`retryAfter` must exceed your slowest job.** It is how long a reservation is
+  trusted; a job still running when it expires will be picked up a second time,
+  which is the same trade Laravel makes.
+
+
+## @elysian/scheduler
+
+Four things worth knowing:
+
+- **Only a command can run in the background.** A child process is a fresh one
+  with nothing to rebuild a closure from — the same wall a queued closure hits —
+  so `runInBackground()` on a `call()` entry throws instead of quietly running it
+  inline. `schedule().job(...)` is the answer for closure-shaped work: it only
+  dispatches, so it returns at once.
+- **`schedule:test` ignores maintenance mode on purpose.** `schedule:run` skips due
+  entries while the application is down unless they declare
+  `evenInMaintenanceMode()`; `schedule:test` exists to run one entry *now*, and
+  refusing that during maintenance would remove the only way to check a task before
+  bringing the site back.
+- **`schedule:run` must be called every minute.** It runs what is due *in that
+  minute*; calling it every five minutes silently drops four minutes of entries.
+  That is cron's contract, not a limitation added here.
+- **The day-of-month/day-of-week rule is POSIX's, not the obvious one.** With both
+  fields restricted, an expression matches if **either** matches, so
+  `0 0 1 * MON` is "the 1st, and every Monday". `matches()` says so, and there is
+  a test for it, because the intuitive reading turns a schedule into one that
+  almost never runs.
+
+
+## @elysian/mail
+
+Three behaviours worth knowing:
+
+- **SES is signed here, not by an SDK.** `sigv4.ts` passes AWS's own published
+  test vectors, which are committed under `packages/mail/test/fixtures/sigv4`.
+  One of them — `post-x-www-form-urlencoded` — has files that disagree with each
+  other, so only its canonical request is asserted; the reason is in the test.
+- **`alwaysTo` keeps the originals.** Redirected recipients are written to
+  `X-Elysian-To`/`Cc`/`Bcc` rather than dropped, so a message caught on staging can
+  still be traced to who it was for.
+- **`allowSelfSigned` is refused in production.** The flag exists for a local mail
+  catcher; the manager throws rather than honour it where it would mean mail
+  readable in transit.
+
+
+## @elysian/storage
+
+Four behaviours worth knowing:
+
+- **MinIO does not implement per-object ACLs**, so the tests for them skip
+  against it rather than fail: `GET ?acl` answers with a canned
+  owner-`FULL_CONTROL` document whatever was written, and `PUT ?acl` returns 200
+  and changes nothing. Its model is bucket policies. The rest of the S3 suite
+  runs against it unchanged.
+- **A bucket that refuses `GetObjectAcl` reports the disk's default.** Buckets
+  with ACLs disabled entirely (`BucketOwnerEnforced`) are the common modern
+  setup, and there the permission is not missing — the concept is. Throwing would
+  make visibility unusable rather than merely unknown.
+- **A path that leaves the disk is refused, not rewritten.** `../../.env`,
+  `/etc/passwd` and a `..` that walks out through a symlink all throw
+  `PathOutsideDiskError`. Stripping the segments instead would silently turn a
+  hostile path into a valid one. There are tests for each, and one that confirms a
+  `..` which *stays* inside is still allowed.
+- **A missing file reads as `null`; an unreadable directory throws.** The
+  distinction is deliberate: a directory nobody has written to yet is a normal
+  state, but one that exists and cannot be read is a misconfiguration that should
+  not look like "empty".
+- **`Content-Disposition` is built defensively.** Quotes, backslashes, CR and LF
+  are removed from the filename before it goes in, so a filename cannot close the
+  quoted string or split the header; the real name travels in `filename*`.
+
+
+## @elysian/notifications
+
+Three behaviours worth knowing:
+
+- **The id belongs to the delivery, not to the notification object.** Each recipient
+  gets its own uuid, shared by every channel it is sent through — that is what lets
+  a stored row and the mail about it be correlated. Laravel gets this by cloning the
+  notification per recipient; we share one instance, so the id is assigned per
+  recipient explicitly. Writing the test for it is what caught the first draft
+  handing recipient two the id of recipient one.
+- **A failing channel re-throws.** The event is dispatched first, but the error is
+  not swallowed: a queued notification that failed silently is a notification
+  nobody knows was lost.
+- **`database` is skipped for an on-demand recipient.** There is no record for the
+  row to belong to, and `route('database', …)` refuses outright rather than writing
+  an orphan.
+
+
+## @elysian/encryption
+
+Five decisions worth knowing rather than discovering:
+
+- **One AEAD does both jobs.** GCM encrypts and authenticates in one pass, so
+  there is no separate MAC to compare and no order-of-operations mistake to make.
+  `node:crypto` in Bun enforces the tag, and it is synchronous, so encryption is
+  not an `await` in the middle of an accessor.
+- **Keys are derived, never used raw.** HKDF with a purpose string means the cookie
+  *signer* and the *encrypter* never share key material, even though both come from
+  `APP_KEY`. Compromising one does not hand over the other.
+- **Context is authenticated, not carried.** `encrypt(value, 'cookie:remember')`
+  binds the purpose into the tag: the payload does not grow, the context does not
+  leak, and lifting a value from one cookie into another fails to decrypt rather
+  than merely looking odd. This is what Laravel's HMAC-of-the-cookie-name prefix
+  buys, without the bytes or the stripping.
+- **Every failure reads the same.** A caller is told "Could not decrypt the
+  payload." whether the version, the length, the tag, the context or the key was
+  wrong. Distinguishing them is how a padding-oracle-shaped attack starts.
+- **`session.encrypt` without the provider warns.** The cookie falls back to being
+  signed rather than failing the boot, but it says so through the log: silently
+  degrading would leave somebody believing a cookie is encrypted when it is not.
+- **Encrypting a column costs you querying it.** `where('editor_note', …)` cannot
+  match a ciphertext, and no amount of care changes that — a fresh nonce per write
+  means the same plaintext never produces the same bytes twice. Encrypt what you
+  read, not what you search by.
+
+
+## create-elysian
+
+One thing worth knowing, and two worth remembering:
+
+- **No migrations ship in the box.** Laravel's skeleton carries `users`, `cache`
+  and `jobs`; better-auth's tables depend on `config/auth.ts`, so they are
+  generated with `auth:schema`, and the rest are only needed when a driver changes.
+  `create-elysian` prints those steps rather than assuming them.
+
+- **The template drifted for eight packages and nothing noticed.** Every package
+  was exercised by the playground, where the wiring was written by hand, so a new
+  application silently lacked half the framework while every test passed. Its
+  `config/session.ts` also told a new application that cookies are signed "rather
+  than encrypted" long after that stopped being true.
+- **What catches it now is registration.** The smoke run boots a scaffolded
+  application and asserts that a command from each package appears in `artisan
+  list` — a command only appears if its provider booted, which needs the
+  dependency, the provider entry and the config file all present. A ninth package
+  that forgets the template fails there.
