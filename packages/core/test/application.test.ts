@@ -304,3 +304,53 @@ describe('instance tracking', () => {
     expect(() => Application.getInstance()).toThrow(/No application instance/)
   })
 })
+
+describe('shutting down', () => {
+  test('terminating callbacks run in order', async () => {
+    const app = new Application(process.cwd())
+    const order: string[] = []
+
+    app.terminating(() => {
+      order.push('first')
+    })
+    app.terminating(async () => {
+      await Bun.sleep(1)
+      order.push('second')
+    })
+
+    await app.terminate()
+
+    expect<string[]>(order).toEqual(['first', 'second'])
+  })
+
+  test('one that throws does not stop the rest', async () => {
+    const app = new Application(process.cwd())
+    const order: string[] = []
+
+    app.terminating(() => {
+      throw new Error('cleanup failed')
+    })
+    app.terminating(() => {
+      order.push('still ran')
+    })
+
+    // Shutdown is the worst moment to abandon the remaining cleanup.
+    await app.terminate()
+
+    expect<string[]>(order).toEqual(['still ran'])
+  })
+
+  test('terminating twice runs nothing twice', async () => {
+    const app = new Application(process.cwd())
+    let count = 0
+
+    app.terminating(() => {
+      count += 1
+    })
+
+    await app.terminate()
+    await app.terminate()
+
+    expect<number>(count).toBe(1)
+  })
+})

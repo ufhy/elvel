@@ -1,5 +1,7 @@
 import { ServiceProvider } from '@elysian/core'
 import { AboutCommand } from './commands/about.ts'
+import { ConfigCacheCommand } from './commands/config-cache.ts'
+import { ConfigClearCommand } from './commands/config-clear.ts'
 import { DownCommand } from './commands/down.ts'
 import { MakeCommandCommand } from './commands/make-command.ts'
 import { MakeComponentCommand } from './commands/make-component.ts'
@@ -32,6 +34,8 @@ export class ConsoleServiceProvider extends ServiceProvider {
       ServeCommand,
       RouteListCommand,
       AboutCommand,
+      ConfigCacheCommand,
+      ConfigClearCommand,
       DownCommand,
       UpCommand,
       MakeControllerCommand,

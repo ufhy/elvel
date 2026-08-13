@@ -13,6 +13,43 @@ import { Arr } from '@elysian/support'
 export class Config implements ConfigRepository {
   constructor(private items: Record<string, unknown> = {}) {}
 
+  /**
+   * Load from a cached JSON file instead of reading the directory.
+   *
+   * Returns undefined when there is no cache, which is the ordinary path in
+   * development. The cache is JSON rather than a module: a config file can
+   * export a function or a class, and JSON refusing to carry one is the point —
+   * see `config:cache`, which says so rather than writing a file that silently
+   * drops it.
+   */
+  static async loadCached(path: string, directory: string): Promise<Config | undefined> {
+    const file = Bun.file(path)
+
+    if (!(await file.exists())) return undefined
+
+    const cached = (await file.json()) as { config: Record<string, unknown>; live?: string[] }
+
+    const config = new Config({ ...cached.config })
+    config.cached = true
+
+    /**
+     * A file that carries code is re-imported rather than cached.
+     *
+     * `config/app.ts` lists provider classes, which JSON cannot hold. Reading
+     * those few files live is what makes caching the rest possible at all.
+     */
+    for (const name of cached.live ?? []) {
+      const module = (await import(join(directory, `${name}.ts`))) as { default?: unknown }
+
+      if (module.default !== undefined) config.set(name, module.default)
+    }
+
+    return config
+  }
+
+  /** Was this loaded from a cache file? `config:clear` and `about` ask. */
+  cached = false
+
   static async loadFrom(directory: string): Promise<Config> {
     const config = new Config()
 

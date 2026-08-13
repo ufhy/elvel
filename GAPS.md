@@ -54,11 +54,9 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| `config:cache`, `route:cache` | Bun's module cache already covers most of the cost; a config cache matters at Laravel's file count, not ours yet. |
 | Contextual binding, tagged bindings, automatic constructor injection | The container is deliberately typed via `ContainerBindings` rather than reflective. TypeScript erases parameter types, so PHP-style autowiring would need decorators and `emitDecoratorMetadata`. |
 | Maintenance mode in the **cache** | `down`/`up` keep the payload in a file, which is Laravel's default and the only one that works when the thing being repaired is the database or Redis. A cache-backed driver matters for a cluster, where every node has to learn about it — that needs a driver contract and a config key. |
 | `MaintenanceModeEnabled` as an event *class* | Dispatched by name (`maintenance.enabled`, `maintenance.disabled`), as everything else here dispatches. |
-| `terminate` callbacks / graceful shutdown hooks | `booted()` exists; the mirror on shutdown does not. |
 
 ## @elysian/console
 

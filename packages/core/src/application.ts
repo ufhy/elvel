@@ -47,6 +47,11 @@ export class Application implements ApplicationContract {
   private readonly bindings = new Map<string, Binding>()
   private readonly resolvedInstances = new Map<string, unknown>()
   private readonly providers: ServiceProviderContract[] = []
+  private readonly terminatingCallbacks: Array<(app: ApplicationContract) => void | Promise<void>> =
+    []
+
+  private listeningForShutdown = false
+
   private readonly bootedCallbacks: Array<(app: ApplicationContract) => void | Promise<void>> = []
   private isBooted = false
 
@@ -216,6 +221,51 @@ export class Application implements ApplicationContract {
     return this
   }
 
+  /**
+   * Run `callback` when the process is shutting down — Laravel's `terminating`.
+   *
+   * For the work that has to happen once, at the end: closing a pool, flushing a
+   * buffered writer, telling a supervisor it is leaving cleanly. Registered on
+   * SIGINT and SIGTERM the first time one of these is added, because a container
+   * gets SIGTERM and fifteen seconds, and a process that ignores it is a process
+   * killed mid-write.
+   *
+   * Callbacks run in order and a failure in one does not stop the rest: shutdown
+   * is the worst moment to abandon the remaining cleanup.
+   */
+  terminating(callback: (app: ApplicationContract) => void | Promise<void>): this {
+    this.terminatingCallbacks.push(callback)
+
+    if (!this.listeningForShutdown) {
+      this.listeningForShutdown = true
+
+      for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+        process.once(signal, () => {
+          void this.terminate().then(() => process.exit(signal === 'SIGINT' ? 130 : 143))
+        })
+      }
+    }
+
+    return this
+  }
+
+  /** Run the shutdown callbacks. Called by the signal handlers, and by tests. */
+  async terminate(): Promise<void> {
+    // Taken and cleared first: a callback that registers another must not make
+    // this loop endless, and terminating twice must not run anything twice.
+    const callbacks = [...this.terminatingCallbacks]
+    this.terminatingCallbacks.length = 0
+
+    for (const callback of callbacks) {
+      try {
+        await callback(this)
+      } catch (error) {
+        // Reported, not thrown: the remaining cleanup matters more than this one.
+        console.error('[terminating]', error instanceof Error ? error.message : String(error))
+      }
+    }
+  }
+
   booted(callback: (app: ApplicationContract) => void | Promise<void>): this {
     if (this.isBooted) {
       void callback(this)
@@ -302,8 +352,19 @@ export class ApplicationBuilder {
     // 1. env
     await Env.load(this.basePath, Env.string('APP_ENV', ''))
 
-    // 2. config
-    app.config = await Config.loadFrom(app.configPath())
+    /**
+     * 2. config — from the cache when there is one.
+     *
+     * A cached config skips reading and importing every file in `config/`. It
+     * matters less here than in Laravel, since Bun's module cache already
+     * absorbs most of that cost, but it is also what lets a container image
+     * ship a config it cannot accidentally re-evaluate.
+     */
+    app.config =
+      (await Config.loadCached(
+        app.basePath('bootstrap', 'cache', 'config.json'),
+        app.configPath()
+      )) ?? (await Config.loadFrom(app.configPath()))
 
     // 3. exceptions
     app.handleExceptions()

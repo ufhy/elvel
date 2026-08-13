@@ -1,5 +1,7 @@
 export { Command, type CommandRunner } from './command.ts'
 export { AboutCommand } from './commands/about.ts'
+export { ConfigCacheCommand } from './commands/config-cache.ts'
+export { ConfigClearCommand } from './commands/config-clear.ts'
 export { DownCommand } from './commands/down.ts'
 export { MakeCommandCommand } from './commands/make-command.ts'
 export { MakeComponentCommand } from './commands/make-component.ts'
