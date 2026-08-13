@@ -69,6 +69,29 @@ export class SchemaBuilder {
     return columns.includes(column.toLowerCase())
   }
 
+  /**
+   * Is there an index by this name, or covering these columns?
+   *
+   * A name is compared directly; an array is compared against the name a
+   * migration would have generated for it (`users_email_index`), because that is
+   * what a caller who wrote `table.index(['email'])` knows.
+   */
+  async hasIndex(table: string, index: string | string[]): Promise<boolean> {
+    const names = await this.getIndexListing(table)
+    const wanted = Array.isArray(index)
+      ? `${table}_${index.join('_')}_index`.toLowerCase()
+      : index.toLowerCase()
+
+    return names.includes(wanted)
+  }
+
+  async getIndexListing(table: string): Promise<string[]> {
+    const { sql } = this.grammar.compileIndexListing(table)
+    const rows = await this.connection.select<Record<string, unknown>>(sql, [table])
+
+    return rows.map((row) => String(row[this.grammar.indexListingKey] ?? '').toLowerCase())
+  }
+
   async getColumnListing(table: string): Promise<string[]> {
     const { sql } = this.grammar.compileColumnListing(table)
     const rows = await this.connection.select<Record<string, unknown>>(sql, [table])

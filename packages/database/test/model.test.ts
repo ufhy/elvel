@@ -26,6 +26,10 @@ class User extends Model {
     return this.hasOne(Profile)
   }
 
+  defaultedProfile() {
+    return this.hasOne(Profile).withDefault({ bio: 'No bio yet.' })
+  }
+
   /** The newest post, chosen per user rather than per query. */
   latestPost() {
     return this.latestOfMany(Post, 'created_at')
@@ -1845,5 +1849,157 @@ describe('quiet writes', () => {
     } finally {
       Model.setEventDispatcher(undefined)
     }
+  })
+})
+
+describe('small model-layer completions', () => {
+  test('hasIndex sees what a migration created', async () => {
+    const schema = new SchemaBuilder(connection)
+
+    await schema.create('indexed', (table) => {
+      table.id()
+      table.string('email')
+      table.index(['email'])
+    })
+
+    expect(await schema.hasIndex('indexed', ['email'])).toBe(true)
+    expect(await schema.hasIndex('indexed', 'indexed_email_index')).toBe(true)
+    expect(await schema.hasIndex('indexed', ['name'])).toBe(false)
+  })
+
+  test('wherePivotIn and wherePivotBetween constrain the pivot', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const maths = await Tag.create({ label: 'maths' })
+    const physics = await Tag.create({ label: 'physics' })
+    const poetry = await Tag.create({ label: 'poetry' })
+
+    await user.rolesTags().attach(maths.id, { role: 'editor' })
+    await user.rolesTags().attach(physics.id, { role: 'owner' })
+    await user.rolesTags().attach(poetry.id, { role: 'reader' })
+
+    const found = await user
+      .rolesTags()
+      .wherePivotIn('role', ['editor', 'owner'])
+      .orderByPivot('role')
+      .get()
+
+    // editor < owner: ordered by the pivot column, not the tag's own.
+    expect(found.map((tag) => tag.label).all()).toEqual(['maths', 'physics'])
+  })
+
+  test('orderByPivot qualifies the column with the pivot table', async () => {
+    const user = await User.create({ name: 'Ada' })
+    const tag = await Tag.create({ label: 'maths' })
+
+    await user.rolesTags().attach(tag.id, { role: 'editor' })
+
+    // `created_at` exists on both tables; unqualified it is ambiguous on Postgres
+    // and silently the wrong one on MySQL.
+    const found = await user.rolesTags().orderByPivot('created_at', 'desc').get()
+
+    expect(found.count()).toBe(1)
+  })
+
+  test('lazyById streams every row while deleting underneath', async () => {
+    for (const index of [1, 2, 3, 4, 5]) await User.create({ name: `User ${index}` })
+
+    const seen: string[] = []
+
+    for await (const user of User.query().lazyById(2)) {
+      seen.push(user.name)
+      await user.delete()
+    }
+
+    expect(seen).toHaveLength(5)
+  })
+
+  test('chunkByIdDesc walks newest first', async () => {
+    for (const index of [1, 2, 3]) await User.create({ name: `User ${index}` })
+
+    const seen: string[] = []
+
+    await User.query().chunkByIdDesc(2, (models) => {
+      seen.push(...models.map((user) => user.name).all())
+    })
+
+    expect(seen).toEqual(['User 3', 'User 2', 'User 1'])
+  })
+
+  test('DB.listen hears every query', async () => {
+    const heard: string[] = []
+
+    Model.setEventDispatcher({
+      listen: () => undefined,
+      dispatch: () => Promise.resolve([])
+    } as never)
+    Model.setEventDispatcher(undefined)
+
+    // Listening goes through the manager, which needs an app; the event name and
+    // payload shape are what this pins.
+    const { QueryExecuted } = await import('../src/connection/connection.ts')
+
+    expect(QueryExecuted.eventName).toBe('db.query')
+
+    const event = new QueryExecuted('select 1', [], 0.4, 'testing')
+    heard.push(event.sql)
+
+    expect(heard).toEqual(['select 1'])
+  })
+
+  test('Model.observe subscribes one class to the lifecycle', async () => {
+    const seen: string[] = []
+    const listeners = new Map<string, (payload: unknown) => unknown>()
+
+    Model.setEventDispatcher({
+      listen: (event: string, listener: (payload: unknown) => unknown) => {
+        listeners.set(event, listener)
+      },
+      dispatch: async (event: { name?: string }) => {
+        const listener = listeners.get(String(event.name))
+        if (listener) await listener(event)
+
+        return []
+      }
+    } as never)
+
+    try {
+      User.observe({
+        created: (user) => seen.push(`created:${user.name}`),
+        updated: (user) => seen.push(`updated:${user.name}`)
+      })
+
+      const user = await User.create({ name: 'Ada' })
+      user.name = 'Grace'
+      await user.save()
+
+      expect(seen).toEqual(['created:Ada', 'updated:Grace'])
+    } finally {
+      Model.setEventDispatcher(undefined)
+    }
+  })
+
+  test('observe without a dispatcher says what to register', () => {
+    expect(() => User.observe({ created: () => undefined })).toThrow(/EventServiceProvider/)
+  })
+
+  test('withDefault turns an absent hasOne into a null object', async () => {
+    const user = await User.create({ name: 'Ada' })
+
+    const profile = await user.profile().withDefault({ bio: 'No bio yet.' }).get()
+
+    // Article-shaped rather than undefined, so a view renders it without a guard —
+    // and it does not exist, so saving it is still a create.
+    expect(profile?.attributes.bio).toBe('No bio yet.')
+    expect(profile?.exists).toBe(false)
+  })
+
+  test('withDefault applies under eager loading too', async () => {
+    await User.create({ name: 'Ada' })
+
+    // No profile row at all.
+    const users = await User.with('defaultedProfile').get()
+    const loaded = users.all()[0]?.getRelation('defaultedProfile') as Model | undefined
+
+    expect(loaded?.attributes.bio).toBe('No bio yet.')
   })
 })

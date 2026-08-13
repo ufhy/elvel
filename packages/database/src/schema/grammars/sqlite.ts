@@ -92,6 +92,10 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
     return { sql: 'select name from pragma_table_info(?)', bindings: [] as unknown[] }
   }
 
+  compileIndexListing(_table: string) {
+    return { sql: 'select name from pragma_index_list(?)', bindings: [] as unknown[] }
+  }
+
   compileEnableForeignKeys(): string {
     return 'PRAGMA foreign_keys = ON'
   }

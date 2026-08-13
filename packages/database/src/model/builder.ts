@@ -656,6 +656,64 @@ export class ModelBuilder<M extends Model> {
   }
 
   /**
+   * `lazy()` by key: the streaming form of `chunkById`.
+   *
+   * The same reason to exist — an offset stream skips rows when they are deleted
+   * mid-walk — with the same fix, in generator shape.
+   */
+  async *lazyById(size = 1000, column?: string): AsyncGenerator<M> {
+    const key = column ?? (this.model as typeof Model).primaryKey
+    let lastId: unknown
+
+    while (true) {
+      const models = await this.clone()
+        .deferBase((query) => {
+          query.reorder(key, 'asc')
+
+          if (lastId !== undefined) query.where(key, '>', lastId as never)
+        })
+        .limit(size)
+        .get()
+
+      if (models.isEmpty()) return
+
+      for (const model of models) yield model
+
+      lastId = models.all()[models.count() - 1]?.attributes[key]
+
+      if (models.count() < size || lastId === undefined || lastId === null) return
+    }
+  }
+
+  /** `chunkById` walking backwards — newest first, for a cleanup that trims tails. */
+  async chunkByIdDesc(
+    size: number,
+    callback: (models: Collection<M>) => Promise<unknown> | unknown,
+    column?: string
+  ): Promise<void> {
+    const key = column ?? (this.model as typeof Model).primaryKey
+    let lastId: unknown
+
+    while (true) {
+      const page = this.clone().deferBase((query) => {
+        query.reorder(key, 'desc')
+
+        if (lastId !== undefined) query.where(key, '<', lastId as never)
+      })
+
+      const models = await page.limit(size).get()
+
+      if (models.isEmpty()) return
+      if ((await callback(models)) === false) return
+
+      lastId = models.all()[models.count() - 1]?.attributes[key]
+
+      if (models.count() < size) return
+      if (lastId === undefined || lastId === null) return
+    }
+  }
+
+  /**
    * Walk the table by **key**, not by offset — `chunkById`.
    *
    * `chunk()` pages with `offset`, and that is correct only while nothing changes

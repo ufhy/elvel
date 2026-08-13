@@ -39,19 +39,14 @@ Deliberately absent, with reasons:
 | A transaction shared across *connection objects* | Bun.SQL hands the open transaction to the callback, so nested `transaction()` on the **scoped** connection becomes a savepoint, and `afterCommit()` registered on either object lands in the same commit. What cannot work is opening a nested transaction on the *pool* while one is open — Bun refuses, and it is right to. |
 | `whereFullText`, vector/similarity clauses | Dialect-specific and rarely portable; Postgres `tsvector`, MySQL `MATCH`, and pgvector all need their own grammar. |
 | JSON path wheres (`whereJsonContains`, `->>` updates) | Three incompatible syntaxes (`json_extract`, `->>`, `jsonb`). Needs a grammar method per dialect to be correct rather than approximately correct. |
-| `Schema::hasIndex`, column *modification* (`->change()`) | Changing a column is not portable: SQLite requires a table rebuild. Adding, dropping and renaming columns are supported. |
+| Column *modification* (`->change()`) | Changing a column is not portable: SQLite requires a table rebuild. Adding, dropping and renaming columns are supported, and `hasIndex`/`getIndexListing` read each dialect's own catalogue. |
 | `morphToMany` **through** another relation, and morph maps for it | Both directions work, with the type written on attach so a pivot row can never be created without the column that makes it findable. What is missing is `morphTo`-style aliasing: the type stored is the table name, not a name from a morph map. |
 | `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
-| `hasOneThrough` with a default model (`withDefault`) | It returns `undefined` when there is nothing to reach; a null-object default is a separate feature, and the same is true of `hasOne`. |
-| `wherePivotIn`/`wherePivotBetween`, `orderByPivot` | `withPivot`, `withTimestamps`, `using()`, `as()`, `wherePivot` and `withPivotValue` are implemented. The rest are the same mechanism with a different operator. |
 | A pivot that touches its parent (`touchIfTouching`) | Attaching does not bump the parent's `updated_at`. |
-| Model observers as classes | Lifecycle events are dispatched (`model.created` etc) through `@elysian/events`, so a listener can already react. There is no `Observer` class binding sugar. |
-| `lazyById()`, `chunkByIdDesc` | `chunkById` and `cursorPaginate` walk by key. The lazy (async iterator) form and the descending variant are the same loop with a different shape. |
 | A cursor over **several** columns | The cursor carries one key. Paging by `created_at` with the key as a tie-break needs the compound `where` Laravel builds recursively, and nothing here has asked for it. |
 | `Model::unguarded` | `withoutEvents`, `saveQuietly`, `deleteQuietly` and `withoutTimestamps` are implemented — events are muted with a flag rather than by swapping the dispatcher, because the dispatcher is shared with the rest of the framework and replacing it would silence listeners that have nothing to do with models. Mass-assignment is the one guard with no escape hatch. |
 | Custom cast classes (`CastsAttributes`) | Casts are the built-in set plus accessors/mutators, which covers the same ground with less machinery. |
 | Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
-| `DB::listen` as a public helper | Every query already dispatches `QueryExecuted`; a listener on `db.query` is the same thing without a new API. |
 | `migrate --isolated`, `--squash`, `schema:dump` | Needs an advisory lock and a schema dumper per dialect. |
 
 Two things to know about walking a table:

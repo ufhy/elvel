@@ -555,6 +555,26 @@ for (const { name, config } of available) {
         expect(second.data.first()?.name).toBe('User 3')
       })
 
+      test('hasIndex reads each dialect its own way', async () => {
+        // pragma_index_list, information_schema.statistics and pg_indexes — three
+        // different places, one answer.
+        expect(await schema.hasIndex(users, ['email'])).toBe(false)
+
+        const probe = `${PREFIX}_indexed`
+        await schema.dropIfExists(probe)
+        await schema.create(probe, (table) => {
+          table.id()
+          table.string('email')
+          table.index(['email'])
+        })
+
+        try {
+          expect(await schema.hasIndex(probe, ['email'])).toBe(true)
+        } finally {
+          await schema.dropIfExists(probe)
+        }
+      })
+
       test('boolean and json casts survive the round trip', async () => {
         await truncate()
 

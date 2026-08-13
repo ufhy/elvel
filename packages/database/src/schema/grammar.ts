@@ -299,6 +299,21 @@ export abstract class SchemaGrammar {
 
   abstract compileColumnListing(table: string): { sql: string; bindings: unknown[] }
 
+  /**
+   * Index names on a table.
+   *
+   * Three different places to look: SQLite keeps them in a pragma, MySQL in
+   * `information_schema.statistics`, Postgres in `pg_indexes`. There is no
+   * portable query, which is why this is a grammar method rather than one SQL
+   * string in the builder.
+   */
+  abstract compileIndexListing(table: string): { sql: string; bindings: unknown[] }
+
+  /** Column name in the result of `compileIndexListing`. */
+  get indexListingKey(): string {
+    return 'name'
+  }
+
   /** Column name in the result of `compileColumnListing`. */
   columnListingKey = 'name'
 

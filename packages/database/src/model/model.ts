@@ -21,6 +21,17 @@ import {
 
 export type ConnectionResolver = (name?: string) => Promise<Connection>
 
+/** The lifecycle moments an observer can subscribe to. */
+export type ModelLifecycleEvent =
+  | 'saving'
+  | 'saved'
+  | 'creating'
+  | 'created'
+  | 'updating'
+  | 'updated'
+  | 'deleting'
+  | 'deleted'
+
 export type ModelClass<M extends Model = Model> = typeof Model & {
   new (attributes?: Row): M
 }
@@ -94,6 +105,36 @@ export class Model {
   /** Wired by DatabaseServiceProvider; set by hand in tests. */
   static setConnectionResolver(resolver: ConnectionResolver): void {
     Model.resolver = resolver
+  }
+
+  /**
+   * Register an observer — a class with `created`/`updated`/`deleted`-shaped
+   * methods, each receiving the model.
+   *
+   * Sugar over the lifecycle events the model already dispatches; it exists so
+   * the methods for one model live in one class instead of six `listen()` calls.
+   * The dispatcher must be set first, because there is nothing to subscribe to
+   * otherwise — and that is said out loud rather than silently doing nothing.
+   */
+  static observe<T extends typeof Model>(
+    this: T,
+    observer: Partial<Record<ModelLifecycleEvent, (model: InstanceType<T>) => unknown>>
+  ): void {
+    if (!Model.dispatcher) {
+      throw new Error(
+        `${this.name}.observe() needs an event dispatcher. Register EventServiceProvider (or call Model.setEventDispatcher) first.`
+      )
+    }
+
+    const prefix = Model.snake(this.name)
+
+    for (const [event, handler] of Object.entries(observer)) {
+      if (typeof handler !== 'function') continue
+
+      Model.dispatcher.listen(`${prefix}.${event}`, (payload: unknown) =>
+        handler((payload as ModelEvent).model as InstanceType<T>)
+      )
+    }
   }
 
   static setEventDispatcher(dispatcher: EventDispatcher | undefined): void {

@@ -109,6 +109,13 @@ export class MySqlSchemaGrammar extends SchemaGrammar {
     }
   }
 
+  compileIndexListing(_table: string) {
+    return {
+      sql: 'select distinct index_name as name from information_schema.statistics where table_schema = database() and table_name = ?',
+      bindings: [] as unknown[]
+    }
+  }
+
   compileEnableForeignKeys(): string {
     return 'SET FOREIGN_KEY_CHECKS = 1'
   }

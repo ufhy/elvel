@@ -2,7 +2,7 @@ import type { ApplicationContract, EventDispatcher } from '@elysian/contracts'
 import { QueryBuilder } from '../query/builder.ts'
 import { SchemaBuilder } from '../schema/builder.ts'
 import { BunSqlConnection, type ConnectionConfig } from './bun-sql.ts'
-import type { Connection, Row } from './connection.ts'
+import { type Connection, QueryExecuted, type Row } from './connection.ts'
 
 /**
  * Resolves and caches connections — Laravel's `DatabaseManager`, and the object
@@ -12,6 +12,25 @@ export class ConnectionManager {
   private readonly connections = new Map<string, Connection>()
 
   constructor(private readonly app: ApplicationContract) {}
+
+  /**
+   * Run `callback` for every executed query — `DB::listen`.
+   *
+   * Sugar over the `db.query` event, which every connection already dispatches:
+   * this exists so "log slow queries" is one call rather than a subscription to a
+   * name the caller has to know.
+   */
+  listen(callback: (query: QueryExecuted) => unknown): void {
+    if (!this.app.bound('events')) {
+      throw new Error('DB.listen needs the event dispatcher. Register EventServiceProvider.')
+    }
+
+    ;(
+      this.app.make('events' as never) as {
+        listen(event: string, listener: (payload: unknown) => unknown): void
+      }
+    ).listen(QueryExecuted.eventName, (payload) => callback(payload as QueryExecuted))
+  }
 
   getDefaultConnection(): string {
     return this.app.config.get<string>('database.default', 'sqlite')

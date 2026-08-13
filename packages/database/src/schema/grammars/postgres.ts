@@ -107,6 +107,13 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
     }
   }
 
+  compileIndexListing(_table: string) {
+    return {
+      sql: 'select indexname as name from pg_indexes where schemaname = current_schema() and tablename = $1',
+      bindings: [] as unknown[]
+    }
+  }
+
   compileEnableForeignKeys(): string {
     return 'SET CONSTRAINTS ALL IMMEDIATE'
   }

@@ -144,8 +144,26 @@ export class HasMany<R extends Model> extends HasOneOrMany<R> {
 
 /** `user.profile()` — the one-child case, which returns a model, not a list. */
 export class HasOne<R extends Model> extends HasOneOrMany<R> {
+  private defaultFactory?: () => Partial<Row>
+
+  /** A null object instead of `undefined`; see HasOneThrough.withDefault. */
+  withDefault(attributes: Partial<Row> | (() => Partial<Row>) = {}): this {
+    this.defaultFactory = typeof attributes === 'function' ? attributes : () => attributes
+
+    return this
+  }
+
+  protected buildDefault(): R | undefined {
+    if (!this.defaultFactory) return undefined
+
+    const model = new (this.related as unknown as new () => R)()
+    Object.assign(model.attributes, this.defaultFactory())
+
+    return model
+  }
+
   async get(): Promise<R | undefined> {
-    return this.query().first()
+    return (await this.query().first()) ?? this.buildDefault()
   }
 
   override async eagerLoad(models: Model[], name: string): Promise<void> {
@@ -154,8 +172,9 @@ export class HasOne<R extends Model> extends HasOneOrMany<R> {
     // Collapse each collection to its first member, as matchOne does.
     for (const model of models) {
       const value = model.getRelation(name)
+      const first = value instanceof Collection ? value.first() : value
 
-      model.setRelation(name, value instanceof Collection ? value.first() : value)
+      model.setRelation(name, first ?? this.buildDefault())
     }
   }
 }
@@ -236,6 +255,9 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   protected pivotColumns: string[] = []
   /** Constraints on the pivot table itself, as `wherePivot()` adds them. */
   protected pivotWheres: Array<[string, unknown]> = []
+  protected pivotIns: Array<[string, unknown[]]> = []
+  protected pivotBetweens: Array<[string, [unknown, unknown]]> = []
+  protected pivotOrders: Array<[string, 'asc' | 'desc']> = []
   /** Values written on every attach — how a morph pivot stores its type. */
   protected pivotValues: Record<string, unknown> = {}
   protected pivotAccessor = 'pivot'
@@ -300,6 +322,33 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     return this
   }
 
+  /** `wherePivotIn('role', ['editor', 'owner'])`. */
+  wherePivotIn(column: string, values: unknown[]): this {
+    this.pivotIns.push([column, values])
+
+    return this
+  }
+
+  /** `wherePivotBetween('created_at', [from, to])`. */
+  wherePivotBetween(column: string, range: [unknown, unknown]): this {
+    this.pivotBetweens.push([column, range])
+
+    return this
+  }
+
+  /**
+   * Order by a pivot column.
+   *
+   * Its own method because the column has to be qualified with the pivot table:
+   * `orderBy('created_at')` would be ambiguous the moment the related model has
+   * one too, and ambiguous is an error on Postgres and the wrong column on MySQL.
+   */
+  orderByPivot(column: string, direction: 'asc' | 'desc' = 'asc'): this {
+    this.pivotOrders.push([column, direction])
+
+    return this
+  }
+
   /** Constrain by a pivot column *and* write it on every attach. */
   withPivotValue(column: string, value: unknown): this {
     this.pivotValues[column] = value
@@ -323,11 +372,28 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
         this.parent.attributes[this.parentKey]
       ) as ModelBuilder<R>
 
+    this.applyPivotConstraints(builder)
+
+    return builder
+  }
+
+  /** Every pivot-level constraint, in one place so lazy and eager agree. */
+  protected applyPivotConstraints(builder: ModelBuilder<R>): void {
     for (const [column, value] of this.pivotWheres) {
       builder.where(`${this.pivotTable}.${column}`, value)
     }
 
-    return builder
+    for (const [column, values] of this.pivotIns) {
+      builder.whereIn(`${this.pivotTable}.${column}`, values)
+    }
+
+    for (const [column, range] of this.pivotBetweens) {
+      builder.whereBetween(`${this.pivotTable}.${column}`, range)
+    }
+
+    for (const [column, direction] of this.pivotOrders) {
+      builder.orderBy(`${this.pivotTable}.${column}`, direction)
+    }
   }
 
   async get(): Promise<Collection<R>> {
@@ -505,9 +571,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
 
     // The same constraints the lazy path applies, or an eager load would return
     // rows a `->get()` on the same relation refuses — including a morph's type.
-    for (const [column, value] of this.pivotWheres) {
-      eager.where(`${this.pivotTable}.${column}`, value)
-    }
+    this.applyPivotConstraints(eager)
 
     const rows = await eager.get()
 
@@ -868,8 +932,32 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
  * wrong.
  */
 export class HasOneThrough<R extends Model> extends HasManyThrough<R> {
+  private defaultFactory?: () => Partial<Row>
+
+  /**
+   * A null object instead of `undefined` — `withDefault`.
+   *
+   * `country.anArticle()` returning undefined makes every caller write the same
+   * guard; a default makes "no article yet" an article-shaped value the view can
+   * render. The instance does not `exist`, so saving it is still a create.
+   */
+  withDefault(attributes: Partial<Row> | (() => Partial<Row>) = {}): this {
+    this.defaultFactory = typeof attributes === 'function' ? attributes : () => attributes
+
+    return this
+  }
+
+  protected buildDefault(): R | undefined {
+    if (!this.defaultFactory) return undefined
+
+    const model = new (this.related as unknown as new () => R)()
+    Object.assign(model.attributes, this.defaultFactory())
+
+    return model
+  }
+
   async getOne(): Promise<R | undefined> {
-    return this.query().first()
+    return (await this.query().first()) ?? this.buildDefault()
   }
 
   override async eagerLoad(models: Model[], name: string): Promise<void> {
@@ -880,7 +968,7 @@ export class HasOneThrough<R extends Model> extends HasManyThrough<R> {
     for (const model of models) {
       const loaded = model.getRelation(name) as Collection<R> | undefined
 
-      model.setRelation(name, loaded?.first())
+      model.setRelation(name, loaded?.first() ?? this.buildDefault())
     }
   }
 }
