@@ -60,6 +60,16 @@ export class Article extends Model {
     return this.morphToMany(Tag, 'taggable').withPivot('added_by').withTimestamps()
   }
 
+  /**
+   * The newest comment, chosen per article.
+   *
+   * Not `comments().orderBy().first()`: that is one query per article, and it is
+   * wrong under an eager load, where a `limit 1` would answer the whole set once.
+   */
+  latestComment() {
+    return this.latestOfMany(Comment, 'created_at', 'article_id')
+  }
+
   comments() {
     return this.hasMany(Comment)
   }

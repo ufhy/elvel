@@ -26,6 +26,15 @@ class User extends Model {
     return this.hasOne(Profile)
   }
 
+  /** The newest post, chosen per user rather than per query. */
+  latestPost() {
+    return this.latestOfMany(Post, 'created_at')
+  }
+
+  oldestPost() {
+    return this.oldestOfMany(Post, 'created_at')
+  }
+
   tags() {
     return this.belongsToMany(Tag)
   }
@@ -1057,6 +1066,11 @@ describe('polymorphic and through relations', () => {
     articles() {
       return this.hasManyThrough(Post, User, 'country_id', 'user_id')
     }
+
+    /** The same path, one row. */
+    anArticle() {
+      return this.hasOneThrough(Post, User, 'country_id', 'user_id')
+    }
   }
 
   beforeEach(async () => {
@@ -1155,6 +1169,46 @@ describe('polymorphic and through relations', () => {
 
     expect(articles.count()).toBe(1)
     expect(articles.first()?.title).toBe('From Ireland')
+  })
+
+  test('hasOneThrough reaches one grandchild', async () => {
+    const country = await Country.create({ name: 'Ireland' })
+    const ada = await User.create({ name: 'Ada' })
+    await User.query().where('id', ada.id).update({ country_id: country.id })
+    await ada.posts().create({ title: 'From Ireland' })
+    await ada.posts().create({ title: 'Also from Ireland' })
+
+    expect((await country.anArticle().getOne())?.title).toBe('From Ireland')
+  })
+
+  test('hasOneThrough eager loads one per parent, not one overall', async () => {
+    const ireland = await Country.create({ name: 'Ireland' })
+    const finland = await Country.create({ name: 'Finland' })
+
+    const ada = await User.create({ name: 'Ada' })
+    const linus = await User.create({ name: 'Linus' })
+    await User.query().where('id', ada.id).update({ country_id: ireland.id })
+    await User.query().where('id', linus.id).update({ country_id: finland.id })
+
+    await ada.posts().create({ title: 'From Ireland' })
+    await linus.posts().create({ title: 'From Finland' })
+
+    const countries = await Country.with('anArticle').orderBy('id').get()
+
+    // A `limit 1` on the eager query would answer the first country and leave the
+    // second with nothing.
+    expect((countries.all()[0]?.getRelation('anArticle') as Post | undefined)?.title).toBe(
+      'From Ireland'
+    )
+    expect((countries.all()[1]?.getRelation('anArticle') as Post | undefined)?.title).toBe(
+      'From Finland'
+    )
+  })
+
+  test('hasOneThrough is undefined when there is nothing to reach', async () => {
+    const country = await Country.create({ name: 'Ireland' })
+
+    expect(await country.anArticle().getOne()).toBeUndefined()
   })
 
   test('hasManyThrough eager loads per parent', async () => {
@@ -1516,5 +1570,84 @@ describe('polymorphic many-to-many', () => {
     // An eager load that forgot the type would return both rows and quietly
     // double the collection.
     expect(tags.all()).toHaveLength(1)
+  })
+})
+
+describe('one of many', () => {
+  /** Three posts for one user, with distinct timestamps. */
+  async function seed(user: User) {
+    const created: Post[] = []
+
+    for (const [index, title] of ['first', 'second', 'third'].entries()) {
+      const post = await Post.create({ title, user_id: user.id })
+
+      // Distinct timestamps, written by hand: three inserts in the same second
+      // would make "latest" ambiguous, which is the tie the key breaks.
+      await post.update({ created_at: `2026-01-0${index + 1} 00:00:00` } as never)
+      created.push(post)
+    }
+
+    return created
+  }
+
+  test('latestOfMany returns the newest child', async () => {
+    const user = await User.create({ name: 'Ada' })
+    await seed(user)
+
+    expect((await user.latestPost().getOne())?.title).toBe('third')
+  })
+
+  test('oldestOfMany returns the first', async () => {
+    const user = await User.create({ name: 'Ada' })
+    await seed(user)
+
+    expect((await user.oldestPost().getOne())?.title).toBe('first')
+  })
+
+  test('a user with no children has none', async () => {
+    const user = await User.create({ name: 'Ada' })
+
+    expect(await user.latestPost().getOne()).toBeUndefined()
+  })
+
+  test('eager loading gives each parent its own newest child', async () => {
+    const ada = await User.create({ name: 'Ada' })
+    const linus = await User.create({ name: 'Linus' })
+
+    await seed(ada)
+    await Post.create({ title: 'only', user_id: linus.id })
+
+    const users = await User.with('latestPost').orderBy('id').get()
+
+    // The failure this guards: `orderBy().limit(1)` returns one row for the whole
+    // set, so the second user would get nothing — or the first user's post.
+    expect((users.all()[0]?.getRelation('latestPost') as Post | undefined)?.title).toBe('third')
+    expect((users.all()[1]?.getRelation('latestPost') as Post | undefined)?.title).toBe('only')
+  })
+
+  test('a tie on the column is broken by the key', async () => {
+    const user = await User.create({ name: 'Ada' })
+
+    const first = await Post.create({ title: 'first', user_id: user.id })
+    const second = await Post.create({ title: 'second', user_id: user.id })
+
+    // Same instant, two rows: without aggregating the key as well, the join
+    // matches both and a "one" relation quietly returns two.
+    for (const post of [first, second]) {
+      await post.update({ created_at: '2026-02-01 00:00:00' } as never)
+    }
+
+    expect((await user.latestPost().get()).count()).toBe(1)
+    expect((await user.latestPost().getOne())?.title).toBe('second')
+  })
+
+  test('the relation still filters by parent', async () => {
+    const ada = await User.create({ name: 'Ada' })
+    const linus = await User.create({ name: 'Linus' })
+
+    await seed(ada)
+    await Post.create({ title: 'linus post', user_id: linus.id })
+
+    expect((await linus.latestPost().getOne())?.title).toBe('linus post')
   })
 })

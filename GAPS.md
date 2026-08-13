@@ -28,7 +28,8 @@ Deliberately absent, with reasons:
 | JSON path wheres (`whereJsonContains`, `->>` updates) | Three incompatible syntaxes (`json_extract`, `->>`, `jsonb`). Needs a grammar method per dialect to be correct rather than approximately correct. |
 | `Schema::hasIndex`, column *modification* (`->change()`) | Changing a column is not portable: SQLite requires a table rebuild. Adding, dropping and renaming columns are supported. |
 | `morphToMany` **through** another relation, and morph maps for it | Both directions work, with the type written on attach so a pivot row can never be created without the column that makes it findable. What is missing is `morphTo`-style aliasing: the type stored is the table name, not a name from a morph map. |
-| `hasOneThrough`, `latestOfMany`/`oldestOfMany` | `hasManyThrough` is done; these are variations on it. |
+| `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
+| `hasOneThrough` with a default model (`withDefault`) | It returns `undefined` when there is nothing to reach; a null-object default is a separate feature, and the same is true of `hasOne`. |
 | `wherePivotIn`/`wherePivotBetween`, `orderByPivot` | `withPivot`, `withTimestamps`, `using()`, `as()`, `wherePivot` and `withPivotValue` are implemented. The rest are the same mechanism with a different operator. |
 | A pivot that touches its parent (`touchIfTouching`) | Attaching does not bump the parent's `updated_at`. |
 | Model observers as classes | Lifecycle events are dispatched (`model.created` etc) through `@elysian/events`, so a listener can already react. There is no `Observer` class binding sugar. |
@@ -38,6 +39,17 @@ Deliberately absent, with reasons:
 | Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
 | `DB::listen` as a public helper | Every query already dispatches `QueryExecuted`; a listener on `db.query` is the same thing without a new API. |
 | `migrate --isolated`, `--squash`, `schema:dump` | Needs an advisory lock and a schema dumper per dialect. |
+
+Two things to know about the single-row relations:
+
+- **`latestOfMany` is a joined subquery, not `orderBy().limit(1)`.** The limit is
+  right for one parent and silently wrong for an eager load, where it returns one
+  row for the entire set — so the first parent gets its newest child and everyone
+  else gets nothing. What is joined is `max(column)` grouped per parent.
+- **The key is aggregated alongside the column.** Two children can share a
+  `created_at`, and without the key in the join the aggregate matches both — a
+  "one" relation quietly returning two. There is a test that creates the tie on
+  purpose.
 
 Three things to know about pivots:
 

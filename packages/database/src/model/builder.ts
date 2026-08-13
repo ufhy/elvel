@@ -90,6 +90,16 @@ export class ModelBuilder<M extends Model> {
     if (this.trashed === 'only') query.whereNotNull(column)
   }
 
+  /**
+   * Queue a call for when the query exists — the public form.
+   *
+   * A relation that needs to build a *peer* query (a subquery join, say) cannot do
+   * it until the connection is resolved, which is what `base()` waits for.
+   */
+  deferBase(apply: (query: QueryBuilder<Row>) => void): this {
+    return this.defer(apply)
+  }
+
   /** Queue a call for when the query exists, keeping the API chainable. */
   private defer(apply: (query: QueryBuilder<Row>) => void): this {
     if (this.query) apply(this.query)

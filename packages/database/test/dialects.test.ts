@@ -132,6 +132,10 @@ for (const { name, config } of available) {
           .withPivot('note')
           .withTimestamps()
       }
+
+      latestArticle() {
+        return this.latestOfMany(Post, 'created_at', 'user_id')
+      }
     }
 
     class Tag extends Model {
@@ -498,6 +502,34 @@ for (const { name, config } of available) {
         // The inverse names the *related* type, so this returns the user and not
         // the post.
         expect((await tag.taggedUsers().get()).count()).toBe(1)
+      })
+
+      test('latestOfMany picks one row per parent, on every dialect', async () => {
+        await truncate()
+
+        const ada = await User.create({ name: 'Ada' })
+        const linus = await User.create({ name: 'Linus' })
+
+        for (const [index, title] of ['first', 'second'].entries()) {
+          const post = await Post.create({ title, user_id: ada.id })
+          await post.update({ created_at: `2026-01-0${index + 1} 00:00:00` } as never)
+        }
+
+        const only = await Post.create({ title: 'only', user_id: linus.id })
+        await only.update({ created_at: '2026-01-05 00:00:00' } as never)
+
+        expect((await ada.latestArticle().getOne())?.title).toBe('second')
+
+        const loaded = await User.with('latestArticle').orderBy('id').get()
+
+        // The join-a-grouped-subquery shape has to compile the same everywhere,
+        // and each parent has to keep its own row.
+        expect((loaded.all()[0]?.getRelation('latestArticle') as Post | undefined)?.title).toBe(
+          'second'
+        )
+        expect((loaded.all()[1]?.getRelation('latestArticle') as Post | undefined)?.title).toBe(
+          'only'
+        )
       })
 
       test('boolean and json casts survive the round trip', async () => {

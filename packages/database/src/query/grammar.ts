@@ -108,6 +108,10 @@ export abstract class Grammar {
     parts.push(`from ${this.wrapTable(query.from)}`)
 
     for (const join of query.joins) {
+      // The joined table's own bindings come first: a subquery is written before
+      // the `on` that follows it, so its placeholders are read first too.
+      if (join.bindings) bindings.push(...join.bindings)
+
       const on = this.compileWheres(join.wheres, bindings, 'on')
       parts.push(`${join.type} join ${this.wrapTable(join.table)}${on ? ` on ${on}` : ''}`)
     }

@@ -2,6 +2,7 @@ import { controller, NotFoundException } from '@elysian/core'
 import { sessionOf, validateRequest } from '@elysian/http'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
+import type { Comment } from '../../Models/Comment.ts'
 import { Tag } from '../../Models/Tag.ts'
 import { StoreArticleRequest } from '../Requests/StoreArticleRequest.ts'
 import { StoreOrderRequest } from '../Requests/StoreOrderRequest.ts'
@@ -91,6 +92,23 @@ export default controller('article')
     const articles = await tag.articles().get()
 
     return { articles: articles.all().map((article) => article.title) }
+  })
+
+  /**
+   * The newest comment per article, eagerly loaded.
+   *
+   * One query for every article, and each keeps its own row — which is what a
+   * `limit 1` on the same query would get wrong.
+   */
+  .get('/check/articles/latest-comments', async () => {
+    const articles = await Article.with('latestComment').orderBy('id').get()
+
+    return {
+      articles: articles.all().map((article) => ({
+        id: article.id,
+        latest: (article.getRelation('latestComment') as Comment | undefined)?.body ?? null
+      }))
+    }
   })
 
   /** Eager loading: one extra query for every article's comments, not N. */

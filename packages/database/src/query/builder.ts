@@ -1,6 +1,6 @@
 import { Collection } from '@elysian/support'
 import type { Connection, Row } from '../connection/connection.ts'
-import { Expression, isExpression } from './expression.ts'
+import { Expression, isExpression, raw } from './expression.ts'
 import type {
   AggregateClause,
   Boolean_,
@@ -23,7 +23,7 @@ export class QueryBuilder<T extends Row = Row> {
   private query: QueryComponents
 
   constructor(
-    private readonly connection: Connection,
+    readonly connection: Connection,
     table = ''
   ) {
     this.query = emptyQuery(table)
@@ -73,6 +73,41 @@ export class QueryBuilder<T extends Row = Row> {
   crossJoin(table: string): this {
     this.query.joins.push({ type: 'cross', table, wheres: [] })
     return this
+  }
+
+  /**
+   * Join a subquery — `joinSub`.
+   *
+   * The subquery is compiled here rather than kept as a builder, because the
+   * grammar assembles one flat statement: what a join needs is the SQL text and
+   * the bindings, in the position they will be read.
+   */
+  joinSub(
+    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
+    alias: string,
+    first: string,
+    operator: Operator,
+    second: string,
+    type: JoinClause['type'] = 'inner'
+  ): this {
+    this.query.joins.push({
+      type,
+      table: raw(`(${query.toSql()}) as ${this.connection.grammar.wrapTable(alias)}`),
+      wheres: [{ type: 'column', first, operator, second, boolean: 'and' }],
+      bindings: query.getBindings()
+    })
+
+    return this
+  }
+
+  leftJoinSub(
+    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
+    alias: string,
+    first: string,
+    operator: Operator,
+    second: string
+  ): this {
+    return this.joinSub(query, alias, first, operator, second, 'left')
   }
 
   private addJoin(

@@ -10,6 +10,8 @@ import {
   HasMany,
   HasManyThrough,
   HasOne,
+  HasOneOfMany,
+  HasOneThrough,
   MorphMany,
   MorphOne,
   MorphTo,
@@ -828,6 +830,66 @@ export class Model {
       foreignPivotKey ?? `${Model.snake(this.self.name)}_${this.self.primaryKey}`,
       relatedPivotKey ?? `${name}_id`,
       morphType,
+      this.self.primaryKey
+    )
+  }
+
+  /**
+   * `country.latestPost()` — one row across an intermediate table.
+   *
+   * The same keys as `hasManyThrough`; only the cardinality differs.
+   */
+  hasOneThrough<R extends Model>(
+    related: ModelClass<R>,
+    through: ModelClass<Model>,
+    firstKey?: string,
+    secondKey?: string
+  ): HasOneThrough<R> {
+    return new HasOneThrough(
+      related,
+      this,
+      through,
+      firstKey ?? this.foreignKeyName(),
+      secondKey ?? `${Model.snake(through.name)}_${through.primaryKey}`,
+      this.self.primaryKey,
+      through.primaryKey
+    )
+  }
+
+  /**
+   * `user.latestPost()` — the newest child of a one-to-many.
+   *
+   * Not `hasMany().orderBy().limit(1)`: that is right for one parent and wrong for
+   * an eager load, where it returns one row for the whole set rather than one per
+   * parent. This joins a per-parent aggregate instead.
+   */
+  latestOfMany<R extends Model>(
+    related: ModelClass<R>,
+    column = 'created_at',
+    foreignKey?: string
+  ): HasOneOfMany<R> {
+    return new HasOneOfMany(
+      related,
+      this,
+      foreignKey ?? this.foreignKeyName(),
+      column,
+      'max',
+      this.self.primaryKey
+    )
+  }
+
+  /** The oldest child, by the same mechanism. */
+  oldestOfMany<R extends Model>(
+    related: ModelClass<R>,
+    column = 'created_at',
+    foreignKey?: string
+  ): HasOneOfMany<R> {
+    return new HasOneOfMany(
+      related,
+      this,
+      foreignKey ?? this.foreignKeyName(),
+      column,
+      'min',
       this.self.primaryKey
     )
   }

@@ -1,6 +1,6 @@
 import { Collection } from '@elysian/support'
 import type { Row } from '../connection/connection.ts'
-import type { QueryBuilder } from '../query/builder.ts'
+import { QueryBuilder } from '../query/builder.ts'
 import type { ModelBuilder } from './builder.ts'
 import { formatDateTime } from './casts.ts'
 import { type Model, type ModelClass, Pivot } from './model.ts'
@@ -767,20 +767,20 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
   constructor(
     related: ModelClass<R>,
     parent: Model,
-    private readonly through: ModelClass<Model>,
-    private readonly firstKey: string,
-    private readonly secondKey: string,
-    private readonly localKey = 'id',
-    private readonly secondLocalKey = 'id'
+    protected readonly through: ModelClass<Model>,
+    protected readonly firstKey: string,
+    protected readonly secondKey: string,
+    protected readonly localKey = 'id',
+    protected readonly secondLocalKey = 'id'
   ) {
     super(related, parent)
   }
 
-  private get throughTable(): string {
+  protected get throughTable(): string {
     return (this.through as typeof Model).getTable()
   }
 
-  private get relatedTable(): string {
+  protected get relatedTable(): string {
     return (this.related as typeof Model).getTable()
   }
 
@@ -853,6 +853,165 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
       model.setRelation(
         name,
         new Collection(key === null || key === undefined ? [] : (grouped.get(String(key)) ?? []))
+      )
+    }
+  }
+}
+
+/**
+ * `country.latestPost()` — one row across an intermediate table.
+ *
+ * `HasManyThrough` with `first()` instead of `get()`, which is exactly what
+ * Laravel does. The eager load is where it differs: the query still fetches every
+ * child, and the *first per parent* is kept — a `limit 1` would return one row for
+ * the whole set rather than one per parent, which is the classic way to get this
+ * wrong.
+ */
+export class HasOneThrough<R extends Model> extends HasManyThrough<R> {
+  async getOne(): Promise<R | undefined> {
+    return this.query().first()
+  }
+
+  override async eagerLoad(models: Model[], name: string): Promise<void> {
+    // Reuse the many version, then narrow: the dictionary it builds is grouped by
+    // parent already, so the first of each group is the answer.
+    await super.eagerLoad(models, name)
+
+    for (const model of models) {
+      const loaded = model.getRelation(name) as Collection<R> | undefined
+
+      model.setRelation(name, loaded?.first())
+    }
+  }
+}
+
+/**
+ * `user.latestPost()` — the newest child of a one-to-many.
+ *
+ * Transcribed from `CanBeOneOfMany`: a grouped subquery selects the aggregate per
+ * parent, and the relation joins back on it. The obvious alternative —
+ * `orderBy(column, 'desc').limit(1)` — is correct for one parent and wrong for an
+ * eager load, where it returns a single row for the entire set.
+ *
+ * The key is aggregated alongside the column, and joined on as well, because two
+ * rows can share a `created_at`: without it the join matches both and the "one"
+ * relation quietly returns two.
+ */
+export class HasOneOfMany<R extends Model> extends Relation<R> {
+  constructor(
+    related: ModelClass<R>,
+    parent: Model,
+    private readonly foreignKey: string,
+    private readonly column: string,
+    private readonly aggregate: 'max' | 'min',
+    private readonly localKey = 'id'
+  ) {
+    super(related, parent)
+  }
+
+  private get relatedTable(): string {
+    return (this.related as typeof Model).getTable()
+  }
+
+  private get keyName(): string {
+    return (this.related as typeof Model).primaryKey
+  }
+
+  /** The alias the subquery is joined under. */
+  private get alias(): string {
+    return `${this.relatedTable}_of_many`
+  }
+
+  query(): ModelBuilder<R> {
+    return this.constrain(
+      ((this.related as typeof Model).query() as ModelBuilder<R>).where(
+        `${this.relatedTable}.${this.foreignKey}`,
+        this.parent.attributes[this.localKey]
+      )
+    )
+  }
+
+  /** Join the per-parent aggregate, whatever the outer query is filtered by. */
+  private constrain(builder: ModelBuilder<R>): ModelBuilder<R> {
+    return builder.deferBase((query) => {
+      const connection = query.connection
+      const sub = new QueryBuilder<Row>(connection, this.relatedTable)
+        .selectRaw(
+          [
+            `${this.aggregate}(${connection.grammar.wrap(`${this.relatedTable}.${this.column}`)}) as ${connection.grammar.wrap(`${this.column}_aggregate`)}`,
+            // The key breaks a tie on the column, and is aggregated the same way
+            // so the two always describe the same row.
+            `${this.aggregate}(${connection.grammar.wrap(`${this.relatedTable}.${this.keyName}`)}) as ${connection.grammar.wrap(`${this.keyName}_aggregate`)}`,
+            connection.grammar.wrap(`${this.relatedTable}.${this.foreignKey}`)
+          ].join(', ')
+        )
+        .groupBy(`${this.relatedTable}.${this.foreignKey}`)
+
+      query
+        .joinSub(
+          sub,
+          this.alias,
+          `${this.alias}.${this.keyName}_aggregate`,
+          '=',
+          `${this.relatedTable}.${this.keyName}`
+        )
+        .whereColumn(
+          `${this.alias}.${this.foreignKey}`,
+          '=',
+          `${this.relatedTable}.${this.foreignKey}`
+        )
+    })
+  }
+
+  async getOne(): Promise<R | undefined> {
+    return this.query().first()
+  }
+
+  async get(): Promise<Collection<R>> {
+    return this.query().get()
+  }
+
+  existsConstraint(parentTable: string) {
+    const table = this.relatedTable
+
+    return {
+      table,
+      foreign: `${table}.${this.foreignKey}`,
+      local: `${parentTable}.${this.localKey}`,
+      related: this.related
+    }
+  }
+
+  async eagerLoad(models: Model[], name: string): Promise<void> {
+    const keys = this.keysOf(models, this.localKey)
+
+    if (keys.length === 0) {
+      for (const model of models) model.setRelation(name, undefined)
+
+      return
+    }
+
+    // One query for every parent, and the join keeps it to one row each — which is
+    // the entire reason for the subquery.
+    const rows = await this.constrain(
+      ((this.related as typeof Model).query() as ModelBuilder<R>).whereIn(
+        `${this.relatedTable}.${this.foreignKey}`,
+        keys
+      )
+    ).get()
+
+    const byParent = new Map<string, R>()
+
+    for (const row of rows.all()) {
+      byParent.set(String(row.attributes[this.foreignKey]), row)
+    }
+
+    for (const model of models) {
+      const key = model.attributes[this.localKey]
+
+      model.setRelation(
+        name,
+        key === null || key === undefined ? undefined : byParent.get(String(key))
       )
     }
   }

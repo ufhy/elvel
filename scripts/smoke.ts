@@ -2281,6 +2281,23 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// ------------------------------------------------------------- one of many
+
+section('One of many')
+
+const latest = (await (
+  await app.handle(new Request('http://localhost/check/articles/latest-comments'))
+).json()) as { articles: Array<{ id: number; latest: string | null }> }
+
+check('every article is answered', latest.articles.length > 1)
+// The failure this guards: a `limit 1` on the eager query answers the first
+// parent and leaves every other one empty.
+check('the one with comments has its newest', latest.articles[0]?.latest !== null)
+check(
+  'and an article with none is null rather than borrowing another',
+  latest.articles.slice(1).every((article) => article.latest === null)
+)
+
 // ------------------------------------------------------- polymorphic pivots
 
 section('Polymorphic many-to-many')

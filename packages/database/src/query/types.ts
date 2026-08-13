@@ -14,8 +14,15 @@ export type WhereClause =
 
 export type JoinClause = {
   type: 'inner' | 'left' | 'right' | 'cross'
-  table: string
+  table: string | Expression
   wheres: WhereClause[]
+  /**
+   * Bindings belonging to the joined table itself.
+   *
+   * Only a subquery join has any, and they bind *before* the on-clause's — which
+   * is why they live here rather than being appended with the wheres.
+   */
+  bindings?: unknown[]
 }
 
 export type OrderClause = {

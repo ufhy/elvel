@@ -536,6 +536,16 @@ article.tags()            // morphToMany: the pivot stores this model's type
 tag.articles()            // morphedByMany: the pivot names the *related* type
 ```
 
+```ts
+user.latestOfMany(Post, 'created_at')     // one per parent, even eagerly loaded
+country.hasOneThrough(Post, User)         // one row across an intermediate table
+```
+
+`latestOfMany` joins a grouped subquery rather than ordering and limiting: a limit
+is right for one parent and wrong for an eager load, where it answers the whole set
+once. The key is aggregated with the column so a tie on `created_at` cannot make a
+"one" relation return two.
+
 Pivot columns are selected as `pivot_<column>` and moved onto the accessor after
 hydration, so a pivot's `created_at` cannot overwrite the model's own. `using()`
 hydrates them as a `Pivot` subclass of your own, and `as()` renames the accessor.
