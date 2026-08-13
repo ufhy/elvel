@@ -47,26 +47,12 @@ Deliberately absent, with reasons:
 
 ---
 
-## @elysian/core
-
-| Missing | Why |
-| --- | --- |
-| Contextual binding, tagged bindings, automatic constructor injection | The container is deliberately typed via `ContainerBindings` rather than reflective. TypeScript erases parameter types, so PHP-style autowiring would need decorators and `emitDecoratorMetadata`. |
-| `MaintenanceModeEnabled` as an event *class* | Dispatched by name (`maintenance.enabled`, `maintenance.disabled`), as everything else here dispatches. |
-
-## @elysian/console
-
-| Missing | Why |
-| --- | --- |
-
 ## @elysian/view
 
 | Missing | Why |
 | --- | --- |
-| **Compile-time XSS checking** | Attempted and **blocked**: `@kitajs/ts-html-plugin`'s CLI reads `typescript.sys`, which TypeScript 7 removed from the default export, so it crashes under both Bun and Node. `safe` remains a runtime guarantee and a review responsibility. |
 | Suspense / streaming responses | `@kitajs/html` supports it; our `view()` returns a complete `Response`. |
 | Vite integration, asset versioning | The static plugin serves `public/`; there is no manifest reader. |
-| Blade-style directives | Deliberate: views are typed JSX, so `tsc` is the template checker. |
 
 ## @elysian/events
 
@@ -77,9 +63,6 @@ a worker instead of the request.
 | --- | --- |
 | Broadcasting | Needs a driver and a socket layer. |
 | Interface-based listeners (`addInterfaceListeners`) | Class events are matched by name; an interface has no runtime identity in TypeScript. |
-| A queued listener on a **wildcard** | A wildcard listener is handed the resolved event name as well as the payload, and only one payload can travel. `listen('order.*', SomeQueuedListener)` throws rather than delivering something different in the worker. |
-| `ShouldBeUnique` / `ShouldBeEncrypted` as *marker interfaces* on a listener | Both exist as statics — `encrypted = true` works today; uniqueness is a job-level static the wrapper does not copy yet. TypeScript has no runtime interface to test for. |
-| Auto-discovery by the handler's parameter type | Laravel reads the type of `handle($event)` to know what a listener listens to. TypeScript erases it, so the pairing is written once: `events.listen(OrderShipped, NotifyWarehouse)`. |
 
 ## @elysian/log
 
@@ -105,8 +88,6 @@ limiting, CORS and trusted proxies.
 
 | Missing | Why |
 | --- | --- |
-| `Precognition`, `#[RedirectTo]`-style attributes | TypeScript has no runtime attributes; the static flags (`stopOnFirstFailure`, `failOnUnknownFields`) cover the same intent. |
-| A `throttle` **route macro** | `throttle()` is an Elysia plugin used inside a controller or a `routeGroup()`, which is how middleware composes here. Laravel's `->middleware('throttle:api')` string form has no equivalent, because routes are not declared through a router object. |
 | Per-route CORS | CORS is global and driven by `cors.paths`, as Laravel's `HandleCors` is. A route wanting different origins from its neighbours would need the config keyed by more than a path. |
 
 ## @elysian/auth
@@ -118,33 +99,10 @@ and policies on top.
 
 | Missing | Why |
 | --- | --- |
-| **Guest-allowed abilities are opt-in** | Laravel decides from the reflected type of the `$user` parameter whether an ability may run for a guest. TypeScript erases types, so `Gate.define(..., { allowGuests: true })` and a policy's static `allowGuests` say it explicitly. This is a deviation, not an omission. |
 | **Policy auto-discovery** | Laravel guesses `App\Policies\XPolicy` and falls back to a `#[UsePolicy]` attribute. Guessing here means scanning the filesystem, and there are no runtime attributes; `gate.policy(Article, ArticlePolicy)` is one line per model. A registered base class does cover its subclasses. |
-| **Native SQL joins in the adapter** | better-auth passes a `join` to an adapter only when `experimental.joins` is on, and otherwise emulates it with extra queries. Implementing one would be a second code path to keep correct for no gain today. |
-| `many-to-many` joins | Same reason: unreachable until joins are opted into. |
-| Auth-table column naming | The tables keep better-auth's own camelCase (`emailVerified`, `userId`) rather than our snake_case. Every plugin declares its `fieldName`s that way, so renaming globally breaks the first plugin added. Application tables are unaffected. |
 | Guards and `auth:api` style multi-guard config | There is one session-backed guard, because better-auth models sessions itself. A token guard belongs with its own plugin (`bearer`, `jwt`). |
 | `Gate::inspect` on a *response* rendering as HTML | The 403/404 is rendered as JSON by the core exception handler; an HTML error page belongs with the redirect-back work already noted under http. |
-| `can` middleware / route-level ability macro | `authorize()` inside a handler covers it and types cleanly across standalone controllers, which is the same reason `sessionOf(context)` exists. |
 | `auth:schema` diffing an existing schema | It writes a fresh migration. better-auth's own CLI can diff, but that needs schema introspection wired into the generator — worth doing when the first plugin is added mid-project. |
-
-## @elysian/cache
-
-Four drivers — `array`, `file`, `database`, `redis` — behind one `Repository`, and
-one conformance suite that runs against all four (Redis included, against a real
-server). The same routes in the playground exercise every driver, because a cache
-that behaves differently per driver is worse than none.
-
-| Missing | Why |
-| --- | --- |
-| **JSON, not a binary format, for stored values** | A `Date` comes back as an ISO string and a class instance loses its identity on every driver except `array`, which stores values as they were given. The trade is deliberate: the payload stays readable in `redis-cli` and in the cache table, and every runtime we target can parse it. Cache plain data, or re-hydrate on read. |
-| `memcached`, `dynamodb`, `apc`, `octane` drivers | Nothing in this runtime needs them yet, and `extend()` takes a driver in ten lines. |
-| Rate limiter **events** (`RateLimitAttempt`) | The counter and `Limit` live here; naming limiters and applying them is `@elysian/http`, where the request is. Nothing dispatches an event per attempt — a listener would fire on every request, so it needs a reason first. |
-| Event classes (`CacheHit`, `KeyWritten`, …) | Events are dispatched as names — `cache.hit`, `cache.written`, `cache.forgotten`, `cache.flushed` — which is how the rest of the framework dispatches. A listener gets the same payload either way. |
-
-Done since this was written: `flexible()` defers its refresh through core's
-`defer()`, so it runs after the response; and `cache:prune` is on a schedule — the
-playground registers it hourly.
 
 ## @elysian/queue
 
@@ -154,25 +112,7 @@ a failed-job store, and `defer()` for work too small to queue.
 
 | Missing | Why |
 | --- | --- |
-| **A timeout does not kill the attempt** | Laravel's worker raises a `pcntl` alarm in a forked child. Bun has no way to stop an async function that is already running, so a timeout makes the *worker* stop waiting and fail or retry the job — while the abandoned attempt keeps going in the background. This is the one place where the semantics are genuinely weaker than Laravel's, and it is why `timeout` should be treated as "how long before we give up on you", not "how long before you are stopped". A future `queue:work --isolate` running each job in a child process would close it. |
-| **Jobs are identified by class name, not a serialised object** | PHP can `serialize($job)`; TypeScript cannot. The payload carries a name plus the constructor data, and the worker resolves the name through discovery over `app/Jobs`. A job that lives elsewhere has to be registered: `queue().jobs.register(TheJob)`. |
-| Batch callbacks as **closures** | `then`/`catch`/`finally` take job classes. Laravel serialises closures into the batch row; a closure cannot be rebuilt in the worker that would run it, which is the same wall queued listeners hit. Naming a job is the honest version, and the callback then gets retries and a failure record like anything else. |
-| Per-job `progress` callbacks | `then`, `catch` and `finally` are dispatched. A callback per job needs a reason before it needs an implementation. |
 | Per-property encryption inside a payload | `static encrypted = true` encrypts the whole payload, which is what `ShouldBeEncrypted` does. Encrypting one field and leaving the rest queryable would need a per-property declaration. |
-| Rate-limited and overlapping middleware as *attributes* | Both exist as middleware classes returned from `middleware()`; TypeScript has no runtime attributes. |
-
-## @elysian/scheduler
-
-A cron matcher written here rather than taken from a package, the frequency helpers
-built on top of it, mutexes for overlap and multi-server, and the four commands
-that drive it. Nothing runs by itself: a crontab calls `schedule:run` every minute,
-or a process runs `schedule:work`.
-
-| Missing | Why |
-| --- | --- |
-| `pingBefore` / `thenPing` | An HTTP call in a hook is one line of application code; a helper for it earns nothing. |
-| `then()` as an alias for `after()` | Deliberately absent. An object with a `then` method *is* a thenable, so `await schedule.call(…)` would pass `resolve` in as a hook. A chainable builder must not be mistakable for a promise. |
-| `onOneServer` releasing its mutex | Deliberate: the lock is held for the minute, which is what keeps the other servers out. A task that must not run twice in the same minute across servers gets that; one that must never overlap *at all* wants `withoutOverlapping()` too. |
 
 ## @elysian/mail
 
@@ -182,9 +122,7 @@ through the queue package; and `Mail.fake()` for tests.
 
 | Missing | Why |
 | --- | --- |
-| **SMTP is nodemailer, not ours** | Deliberate. Sending mail is an SMTP state machine *and* a MIME encoder — dot-stuffing, header folding, RFC 2047 words, quoted-printable, multipart boundaries — and every one of those is a place where a subtle bug means mail that silently lands in spam. Laravel delegates the same work to Symfony Mailer. nodemailer is one package with no dependencies of its own and it runs on Bun; what we own is the translation and the tests, including a real SMTP session. |
 | Markdown mailables | Needs a markdown parser and a theme to render into. HTML mail here is a JSX view, which is the same renderer the web views use — no second template engine, and the props are typechecked. |
-| `Content` carrying its props type | `content()` returns an erased `Content`, and `viewContent(Component, props)` is where the pairing is checked. A generic return type would force every mailable in an application to agree on one props type. |
 
 ## @elysian/storage
 
@@ -194,9 +132,6 @@ and presigning needs no network.
 
 | Missing | Why |
 | --- | --- |
-| `ftp` / `sftp` disks | Neither has a Bun-native client, so each means a dependency. `storage().extend()` takes one in a few lines when it is wanted. |
-| `putFileAs` deriving a name from the file's hash | Names are random UUIDs, which do not collide. Content-addressing is a different feature — it deduplicates — and belongs where that is wanted. |
-| `temporaryUploadUrl` on the local disk | There is nothing to sign against: a local file is served by whatever serves the directory. The disk says so rather than inventing a scheme. |
 | Directory visibility, `MissingFile` exceptions, chunked/multipart upload helpers | Not needed yet; Bun's S3 writer already does multipart for large writes. |
 
 ## @elysian/notifications
@@ -208,31 +143,15 @@ fake.
 | Missing | Why |
 | --- | --- |
 | `broadcast` channel | Needs a websocket package, which does not exist yet. It is the one channel that cannot be a few lines of `fetch`. |
-| `slack`, `vonage`/SMS channels | Each is one HTTP call and one credential, which makes them a better fit for `notifications().extend()` in an application than a driver in the framework — the package's tests show an `sms` channel added that way. |
 | Markdown notification templates | The `MailMessage` builder renders to HTML here, inline-styled, because a mail client ignores most of a stylesheet. `view()` hands the body to one of the application's own JSX components when the default is not enough. |
 | `preferredLocale()` / translated notifications | There is no translator package, so there is nothing to switch. |
-| `Notifiable` as a model trait with a `notifications()` relation | Recipients satisfy a small interface — `routeNotificationFor`, `getKey`, `getNotifiableType` — rather than inheriting. The inbox is read with an ordinary query on `DatabaseNotification`, which is also what makes `unread()` a database scope instead of a filter in memory. |
-| `NotificationSent` as event *classes* | Events are dispatched by name (`notification.sending`, `notification.sent`, `notification.failed`, `notification.skipped`), as everything else in this framework dispatches. |
 
 ## @elysian/encryption
 
 | Missing | Why |
 | --- | --- |
-| `Crypt::extend`, a driver other than AES-256-GCM | One AEAD, chosen and versioned, rather than a choice a caller can get wrong. Laravel still carries CBC+HMAC for compatibility; there is nothing here to be compatible with. The payload's `v1.` prefix is how a second algorithm would arrive without breaking what is already written. |
-| Reading Laravel's own payload format | A Laravel payload is base64 JSON with `iv`/`value`/`mac`/`tag`. Nothing shares a database with a Laravel app yet, so decoding it would be dead code; if that changes it is a second reader behind the version prefix. |
 | Asymmetric keys, signing, envelope encryption, a KMS | Different problem: this package protects data at rest with a key the app already has. A KMS-backed key would slot in behind `deriveKey`. |
 | Rewriting stored ciphertexts after a rotation | `APP_PREVIOUS_KEYS` keeps old payloads readable indefinitely, which is enough to rotate without downtime, but nothing walks the tables to re-encrypt them onto the new key. That is a per-model migration. |
-
-## create-elysian
-
-The template ships **all 17 packages** and a scaffolded application registers
-every provider, with the drivers that need no service behind them — `cache=file`,
-`queue=sync`, `mail=log`, `disk=local`, SQLite — so `bun run dev` works before
-Docker does.
-
-| Missing | Why |
-| --- | --- |
-| Publishing to npm | `bun create elysian my-app` cannot work until `create-elysian` is on npm; the README says so rather than implying it. |
 
 ## Not started
 
