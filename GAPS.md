@@ -33,7 +33,7 @@ Deliberately absent, with reasons:
 | Missing | Why |
 | --- | --- |
 | Queued jobs *from a model* (`$model->notify()`-shaped sugar) | The queue exists and queued listeners now run through it; what is missing is sugar on the model itself. A model's lifecycle events are dispatched, so a queued listener on `model.created` already covers it. |
-| Read/write connection splitting, sticky connections | Needs a second connection per config entry and a read/write router; worth doing when someone has a replica. `ConnectionManager` already keys connections by name, so this is additive. |
+| Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
 | Database transactions across connections (2PC) | `Bun.SQL` exposes `beginDistributed`, so this is reachable — no design obstacle, just unbuilt. |
 | A transaction shared across *connection objects* | Bun.SQL hands the open transaction to the callback, so nested `transaction()` on the **scoped** connection becomes a savepoint, and `afterCommit()` registered on either object lands in the same commit. What cannot work is opening a nested transaction on the *pool* while one is open — Bun refuses, and it is right to. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |

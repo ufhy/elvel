@@ -26,6 +26,27 @@ export default {
       max: Number(env('DB_POOL_MAX', 10))
     },
 
+    /**
+     * A primary and its replicas — read/write splitting.
+     *
+     * The shared keys below are the credentials; `read`/`write` override only what
+     * differs, and a list of hosts under `read` is picked from at random. `sticky`
+     * sends reads to the **primary** for the rest of the request once anything has
+     * been written, because replication lags and reading your own write off a
+     * replica looks like a bug in your code rather than in the cluster.
+     */
+    postgres_cluster: {
+      driver: 'postgres',
+      read: [{ host: env('DB_READ_HOST', '127.0.0.1') }],
+      write: { host: env('DB_WRITE_HOST', '127.0.0.1') },
+      sticky: true,
+      port: Number(env('DB_PORT', 5432)),
+      username: env('DB_USERNAME', 'postgres'),
+      password: env('DB_PASSWORD', ''),
+      database: env('DB_DATABASE', 'elysian'),
+      max: Number(env('DB_POOL_MAX', 10))
+    },
+
     mysql: {
       driver: 'mysql',
       host: env('DB_HOST', '127.0.0.1'),

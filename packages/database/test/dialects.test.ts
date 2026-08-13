@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { BunSqlConnection, type ConnectionConfig } from '../src/connection/bun-sql.ts'
+import { ReadWriteConnection } from '../src/connection/read-write.ts'
 import { Migrator } from '../src/migrations/migrator.ts'
 import { MigrationRepository } from '../src/migrations/repository.ts'
 import { Model, type Pivot } from '../src/model/model.ts'
@@ -453,6 +454,48 @@ for (const { name, config } of available) {
         expect(await table(posts).count()).toBe(0)
       })
     })
+
+    /**
+     * SQLite is skipped, and the reason is the feature working as intended: the
+     * matrix runs SQLite as `:memory:`, and two connections to `:memory:` are two
+     * separate databases — so the "replica" genuinely cannot see the writer's
+     * table. A split configuration only means anything against a server.
+     */
+    test.skipIf(name === 'sqlite')(
+      'a read/write pair reaches one real server through two connections',
+      async () => {
+        // Both halves point at the same server: what is checked here is the routing
+        // and the sticky rule against a real engine, not that a replica exists.
+        const writer = await BunSqlConnection.make(`${name}-w`, config)
+        const reader = await BunSqlConnection.make(`${name}-r`, config)
+        const pair = new ReadWriteConnection(writer, reader, true)
+
+        const probe = `${PREFIX}_split`
+        const probeSchema = new SchemaBuilder(pair)
+
+        try {
+          await probeSchema.dropIfExists(probe)
+          await probeSchema.create(probe, (table) => {
+            table.id()
+            table.string('label')
+          })
+
+          await new QueryBuilder(pair, probe).insert({ label: 'written' })
+
+          // Sticky: the read that follows a write must find the row on every engine,
+          // because it is sent to the writer rather than to the lagging replica.
+          expect((await new QueryBuilder(pair, probe).get()).count()).toBe(1)
+
+          pair.forgetRecordModifications()
+
+          // And once the modifications are forgotten, the reader answers again.
+          expect((await new QueryBuilder(pair, probe).get()).count()).toBe(1)
+        } finally {
+          await probeSchema.dropIfExists(probe)
+          await pair.disconnect()
+        }
+      }
+    )
 
     describe('models', () => {
       beforeAll(() => {

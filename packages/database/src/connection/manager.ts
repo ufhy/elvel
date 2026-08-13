@@ -3,6 +3,7 @@ import { QueryBuilder } from '../query/builder.ts'
 import { SchemaBuilder } from '../schema/builder.ts'
 import { BunSqlConnection, type ConnectionConfig } from './bun-sql.ts'
 import { type Connection, QueryExecuted, type Row } from './connection.ts'
+import { ReadWriteConnection } from './read-write.ts'
 
 /**
  * Resolves and caches connections — Laravel's `DatabaseManager`, and the object
@@ -56,16 +57,52 @@ export class ConnectionManager {
       )
     }
 
-    const connection = await BunSqlConnection.make(
-      resolved,
-      // Give the driver the application root so relative sqlite paths resolve
-      // the same way regardless of the working directory.
-      { basePath: this.app.basePath(), ...config },
-      this.dispatcher()
-    )
+    const connection = await this.make(resolved, config)
+
     this.connections.set(resolved, connection)
 
     return connection
+  }
+
+  /**
+   * Build one connection, or a read/write pair when the config names both.
+   *
+   * `read` and `write` are merged *over* the shared keys and then removed, which
+   * is Laravel's `mergeReadWriteConfig`: one entry describes the credentials once
+   * and only the host differs.
+   */
+  private async make(name: string, config: ConnectionConfig): Promise<Connection> {
+    const shared = { basePath: this.app.basePath(), ...config } as ConnectionConfig &
+      Record<string, unknown>
+
+    const read = (shared as { read?: unknown }).read
+    const write = (shared as { write?: unknown }).write
+
+    if (!read && !write) return BunSqlConnection.make(name, shared, this.dispatcher())
+
+    const sticky = (shared as { sticky?: boolean }).sticky === true
+    const base = { ...shared }
+    delete (base as Record<string, unknown>).read
+    delete (base as Record<string, unknown>).write
+    delete (base as Record<string, unknown>).sticky
+
+    const writer = await BunSqlConnection.make(
+      name,
+      { ...base, ...pickHost(write) } as ConnectionConfig,
+      this.dispatcher()
+    )
+
+    // A missing `read` means "reads go to the writer": the pair still exists, so
+    // adding a replica later is a config change and not a code change.
+    if (!read) return writer
+
+    const reader = await BunSqlConnection.make(
+      name,
+      { ...base, ...pickHost(read) } as ConnectionConfig,
+      this.dispatcher()
+    )
+
+    return new ReadWriteConnection(writer, reader, sticky)
   }
 
   /** A query builder on the default connection: `(await db()).table('users')`. */
@@ -100,4 +137,23 @@ export class ConnectionManager {
       ? (this.app.make('events' as never) as EventDispatcher)
       : undefined
   }
+}
+
+/**
+ * One host from a `read`/`write` entry.
+ *
+ * A list means "any of these replicas", and Laravel picks at random rather than
+ * round-robin: with several processes, random spreads the load without any of
+ * them having to agree on whose turn it is.
+ */
+function pickHost(entry: unknown): Record<string, unknown> {
+  if (!entry || typeof entry !== 'object') return {}
+
+  if (Array.isArray(entry)) {
+    if (entry.length === 0) return {}
+
+    return entry[Math.floor(Math.random() * entry.length)] as Record<string, unknown>
+  }
+
+  return entry as Record<string, unknown>
 }

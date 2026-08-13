@@ -1,6 +1,7 @@
 export { BunSqlConnection, type ConnectionConfig } from './connection/bun-sql.ts'
 export { type Connection, QueryExecuted, type Row } from './connection/connection.ts'
 export { ConnectionManager } from './connection/manager.ts'
+export { ReadWriteConnection } from './connection/read-write.ts'
 export { TransactionManager } from './connection/transactions.ts'
 export { DbSeedCommand } from './console/db-seed.ts'
 export { DbShowCommand } from './console/db-show.ts'
