@@ -471,6 +471,11 @@ and presigning needs no network.
 
 Four behaviours worth knowing:
 
+- **MinIO does not implement per-object ACLs**, so the tests for them skip
+  against it rather than fail: `GET ?acl` answers with a canned
+  owner-`FULL_CONTROL` document whatever was written, and `PUT ?acl` returns 200
+  and changes nothing. Its model is bucket policies. The rest of the S3 suite
+  runs against it unchanged.
 - **A bucket that refuses `GetObjectAcl` reports the disk's default.** Buckets
   with ACLs disabled entirely (`BucketOwnerEnforced`) are the common modern
   setup, and there the permission is not missing — the concept is. Throwing would

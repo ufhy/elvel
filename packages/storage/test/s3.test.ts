@@ -12,6 +12,15 @@ import { S3Disk } from '../src/disks/s3.ts'
  * Point it at anything S3-compatible and it runs; without one it skips with a note
  * rather than failing, the same way the database suites treat Postgres and MySQL.
  *
+ * MinIO, for example — the bucket has to exist first, the client will not make it:
+ *
+ *   docker run -d --name elysian-minio -p 9000:9000 \
+ *     -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+ *     minio/minio server /data
+ *   curl -X PUT http://127.0.0.1:9000/elysian-test --aws-sigv4 aws:amz:us-east-1:s3 \
+ *     --user minioadmin:minioadmin \
+ *     -H "x-amz-content-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ *
  *   TEST_S3_ENDPOINT=http://127.0.0.1:9000 \
  *   TEST_S3_BUCKET=elysian-test \
  *   TEST_S3_KEY=minioadmin \
@@ -181,7 +190,43 @@ describe.skipIf(!reachable)('S3, against a real bucket', () => {
   })
 })
 
-describe.skipIf(!reachable)('per-object visibility, read from the bucket', () => {
+/**
+ * Does this backend implement per-object ACLs at all?
+ *
+ * MinIO does not: `GET ?acl` answers with a canned owner-FULL_CONTROL document
+ * whatever the object's canned ACL was, and `PUT ?acl` returns 200 and changes
+ * nothing — its model is bucket policies. So a bucket being reachable is not
+ * enough to run these; the probe writes a public object and asks whether the
+ * bucket can say so. Without that, this suite would report a failure of the
+ * server as a failure of the code.
+ */
+const objectAcls = await (async () => {
+  if (!reachable) return false
+
+  const probe = new S3Disk('s3', {
+    bucket,
+    endpoint,
+    accessKeyId,
+    secretAccessKey,
+    prefix: 'acl-probe'
+  })
+
+  try {
+    await probe.put('probe.txt', 'probe', { visibility: 'public' })
+
+    const supported = (await probe.getVisibility('probe.txt')) === 'public'
+
+    if (!supported) {
+      console.log('  skipping per-object ACLs: this backend does not implement them (MinIO does not)')
+    }
+
+    return supported
+  } finally {
+    await probe.delete('probe.txt')
+  }
+})()
+
+describe.skipIf(!objectAcls)('per-object visibility, read from the bucket', () => {
   const disk = (visibility: 'public' | 'private' = 'private') =>
     new S3Disk('s3', {
       bucket,
