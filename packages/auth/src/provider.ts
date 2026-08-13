@@ -5,6 +5,7 @@ import { type Dialect, elysianAdapter } from './adapter.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
 import { MakePolicyCommand } from './console/make-policy.ts'
 import { Gate } from './gate.ts'
+import { authMailHooks, type Notifier, withAuthMail } from './mail-hooks.ts'
 import { type AuthInstance, AuthManager } from './manager.ts'
 
 declare module '@elysian/contracts' {
@@ -25,6 +26,11 @@ export type AuthConfig = {
   connection?: string
   /** Mount the auth endpoints. Off for an app that only needs the Gate. */
   mount?: boolean
+  /**
+   * Send the reset and verification links as notifications. On by default,
+   * whenever `@elysian/notifications` is registered.
+   */
+  notifications?: boolean
   [option: string]: unknown
 }
 
@@ -85,16 +91,47 @@ export class AuthServiceProvider extends ServiceProvider {
    */
   private async instance(): Promise<AuthInstance> {
     const config = this.app.config.get<AuthConfig>('auth', {})
-    const { connection, mount, basePath, ...options } = config
+    const { connection, mount, basePath, notifications, ...options } = config
 
     const db = this.app.make('db')
     const dialect = (await db.connection(connection)).grammar.dialect as Dialect
 
     return betterAuth({
-      ...options,
+      ...this.withMail(options, notifications),
       basePath: basePath ?? '/api/auth',
       database: elysianAdapter(db, { connection, dialect })
     }) as unknown as AuthInstance
+  }
+
+  /**
+   * Fill in better-auth's mail callbacks from the notification manager.
+   *
+   * better-auth builds the tokens and URLs and then asks the application to
+   * deliver them — it ships no mailer on purpose. Without this an application
+   * that turns on password resets gets an endpoint that logs "Reset password
+   * isn't enabled" and returns a cheerful "check your email" to the user, which
+   * is the worst of both: nothing sent, and nobody told.
+   *
+   * Only what the application has not written itself, and only when the
+   * notification package is registered.
+   */
+  private withMail(
+    options: Record<string, unknown>,
+    enabled: boolean | undefined
+  ): Record<string, unknown> {
+    if (enabled === false || !this.app.bound('notifications')) return options
+
+    const credentials = (options.emailAndPassword ?? {}) as { resetPasswordTokenExpiresIn?: number }
+
+    return withAuthMail(
+      options,
+      authMailHooks({
+        notifier: this.app.make('notifications' as never) as Notifier,
+        appName: this.app.config.get<string>('app.name', 'Elysian'),
+        // better-auth's own default, stated here so the mail can name it.
+        resetExpiresIn: credentials.resetPasswordTokenExpiresIn ?? 3600
+      })
+    )
   }
 
   /**

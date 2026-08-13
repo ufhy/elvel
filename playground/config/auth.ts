@@ -14,6 +14,15 @@ export default {
   /** Connection the auth tables live on. Undefined means the app's default. */
   connection: undefined,
 
+  /**
+   * Send the reset and verification links as notifications.
+   *
+   * better-auth builds the tokens and URLs and then asks the application to
+   * deliver them — it ships no mailer on purpose. Off means writing your own
+   * `sendResetPassword` below; a callback written there wins either way.
+   */
+  notifications: true,
+
   // ------------------------------------------------------------ better-auth
   /** Signs better-auth's tokens. Never reuse APP_KEY in production. */
   secret: env('AUTH_SECRET', 'playground-auth-secret-at-least-32-chars'),

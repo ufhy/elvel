@@ -15,6 +15,7 @@
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",
     "@elysian/database": "workspace:*",
+    "@elysian/notifications": "workspace:*",
     "@elysian/support": "workspace:*"
   },
   "peerDependencies": {

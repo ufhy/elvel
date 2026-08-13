@@ -23,7 +23,14 @@ export {
   session,
   user
 } from './helpers.ts'
+export { authMailHooks, type MailHookOptions, type Notifier, withAuthMail } from './mail-hooks.ts'
 export { type AuthInstance, AuthManager, type AuthSession } from './manager.ts'
+export {
+  type AuthMailData,
+  PasswordChangedNotification,
+  ResetPasswordNotification,
+  VerifyEmailNotification
+} from './notifications.ts'
 export { Policy, type PolicyLike, type PolicyResult, policyAllowsGuests } from './policy.ts'
 export { type AuthConfig, AuthServiceProvider } from './provider.ts'
 export { AuthorizationError, AuthorizationResponse } from './response.ts'

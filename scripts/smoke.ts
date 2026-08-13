@@ -2962,6 +2962,125 @@ try {
     behindGateway.url
   )
   check('and the trailing slash is not doubled', behindGateway.prefix === '/api')
+
+  // ------------------------------------------------------ auth mail, for real
+
+  section('Auth: reset and verification mail')
+
+  /**
+   * better-auth builds the token and the URL and then asks the application to
+   * deliver them — it ships no mailer on purpose. What is checked here is that
+   * the delivery happens at all, over a real socket, with the link in it.
+   *
+   * The log mailer writes the whole message, so capturing output is reading the
+   * outbox. `sendResetPassword` runs in the background, hence the pause.
+   */
+  const resetMail = await captureOutput(async () => {
+    const asked = await fetch(`http://127.0.0.1:${port}/api/auth/request-password-reset`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'ada@example.com', redirectTo: '/reset' })
+    })
+
+    check('a reset request is accepted', asked.status === 200)
+
+    await Bun.sleep(250)
+  })
+
+  check(
+    'the reset link is mailed to the address that asked',
+    resetMail.includes('To: ada@example.com'),
+    resetMail.slice(0, 200)
+  )
+  check('with a subject naming the application', resetMail.includes('Subject: Reset your'))
+  check(
+    'and the tokenised link better-auth built',
+    /reset-password\/[A-Za-z0-9_-]{8,}/.test(resetMail)
+  )
+  // A person reads time, not seconds.
+  check('the mail says how long the link lasts', resetMail.includes('expires in 1 hour'))
+  check(
+    'and tells an unwitting recipient that doing nothing is safe',
+    resetMail.includes('no further action is required')
+  )
+
+  const unknownAddress = await captureOutput(async () => {
+    const asked = await fetch(`http://127.0.0.1:${port}/api/auth/request-password-reset`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'nobody@example.com' })
+    })
+
+    check('an unknown address gets the same answer', asked.status === 200)
+
+    await Bun.sleep(150)
+  })
+
+  // The endpoint answers identically either way on purpose; if the mail went out
+  // anyway, the response would be a working account-existence oracle.
+  check('but no mail goes out for it', !unknownAddress.includes('To: nobody@example.com'))
+
+  // A fresh account: Ada is verified by now, and better-auth answers an
+  // already-verified address with a cheerful 200 and no mail at all.
+  await fetch(`http://127.0.0.1:${port}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Grace Hopper',
+      email: 'grace@example.com',
+      password: 'secret123'
+    })
+  })
+
+  const verifyMail = await captureOutput(async () => {
+    const asked = await fetch(`http://127.0.0.1:${port}/api/auth/send-verification-email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'grace@example.com' })
+    })
+
+    check('a verification request is accepted', asked.status === 200)
+
+    await Bun.sleep(250)
+  })
+
+  check(
+    'the verification link is mailed too',
+    verifyMail.includes('Subject: Verify your') && verifyMail.includes('verify-email?token='),
+    verifyMail.slice(0, 200)
+  )
+  check('to the address that signed up', verifyMail.includes('To: grace@example.com'))
+
+  const resetToken = /reset-password\/([A-Za-z0-9_-]+)/.exec(resetMail)?.[1] ?? ''
+
+  const changedMail = await captureOutput(async () => {
+    const reset = await fetch(`http://127.0.0.1:${port}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ newPassword: 'secret1234', token: resetToken })
+    })
+
+    check('the mailed token completes the reset', reset.status === 200, await reset.text())
+
+    await Bun.sleep(250)
+  })
+
+  // The third hook, and the one Laravel does not have: a reset the account's
+  // owner did not perform is exactly when they need to hear from us.
+  check(
+    'a completed reset warns the account owner',
+    /Subject: Your \w+ password was changed/.test(changedMail),
+    changedMail.slice(0, 200)
+  )
+  check('at error level, with what to do', changedMail.includes('contact us immediately'))
+
+  const withNewPassword = await fetch(`http://127.0.0.1:${port}/api/auth/sign-in/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'ada@example.com', password: 'secret1234' })
+  })
+
+  check('and the new password actually works', withNewPassword.status === 200)
 } finally {
   app.router.stop()
   await app.make('cache').store().forget('defer:ran')
