@@ -68,7 +68,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| A deprecation channel | `withContext`/`withoutContext` are on the manager. Routing deprecation notices to a channel of their own needs somewhere for them to come from first — nothing in the framework raises one. |
 | `pail`-style live tailing | A `log:tail` command over the file drivers would cover it. |
 
 ## @elysian/validation
@@ -78,7 +77,6 @@ a worker instead of the request.
 | A wildcard in the *middle* of a `required_if` field reference | Rule keys expand (`items.*.price` runs once per element, nested wildcards included), but a rule that names *another* field — `required_if:items.*.kind,gift` — does not resolve the sibling relative to the element it is running for. Laravel resolves it against the same index; here the field is read as written. |
 | `File::types()->min()` builder objects, `imageFile()` | `file`, `image`, `mimes`, `mimetypes`, `extensions` and `dimensions` are implemented as string rules over the web `File` a multipart body parses to. The fluent builder is sugar over the same strings. |
 | `password` (uncompromised), `current_password` | better-auth owns credentials, and neither rule can be checked without asking it to verify a password for the *current* user — a request-scoped question, so it belongs with `FormRequest` rather than with the standalone validator. |
-| `date_format`, timezone-aware comparisons | `Date.parse` covers ISO dates; a format parser is its own small project. |
 | Translations | Messages are one English catalogue; a translator package would carry the rest. |
 
 ## @elysian/http

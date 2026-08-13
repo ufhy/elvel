@@ -35,6 +35,7 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   boolean: 'The :attribute field must be true or false.',
   confirmed: 'The :attribute field confirmation does not match.',
   date: 'The :attribute field must be a valid date.',
+  date_format: 'The :attribute field must match the format :format.',
   date_equals: 'The :attribute field must be a date equal to :date.',
   decimal: 'The :attribute field must have :decimal decimal places.',
   declined: 'The :attribute field must be declined.',

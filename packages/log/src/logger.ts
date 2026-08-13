@@ -49,6 +49,11 @@ export class Logger implements LoggerContract {
     return this.options.channel
   }
 
+  /** The driver this logger writes to. For tests, and for tooling that inspects it. */
+  get driver(): LoggerOptions['driver'] {
+    return this.options.driver
+  }
+
   log(level: LogLevel, message: string, context: LogContext = {}): void {
     // Bail before formatting: a debug call in production should cost nothing.
     if (!isHandling(level, this.options.level ?? 'debug')) return

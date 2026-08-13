@@ -79,6 +79,28 @@ export class LogManager implements LoggerContract {
   }
 
   /** An on-demand stack, without declaring it in config. */
+  /**
+   * The channel deprecations go to — `logging.deprecations`.
+   *
+   * Separate from the application's own logging because the two want different
+   * lifetimes: a deprecation is a message to the *developers*, useful in a daily
+   * file nobody pages on, and mixing it into the channel that carries errors is
+   * how a real error gets lost among forty notices about a method rename.
+   *
+   * Defaults to `null` — silent — so an application that never configures one is
+   * not suddenly noisy.
+   */
+  deprecations(): Logger {
+    const channel = this.app.config.get<string>('logging.deprecations', 'null')
+
+    return this.channel(channel)
+  }
+
+  /** Report a deprecation. Called by the framework, and usable by an application. */
+  deprecate(message: string, context: Record<string, unknown> = {}): void {
+    this.deprecations().warning(message, context)
+  }
+
   stack(channels: string[], name = 'stack'): Logger {
     return new Logger({
       channel: name,
@@ -151,7 +173,8 @@ export class LogManager implements LoggerContract {
     })
   }
 
-  private driverFor(name: string, config?: ChannelConfig): LogDriver {
+  /** The resolved driver for a channel. Public so a test can read what it kept. */
+  driverFor(name: string, config?: ChannelConfig): LogDriver {
     const resolved =
       config ?? this.app.config.get<ChannelConfig | undefined>(`logging.channels.${name}`)
 

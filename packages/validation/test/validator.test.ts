@@ -886,3 +886,43 @@ describe('Rule.forEach', () => {
     expect<string[]>(check.errors.keys()).toEqual(['items.0.to'])
   })
 })
+
+describe('date_format', () => {
+  test('the shape has to match exactly', async () => {
+    expect<Record<string, string[]>>(
+      await errors({ on: '2026-08-13' }, { on: 'date_format:Y-m-d' })
+    ).toEqual({})
+    // `date` would accept this; a form that says YYYY-MM-DD and stores "3/2/2026"
+    // has stored something nobody can query on.
+    expect<boolean>('on' in (await errors({ on: '3/2/2026' }, { on: 'date_format:Y-m-d' }))).toBe(
+      true
+    )
+    expect<boolean>(
+      'on' in (await errors({ on: '2026-08-13T00:00' }, { on: 'date_format:Y-m-d' }))
+    ).toBe(true)
+  })
+
+  test('a date that does not exist is refused', async () => {
+    // Right shape, no such day — and `new Date()` would roll it into March.
+    expect<boolean>('on' in (await errors({ on: '2026-02-31' }, { on: 'date_format:Y-m-d' }))).toBe(
+      true
+    )
+    expect<Record<string, string[]>>(
+      await errors({ on: '2024-02-29' }, { on: 'date_format:Y-m-d' })
+    ).toEqual({})
+  })
+
+  test('any of several formats passes', async () => {
+    const rules = { on: 'date_format:Y-m-d,d/m/Y' }
+
+    expect<Record<string, string[]>>(await errors({ on: '13/08/2026' }, rules)).toEqual({})
+    expect<Record<string, string[]>>(await errors({ on: '2026-08-13' }, rules)).toEqual({})
+  })
+
+  test('twelve-hour time reads am and pm', async () => {
+    const rules = { at: 'date_format:g:i a' }
+
+    expect<Record<string, string[]>>(await errors({ at: '12:15 am' }, rules)).toEqual({})
+    expect<boolean>('at' in (await errors({ at: '13:15 am' }, rules))).toBe(true)
+  })
+})

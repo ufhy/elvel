@@ -474,6 +474,28 @@ export const RULES: Record<string, RuleHandler> = {
 
   date: ({ value }) => !Number.isNaN(toDate(value)),
 
+  /**
+   * `date_format:Y-m-d` — the value must match the shape exactly.
+   *
+   * Stricter than `date`, and that is the point: `date` accepts anything
+   * `Date.parse` can guess at, which includes `2026-13-45` on some runtimes and
+   * every locale-specific spelling of a day. A form that says "YYYY-MM-DD" and
+   * then accepts `March 3rd` stores something nobody can query on.
+   *
+   * PHP's format letters, since that is what the rule string means everywhere
+   * else it is written: `Y m d H i s` plus `y n j G g A a`. Several formats may
+   * be listed, and matching any of them passes.
+   *
+   * Parsed rather than reformatted-and-compared as Laravel does: `Date` has no
+   * strict parser here, and building one is exactly what makes the difference
+   * between rejecting `2026-02-31` and quietly rolling it into March.
+   */
+  date_format: ({ value, params }) => {
+    if (typeof value !== 'string' && typeof value !== 'number') return false
+
+    return params.some((format) => matchesDateFormat(String(value), format))
+  },
+
   // -- format --------------------------------------------------------------
   email: ({ value }) => typeof value === 'string' && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value),
 
@@ -687,4 +709,86 @@ function buildRegExp(pattern: string): RegExp {
   const delimited = /^\/(.*)\/([gimsuy]*)$/s.exec(pattern)
 
   return delimited ? new RegExp(delimited[1] as string, delimited[2]) : new RegExp(pattern)
+}
+
+/** PHP's date letters, as a pattern and a slot to read the match into. */
+const DATE_TOKENS: Record<string, { pattern: string; part: string }> = {
+  Y: { pattern: '(\\d{4})', part: 'year' },
+  y: { pattern: '(\\d{2})', part: 'shortYear' },
+  m: { pattern: '(\\d{2})', part: 'month' },
+  n: { pattern: '(\\d{1,2})', part: 'month' },
+  d: { pattern: '(\\d{2})', part: 'day' },
+  j: { pattern: '(\\d{1,2})', part: 'day' },
+  H: { pattern: '(\\d{2})', part: 'hour' },
+  G: { pattern: '(\\d{1,2})', part: 'hour' },
+  h: { pattern: '(\\d{2})', part: 'hour12' },
+  g: { pattern: '(\\d{1,2})', part: 'hour12' },
+  i: { pattern: '(\\d{2})', part: 'minute' },
+  s: { pattern: '(\\d{2})', part: 'second' },
+  A: { pattern: '(AM|PM)', part: 'meridiem' },
+  a: { pattern: '(am|pm)', part: 'meridiem' }
+}
+
+/**
+ * Does `value` match this PHP-style format, and describe a real moment?
+ *
+ * Two questions, and both matter. The shape check is what rejects `3/2/2026`
+ * against `Y-m-d`; the calendar check is what rejects `2026-02-31`, which has
+ * the right shape and does not exist — and which `new Date()` would silently
+ * turn into the 3rd of March.
+ */
+export function matchesDateFormat(value: string, format: string): boolean {
+  const parts: string[] = []
+  let pattern = ''
+
+  for (const character of format) {
+    const token = DATE_TOKENS[character]
+
+    if (token) {
+      pattern += token.pattern
+      parts.push(token.part)
+
+      continue
+    }
+
+    // Anything else is a literal — the separators the format is made of.
+    pattern += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
+  const match = new RegExp(`^${pattern}$`).exec(value)
+  if (!match) return false
+
+  const read: Record<string, number | string> = {}
+  parts.forEach((part, index) => {
+    const captured = match[index + 1] as string
+    read[part] = part === 'meridiem' ? captured.toLowerCase() : Number(captured)
+  })
+
+  const year =
+    (read.year as number | undefined) ?? 2000 + ((read.shortYear as number | undefined) ?? 0)
+  const month = (read.month as number | undefined) ?? 1
+  const day = (read.day as number | undefined) ?? 1
+
+  let hour = (read.hour as number | undefined) ?? (read.hour12 as number | undefined) ?? 0
+
+  if (read.hour12 !== undefined) {
+    // `g` and `h` mean 1–12: `13:15 am` has the right shape and is not a time.
+    if ((read.hour12 as number) < 1 || (read.hour12 as number) > 12) return false
+
+    // 12am is 00 and 12pm is 12 — the one case a naive `+12` gets wrong.
+    hour = (read.hour12 as number) % 12
+    if (read.meridiem === 'pm') hour += 12
+  }
+
+  const minute = (read.minute as number | undefined) ?? 0
+  const second = (read.second as number | undefined) ?? 0
+
+  if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) return false
+
+  // The calendar check: a date that rolled over is a date that did not exist.
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second))
+
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  )
 }

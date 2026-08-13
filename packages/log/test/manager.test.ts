@@ -300,3 +300,32 @@ describe('file drivers', () => {
     expect((await readdir(directory)).sort()).toEqual(['app-2026-01-01.log', 'app-2026-08-11.log'])
   })
 })
+describe('the deprecation channel', () => {
+  test('it is silent until one is configured', () => {
+    const app = new Application(process.cwd())
+    app.config.set('logging.channels', { null: { driver: 'null' } })
+
+    // An application that never configures one should not suddenly be noisy.
+    expect(() => new LogManager(app).deprecate('old thing')).not.toThrow()
+  })
+
+  test('and goes to its own channel when it is', () => {
+    const app = new Application(process.cwd())
+    app.config.set('logging.deprecations', 'notices')
+    app.config.set('logging.channels', {
+      notices: { driver: 'memory' },
+      stderr: { driver: 'memory' }
+    })
+
+    const manager = new LogManager(app)
+    manager.deprecate('Model::oldMethod is going away', { since: '2.0' })
+
+    const driver = manager.channel('notices').driver as MemoryDriver
+
+    // Its own channel, not the application's: a real error must not be lost
+    // among forty notices about a method rename.
+    expect<number>(driver.records.length).toBe(1)
+    expect<string>(driver.records[0]?.level ?? '').toBe('warning')
+    expect<number>((manager.channel('stderr').driver as MemoryDriver).records.length).toBe(0)
+  })
+})
