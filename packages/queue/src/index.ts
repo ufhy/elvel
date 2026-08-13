@@ -1,3 +1,12 @@
+export {
+  ArrayBatchRepository,
+  Batch,
+  type BatchOptions,
+  type BatchRecord,
+  type BatchRepository,
+  DatabaseBatchRepository
+} from './batch.ts'
+export { PendingBatch } from './bus.ts'
 export { MakeJobCommand } from './console/make-job.ts'
 export { QueueClearCommand } from './console/queue-clear.ts'
 export { QueueFailedCommand } from './console/queue-failed.ts'

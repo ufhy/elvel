@@ -1,0 +1,30 @@
+import { Migration, type MigrationContext } from '@elysian/database'
+
+/**
+ * Where `Bus::batch()` keeps its counters.
+ *
+ * `pending_jobs` counts down and `failed_jobs` counts up, so a worker finishing a
+ * job can tell whether it was the last one without reading every job in the batch.
+ * `finished_at` is written once, which is what stops two workers ending the same
+ * batch twice.
+ */
+export default class extends Migration {
+  async up({ schema }: MigrationContext): Promise<void> {
+    await schema.create('job_batches', (table) => {
+      table.string('id').primary()
+      table.string('name')
+      table.integer('total_jobs')
+      table.integer('pending_jobs')
+      table.integer('failed_jobs')
+      table.text('failed_job_ids')
+      table.text('options').nullable()
+      table.integer('cancelled_at').nullable()
+      table.integer('created_at')
+      table.integer('finished_at').nullable()
+    })
+  }
+
+  async down({ schema }: MigrationContext): Promise<void> {
+    await schema.dropIfExists('job_batches')
+  }
+}

@@ -21,6 +21,13 @@ export type JobPayload = {
   /** Jobs to dispatch once this one succeeds. */
   chain?: JobPayload[] | undefined
   /**
+   * The batch this job belongs to, if any.
+   *
+   * In the payload rather than on the class: a batch is decided when the job is
+   * dispatched, and the worker that runs it has only the payload to go on.
+   */
+  batchId?: string | undefined
+  /**
    * Set when `data` holds a ciphertext rather than the job's own fields.
    *
    * In the payload rather than read from the class, so a worker running an older

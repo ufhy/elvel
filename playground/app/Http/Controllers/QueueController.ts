@@ -3,6 +3,8 @@ import { controller, defer, NotFoundException } from '@elysian/core'
 import { chain, dispatch, dispatchSync, queue } from '@elysian/queue'
 import { t } from 'elysia'
 import { FlakyProbe } from '../../Jobs/FlakyProbe.ts'
+import { ImportRow } from '../../Jobs/ImportRow.ts'
+import { ReportImport } from '../../Jobs/ReportImport.ts'
 import { SendArticleDigest } from '../../Jobs/SendArticleDigest.ts'
 import { TouchArticle } from '../../Jobs/TouchArticle.ts'
 import { Article } from '../../Models/Article.ts'
@@ -101,6 +103,58 @@ export default controller('queue')
   })
 
   /** Run whatever is waiting, without leaving the process. */
+  /**
+   * A batch: several jobs counted as one piece of work.
+   *
+   * `then` is a job class rather than a closure — the worker that runs it cannot
+   * rebuild a closure, which is the same wall a queued listener hits.
+   */
+  .post(
+    '/check/queue/batch',
+    async ({ body }) => {
+      const rows = body.rows ?? 3
+
+      for (let row = 1; row <= rows; row += 1) {
+        await cache().forget(`import:row:${row}`)
+      }
+
+      const jobs = Array.from(
+        { length: rows },
+        (_entry, index) => new ImportRow({ row: index + 1, fail: body.failRow === index + 1 })
+      )
+
+      const pending = queue()
+        .batch(jobs)
+        .name('import')
+        .onSuccess(ReportImport)
+        .onFailure(ReportImport)
+
+      if (body.allowFailures) pending.allowFailures()
+
+      const batch = await pending.dispatch()
+
+      return { batch: batch.toJSON() }
+    },
+    {
+      body: t.Object({
+        rows: t.Optional(t.Number()),
+        failRow: t.Optional(t.Number()),
+        allowFailures: t.Optional(t.Boolean())
+      })
+    }
+  )
+
+  /** How a batch is getting on, and what its callback recorded. */
+  .get('/check/queue/batch/:id', async ({ params }) => {
+    const batch = await queue().batches().find(params.id)
+
+    return {
+      batch: batch?.toJSON() ?? null,
+      report: (await cache().get(`import:report:${params.id}`)) ?? null,
+      rows: [1, 2, 3].map(() => null)
+    }
+  })
+
   .post('/check/queue/work', async ({ query }) => {
     const connection = typeof query.connection === 'string' ? query.connection : undefined
 

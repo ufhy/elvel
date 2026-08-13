@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elysian/core'
 import { ConnectionManager } from '@elysian/database'
 import { EventRegistry, ListenerRegistry, QueuedListener } from '@elysian/events'
+import { ArrayBatchRepository } from '../src/batch.ts'
+import { PendingBatch } from '../src/bus.ts'
 import type { JobPayload, QueueDriver } from '../src/contracts.ts'
 import { DatabaseQueue } from '../src/drivers/database.ts'
 import { RedisQueue } from '../src/drivers/redis.ts'
 import { SyncQueue } from '../src/drivers/sync.ts'
 import { ArrayFailedJobStore } from '../src/failed.ts'
-import { Job, JobRegistry } from '../src/job.ts'
+import { type AnyJob, Job, JobRegistry } from '../src/job.ts'
 import { CallQueuedListener, queuedListenerJob } from '../src/listener-job.ts'
 import { JobRunner } from '../src/runner.ts'
 import { ModelRegistry, serializeData } from '../src/serializer.ts'
@@ -861,5 +863,408 @@ describe('queued listeners', () => {
     const job = jobFor(1)
 
     await expect(job.handle()).rejects.toThrow(/is not registered.*app\/Listeners/s)
+  })
+})
+
+// ------------------------------------------------------------------- batches
+
+describe('batches', () => {
+  class Counted extends Job<{ label: string }> {
+    static ran: string[] = []
+
+    async handle(): Promise<void> {
+      Counted.ran.push(this.data.label)
+    }
+  }
+
+  class Breaks extends Job<{ label: string }> {
+    static override tries = 1
+
+    async handle(): Promise<void> {
+      throw new Error(`${this.data.label} broke`)
+    }
+  }
+
+  class Afterwards extends Job<{ batchId: string }> {
+    static seen: string[] = []
+
+    async handle(): Promise<void> {
+      Afterwards.seen.push(`then:${this.data.batchId}`)
+    }
+  }
+
+  class Rescue extends Job<{ batchId: string }> {
+    static seen: string[] = []
+
+    async handle(): Promise<void> {
+      Rescue.seen.push(`catch:${this.data.batchId}`)
+    }
+  }
+
+  let batches: ArrayBatchRepository
+  let dispatched: Array<{ payload: JobPayload; queue: string }>
+
+  /** A manager-shaped stand-in: enough for PendingBatch, with no application. */
+  function dispatcher() {
+    return {
+      batches: () => batches,
+      jobs: { has: () => true, register: () => undefined },
+      dispatch: async (job: AnyJob, options: { batchId?: string }) => {
+        const payload = payloadFor(job.constructor.name, { ...(job.data as object) })
+        payload.batchId = options.batchId
+        dispatched.push({ payload, queue: 'default' })
+
+        return payload.uuid
+      }
+    }
+  }
+
+  const registry = new JobRegistry().register(Counted, Breaks, Afterwards, Rescue)
+
+  function runnerFor(driver: QueueDriver) {
+    return new JobRunner(registry, new ModelRegistry(), {
+      batches,
+      chain: async (payload, _connection, queue) => {
+        await driver.push(payload, queue)
+      },
+      dispatchCallback: async (job, batchId) => {
+        // The id is data, not the payload's `batchId`: a callback counted as a
+        // member of the batch it reports on finishes it a second time, for ever.
+        await driver.push(payloadFor(job, { batchId }))
+      }
+    })
+  }
+
+  beforeEach(() => {
+    batches = new ArrayBatchRepository()
+    dispatched = []
+    Counted.ran = []
+    Afterwards.seen = []
+    Rescue.seen = []
+  })
+
+  test('dispatching records the batch before queueing anything', async () => {
+    const batch = await new PendingBatch(dispatcher() as never, [
+      new Counted({ label: 'a' }),
+      new Counted({ label: 'b' })
+    ])
+      .name('import')
+      .dispatch()
+
+    expect(batch.totalJobs).toBe(2)
+    expect(batch.pendingJobs).toBe(2)
+    expect(batch.progress).toBe(0)
+    // Stored first: a worker fast enough to reserve job one before the row exists
+    // would have nothing to count against.
+    expect(await batches.find(batch.id)).toBeDefined()
+    expect(dispatched).toHaveLength(2)
+    expect(dispatched[0]?.payload.batchId).toBe(batch.id)
+  })
+
+  test('every success counts down, and the last one finishes it', async () => {
+    const driver = new SyncQueue('sync', (queued) => runnerFor(driver).run(queued))
+
+    const batch = await new PendingBatch(
+      {
+        batches: () => batches,
+        jobs: { has: () => true, register: () => undefined },
+        dispatch: async (job: AnyJob, options: { batchId?: string }) => {
+          const payload = payloadFor(job.constructor.name, { ...(job.data as object) })
+          payload.batchId = options.batchId
+          await driver.push(payload)
+
+          return payload.uuid
+        }
+      } as never,
+      [new Counted({ label: 'a' }), new Counted({ label: 'b' })]
+    ).dispatch()
+
+    const finished = await batch.fresh()
+
+    expect(Counted.ran.sort()).toEqual(['a', 'b'])
+    expect(finished?.pendingJobs).toBe(0)
+    expect(finished?.progress).toBe(100)
+    expect(finished?.finished).toBe(true)
+  })
+
+  test('the then callback is dispatched when the batch completes', async () => {
+    const queue: JobPayload[] = []
+    const driver = new SyncQueue('sync', async (queued) => {
+      queue.push(queued.payload)
+      await runnerFor(driver).run(queued)
+    })
+
+    await new PendingBatch(
+      {
+        batches: () => batches,
+        jobs: { has: () => true, register: () => undefined },
+        dispatch: async (job: AnyJob, options: { batchId?: string }) => {
+          const payload = payloadFor(job.constructor.name, { ...(job.data as object) })
+          payload.batchId = options.batchId
+          await driver.push(payload)
+
+          return payload.uuid
+        }
+      } as never,
+      [new Counted({ label: 'a' })]
+    )
+      .onSuccess(Afterwards as never)
+      .dispatch()
+
+    expect(Afterwards.seen).toHaveLength(1)
+  })
+
+  test('a cancelled batch skips the jobs it cannot delete', async () => {
+    const batch = await batches.store({
+      id: 'batch-1',
+      name: 'import',
+      totalJobs: 2,
+      pendingJobs: 2,
+      failedJobs: 0,
+      failedJobIds: [],
+      options: {},
+      createdAt: Math.floor(Date.now() / 1000)
+    })
+
+    await batch.cancel()
+
+    const payload = payloadFor('Counted', { label: 'a' })
+    payload.batchId = 'batch-1'
+
+    const driver = new SyncQueue('sync', (queued) => runnerFor(driver).run(queued))
+    await driver.push(payload)
+
+    // A driver has no random access, so cancelling cannot remove what is already
+    // queued: it is dropped when reserved instead.
+    expect(Counted.ran).toEqual([])
+  })
+
+  test('progress is a percentage, and an empty batch is complete', async () => {
+    const batch = await batches.store({
+      id: 'empty',
+      name: '',
+      totalJobs: 0,
+      pendingJobs: 0,
+      failedJobs: 0,
+      failedJobIds: [],
+      options: {},
+      createdAt: 0
+    })
+
+    expect(batch.progress).toBe(100)
+  })
+
+  test('recording a failure cancels the batch unless failures are allowed', async () => {
+    await batches.store({
+      id: 'strict',
+      name: '',
+      totalJobs: 2,
+      pendingJobs: 2,
+      failedJobs: 0,
+      failedJobIds: [],
+      options: {},
+      createdAt: 0
+    })
+
+    const payload = payloadFor('Breaks', { label: 'a' })
+    payload.batchId = 'strict'
+
+    const driver = new SyncQueue('sync', () => Promise.resolve())
+    const runner = runnerFor(driver)
+
+    await runner.recordBatchFailure({ payload } as never)
+
+    expect((await batches.find('strict'))?.cancelled).toBe(true)
+    expect((await batches.find('strict'))?.failedJobs).toBe(1)
+  })
+
+  test('allowFailures keeps the rest of the batch running', async () => {
+    await batches.store({
+      id: 'lenient',
+      name: '',
+      totalJobs: 2,
+      pendingJobs: 2,
+      failedJobs: 0,
+      failedJobIds: [],
+      options: { allowFailures: true },
+      createdAt: 0
+    })
+
+    const payload = payloadFor('Breaks', { label: 'a' })
+    payload.batchId = 'lenient'
+
+    const driver = new SyncQueue('sync', () => Promise.resolve())
+    await runnerFor(driver).recordBatchFailure({ payload } as never)
+
+    expect((await batches.find('lenient'))?.cancelled).toBe(false)
+  })
+
+  test('the catch callback fires once, on the first failure', async () => {
+    const queued: JobPayload[] = []
+    const driver = new SyncQueue('sync', (job) => {
+      queued.push(job.payload)
+
+      return Promise.resolve()
+    })
+
+    await batches.store({
+      id: 'caught',
+      name: '',
+      totalJobs: 3,
+      pendingJobs: 3,
+      failedJobs: 0,
+      failedJobIds: [],
+      options: { allowFailures: true, onFailure: ['Rescue'] },
+      createdAt: 0
+    })
+
+    const runner = runnerFor(driver)
+
+    for (const label of ['a', 'b']) {
+      const payload = payloadFor('Breaks', { label })
+      payload.batchId = 'caught'
+      await runner.recordBatchFailure({ payload } as never)
+    }
+
+    // Two failures, one catch: it marks the batch turning bad, not each casualty.
+    expect(queued.filter((payload) => payload.job === 'Rescue')).toHaveLength(1)
+  })
+})
+
+describe('maxExceptions', () => {
+  /** The slice of a cache the counter needs, in memory. */
+  function counter() {
+    const values = new Map<string, number>()
+
+    return {
+      values,
+      add: async (key: string, value: unknown) => {
+        if (values.has(key)) return false
+
+        values.set(key, Number(value))
+
+        return true
+      },
+      increment: async (key: string, amount = 1) => {
+        const next = (values.get(key) ?? 0) + amount
+        values.set(key, next)
+
+        return next
+      },
+      forget: async (key: string) => values.delete(key)
+    }
+  }
+
+  class Flaky extends Job<Record<string, never>> {
+    static override tries = 25
+    static override maxExceptions = 2
+
+    async handle(): Promise<void> {
+      throw new Error('still broken')
+    }
+  }
+
+  test('a job gives up after too many throws, even with attempts left', async () => {
+    const cache = counter()
+    const registry = new JobRegistry().register(Flaky)
+    const runner = new JobRunner(registry, new ModelRegistry(), {})
+
+    const worker = new Worker(
+      {
+        pop: async () => null,
+        push: async () => '',
+        later: async () => '',
+        size: async () => 0,
+        clear: async () => 0,
+        defaultQueue: 'default'
+      } as never,
+      runner,
+      new ArrayFailedJobStore(),
+      undefined,
+      cache
+    )
+
+    const payload = payloadFor('Flaky', {})
+    payload.maxTries = 25
+    payload.maxExceptions = 2
+
+    let failed = false
+    let attempts = 0
+
+    const reserved = {
+      payload,
+      queue: 'default',
+      connectionName: 'sync',
+      attempts: () => attempts,
+      isDeleted: () => false,
+      isReleased: () => false,
+      hasFailed: () => failed,
+      delete: async () => undefined,
+      release: async () => undefined,
+      fail: async () => {
+        failed = true
+      }
+    } as never
+
+    // Two throws with `tries = 25`: the attempt limit is nowhere near, and the job
+    // stops anyway. That distinction is the whole point of maxExceptions — a job
+    // released often on purpose should still give up when it is actually broken.
+    attempts = 1
+    await worker.process(reserved, {})
+    expect(failed).toBe(false)
+
+    attempts = 2
+    await worker.process(reserved, {})
+    expect(failed).toBe(true)
+
+    // The counter is dropped when it fires, so a retry starts clean.
+    expect(cache.values.has(`job-exceptions:${payload.uuid}`)).toBe(false)
+  })
+
+  test('without maxExceptions the attempt limit is the only limit', async () => {
+    const cache = counter()
+    const registry = new JobRegistry().register(Failing)
+    const runner = new JobRunner(registry, new ModelRegistry(), {})
+
+    const worker = new Worker(
+      {
+        pop: async () => null,
+        push: async () => '',
+        later: async () => '',
+        size: async () => 0,
+        clear: async () => 0,
+        defaultQueue: 'default'
+      } as never,
+      runner,
+      new ArrayFailedJobStore(),
+      undefined,
+      cache
+    )
+
+    const payload = payloadFor('Failing', {})
+    payload.maxTries = 5
+
+    let failed = false
+
+    await worker.process(
+      {
+        payload,
+        queue: 'default',
+        connectionName: 'sync',
+        attempts: () => 1,
+        isDeleted: () => false,
+        isReleased: () => false,
+        hasFailed: () => failed,
+        delete: async () => undefined,
+        release: async () => undefined,
+        fail: async () => {
+          failed = true
+        }
+      } as never,
+      {}
+    )
+
+    expect(failed).toBe(false)
+    expect(cache.values.size).toBe(0)
   })
 })

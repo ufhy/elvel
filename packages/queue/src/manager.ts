@@ -1,4 +1,6 @@
 import type { ApplicationContract } from '@elysian/contracts'
+import { ArrayBatchRepository, type BatchRepository, DatabaseBatchRepository } from './batch.ts'
+import { PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
 import { DatabaseQueue } from './drivers/database.ts'
 import { RedisQueue } from './drivers/redis.ts'
@@ -25,6 +27,8 @@ export type DispatchOptions = {
   delay?: number
   /** Jobs to run after this one succeeds, in order. */
   chain?: AnyJob[]
+  /** Set by a batch; the worker counts the job against it. */
+  batchId?: string
 }
 
 /**
@@ -39,10 +43,47 @@ export class QueueManager {
   readonly models = new ModelRegistry()
 
   private readonly connections = new Map<string, QueueDriver>()
+  private batchRepository?: BatchRepository
   private readonly customDrivers = new Map<string, DriverFactory>()
   private failedStore?: FailedJobStore
 
   constructor(private readonly app: ApplicationContract) {}
+
+  /**
+   * Start a batch — `Bus::batch([...])`.
+   *
+   * ```ts
+   * await queue().batch([new ImportRow(1), new ImportRow(2)]).then(Notify).dispatch()
+   * ```
+   */
+  batch(jobs: AnyJob[]): PendingBatch {
+    return new PendingBatch(this as never, jobs)
+  }
+
+  /** Where batches are recorded. A table when one is configured, memory otherwise. */
+  batches(): BatchRepository {
+    if (this.batchRepository) return this.batchRepository
+
+    const driver = this.app.config.get<string>('queue.batching.driver', 'database')
+
+    this.batchRepository =
+      driver === 'database' && this.app.bound('db')
+        ? new DatabaseBatchRepository(
+            this.app,
+            this.app.config.get<string>('queue.batching.table', 'job_batches'),
+            this.app.config.get<string | undefined>('queue.batching.connection', undefined)
+          )
+        : new ArrayBatchRepository()
+
+    return this.batchRepository
+  }
+
+  /** Replace the batch store, e.g. in a test. */
+  setBatchRepository(repository: BatchRepository): this {
+    this.batchRepository = repository
+
+    return this
+  }
 
   connection(name?: string): QueueDriver {
     const resolved = name ?? this.defaultConnection()
@@ -152,7 +193,29 @@ export class QueueManager {
       chain: async (payload, connection, queue) => {
         await this.connection(connection).push(payload, queue)
       },
-      locks: this.app.bound('cache') ? this.app.make('cache').store() : undefined
+      locks: this.app.bound('cache') ? this.app.make('cache').store() : undefined,
+      batches: this.batches(),
+      /**
+       * A batch callback is dispatched like any other job, with the batch id in
+       * its payload — so it can look the batch up and report on it, and so it gets
+       * the retries and the failure record everything else in a worker gets.
+       */
+      dispatchCallback: async (job, batchId) => {
+        const jobClass = this.jobs.get(job)
+        if (!jobClass) return
+
+        const instance = new (jobClass as unknown as new (data: unknown) => AnyJob)({ batchId })
+
+        /**
+         * The id travels in the callback's **data**, never as its `batchId`.
+         *
+         * Dispatching it into the batch it reports on makes the batch count its
+         * own callback: pending is already zero, so finishing the callback fires
+         * `then` again, which dispatches another callback — an infinite loop that
+         * a test found by hanging rather than failing.
+         */
+        return this.dispatch(instance)
+      }
     })
   }
 
@@ -166,7 +229,10 @@ export class QueueManager {
         ? (this.app.make('events' as never) as {
             dispatch(event: string, payload?: unknown): unknown
           })
-        : undefined
+        : undefined,
+      // `maxExceptions` counts in the cache, because the count has to survive a
+      // release and a different worker picking the job up.
+      this.app.bound('cache') ? this.app.make('cache').store() : undefined
     )
   }
 
@@ -229,6 +295,7 @@ export class QueueManager {
       retryUntil: jobClass.retryFor ? Math.floor(Date.now() / 1000) + jobClass.retryFor : undefined,
       chain: chain.length > 0 ? chain : undefined,
       encrypted: encrypted ? true : undefined,
+      batchId: options.batchId,
       createdAt: Math.floor(Date.now() / 1000)
     }
   }

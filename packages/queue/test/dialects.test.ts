@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Application } from '@elysian/core'
 import { type ConnectionConfig, ConnectionManager } from '@elysian/database'
+import { DatabaseBatchRepository } from '../src/batch.ts'
 import type { JobPayload } from '../src/contracts.ts'
 import { DatabaseQueue } from '../src/drivers/database.ts'
 
@@ -163,6 +164,71 @@ for (const { name, config } of available) {
         expect(await driver.clear()).toBe(1)
       } finally {
         await (await db.schema()).dropIfExists(table)
+        await db.disconnectAll()
+      }
+    })
+
+    test('batch counters agree on every dialect', async () => {
+      const app = new Application(process.cwd())
+      app.config.set('database.default', name)
+      app.config.set(`database.connections.${name}`, config)
+
+      const db = new ConnectionManager(app)
+      app.instance('db', db as never)
+
+      const batchTable = `${PREFIX}_job_batches`
+      const schema = await db.schema()
+
+      await schema.dropIfExists(batchTable)
+      await schema.create(batchTable, (blueprint) => {
+        blueprint.string('id').primary()
+        blueprint.string('name')
+        blueprint.integer('total_jobs')
+        blueprint.integer('pending_jobs')
+        blueprint.integer('failed_jobs')
+        blueprint.text('failed_job_ids')
+        blueprint.text('options').nullable()
+        blueprint.integer('cancelled_at').nullable()
+        blueprint.integer('created_at')
+        blueprint.integer('finished_at').nullable()
+      })
+
+      try {
+        const batches = new DatabaseBatchRepository(app as never, batchTable, name)
+
+        const stored = await batches.store({
+          id: `batch-${name}`,
+          name: 'import',
+          totalJobs: 2,
+          pendingJobs: 2,
+          failedJobs: 0,
+          failedJobIds: [],
+          options: { allowFailures: true },
+          createdAt: Math.floor(Date.now() / 1000)
+        })
+
+        // A decrement, a JSON column and a conditional `update ... where finished_at
+        // is null` — three things a dialect can quietly disagree about.
+        const afterSuccess = await batches.recordSuccess(stored.id, 'job-1')
+        expect(afterSuccess?.pendingJobs).toBe(1)
+        expect(afterSuccess?.finished).toBe(false)
+
+        const afterFailure = await batches.recordFailure(stored.id, 'job-2')
+        expect(afterFailure?.pendingJobs).toBe(0)
+        expect(afterFailure?.failedJobs).toBe(1)
+        expect(afterFailure?.record.failedJobIds).toEqual(['job-2'])
+        // Nothing pending, so it is finished — and stamped once.
+        expect(afterFailure?.finished).toBe(true)
+
+        const stamp = afterFailure?.record.finishedAt
+        expect((await batches.recordSuccess(stored.id, 'job-3'))?.record.finishedAt).toBe(
+          stamp as number
+        )
+
+        await batches.cancel(stored.id)
+        expect((await batches.find(stored.id))?.cancelled).toBe(true)
+      } finally {
+        await (await db.schema()).dropIfExists(batchTable)
         await db.disconnectAll()
       }
     })

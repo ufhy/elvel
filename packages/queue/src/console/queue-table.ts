@@ -38,3 +38,22 @@ export class QueueFailedTableCommand extends MigrationGeneratorCommand {
     return 'failed_jobs'
   }
 }
+
+export class QueueBatchesTableCommand extends MigrationGeneratorCommand {
+  static override signature =
+    'queue:batches-table {--table=job_batches : Name of the batches table} {--force : Write one even if a migration for the table exists}'
+
+  static override description = 'Create a migration for the job batches table'
+
+  protected stubName(): string {
+    return 'batches-table.stub'
+  }
+
+  protected stubDirectory(): string {
+    return import.meta.dir
+  }
+
+  protected defaultTable(): string {
+    return 'job_batches'
+  }
+}

@@ -603,6 +603,28 @@ const data = await validateRequest(SubscribeRequest, { body, request })
 - `redirect('/x')`, `redirect().back()`, `.with()`, `.withErrors()`, `.withInput()`,
   `.seeOther()`, `.permanent()`
 
+```ts
+await queue()
+  .batch([new ImportRow(1), new ImportRow(2)])
+  .name('nightly import')
+  .onSuccess(NotifyFinished)   // a job class, not a closure
+  .onFailure(AlertOncall)
+  .dispatch()
+```
+
+A batch counts its jobs down in a table, so several workers agree on the progress.
+The callbacks are **job classes**: a closure cannot be rebuilt in the worker that
+would run it, and naming a job means the callback gets retries and a failure record
+too. They are `onSuccess`/`onFailure`/`onFinished` rather than Laravel's
+`then`/`catch`/`finally`, because a class with a `then` member is a thenable and
+`await`ing the builder would call it with `resolve` instead of a job. The first failure cancels the rest unless `allowFailures()`, and a cancelled
+batch's remaining jobs are skipped when reserved — a driver cannot reach in and
+delete them.
+
+`maxExceptions` is counted in the cache, keyed by the payload's uuid: a job with
+`tries = 25` and `maxExceptions = 3` is one expected to be released often but which
+should still give up when it is actually broken.
+
 Rate limiting, CORS and trusted proxies are middleware:
 
 ```ts

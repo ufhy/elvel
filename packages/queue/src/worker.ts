@@ -1,6 +1,13 @@
 import type { FailedJobStore, JobPayload, QueueDriver, QueuedJob } from './contracts.ts'
 import type { JobRunner } from './runner.ts'
 
+/** The slice of a cache repository the exception counter needs. */
+export type ExceptionCounter = {
+  add(key: string, value: unknown, seconds: number): Promise<boolean>
+  increment(key: string, amount?: number): Promise<number | false>
+  forget(key: string): Promise<boolean>
+}
+
 export type WorkerOptions = {
   /** Attempts allowed, unless the job says otherwise. `0` is unlimited. */
   maxTries?: number
@@ -68,7 +75,15 @@ export class Worker {
     private readonly driver: QueueDriver,
     private readonly runner: JobRunner,
     private readonly failed?: FailedJobStore,
-    private readonly events?: WorkerEvents
+    private readonly events?: WorkerEvents,
+    /**
+     * Where exception counts are kept for `maxExceptions`.
+     *
+     * A cache rather than the payload: the count has to survive the job being
+     * released and reserved again, possibly by a different worker, and the payload
+     * is rewritten on every release.
+     */
+    private readonly cache?: ExceptionCounter
   ) {}
 
   /** Ask the loop to finish the job in hand and return. */
@@ -228,7 +243,12 @@ export class Worker {
     })
 
     if (!job.hasFailed()) {
-      // Step 3: fail now when the next attempt could not run anyway.
+      // Step 3: give up early when this job has thrown too often, then fail now
+      // when the next attempt could not run anyway.
+      await this.failIfWillExceedMaxExceptions(job, error)
+    }
+
+    if (!job.hasFailed()) {
       await this.failIfWillExceed(job, options, error)
     }
 
@@ -245,6 +265,32 @@ export class Worker {
     }
 
     return job.hasFailed() ? 'failed' : 'processed'
+  }
+
+  /**
+   * `maxExceptions` — give up after this many throws, even with attempts left.
+   *
+   * The distinction from `tries` is the point: a job with `tries = 25` and
+   * `maxExceptions = 3` is one that is *expected* to be released often (a lock it
+   * cannot take, a rate limit) but should stop if it is actually broken. Counting
+   * releases and counting exceptions are different questions.
+   *
+   * Keyed by the payload's uuid, which survives a release; the counter is dropped
+   * when it fires, so a retried batch starts clean.
+   */
+  private async failIfWillExceedMaxExceptions(job: QueuedJob, error: unknown): Promise<void> {
+    const max = job.payload.maxExceptions
+    if (!max || !this.cache) return
+
+    const key = `job-exceptions:${job.payload.uuid}`
+
+    await this.cache.add(key, 0, 86_400)
+    const thrown = Number(await this.cache.increment(key))
+
+    if (max <= thrown) {
+      await this.cache.forget(key)
+      await this.fail(job, error)
+    }
   }
 
   private async failIfWillExceed(
@@ -265,9 +311,13 @@ export class Worker {
     }
   }
 
-  /** Record the failure, tell the job, and drop the reservation. */
+  /** Record the failure, tell the job, count it against any batch, and let go. */
   private async fail(job: QueuedJob, error: unknown): Promise<void> {
     await this.failed?.log(job.connectionName, job.queue, job.payload, error)
+
+    // Before the reservation is dropped: the batch bookkeeping reads the payload,
+    // and a driver is free to forget it afterwards.
+    await this.runner.recordBatchFailure(job)
 
     // The job's own `failed()` hook runs before the reservation goes, so it can
     // still read the payload it was given.

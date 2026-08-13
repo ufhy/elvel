@@ -2281,6 +2281,66 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 }
 
+// -------------------------------------------------------------------- batches
+
+section('Batches')
+
+const startedBatch = (await (await postJson('/check/queue/batch', { rows: 3 })).json()) as {
+  batch: { id: string; totalJobs: number; pendingJobs: number }
+}
+
+check('a batch records every job before queueing them', startedBatch.batch.totalJobs === 3)
+check('and starts with all of them pending', startedBatch.batch.pendingJobs === 3)
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+
+const finishedBatch = (await (
+  await app.handle(new Request(`http://localhost/check/queue/batch/${startedBatch.batch.id}`))
+).json()) as {
+  batch: { pendingJobs: number; progress: number; finished: boolean }
+  report: { total: number; failed: number } | null
+}
+
+check('working the queue counts them down', finishedBatch.batch.pendingJobs === 0)
+check(
+  'to a finished batch at 100%',
+  finishedBatch.batch.finished && finishedBatch.batch.progress === 100
+)
+// A job class, not a closure: the worker cannot rebuild a closure, which is the
+// same wall a queued listener hits.
+check('and the then callback ran', finishedBatch.report?.total === 3)
+
+const failing = (await (await postJson('/check/queue/batch', { rows: 3, failRow: 1 })).json()) as {
+  batch: { id: string }
+}
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+
+const cancelled = (await (
+  await app.handle(new Request(`http://localhost/check/queue/batch/${failing.batch.id}`))
+).json()) as { batch: { cancelled: boolean; failedJobs: number }; report: unknown }
+
+// The first failure cancels the rest: continuing would produce a half-finished
+// import nobody asked for.
+check('one failure cancels the batch', cancelled.batch.cancelled)
+check('and is counted', cancelled.batch.failedJobs === 1)
+check('while the catch callback reports it', cancelled.report !== null)
+
+const lenient = (await (
+  await postJson('/check/queue/batch', { rows: 3, failRow: 1, allowFailures: true })
+).json()) as { batch: { id: string } }
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+
+const tolerated = (await (
+  await app.handle(new Request(`http://localhost/check/queue/batch/${lenient.batch.id}`))
+).json()) as { batch: { cancelled: boolean; finished: boolean; failedJobs: number } }
+
+check('allowFailures runs the rest anyway', !tolerated.batch.cancelled && tolerated.batch.finished)
+check('with the failure still recorded', tolerated.batch.failedJobs === 1)
+
+await app.make('queue').failed.flush()
+
 // ------------------------------------------------------------ cursor paging
 
 section('Cursor pagination')

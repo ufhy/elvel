@@ -1,3 +1,4 @@
+import type { BatchRepository } from './batch.ts'
 import type { JobPayload, QueuedJob } from './contracts.ts'
 import type { AnyJob, JobMiddleware, JobRegistry } from './job.ts'
 import { deserializeData, type ModelRegistry } from './serializer.ts'
@@ -15,6 +16,10 @@ export type JobRunnerOptions = {
   locks?: { forget(key: string): Promise<boolean> }
   /** Needed only for a job whose payload was encrypted. */
   encrypter?: { decrypt<T>(payload: string, context?: string): T }
+  /** Where batches are counted. Absent when nothing batches. */
+  batches?: BatchRepository
+  /** Dispatches a batch callback by name, once the batch reaches an outcome. */
+  dispatchCallback?: (job: string, batchId: string) => Promise<unknown>
 }
 
 /**
@@ -33,6 +38,19 @@ export class JobRunner {
 
   /** Resolve, run, then delete the reservation and start any chain. */
   async run(queued: QueuedJob): Promise<void> {
+    /**
+     * A cancelled batch's remaining jobs are dropped, not run.
+     *
+     * They cannot be deleted from the queue when the batch is cancelled — a driver
+     * has no random access, and another worker may already hold one — so the check
+     * happens here, at the moment of reservation. Laravel does the same.
+     */
+    if (await this.batchWasCancelled(queued)) {
+      if (!queued.isDeleted()) await queued.delete()
+
+      return
+    }
+
     const instance = await this.resolve(queued)
 
     await this.through(instance, () => Promise.resolve(instance.handle()))
@@ -44,7 +62,60 @@ export class JobRunner {
     if (!queued.isDeleted()) await queued.delete()
 
     await this.releaseUniqueLock(queued.payload)
+    await this.recordBatchSuccess(queued)
     await this.dispatchChain(queued)
+  }
+
+  private async batchWasCancelled(queued: QueuedJob): Promise<boolean> {
+    const id = queued.payload.batchId
+    if (!id || !this.options.batches) return false
+
+    const batch = await this.options.batches.find(id)
+
+    return batch?.cancelled === true
+  }
+
+  /** Count a success, and fire `then`/`finally` when the batch is done. */
+  private async recordBatchSuccess(queued: QueuedJob): Promise<void> {
+    const id = queued.payload.batchId
+    if (!id || !this.options.batches) return
+
+    const batch = await this.options.batches.recordSuccess(id, queued.payload.uuid)
+    if (!batch || batch.pendingJobs > 0) return
+
+    // Success only when nothing failed; finished either way, which is the whole
+    // distinction between them.
+    if (batch.failedJobs === 0) await this.fireCallbacks(batch.record.options.onSuccess, id)
+
+    await this.fireCallbacks(batch.record.options.onFinished, id)
+  }
+
+  /**
+   * Count a failure. Called by the worker once a job has failed for the last time.
+   *
+   * The first failure cancels the batch unless it allows failures — otherwise the
+   * rest of the work carries on producing a half-finished result.
+   */
+  async recordBatchFailure(queued: QueuedJob): Promise<void> {
+    const id = queued.payload.batchId
+    if (!id || !this.options.batches) return
+
+    const batch = await this.options.batches.recordFailure(id, queued.payload.uuid)
+    if (!batch) return
+
+    if (batch.failedJobs === 1) {
+      if (!batch.record.options.allowFailures) await this.options.batches.cancel(id)
+
+      await this.fireCallbacks(batch.record.options.onFailure, id)
+    }
+
+    if (batch.pendingJobs === 0) await this.fireCallbacks(batch.record.options.onFinished, id)
+  }
+
+  private async fireCallbacks(jobs: string[] | undefined, batchId: string): Promise<void> {
+    if (!jobs || !this.options.dispatchCallback) return
+
+    for (const job of jobs) await this.options.dispatchCallback(job, batchId)
   }
 
   /** Rebuild the job instance a payload names. */

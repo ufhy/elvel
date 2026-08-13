@@ -8,7 +8,11 @@ import { QueueFlushCommand } from './console/queue-flush.ts'
 import { QueueForgetCommand } from './console/queue-forget.ts'
 import { QueueRetryCommand } from './console/queue-retry.ts'
 import { QueueSizeCommand } from './console/queue-size.ts'
-import { QueueFailedTableCommand, QueueTableCommand } from './console/queue-table.ts'
+import {
+  QueueBatchesTableCommand,
+  QueueFailedTableCommand,
+  QueueTableCommand
+} from './console/queue-table.ts'
 import { QueueWorkCommand } from './console/queue-work.ts'
 import type { JobClass } from './job.ts'
 import { CallQueuedListener, queuedListenerJob } from './listener-job.ts'
@@ -48,6 +52,7 @@ export class QueueServiceProvider extends ServiceProvider {
           QueueSizeCommand,
           QueueTableCommand,
           QueueFailedTableCommand,
+          QueueBatchesTableCommand,
           MakeJobCommand
         )
     }
