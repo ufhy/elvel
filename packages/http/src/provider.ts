@@ -264,7 +264,16 @@ export class HttpServiceProvider extends ServiceProvider {
         .onBeforeHandle({ as: 'global' }, ({ request, session }) => {
           enterRequestScope({ request, session })
         })
-        .onBeforeHandle({ as: 'global' }, async ({ request, session, body }) => {
+        /**
+         * CSRF is checked in `transform`, which runs **before** validation.
+         *
+         * A route that declares a body schema has its body stripped of anything
+         * the schema does not mention, and `_token` is exactly that — so a form
+         * posting to a validated route failed with 419 while an identical form
+         * posting to an unvalidated one succeeded. Found by scaffolding the auth
+         * starter kit, which validates every form it posts.
+         */
+        .onTransform({ as: 'global' }, async ({ request, session, body }) => {
           if (!csrfEnabled) return
 
           const headers: Record<string, string | undefined> = {}

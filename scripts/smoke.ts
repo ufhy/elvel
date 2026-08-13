@@ -2370,7 +2370,7 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 
   const result = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-scaffold'],
+    cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-scaffold', '--kit=none'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2414,6 +2414,48 @@ try {
   const listed = plain(scaffoldedArtisan.stdout.toString())
 
   check('a scaffolded application boots', scaffoldedArtisan.exitCode === 0, listed.slice(-400))
+
+  /**
+   * The auth kit, scaffolded over the same template.
+   *
+   * A kit is a folder copied on top rather than a second template, so what is
+   * checked is that it lands *and* that the base survives it — a kit that
+   * replaced `routes/web.ts` wholesale would drop the landing page.
+   */
+  const kitTarget = join(app.basePath(), '..', '.smoke-kit')
+  await rm(kitTarget, { recursive: true, force: true })
+
+  const kitResult = Bun.spawnSync({
+    cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-kit', '--kit=auth'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('the auth kit scaffolds', kitResult.exitCode === 0, `exit ${kitResult.exitCode}`)
+  check(
+    'its pages are written',
+    await Bun.file(join(kitTarget, 'resources/views/pages/sign-in.tsx')).exists()
+  )
+
+  const kitRoutes = await Bun.file(join(kitTarget, 'routes/web.ts')).text()
+
+  check('the kit mounts its controller', kitRoutes.includes('.use(AuthPageController)'))
+  check('and leaves the base template mounted', kitRoutes.includes('.use(PageController)'))
+
+  const unknownKit = Bun.spawnSync({
+    cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-kit-bad', '--kit=nope'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  // Naming a kit that does not exist should say so, not scaffold the base and
+  // leave somebody wondering where their sign-in page went.
+  check('an unknown kit is refused', unknownKit.exitCode === 1)
+
+  await rm(kitTarget, { recursive: true, force: true })
+  await rm(join(app.basePath(), '..', '.smoke-kit-bad'), { recursive: true, force: true })
 
   for (const [command, provider] of [
     ['key:generate', 'encryption'],

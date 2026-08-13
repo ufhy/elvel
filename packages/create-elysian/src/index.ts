@@ -16,6 +16,24 @@ import pc from 'picocolors'
  */
 
 const TEMPLATE_DIR = resolve(import.meta.dir, '..', 'template')
+const KITS_DIR = resolve(import.meta.dir, '..', 'kits')
+
+/**
+ * What a starter kit adds on top of the base template.
+ *
+ * A kit is a folder copied over the template, not a fork of it: everything a
+ * kit does not mention it inherits, so the base and the kits cannot drift the
+ * way two full templates would. Laravel's Breeze installs into an existing
+ * application for the same reason.
+ */
+const KITS: Record<string, { label: string; describe: string; routes: string[] }> = {
+  none: { label: 'None — a landing page', describe: '', routes: [] },
+  auth: {
+    label: 'Auth — sign in, sign up, a dashboard',
+    describe: 'server-rendered auth pages over better-auth',
+    routes: ['  .use(AuthPageController)']
+  }
+}
 
 /** Files renamed on copy, so they don't affect the template's own tooling. */
 const RENAMES: Record<string, string> = {
@@ -33,6 +51,8 @@ async function main(): Promise<number> {
   const argv = Bun.argv.slice(2)
   const force = argv.includes('--force')
   const positional = argv.filter((token) => !token.startsWith('-'))
+  const requestedKit = argv.find((token) => token.startsWith('--kit='))?.slice('--kit='.length)
+  const minimal = argv.includes('--minimal')
 
   prompts.intro(pc.bgCyan(pc.black(' create-elysian ')))
 
@@ -51,11 +71,35 @@ async function main(): Promise<number> {
     name = answer || 'my-app'
   }
 
+  let kit = requestedKit ?? (minimal ? 'none' : undefined)
+
+  if (kit !== undefined && !(kit in KITS)) {
+    prompts.cancel(`Unknown kit "${kit}". Available: ${Object.keys(KITS).join(', ')}.`)
+
+    return 1
+  }
+
   const target = resolve(process.cwd(), name)
 
   if (!force && (await exists(target)) && (await readdir(target)).length > 0) {
     prompts.cancel(`Directory "${relative(process.cwd(), target) || '.'}" is not empty.`)
     return 1
+  }
+
+  if (kit === undefined) {
+    const chosen = await prompts.select({
+      message: 'Starter kit',
+      options: Object.entries(KITS).map(([value, entry]) => ({ value, label: entry.label })),
+      initialValue: 'none'
+    })
+
+    if (prompts.isCancel(chosen)) {
+      prompts.cancel('Aborted.')
+
+      return 130
+    }
+
+    kit = chosen as string
   }
 
   const monorepoRoot = await findMonorepoRoot()
@@ -84,7 +128,13 @@ async function main(): Promise<number> {
     ...frameworkDependencies(workspaceMode)
   }
 
-  const written = await copyTemplate(TEMPLATE_DIR, target, replacements)
+  let written = await copyTemplate(TEMPLATE_DIR, target, replacements)
+
+  if (kit !== 'none') {
+    // Copied over the template, so a kit only carries what it changes.
+    written += await copyTemplate(join(KITS_DIR, kit as string), target, replacements)
+    await registerKitRoutes(target, KITS[kit as string]?.routes ?? [])
+  }
 
   // Ship a working .env, not just the example.
   const exampleEnv = Bun.file(join(target, '.env.example'))
@@ -229,3 +279,39 @@ async function exists(path: string): Promise<boolean> {
 }
 
 process.exit(await main())
+
+/**
+ * Mount a kit's controllers in `routes/web.ts`.
+ *
+ * Rewritten rather than shipped as part of the kit: the routes file is the one
+ * place the base template and every kit both need to touch, and a kit that
+ * replaced it wholesale would silently drop anything the base had added.
+ */
+async function registerKitRoutes(target: string, routes: string[]): Promise<void> {
+  if (routes.length === 0) return
+
+  const path = join(target, 'routes', 'web.ts')
+  const source = await Bun.file(path).text()
+
+  const imports = routes
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^\.use\(/, '')
+        .replace(/\)$/, '')
+    )
+    .map((name) => `import ${name} from '../app/Http/Controllers/${name}.ts'`)
+    .join('\n')
+
+  const mounted = source
+    .replace(
+      "import PageController from '../app/Http/Controllers/PageController.ts'",
+      `import PageController from '../app/Http/Controllers/PageController.ts'\n${imports}`
+    )
+    .replace(
+      "export default new Elysia({ name: 'routes:web' }).use(PageController)",
+      `export default new Elysia({ name: 'routes:web' })\n  .use(PageController)\n${routes.join('\n')}`
+    )
+
+  await Bun.write(path, `${mounted.trimEnd()}\n`)
+}

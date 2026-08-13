@@ -27,6 +27,8 @@ export {
 } from './cors.ts'
 export {
   type CsrfOptions,
+  csrfField,
+  csrfToken,
   isExempt,
   isReadRequest,
   TokenMismatchError,

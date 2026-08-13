@@ -246,9 +246,7 @@ Docker does.
 
 | Missing | Why |
 | --- | --- |
-| Starter kits (Breeze/Jetstream-shaped) | The template is one landing page. Auth *endpoints* are mounted and better-auth is a dependency, but there is no sign-in view, no dashboard and no scaffolding switch that writes them. |
 | Publishing to npm | `bun create elysian my-app` cannot work until `create-elysian` is on npm; the README says so rather than implying it. |
-| `--kit`/`--minimal` variants | One template, so nothing to choose between. A minimal variant would mean maintaining two. |
 
 ## Not started
 
