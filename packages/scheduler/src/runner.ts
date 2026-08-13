@@ -9,8 +9,16 @@ export type MutexStore = {
 
 export type RunnerEvents = { dispatch(event: string, payload?: unknown): unknown }
 
-/** Starts a console command in a child process and resolves with its exit code. */
-export type Spawner = (command: { name: string; parameters: string[] }) => Promise<number>
+/**
+ * Starts a console command in a child process.
+ *
+ * `capture` asks for the child's output to be collected rather than inherited;
+ * the string comes back with the exit code so the runner can file it or mail it.
+ */
+export type Spawner = (
+  command: { name: string; parameters: string[] },
+  capture: boolean
+) => Promise<{ code: number; output?: string }>
 
 export type RunnerOptions = {
   /** Where the overlap and one-server mutexes live. */
@@ -34,6 +42,10 @@ export type RunnerOptions = {
    * starting anything.
    */
   spawn?: Spawner
+  /** Sends a task's output. Supplied when a mailer is registered. */
+  mail?: (to: string[], subject: string, body: string) => Promise<void>
+  /** Writes captured output to a file. Injected so this file needs no fs. */
+  writeOutput?: (path: string, contents: string, append: boolean) => Promise<void>
 }
 
 export type EventOutcome = 'ran' | 'skipped' | 'overlapping' | 'failed' | 'background'
@@ -217,7 +229,27 @@ export class ScheduleRunner {
 
     try {
       await event.callBefore()
-      await event.callback()
+
+      /**
+       * Capturing in-process means patching `console`, which is intrusive enough
+       * to do only when something asked for the output. A forked entry pipes its
+       * child instead — see `startInBackground`.
+       */
+      if (event.capturesOutput) {
+        const captured = await captureConsole(() => event.callback())
+
+        // Assigned before the throw is re-raised: the output of a run that
+        // failed is the output most worth keeping, and the catch below files it.
+        event.output = captured.output
+
+        if (captured.error) throw captured.error
+
+        await this.deliverOutput(event, true)
+      } else {
+        event.output = undefined
+
+        await event.callback()
+      }
 
       event.error = undefined
 
@@ -231,6 +263,17 @@ export class ScheduleRunner {
 
       this.options.report?.(error)
       this.options.events?.dispatch('schedule.task.failed', { event: event.label, error })
+
+      if (event.capturesOutput) {
+        // The output of a run that failed is the output most worth keeping, so
+        // it is filed on this path too — and a failing delivery must not replace
+        // the error that got us here.
+        try {
+          await this.deliverOutput(event, false)
+        } catch (deliveryError) {
+          this.options.report?.(deliveryError)
+        }
+      }
 
       // A failing hook must not hide the failure it was told about.
       try {
@@ -270,7 +313,14 @@ export class ScheduleRunner {
       try {
         await event.callBefore()
 
-        const code = await (this.options.spawn as Spawner)(command)
+        const { code, output } = await (this.options.spawn as Spawner)(
+          command,
+          event.capturesOutput
+        )
+
+        event.output = output
+
+        if (event.capturesOutput) await this.deliverOutput(event, code === 0)
 
         if (code === 0) {
           event.error = undefined
@@ -309,6 +359,44 @@ export class ScheduleRunner {
     this.running.add(tracked)
   }
 
+  /**
+   * File and mail whatever the task printed.
+   *
+   * Both are best-effort in the sense that neither turns a successful task into
+   * a failed one — but a failure to deliver is reported, because output that
+   * silently never arrives is worse than none: it is a report somebody believes
+   * they are receiving.
+   */
+  private async deliverOutput(event: ScheduledEvent, succeeded: boolean): Promise<void> {
+    const output = event.output ?? ''
+
+    if (event.outputPath && this.options.writeOutput) {
+      await this.options.writeOutput(event.outputPath, output, event.outputAppends)
+    }
+
+    if (event.emailTo.length === 0) return
+    if (event.emailOnFailureOnly && succeeded) return
+    if (event.emailOnlyWithOutput && output.trim() === '') return
+
+    if (!this.options.mail) {
+      this.options.report?.(
+        new Error(
+          `[${event.label}] asks for its output to be emailed, but no mailer is registered. Register MailServiceProvider.`
+        )
+      )
+
+      return
+    }
+
+    const state = succeeded ? 'output' : 'FAILED'
+
+    await this.options.mail(
+      event.emailTo,
+      `Scheduled task ${state}: ${event.label}`,
+      output === '' ? '(no output)' : output
+    )
+  }
+
   private async takeMutex(event: ScheduledEvent, kind: string): Promise<boolean> {
     if (!this.options.mutex) {
       throw new Error(
@@ -328,4 +416,41 @@ export class ScheduleRunner {
   private async releaseMutex(event: ScheduledEvent, kind: string): Promise<void> {
     await this.options.mutex?.forget(`${event.mutexName()}:${kind}`)
   }
+}
+
+/**
+ * Run `body` with `console` collected.
+ *
+ * Patching the global is the only way to capture what an in-process command
+ * prints — it writes through `console`, not through a stream this code owns.
+ * Restored in a `finally`, so a throwing task cannot leave the application
+ * silent.
+ */
+async function captureConsole(body: () => unknown): Promise<{ output: string; error?: unknown }> {
+  const lines: string[] = []
+  const original = { log: console.log, error: console.error, warn: console.warn }
+
+  const collect = (...args: unknown[]) => {
+    lines.push(args.map((value) => String(value)).join(' '))
+  }
+
+  console.log = collect
+  console.error = collect
+  console.warn = collect
+
+  let error: unknown
+
+  try {
+    await body()
+  } catch (thrown) {
+    // Caught rather than propagated, so the lines printed before the failure are
+    // still returned; the caller re-raises it.
+    error = thrown
+  } finally {
+    console.log = original.log
+    console.error = original.error
+    console.warn = original.warn
+  }
+
+  return error === undefined ? { output: lines.join('\n') } : { output: lines.join('\n'), error }
 }

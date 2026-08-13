@@ -1775,6 +1775,17 @@ check(
 // would release no mutex and fire no onSuccess.
 check('and schedule:run waits for it', backgroundOutput.includes('background'))
 
+const capturedLog = await Bun.file(app.storagePath('logs', 'schedule-background.log')).text()
+
+// The child's stdout, piped and filed rather than interleaved with everything
+// else the scheduler printed — which is what makes "what did it say last night?"
+// answerable at all.
+check(
+  'a forked task\u2019s output is captured to its own file',
+  capturedLog.includes('marked background')
+)
+check('and it is the child that wrote it', capturedLog.includes(`pid ${marked?.pid}`))
+
 // The overlap mutex, through the real cache store.
 let held: (() => void) | undefined
 const gate = new Promise<void>((resolve) => {

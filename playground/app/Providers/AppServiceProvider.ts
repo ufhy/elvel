@@ -105,6 +105,7 @@ export class AppServiceProvider extends ServiceProvider {
       .command('demo:mark-run', ['background'])
       .everyMinute()
       .runInBackground()
+      .sendOutputTo('storage/logs/schedule-background.log')
       .description('Prove a scheduled command can run in its own process')
 
     /**

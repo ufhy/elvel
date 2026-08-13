@@ -36,6 +36,14 @@ export class ScheduledEvent {
 
   private background = false
 
+  /** Where the output goes, when it is captured at all. */
+  outputPath: string | undefined
+  outputAppends = false
+  emailTo: string[] = []
+  emailOnlyWithOutput = true
+  /** Filled by the runner once the entry has run. */
+  output: string | undefined
+
   /**
    * What to run in a child process, when this entry came from `command()`.
    *
@@ -490,6 +498,57 @@ export class ScheduledEvent {
 
   get runsInBackground(): boolean {
     return this.background
+  }
+
+  /**
+   * Write what the task printed to a file.
+   *
+   * Without this the output is inherited: a background entry's logging lands
+   * wherever the scheduler's does, interleaved with every other entry. A file
+   * per task is what makes "what did the nightly import say last night?"
+   * answerable at all.
+   */
+  sendOutputTo(path: string, append = false): this {
+    this.outputPath = path
+    this.outputAppends = append
+
+    return this
+  }
+
+  /** The same, keeping what is already in the file. */
+  appendOutputTo(path: string): this {
+    return this.sendOutputTo(path, true)
+  }
+
+  /**
+   * Mail the output once the task has run.
+   *
+   * `onlyIfOutputExists` defaults to true, and that default is the useful one: a
+   * task that succeeds silently every night would otherwise send an empty mail
+   * every night, and mail nobody reads is mail nobody notices when it matters.
+   *
+   * Capturing is turned on implicitly — asking for the output to be mailed and
+   * getting nothing because it was never captured is a trap, not a feature.
+   */
+  emailOutputTo(addresses: string | string[], onlyIfOutputExists = true): this {
+    this.emailTo = [...this.emailTo, ...(Array.isArray(addresses) ? addresses : [addresses])]
+    this.emailOnlyWithOutput = onlyIfOutputExists
+
+    return this
+  }
+
+  /** Mail the output only when the task fails. */
+  emailOutputOnFailure(addresses: string | string[]): this {
+    this.emailOnFailureOnly = true
+
+    return this.emailOutputTo(addresses, false)
+  }
+
+  emailOnFailureOnly = false
+
+  /** Is anything interested in what this task printed? */
+  get capturesOutput(): boolean {
+    return this.outputPath !== undefined || this.emailTo.length > 0
   }
 
   get repeatInterval(): number | undefined {

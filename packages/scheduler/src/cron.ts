@@ -28,6 +28,10 @@ const RANGES: Record<number, [number, number]> = {
 }
 
 type Field = {
+  /** `5#3` in day-of-week: the *n*th weekday of the month. */
+  nth?: { weekday: number; occurrence: number }
+  /** `15W` in day-of-month: the weekday nearest that date. */
+  nearestWeekday?: number
   /** Values this field accepts, or null for `*` — "any". */
   values: Set<number> | null
   /** `L` in the day-of-month field: the last day, whatever month it is. */
@@ -91,6 +95,41 @@ export function partsIn(date: Date, timeZone?: string): CronParts {
 /** Days in the month a moment falls in, for `L`. */
 function lastDayOfMonth(parts: CronParts): number {
   return new Date(Date.UTC(parts.year, parts.month, 0)).getUTCDate()
+}
+
+/** Which Tuesday of the month the 16th is — 1 for the 1st–7th, 2 for the 8th–14th… */
+function occurrenceInMonth(dayOfMonth: number): number {
+  return Math.floor((dayOfMonth - 1) / 7) + 1
+}
+
+/**
+ * The weekday nearest a date, without leaving the month — cron's `W`.
+ *
+ * One back, one forward, two back, two forward, which is the order every cron
+ * implementation searches in: a Saturday resolves to the Friday before, a Sunday
+ * to the Monday after, and the 1st falling on a Sunday goes forward to the 2nd
+ * rather than back into the previous month.
+ */
+function nearestWeekdayTo(target: number, parts: CronParts): number {
+  const days = lastDayOfMonth(parts)
+  const clamped = Math.min(Math.max(target, 1), days)
+
+  const weekdayOf = (day: number) =>
+    new Date(Date.UTC(parts.year, parts.month - 1, day)).getUTCDay()
+
+  if (weekdayOf(clamped) !== 0 && weekdayOf(clamped) !== 6) return clamped
+
+  for (const offset of [-1, 1, -2, 2]) {
+    const candidate = clamped + offset
+
+    if (candidate < 1 || candidate > days) continue
+
+    const weekday = weekdayOf(candidate)
+
+    if (weekday !== 0 && weekday !== 6) return candidate
+  }
+
+  return clamped
 }
 
 /**
@@ -191,14 +230,20 @@ export class CronExpression {
     const dom = this.fields[DAY_OF_MONTH] as Field
     const dow = this.fields[DAY_OF_WEEK] as Field
 
-    const domRestricted = dom.values !== null || dom.last
-    const dowRestricted = dow.values !== null
+    const domRestricted = dom.values !== null || dom.last || dom.nearestWeekday !== undefined
+    const dowRestricted = dow.values !== null || dow.nth !== undefined
 
     const domHit = dom.last
       ? parts.dayOfMonth === lastDayOfMonth(parts)
-      : this.fieldMatches(DAY_OF_MONTH, parts.dayOfMonth)
+      : dom.nearestWeekday !== undefined
+        ? parts.dayOfMonth === nearestWeekdayTo(dom.nearestWeekday, parts)
+        : this.fieldMatches(DAY_OF_MONTH, parts.dayOfMonth)
 
-    const dowHit = this.fieldMatches(DAY_OF_WEEK, parts.dayOfWeek)
+    const dowHit =
+      dow.nth === undefined
+        ? this.fieldMatches(DAY_OF_WEEK, parts.dayOfWeek)
+        : parts.dayOfWeek === dow.nth.weekday &&
+          occurrenceInMonth(parts.dayOfMonth) === dow.nth.occurrence
 
     if (domRestricted && dowRestricted) return domHit || dowHit
     if (domRestricted) return domHit
@@ -219,6 +264,40 @@ export class CronExpression {
 
     if (position === DAY_OF_MONTH && part.toUpperCase() === 'L') {
       return { values: null, last: true }
+    }
+
+    /**
+     * `5#3` — the third Friday of the month.
+     *
+     * Standard cron, and the form every "second Tuesday" schedule is written in.
+     * There is deliberately no helper pointing at it: a frequency method called
+     * `thirdFriday()` would need sixty of them.
+     */
+    if (position === DAY_OF_WEEK && part.includes('#')) {
+      const [weekdayPart, occurrencePart] = part.split('#')
+      const weekday = CronExpression.parseValue(weekdayPart as string, position)
+      const occurrence = Number(occurrencePart)
+
+      if (!Number.isInteger(occurrence) || occurrence < 1 || occurrence > 5) {
+        throw new Error(
+          `Cron field [${part}] asks for occurrence ${occurrencePart}: a weekday happens between one and five times in a month.`
+        )
+      }
+
+      return { values: null, last: false, nth: { weekday: weekday % 7, occurrence } }
+    }
+
+    /**
+     * `15W` — the weekday nearest the 15th, without leaving the month.
+     *
+     * For "the payroll runs on the 15th, or the working day beside it". The
+     * search order is the one every cron implementation uses: one day back, one
+     * forward, two back, two forward — so a Saturday goes to Friday and a Sunday
+     * to Monday, and the 1st falling on a Sunday goes forward to the 2nd rather
+     * than back into the previous month.
+     */
+    if (position === DAY_OF_MONTH && /^\d+W$/i.test(part)) {
+      return { values: null, last: false, nearestWeekday: Number(part.slice(0, -1)) }
     }
 
     const values = new Set<number>()

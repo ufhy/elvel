@@ -294,6 +294,20 @@ Four things worth knowing:
   almost never runs.
 
 
+### Capturing a scheduled task's output
+
+- **Output is inherited unless something asks for it.** A background task's
+  logging then reaches wherever the scheduler's does, rather than disappearing
+  into a buffer nobody reads. `sendOutputTo()` and `emailOutputTo()` are what
+  turn capture on — for a forked entry by piping the child, for an in-process one
+  by patching `console`, which is intrusive enough to do only when asked.
+- **A failed run's output is filed too**, and it is the output most worth
+  keeping. The console is restored in a `finally`, so a throwing task cannot
+  leave the application silent.
+- **`emailOutputTo` stays quiet by default when there was no output.** A task
+  that succeeds silently every night would otherwise send an empty mail every
+  night, and mail nobody reads is mail nobody notices when it matters.
+
 ## @elysian/mail
 
 Three behaviours worth knowing:

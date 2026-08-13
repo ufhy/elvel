@@ -17,6 +17,9 @@ export class MarkBackgroundRun extends Command {
   async handle(): Promise<number> {
     await cache().put(`schedule:${this.argument('key')}`, { pid: process.pid }, 300)
 
+    // Printed so the scheduler's output capture has something to catch.
+    this.line(`marked ${this.argument('key')} in pid ${process.pid}`)
+
     return this.flag('fail') ? 1 : 0
   }
 }

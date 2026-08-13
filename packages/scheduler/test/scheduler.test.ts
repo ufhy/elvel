@@ -687,7 +687,7 @@ describe('running an entry in the background', () => {
         })
         order.push('child:finished')
 
-        return 0
+        return { code: 0 }
       }
     })
 
@@ -713,7 +713,7 @@ describe('running an entry in the background', () => {
   test('the hooks and the exit code arrive when the child does', async () => {
     const order: string[] = []
 
-    const runner = new ScheduleRunner({ spawn: async () => 0 })
+    const runner = new ScheduleRunner({ spawn: async () => ({ code: 0 }) })
 
     const event = commandEvent()
       .before(() => order.push('before'))
@@ -734,7 +734,7 @@ describe('running an entry in the background', () => {
     const order: string[] = []
 
     const runner = new ScheduleRunner({
-      spawn: async () => 3,
+      spawn: async () => ({ code: 3 }),
       report: (error) => reported.push(error)
     })
 
@@ -762,7 +762,7 @@ describe('running an entry in the background', () => {
           release = resolve
         })
 
-        return 0
+        return { code: 0 }
       }
     })
 
@@ -798,5 +798,149 @@ describe('running an entry in the background', () => {
     // must still run the task; silently skipping it would be the worst outcome.
     expect<string>(await new ScheduleRunner().runEvent(event)).toBe('ran')
     expect<boolean>(ran).toBe(true)
+  })
+})
+
+describe('capturing what a task printed', () => {
+  const commandEvent = (name = 'report:build') => {
+    const event = new ScheduledEvent(async () => undefined, name)
+    event.forkable = { name, parameters: [] }
+
+    return event
+  }
+
+  test('a foreground task has its console collected', async () => {
+    const written: Array<{ path: string; contents: string; append: boolean }> = []
+
+    const event = new ScheduledEvent(() => {
+      console.log('imported 12 rows')
+    }, 'import').sendOutputTo('storage/logs/import.log')
+
+    await new ScheduleRunner({
+      writeOutput: async (path, contents, append) => {
+        written.push({ path, contents, append })
+      }
+    }).runEvent(event)
+
+    expect<string | undefined>(written[0]?.path).toBe('storage/logs/import.log')
+    expect<boolean>(written[0]?.contents.includes('imported 12 rows') === true).toBe(true)
+    expect<boolean | undefined>(written[0]?.append).toBe(false)
+  })
+
+  test('console is restored even when the task throws', async () => {
+    const original = console.log
+
+    const event = new ScheduledEvent(() => {
+      throw new Error('broken')
+    }, 'import').sendOutputTo('log.txt')
+
+    await new ScheduleRunner({
+      report: () => undefined,
+      writeOutput: async () => undefined
+    }).runEvent(event)
+
+    // Leaving the patched console in place would silence the application.
+    expect<boolean>(console.log === original).toBe(true)
+  })
+
+  test('the output of a failed run is filed too', async () => {
+    const written: string[] = []
+
+    const event = new ScheduledEvent(() => {
+      console.log('halfway through')
+      throw new Error('broken')
+    }, 'import').appendOutputTo('log.txt')
+
+    await new ScheduleRunner({
+      report: () => undefined,
+      writeOutput: async (_path, contents) => {
+        written.push(contents)
+      }
+    }).runEvent(event)
+
+    // The output of a run that failed is the output most worth keeping.
+    expect<boolean>(written[0]?.includes('halfway through') === true).toBe(true)
+  })
+
+  test('a forked task is asked to pipe its child', async () => {
+    let asked: boolean | undefined
+    const written: string[] = []
+
+    const event = commandEvent().sendOutputTo('log.txt').runInBackground()
+
+    const runner = new ScheduleRunner({
+      spawn: async (_command, capture) => {
+        asked = capture
+
+        return { code: 0, output: 'from the child' }
+      },
+      writeOutput: async (_path, contents) => {
+        written.push(contents)
+      }
+    })
+
+    await runner.runEvent(event)
+    await runner.waitForBackground()
+
+    expect<boolean | undefined>(asked).toBe(true)
+    expect<string | undefined>(written[0]).toBe('from the child')
+  })
+
+  test('an empty run sends no mail unless asked', async () => {
+    const sent: string[] = []
+    const mail = async (to: string[]) => {
+      sent.push(to.join(','))
+    }
+
+    const quiet = new ScheduledEvent(() => undefined, 'quiet').emailOutputTo('ops@example.com')
+    await new ScheduleRunner({ mail }).runEvent(quiet)
+
+    // A task that succeeds silently every night would otherwise send an empty
+    // mail every night, and mail nobody reads is mail nobody notices.
+    expect<number>(sent.length).toBe(0)
+
+    const insistent = new ScheduledEvent(() => undefined, 'insistent').emailOutputTo(
+      'ops@example.com',
+      false
+    )
+    await new ScheduleRunner({ mail }).runEvent(insistent)
+
+    expect<number>(sent.length).toBe(1)
+  })
+
+  test('emailOutputOnFailure only writes when it failed', async () => {
+    const subjects: string[] = []
+    const mail = async (_to: string[], subject: string) => {
+      subjects.push(subject)
+    }
+
+    const fine = new ScheduledEvent(() => {
+      console.log('all good')
+    }, 'fine').emailOutputOnFailure('ops@example.com')
+
+    await new ScheduleRunner({ mail }).runEvent(fine)
+    expect<number>(subjects.length).toBe(0)
+
+    const broken = new ScheduledEvent(() => {
+      console.log('the last thing it said')
+      throw new Error('broken')
+    }, 'broken').emailOutputOnFailure('ops@example.com')
+
+    await new ScheduleRunner({ report: () => undefined, mail }).runEvent(broken)
+
+    expect<number>(subjects.length).toBe(1)
+    expect<boolean>(subjects[0]?.includes('FAILED') === true).toBe(true)
+  })
+
+  test('asking for mail with no mailer is reported, not swallowed', async () => {
+    const reported: unknown[] = []
+
+    const event = new ScheduledEvent(() => {
+      console.log('something')
+    }, 'import').emailOutputTo('ops@example.com')
+
+    await new ScheduleRunner({ report: (error) => reported.push(error) }).runEvent(event)
+
+    expect<boolean>((reported[0] as Error).message.includes('no mailer is registered')).toBe(true)
   })
 })

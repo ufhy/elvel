@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises'
+import { dirname, isAbsolute, join } from 'node:path'
 import { Command } from '@elysian/console'
 import { ScheduleRunner } from '../runner.ts'
 import { spawner } from '../spawn.ts'
@@ -71,7 +73,58 @@ export class ScheduleRunCommand extends Command {
       report: (error: unknown) => this.app.make('exception.handler').report(error),
       // The runner asks once per run; `down` and `up` happen between runs.
       isDownForMaintenance: () => this.app.isDownForMaintenance(),
-      spawn: spawner(this.app)
+      spawn: spawner(this.app),
+
+      /**
+       * Written where the entry asked, relative to the application root.
+       *
+       * The directory is created rather than required: a path like
+       * `storage/logs/import.log` should not fail on a fresh checkout where
+       * nothing has written a log yet.
+       */
+      writeOutput: async (path: string, contents: string, append: boolean) => {
+        const target = isAbsolute(path) ? path : join(this.app.basePath(), path)
+
+        await mkdir(dirname(target), { recursive: true })
+
+        const body = contents.endsWith('\n') || contents === '' ? contents : `${contents}\n`
+
+        if (!append) {
+          await Bun.write(target, body)
+
+          return
+        }
+
+        const existing = await Bun.file(target).exists()
+        await Bun.write(target, existing ? (await Bun.file(target).text()) + body : body)
+      },
+
+      // Only when a mailer is registered; the runner says so rather than
+      // failing silently when an entry asks for mail and none exists.
+      mail: this.app.bound('mail')
+        ? async (to: string[], subject: string, body: string) => {
+            /**
+             * A mailable built here rather than a class of its own.
+             *
+             * It carries one thing — the text a task printed — and a class in
+             * the scheduler package that the mail package would have to know
+             * about buys nothing. The shape is all `Mailer.build()` reads.
+             */
+            const mailable = {
+              envelope: () => ({ to, subject }),
+              content: () => ({ text: body }),
+              attachments: () => []
+            }
+
+            await (
+              this.app.make('mail' as never) as {
+                mailer(): { send(mailable: unknown): Promise<unknown> }
+              }
+            )
+              .mailer()
+              .send(mailable)
+          }
+        : undefined
     }
   }
 }
