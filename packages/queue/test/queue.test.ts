@@ -11,6 +11,7 @@ import { SyncQueue } from '../src/drivers/sync.ts'
 import { ArrayFailedJobStore } from '../src/failed.ts'
 import { type AnyJob, Job, JobRegistry } from '../src/job.ts'
 import { CallQueuedListener, queuedListenerJob } from '../src/listener-job.ts'
+import { QueueManager } from '../src/manager.ts'
 import { JobRunner } from '../src/runner.ts'
 import { ModelRegistry, serializeData } from '../src/serializer.ts'
 import { MaxAttemptsExceededError, Worker } from '../src/worker.ts'
@@ -1445,5 +1446,103 @@ describe('restarting workers on signal', () => {
     // comparison is against the value read at start-up.
     expect<string>(result.reason).toBe('empty')
     expect<number>(Slow.ran.length).toBe(1)
+  })
+})
+
+describe('encrypting some fields of a payload', () => {
+  const encrypter = {
+    encrypt: (value: unknown, context = '') => `enc(${context}):${JSON.stringify(value)}`,
+    decrypt: <T,>(payload: string, context = ''): T => {
+      const prefix = `enc(${context}):`
+
+      if (!payload.startsWith(prefix)) throw new Error('wrong context')
+
+      return JSON.parse(payload.slice(prefix.length)) as T
+    },
+    encryptString: (value: string) => value,
+    decryptString: (value: string) => value
+  }
+
+  class PartlySecret extends Job<{ customer: string; card: string }> {
+    static override encrypted = ['card']
+    static seen: Array<{ customer: string; card: string }> = []
+
+    async handle(): Promise<void> {
+      PartlySecret.seen.push({ ...this.data })
+    }
+  }
+
+  test('the named field is hidden and the rest stays readable', async () => {
+    const app = new Application(process.cwd())
+    app.config.set('queue.default', 'sync')
+    app.config.set('queue.connections', { sync: { driver: 'sync' } })
+    app.instance('encrypter' as never, encrypter as never)
+
+    const manager = new QueueManager(app)
+    const payload = await manager.payloadFor(new PartlySecret({ customer: 'Ada', card: '4111' }), {})
+
+    // The whole-payload form hides the fields you search a failed-jobs table by;
+    // this keeps them.
+    expect<unknown>(payload.data.customer).toBe('Ada')
+    expect<boolean>(String(payload.data.card).startsWith('enc(')).toBe(true)
+    expect<unknown>(payload.data.__encryptedFields).toEqual(['card'])
+  })
+
+  test('the worker gets it back, bound to its own field', async () => {
+    PartlySecret.seen = []
+
+    const runner = new JobRunner(new JobRegistry().register(PartlySecret), new ModelRegistry(), {
+      encrypter: encrypter as never
+    })
+
+    const payload = payloadFor('PartlySecret', {
+      customer: 'Ada',
+      card: encrypter.encrypt('4111', 'job:PartlySecret:card'),
+      __encryptedFields: ['card']
+    })
+
+    await runner.run({
+      payload,
+      queue: 'default',
+      connectionName: 'sync',
+      attempts: () => 1,
+      delete: async () => undefined,
+      release: async () => undefined,
+      fail: async () => undefined,
+      isDeleted: () => true,
+      isReleased: () => false,
+      hasFailed: () => false
+    } as never)
+
+    expect<unknown>(PartlySecret.seen[0]).toEqual({ customer: 'Ada', card: '4111' })
+  })
+
+  test('a ciphertext moved to another field does not decrypt', async () => {
+    const runner = new JobRunner(new JobRegistry().register(PartlySecret), new ModelRegistry(), {
+      encrypter: encrypter as never
+    })
+
+    // Each field is bound to its own context, so lifting a value from one to
+    // another fails rather than quietly succeeding.
+    const payload = payloadFor('PartlySecret', {
+      customer: 'Ada',
+      card: encrypter.encrypt('4111', 'job:PartlySecret:customer'),
+      __encryptedFields: ['card']
+    })
+
+    await expect(
+      runner.run({
+        payload,
+        queue: 'default',
+        connectionName: 'sync',
+        attempts: () => 1,
+        delete: async () => undefined,
+        release: async () => undefined,
+        fail: async () => undefined,
+        isDeleted: () => true,
+        isReleased: () => false,
+        hasFailed: () => false
+      } as never)
+    ).rejects.toThrow('wrong context')
   })
 })

@@ -132,7 +132,7 @@ export class JobRunner {
     // fields, not the envelope they travelled in.
     const stored = queued.payload.encrypted
       ? this.decryptPayload(queued.payload)
-      : queued.payload.data
+      : this.decryptFields(queued.payload)
 
     const data = (await deserializeData(stored, this.models)) as Record<string, unknown>
 
@@ -149,6 +149,38 @@ export class JobRunner {
    * The job's name is the context it was encrypted with, so a ciphertext written
    * for another job fails here rather than running with someone else's data.
    */
+  /**
+   * Decrypt the fields a job named, leaving the rest as they are.
+   *
+   * The list travels in the payload rather than being read from the class: a
+   * worker may be running an older copy of the code, and decrypting by today's
+   * list would mangle a payload written by yesterday's.
+   */
+  private decryptFields(payload: JobPayload): Record<string, unknown> {
+    const data = { ...(payload.data as Record<string, unknown>) }
+    const fields = data.__encryptedFields
+
+    if (!Array.isArray(fields)) return data
+
+    if (!this.options.encrypter) {
+      throw new Error(
+        `Job [${payload.job}] has encrypted fields but no encrypter is registered. Register EncryptionServiceProvider.`
+      )
+    }
+
+    for (const field of fields as string[]) {
+      const value = data[field]
+
+      if (typeof value !== 'string') continue
+
+      data[field] = this.options.encrypter.decrypt(value, `job:${payload.job}:${field}`)
+    }
+
+    delete data.__encryptedFields
+
+    return data
+  }
+
   private decryptPayload(payload: JobPayload): Record<string, unknown> {
     if (!this.options.encrypter) {
       throw new Error(

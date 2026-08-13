@@ -287,6 +287,35 @@ export class QueueManager {
     let data = serializeData(job.data) as Record<string, unknown>
     let encrypted = false
 
+    /**
+     * `static encrypted = ['card']` — encrypt some fields, leave the rest.
+     *
+     * The whole-payload form hides everything, which also hides the fields you
+     * search a failed-jobs table by: "which customer was this for" becomes
+     * unanswerable without a key. Naming the sensitive fields keeps the rest
+     * readable, and each is bound to its own context so a ciphertext cannot be
+     * moved between fields any more than between jobs.
+     */
+    if (Array.isArray(jobClass.encrypted)) {
+      if (!this.app.bound('encrypter')) {
+        throw new Error(
+          `Job [${jobClass.name}] asks for encrypted fields. Register EncryptionServiceProvider, or they would be stored in the clear.`
+        )
+      }
+
+      const encrypter = this.app.make('encrypter')
+      const fields: string[] = []
+
+      for (const field of jobClass.encrypted) {
+        if (data[field] === undefined) continue
+
+        data[field] = encrypter.encrypt(data[field], `job:${jobClass.name}:${field}`)
+        fields.push(field)
+      }
+
+      if (fields.length > 0) data.__encryptedFields = fields
+    }
+
     if (jobClass.encrypted === true) {
       if (!this.app.bound('encrypter')) {
         throw new Error(

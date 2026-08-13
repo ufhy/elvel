@@ -99,7 +99,6 @@ a failed-job store, and `defer()` for work too small to queue.
 
 | Missing | Why |
 | --- | --- |
-| Per-property encryption inside a payload | `static encrypted = true` encrypts the whole payload, which is what `ShouldBeEncrypted` does. Encrypting one field and leaving the rest queryable would need a per-property declaration. |
 
 ## @elysian/mail
 
