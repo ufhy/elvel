@@ -42,7 +42,10 @@ export class CallQueuedListener extends Job<QueuedListenerData> {
   async handle(): Promise<void> {
     const { listener, event } = this.resolve()
 
-    await listener.handle(event)
+    // The resolved name travels in the payload, which is what lets a queued
+    // listener sit on a pattern: `order.*` cannot tell shipped from cancelled
+    // from the event object alone.
+    await listener.handle(event, this.data.event)
   }
 
   /**
@@ -58,7 +61,10 @@ export class CallQueuedListener extends Job<QueuedListenerData> {
   }
 
   private resolve(): {
-    listener: { handle(event: unknown): unknown; failed?(event: unknown, error: unknown): unknown }
+    listener: {
+      handle(event: unknown, name?: string): unknown
+      failed?(event: unknown, error: unknown): unknown
+    }
     event: unknown
   } {
     const listeners = CallQueuedListener.listenerRegistry

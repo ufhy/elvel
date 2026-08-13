@@ -56,7 +56,14 @@ export abstract class QueuedListener<E = unknown> {
    */
   static afterCommit = false
 
-  abstract handle(event: E): unknown | Promise<unknown>
+  /**
+   * Handle the event.
+   *
+   * `name` is the event's resolved name, and is only interesting to a listener
+   * registered on a **pattern** — `order.*` needs to know which order event it
+   * was handed, and the payload alone does not say.
+   */
+  abstract handle(event: E, name?: string): unknown | Promise<unknown>
 
   /**
    * Decide at dispatch time whether this event is worth queueing at all.

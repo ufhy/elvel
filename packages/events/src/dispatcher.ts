@@ -108,11 +108,20 @@ export class Dispatcher implements EventDispatcher {
 
       if (name.includes('*')) {
         if (isQueuedListener(listener)) {
-          // A wildcard listener is handed the resolved name as well, and a queued
-          // one cannot be: what travels is a single event payload.
-          throw new Error(
-            `A queued listener cannot listen on a pattern [${name}]. Name the event, or use a closure.`
+          /**
+           * A queued listener on a pattern.
+           *
+           * The resolved name travels in the payload beside the event, so the
+           * worker can hand the listener both — which is what a pattern listener
+           * needs, since `order.*` cannot tell shipped from cancelled by looking
+           * at the payload. This used to throw for want of that second argument.
+           */
+          this.queuedListeners.register(listener)
+          this.setupWildcardListen(name, (eventKey, payload) =>
+            this.pushToQueue(listener, eventKey, payload)
           )
+
+          continue
         }
 
         this.setupWildcardListen(name, listener as WildcardListener)

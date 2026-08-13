@@ -480,12 +480,15 @@ describe('queued listeners', () => {
     expect(pushed[0]?.listener).toBe('Deeper')
   })
 
-  test('a queued listener cannot listen on a pattern', () => {
-    // A wildcard listener is handed the event name too, which cannot survive the
-    // trip; refusing beats delivering something different in a worker.
-    expect(() => dispatcher.listen('order.*', SendShipmentNotification as never)).toThrow(
-      /cannot listen on a pattern/
-    )
+  test('a queued listener may listen on a pattern', async () => {
+    // It used to refuse: a wildcard listener is handed the resolved name, and
+    // there was no way to carry that to a worker. The payload carries it now.
+    dispatcher.listen('order.*', SendShipmentNotification as never)
+
+    await dispatcher.dispatch('order.shipped', { id: 3 })
+
+    expect(pushed[0]?.listener).toBe('SendShipmentNotification')
+    expect(pushed[0]?.event).toBe('order.shipped')
   })
 
   test('a plain closure listener still runs inline', async () => {
@@ -570,5 +573,35 @@ describe('EventRegistry', () => {
     expect(registry.hydrate('Unknown', { id: 1 })).toEqual({ id: 1 })
     expect(registry.hydrate('Unknown', 'a string')).toBe('a string')
     expect(registry.hydrate('Unknown', null)).toBeNull()
+  })
+})
+
+describe('a queued listener on a pattern', () => {
+  test('it queues, and is told which event it was', async () => {
+    const pushed: Array<{ listener: string; event: string; payload: unknown }> = []
+
+    class RecordEverything extends QueuedListener<unknown> {
+      async handle(): Promise<void> {
+        // The worker runs this; the dispatcher only pushes.
+      }
+    }
+
+    const dispatcher = new Dispatcher()
+    dispatcher.setQueue(async (listener, event) => {
+      pushed.push({ listener: listener.name, event: event.name, payload: event.payload })
+
+      return 'job-id'
+    })
+
+    dispatcher.listen('order.*', RecordEverything as never)
+
+    await dispatcher.dispatch('order.shipped', { id: 7 })
+    await dispatcher.dispatch('order.cancelled', { id: 8 })
+
+    // Both matched, and each carries the resolved name — `order.*` cannot tell
+    // shipped from cancelled by looking at the payload.
+    expect<number>(pushed.length).toBe(2)
+    expect<string | undefined>(pushed[0]?.event).toBe('order.shipped')
+    expect<string | undefined>(pushed[1]?.event).toBe('order.cancelled')
   })
 })
