@@ -38,7 +38,6 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
 

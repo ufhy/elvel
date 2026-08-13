@@ -259,20 +259,46 @@ export class ConnectionManager {
 /**
  * One host from a `read`/`write` entry.
  *
- * A list means "any of these replicas", and Laravel picks at random rather than
- * round-robin: with several processes, random spreads the load without any of
- * them having to agree on whose turn it is.
+ * A list means "any of these replicas". Laravel picks uniformly at random, and
+ * so does this by default — with several processes, random spreads the load
+ * without any of them having to agree on whose turn it is.
+ *
+ * A host may also carry a `weight`, which is the case random alone handles
+ * badly: replicas are rarely identical, and sending a third of the traffic to
+ * the small one is how the small one becomes the bottleneck. Weights are
+ * relative, so `{ weight: 3 }` beside `{ weight: 1 }` takes three quarters.
  */
-function pickHost(entry: unknown): Record<string, unknown> {
+export function pickHost(entry: unknown): Record<string, unknown> {
   if (!entry || typeof entry !== 'object') return {}
 
-  if (Array.isArray(entry)) {
-    if (entry.length === 0) return {}
+  if (!Array.isArray(entry)) return entry as Record<string, unknown>
 
-    return entry[Math.floor(Math.random() * entry.length)] as Record<string, unknown>
+  if (entry.length === 0) return {}
+
+  const hosts = entry as Array<Record<string, unknown>>
+  const weights = hosts.map((host) => {
+    const weight = Number(host.weight ?? 1)
+
+    // A zero or negative weight means "not in the rotation" — the way to drain a
+    // replica before taking it out of the config entirely.
+    return Number.isFinite(weight) && weight > 0 ? weight : 0
+  })
+
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+
+  // Every host drained: fall back to uniform rather than never reading, because
+  // a config that excludes everything is a mistake and an outage is worse.
+  if (total === 0) return hosts[Math.floor(Math.random() * hosts.length)] as Record<string, unknown>
+
+  let ticket = Math.random() * total
+
+  for (const [index, weight] of weights.entries()) {
+    ticket -= weight
+
+    if (ticket < 0) return hosts[index] as Record<string, unknown>
   }
 
-  return entry as Record<string, unknown>
+  return hosts[hosts.length - 1] as Record<string, unknown>
 }
 
 /** A connection that can take part in two-phase commit. */
