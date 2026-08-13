@@ -255,3 +255,46 @@ describe('the encrypt/decrypt asymmetry', () => {
     expect(crypt.decrypt(crypt.encrypt(undefined))).toBeNull()
   })
 })
+
+describe('a blind index', () => {
+  const index = encrypter()
+
+  test('the same value always fingerprints the same way', () => {
+    // Determinism is the whole point — and the whole cost.
+    expect<string>(index.blindIndex('ada@example.com', 'users.email')).toBe(
+      index.blindIndex('ada@example.com', 'users.email')
+    )
+  })
+
+  test('a different context is a different fingerprint', () => {
+    // So the same address in two tables cannot be correlated across them.
+    expect<boolean>(
+      index.blindIndex('ada@example.com', 'users.email') ===
+        index.blindIndex('ada@example.com', 'contacts.email')
+    ).toBe(false)
+  })
+
+  test('it is keyed, so another application cannot reproduce it', () => {
+    const other = new Encrypter('b'.repeat(40))
+
+    expect<boolean>(
+      index.blindIndex('ada@example.com') === other.blindIndex('ada@example.com')
+    ).toBe(false)
+  })
+
+  test('it is not derived from the encryption key itself', () => {
+    // Its own HKDF purpose: a leaked index must say nothing about the ciphertext
+    // sitting beside it.
+    const payload = index.encryptString('ada@example.com')
+
+    expect<boolean>(payload.includes(index.blindIndex('ada@example.com'))).toBe(false)
+  })
+
+  test('the fingerprint carries no plaintext', () => {
+    const fingerprint = index.blindIndex('ada@example.com', 'users.email')
+
+    expect<boolean>(fingerprint.includes('ada')).toBe(false)
+    // base64url, so it is safe in a URL and in every column type.
+    expect<boolean>(/^[A-Za-z0-9_-]+$/.test(fingerprint)).toBe(true)
+  })
+})

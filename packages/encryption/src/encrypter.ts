@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
 import { deriveKey } from './keys.ts'
 
 /** Thrown when a value cannot be encrypted. */
@@ -66,12 +66,42 @@ export type EncrypterOptions = {
 export class Encrypter {
   private readonly keys: Buffer[]
 
+  /** Its own key, derived for one purpose — see `blindIndex`. */
+  private readonly indexKey: Buffer
+
   constructor(secret: string, options: EncrypterOptions = {}) {
     const purpose = options.purpose ?? 'elysian:encrypt:v1'
 
     // The primary key is first: it is what writes, and what reads are tried
     // against first.
     this.keys = [secret, ...(options.previousKeys ?? [])].map((key) => deriveKey(key, purpose))
+    this.indexKey = deriveKey(secret, `${purpose}:blind-index`)
+  }
+
+  /**
+   * A deterministic fingerprint of a value, for searching an encrypted column.
+   *
+   * Encryption is not searchable, and that is not a limitation to work around —
+   * it is the point. `where('email', ...)` against a ciphertext column can never
+   * match, because every write produces different bytes. A blind index is the
+   * standard answer: store an HMAC of the plaintext beside the ciphertext and
+   * search *that*.
+   *
+   * What it costs is honest to state. The index is **deterministic**, so equal
+   * plaintexts produce equal fingerprints, and anyone who can read the column can
+   * tell which rows hold the same value — and, for a small domain like a status
+   * or a country, can confirm a guess by computing the fingerprint of it. Never
+   * index a low-entropy column. It also supports equality only: no ordering, no
+   * prefix search, no `like`.
+   *
+   * Keyed with its own derived key, so a leaked index tells you nothing about the
+   * ciphertext beside it, and bound to a context — usually the column — so the
+   * same email address in two tables does not produce the same fingerprint.
+   */
+  blindIndex(value: string, context = ''): string {
+    return createHmac('sha256', this.indexKey)
+      .update(`${context}\u0000${value}`)
+      .digest('base64url')
   }
 
   /**

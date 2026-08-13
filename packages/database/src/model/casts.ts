@@ -47,6 +47,8 @@ export type CastType =
 export type AttributeEncrypter = {
   encryptString(value: string, context?: string): string
   decryptString(payload: string, context?: string): string
+  /** A deterministic fingerprint, for a searchable index beside a ciphertext. */
+  blindIndex?(value: string, context?: string): string
 }
 
 let encrypter: AttributeEncrypter | undefined
@@ -60,6 +62,11 @@ let encrypter: AttributeEncrypter | undefined
  */
 export function setAttributeEncrypter(instance: AttributeEncrypter | undefined): void {
   encrypter = instance
+}
+
+/** The injected encrypter, for the blind-index columns a model declares. */
+export function attributeEncrypter(): AttributeEncrypter | undefined {
+  return encrypter
 }
 
 function requireEncrypter(cast: CastType): AttributeEncrypter {

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +9,7 @@ import { ConnectionManager } from '../src/connection/manager.ts'
 import { ReadWriteConnection } from '../src/connection/read-write.ts'
 import { Migrator } from '../src/migrations/migrator.ts'
 import { MigrationRepository } from '../src/migrations/repository.ts'
+import { setAttributeEncrypter } from '../src/model/casts.ts'
 import { Model, type Pivot } from '../src/model/model.ts'
 import { QueryBuilder } from '../src/query/builder.ts'
 import { SchemaBuilder } from '../src/schema/builder.ts'
@@ -184,6 +186,8 @@ for (const { name, config } of available) {
         table.integer('votes').default(0)
         table.boolean('active').default(true)
         table.text('meta').nullable()
+        table.text('secret').nullable()
+        table.string('secret_index').nullable()
         table.decimal('balance', 8, 2).default(0)
         table.timestamps()
         table.unique(['email'])
@@ -822,6 +826,66 @@ for (const { name, config } of available) {
         expect(
           ((await User.find(ada.id))?.meta as never as { nested: { deep: string } }).nested.deep
         ).toBe('new')
+      })
+
+      test('an encrypted column is searchable through its blind index', async () => {
+        await truncate()
+
+        class Member extends Model {
+          static override table = users
+          static override fillable = ['name', 'secret', 'secret_index']
+          static override casts = { secret: 'encrypted' } as never
+          static override blindIndexes = { secret: 'secret_index' }
+        }
+
+        Member.setConnectionResolver(async () => connection)
+
+        /**
+         * A stand-in encrypter, injected the way the encryption provider does.
+         *
+         * The real HMAC is covered in that package's own tests; what is under
+         * test here is the model wiring — that the index is written, kept in
+         * step, and searched with the same context the row was written with.
+         */
+        setAttributeEncrypter({
+          encryptString: (value) => `enc:${Buffer.from(value).toString('base64url')}`,
+          decryptString: (payload) =>
+            Buffer.from(payload.replace(/^enc:/, ''), 'base64url').toString(),
+          blindIndex: (value, context) =>
+            createHash('sha256').update(`${context}\u0000${value}`).digest('base64url')
+        })
+
+        await Member.create({ name: 'Ada', secret: 'ada@example.com' })
+        await Member.create({ name: 'Linus', secret: 'linus@example.com' })
+
+        const stored = await table().where('name', 'Ada').first()
+
+        // Encrypted at rest, and the index beside it is not the plaintext either.
+        expect(String(stored?.secret)).not.toContain('ada@example.com')
+        expect(String(stored?.secret_index)).not.toContain('ada@example.com')
+
+        const found = await Member.query().whereBlind('secret', 'ada@example.com').first()
+
+        // The whole point: `where('secret', …)` can never match a ciphertext,
+        // because every write produces different bytes.
+        expect(found?.getAttribute('name')).toBe('Ada')
+        expect(found?.getAttribute('secret')).toBe('ada@example.com')
+
+        const missing = await Member.query().whereBlind('secret', 'nobody@example.com').first()
+        expect(missing ?? null).toBeNull()
+
+        // Changing the value moves the index with it, or the row becomes
+        // unfindable by its new address and findable by its old one.
+        const ada = found as Member
+        ada.setAttribute('secret', 'ada@lovelace.test')
+        await ada.save()
+
+        expect(
+          (await Member.query().whereBlind('secret', 'ada@lovelace.test').first()) !== null
+        ).toBe(true)
+        expect(
+          (await Member.query().whereBlind('secret', 'ada@example.com').first()) ?? null
+        ).toBeNull()
       })
 
       test('boolean and json casts survive the round trip', async () => {

@@ -32,3 +32,14 @@ export function encryptString(value: string, context?: string): string {
 export function decryptString(payload: string, context?: string): string {
   return encrypter().decryptString(payload, context)
 }
+
+/**
+ * A searchable fingerprint of a value — see `Encrypter.blindIndex`.
+ *
+ * ```ts
+ * await User.query().where('email_index', blindIndex(email, 'users.email')).first()
+ * ```
+ */
+export function blindIndex(value: string, context?: string): string {
+  return encrypter().blindIndex(value, context)
+}

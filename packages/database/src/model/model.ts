@@ -4,6 +4,7 @@ import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { ModelBuilder } from './builder.ts'
 import {
+  attributeEncrypter,
   type CastEntry,
   type CastType,
   castFromDatabase,
@@ -90,6 +91,26 @@ export class Model {
   static guarded: string[] = ['*']
 
   static casts: Record<string, CastEntry> = {}
+
+  /**
+   * Columns that carry a searchable fingerprint of an encrypted attribute.
+   *
+   * ```ts
+   * static override casts = { email: 'encrypted' }
+   * static override blindIndexes = { email: 'email_index' }
+   * ```
+   *
+   * `where('email', …)` against a ciphertext can never match — every write
+   * produces different bytes, which is the point of encrypting it. The index
+   * column holds an HMAC of the plaintext instead, kept in step on every save,
+   * and `whereBlind('email', …)` searches that.
+   *
+   * The trade is real and belongs in the schema decision: the fingerprint is
+   * deterministic, so anyone who can read the column can tell which rows share a
+   * value, and for a small domain can confirm a guess by computing it. Index an
+   * email address, never a status.
+   */
+  static blindIndexes: Record<string, string> = {}
 
   /** Columns removed from `toObject()`/`toJSON()`. */
   static hidden: string[] = []
@@ -664,6 +685,10 @@ export class Model {
 
     await this.fireEvent('saving')
 
+    // Before the dirty set is taken: an index column written afterwards would
+    // not be part of the update, and would drift from the value it indexes.
+    this.syncBlindIndexes()
+
     this.changes = this.getDirty()
 
     const saved = this.exists ? await this.performUpdate(query) : await this.performInsert(query)
@@ -675,6 +700,42 @@ export class Model {
     }
 
     return saved
+  }
+
+  /**
+   * Recompute every blind index whose source attribute changed.
+   *
+   * Only when it changed: the fingerprint is deterministic, so rewriting it on
+   * every save would dirty the row and issue an update for nothing.
+   */
+  private syncBlindIndexes(): void {
+    const indexes = this.self.blindIndexes
+
+    if (Object.keys(indexes).length === 0) return
+
+    const encrypter = attributeEncrypter()
+
+    if (!encrypter?.blindIndex) {
+      throw new Error(
+        `[${this.self.name}] declares blindIndexes, which need EncryptionServiceProvider. Register it in config/app.ts.`
+      )
+    }
+
+    for (const [attribute, column] of Object.entries(indexes)) {
+      if (this.exists && !(attribute in this.getDirty()) && this.attributes[column] !== undefined) {
+        continue
+      }
+
+      const value = this.getAttribute(attribute)
+
+      this.attributes[column] =
+        value === null || value === undefined
+          ? null
+          : (encrypter.blindIndex as (value: string, context?: string) => string)(
+              String(value),
+              `${this.self.getTable()}.${attribute}`
+            )
+    }
   }
 
   private async performUpdate(query: QueryBuilder<Row>): Promise<boolean> {

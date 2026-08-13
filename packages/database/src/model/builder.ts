@@ -2,7 +2,7 @@ import { Collection } from '@elysian/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { raw } from '../query/expression.ts'
-import { formatDateTime } from './casts.ts'
+import { attributeEncrypter, formatDateTime } from './casts.ts'
 import type { Model, ModelClass } from './model.ts'
 
 export type Paginated<M> = {
@@ -184,6 +184,42 @@ export class ModelBuilder<M extends Model> {
   whereJsonDoesntContain(column: string, value: unknown): this {
     return this.defer((query) => {
       query.whereJsonDoesntContain(column, value)
+    })
+  }
+
+  /**
+   * Search an encrypted column through its blind index.
+   *
+   * ```ts
+   * const user = await User.query().whereBlind('email', 'ada@example.com').first()
+   * ```
+   *
+   * The attribute names what you are searching for; the index column is looked
+   * up from the model's `blindIndexes`. Naming the attribute rather than the
+   * column is what keeps the call site readable and the fingerprinting — which
+   * has to match how the row was written, context and all — in one place.
+   */
+  whereBlind(attribute: string, value: string): this {
+    const model = this.model as unknown as typeof Model
+    const column = model.blindIndexes[attribute]
+
+    if (!column) {
+      throw new Error(
+        `[${model.name}] has no blind index for [${attribute}]. Add it to blindIndexes, and to the table.`
+      )
+    }
+
+    const encrypter = attributeEncrypter()
+
+    if (!encrypter?.blindIndex) {
+      throw new Error('whereBlind() needs EncryptionServiceProvider. Register it in config/app.ts.')
+    }
+
+    const table = model.getTable()
+    const fingerprint = encrypter.blindIndex(value, `${table}.${attribute}`)
+
+    return this.defer((query) => {
+      query.where(column, fingerprint)
     })
   }
 

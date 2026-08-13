@@ -45,7 +45,7 @@ Deliberately absent, with reasons:
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
 | `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
 | `touchIfTouching` guessing the **inverse** relation | Laravel infers the inverse relation's name from the class name; here the pairing must be written down. |
-| Custom encrypted cast keys, searchable ciphertext | The `encrypted` and `encrypted:json` casts are implemented over `@elysian/encryption`. What is missing is a blind index — a deterministic hash column you can search by — which is the only way to query an encrypted column and needs a schema decision per table. |
+| A cast key of its own, per column | The `encrypted` casts and `blindIndexes` both derive from `APP_KEY`. A column that needs its own key — one you can rotate or revoke without touching the rest — would need the key named in the cast and resolved per model. |
 | A schema dumper of our own for Postgres and MySQL | `schema:dump` writes SQLite's schema from `sqlite_master`, and shells out to `pg_dump`/`mysqldump` for the other two — as Laravel does. Reproducing what those tools emit, down to sequence ownership and index storage parameters, is a project of its own, and a dump that restores but differs is worse than none. |
 
 ---
