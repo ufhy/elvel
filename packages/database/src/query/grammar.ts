@@ -96,6 +96,31 @@ export abstract class Grammar {
     throw new Error(`This database engine does not support JSON paths (\`column->key\`).`)
   }
 
+  /** `json_length(...) > ?`, spelled differently by every engine. */
+  protected compileJsonLength(_column: string, _operator: string, _value: string): string {
+    throw new Error('This database engine does not support whereJsonLength().')
+  }
+
+  /**
+   * One `set` assignment that writes *inside* a JSON document.
+   *
+   * Every path aimed at the same column arrives together, and that grouping is
+   * not tidiness: `set meta = …, meta = …` is legal SQL in which the second
+   * assignment wins, so writing two keys of one document as two assignments
+   * silently drops the first.
+   *
+   * Returning undefined means the engine cannot do it, which is the base case
+   * here — a driver with no JSON support says so rather than emitting something
+   * that parses and does the wrong thing.
+   */
+  protected compileJsonUpdate(
+    _column: string,
+    _writes: Array<{ path: string[]; value: unknown }>,
+    _bindings: unknown[]
+  ): string | undefined {
+    return undefined
+  }
+
   wrapTable(table: string | Expression): string {
     return this.wrap(table)
   }
@@ -247,6 +272,12 @@ export abstract class Grammar {
         return this.compileJsonContains(where.column, where.value, where.not, bindings)
       }
 
+      case 'jsonLength': {
+        bindings.push(where.value)
+
+        return this.compileJsonLength(where.column, where.operator, this.parameter(bindings.length))
+      }
+
       case 'fullText': {
         return this.compileFullText(where.columns, where.value, bindings)
       }
@@ -317,13 +348,50 @@ export abstract class Grammar {
   ): { sql: string; bindings: unknown[] } {
     const bindings: unknown[] = []
 
-    const assignments = Object.entries(values)
-      .map(([column, value]) => {
-        if (isExpression(value)) return `${this.wrap(column)} = ${value.value}`
-        bindings.push(value ?? null)
-        return `${this.wrap(column)} = ${this.parameter(bindings.length)}`
-      })
-      .join(', ')
+    /**
+     * JSON writes are collected per column before anything is compiled.
+     *
+     * `meta->theme` is a write *into* the document, not a column with an arrow in
+     * its name, and two of them aimed at one column have to become a single
+     * assignment — see `compileJsonUpdate`.
+     */
+    const json = new Map<string, Array<{ path: string[]; value: unknown }>>()
+    const plain: string[] = []
+
+    for (const [column, value] of Object.entries(values)) {
+      if (isExpression(value)) {
+        plain.push(`${this.wrap(column)} = ${value.value}`)
+
+        continue
+      }
+
+      if (column.includes('->')) {
+        const { column: field, path } = this.jsonPathParts(column)
+        const writes = json.get(field) ?? []
+
+        writes.push({ path, value })
+        json.set(field, writes)
+
+        continue
+      }
+
+      bindings.push(value ?? null)
+      plain.push(`${this.wrap(column)} = ${this.parameter(bindings.length)}`)
+    }
+
+    for (const [column, writes] of json) {
+      const compiled = this.compileJsonUpdate(column, writes, bindings)
+
+      if (compiled === undefined) {
+        throw new Error(
+          `This database engine does not support updating a JSON path (\`${column}->${writes[0]?.path.join('->')}\`).`
+        )
+      }
+
+      plain.push(compiled)
+    }
+
+    const assignments = plain.join(', ')
 
     const parts = [`update ${this.wrapTable(query.from)} set ${assignments}`]
 

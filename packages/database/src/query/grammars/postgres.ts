@@ -106,4 +106,60 @@ export class PostgresGrammar extends Grammar {
   override supportsReturning(): boolean {
     return true
   }
+
+  /**
+   * `jsonb_array_length((col->'a')::jsonb) > ?`.
+   *
+   * The path is walked with `->` rather than `->>`: the last step has to stay a
+   * JSON value, and `->>` would hand `jsonb_array_length` a string.
+   */
+  protected override compileJsonLength(column: string, operator: string, value: string): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const walk = path.map((segment) => `->'${segment.replaceAll("'", "''")}'`).join('')
+
+    // The column is cast before it is walked: a JSON document stored in a `text`
+    // column has no `->` operator, which is the shape the schema builder writes
+    // for `json()` on Postgres.
+    return `jsonb_array_length((${super.wrap(field)})::jsonb${walk}) ${operator} ${value}`
+  }
+
+  /**
+   * `col = jsonb_set(jsonb_set(col::jsonb, '{a}', ?::jsonb), '{b}', ?::jsonb)`.
+   *
+   * Nested rather than repeated as separate assignments: `set col = …, col = …`
+   * would keep only the last one, and each call has to see what the one before
+   * it wrote.
+   *
+   * The value is encoded to JSON text and cast, which is the only form that
+   * stores a number as a number and a string as a string. Casting the column too
+   * is what lets this work on a `json` column as well as a `jsonb` one.
+   */
+  protected override compileJsonUpdate(
+    column: string,
+    writes: Array<{ path: string[]; value: unknown }>,
+    bindings: unknown[]
+  ): string {
+    const wrapped = super.wrap(column)
+    let expression = `${wrapped}::jsonb`
+
+    for (const { path, value } of writes) {
+      const pointer = `'{${path.map((segment) => segment.replaceAll('"', '\\"')).join(',')}}'`
+
+      bindings.push(JSON.stringify(value ?? null))
+
+      /**
+       * `($1::text)::jsonb`, not `$1::jsonb`.
+       *
+       * Bun's Postgres driver encodes a parameter it sees cast straight to
+       * `jsonb`, so the JSON text `"dark"` arrives as `"\"dark\""` and an object
+       * arrives as a string containing one. Going through `text` first makes the
+       * driver send the bytes as written and Postgres do the parsing, which is
+       * the only form that stores every shape correctly. Found by probing
+       * `select ($1::jsonb)::text` against a real server.
+       */
+      expression = `jsonb_set(${expression}, ${pointer}, (${this.parameter(bindings.length)}::text)::jsonb)`
+    }
+
+    return `${wrapped} = ${expression}`
+  }
 }

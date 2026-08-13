@@ -187,6 +187,19 @@ export class ModelBuilder<M extends Model> {
     })
   }
 
+  /** How many elements a JSON array holds — `whereJsonLength('meta->tags', '>', 2)`. */
+  whereJsonLength(column: string, operator: string | number, value?: unknown): this {
+    return this.defer((query) => {
+      query.whereJsonLength(column, operator, value)
+    })
+  }
+
+  orWhereJsonLength(column: string, operator: string | number, value?: unknown): this {
+    return this.defer((query) => {
+      query.orWhereJsonLength(column, operator, value)
+    })
+  }
+
   whereFullText(columns: string | string[], value: string): this {
     return this.defer((query) => {
       query.whereFullText(columns, value)

@@ -82,6 +82,54 @@ export class MySqlGrammar extends Grammar {
       bindings: insert.bindings
     }
   }
+
+  /** `json_length(col, '$."a"') > ?` — MySQL counts elements of an array. */
+  protected override compileJsonLength(column: string, operator: string, value: string): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const target =
+      path.length > 0 ? `${super.wrap(field)}, ${this.jsonPath(path)}` : super.wrap(field)
+
+    return `json_length(${target}) ${operator} ${value}`
+  }
+
+  /**
+   * `col = json_set(col, '$."a"', ?, '$."b"', ?)`.
+   *
+   * One call with every pair, because two `set col = …` assignments would leave
+   * only the last one standing.
+   *
+   * An object or an array is cast rather than bound as text: without the cast
+   * MySQL stores the JSON *string* inside the document, and the next read hands
+   * back a string where an object was written.
+   */
+  protected override compileJsonUpdate(
+    column: string,
+    writes: Array<{ path: string[]; value: unknown }>,
+    bindings: unknown[]
+  ): string {
+    const wrapped = super.wrap(column)
+    const pairs: string[] = []
+
+    for (const { path, value } of writes) {
+      if (typeof value === 'boolean') {
+        pairs.push(`${this.jsonPath(path)}, ${value ? 'true' : 'false'}`)
+
+        continue
+      }
+
+      if (value !== null && typeof value === 'object') {
+        bindings.push(JSON.stringify(value))
+        pairs.push(`${this.jsonPath(path)}, cast(${this.parameter(bindings.length)} as json)`)
+
+        continue
+      }
+
+      bindings.push(value ?? null)
+      pairs.push(`${this.jsonPath(path)}, ${this.parameter(bindings.length)}`)
+    }
+
+    return `${wrapped} = json_set(${wrapped}, ${pairs.join(', ')})`
+  }
 }
 
 export class MariaDbGrammar extends MySqlGrammar {

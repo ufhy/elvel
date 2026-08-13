@@ -103,4 +103,12 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
   compileDisableForeignKeys(): string {
     return 'PRAGMA foreign_keys = OFF'
   }
+
+  /**
+   * SQLite has no `alter column`, so a change is a whole-table rebuild.
+   *
+   * Flagged rather than compiled: the rebuild has to know what the table looks
+   * like now, and a grammar sees only the blueprint. `SchemaBuilder` does it.
+   */
+  override readonly rebuildsToChange = true
 }

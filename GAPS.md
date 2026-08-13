@@ -42,8 +42,6 @@ Deliberately absent, with reasons:
 | Choosing a replica by anything but chance | A `read` list is picked from at random, as Laravel does. Weighting by lag or by load needs something that measures either. |
 | Database transactions across connections (2PC) | `Bun.SQL` exposes `beginDistributed`, so this is reachable — no design obstacle, just unbuilt. |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
-| JSON `->` in **updates** and `whereJsonLength` | Writing one key inside a document, and asking an array's length, each need a grammar verb per dialect that wheres do not exercise. |
-| Column *modification* (`->change()`) | Not portable: SQLite requires a full table rebuild. |
 | `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
 | `ofMany()` with a **closure** aggregate, and multi-column tie-breaks | `latestOfMany`/`oldestOfMany` take one column and break ties on the key, which is the pair Laravel's own helpers produce. An arbitrary aggregate, or ordering by two columns before the key, needs the general `ofMany` form. |
 | `touchIfTouching` guessing the **inverse** relation | Laravel infers the inverse relation's name from the class name; here the pairing must be written down. |

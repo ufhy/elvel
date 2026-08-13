@@ -72,4 +72,43 @@ export class SQLiteGrammar extends Grammar {
     // RETURNING landed in SQLite 3.35; Bun ships a newer build.
     return true
   }
+
+  /** `json_array_length(col, '$."a"') > ?`. */
+  protected override compileJsonLength(column: string, operator: string, value: string): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const target =
+      path.length > 0 ? `${super.wrap(field)}, ${this.jsonPath(path)}` : super.wrap(field)
+
+    return `json_array_length(${target}) ${operator} ${value}`
+  }
+
+  /**
+   * `col = json_set(ifnull(col, json('{}')), '$."a"', json(?), '$."b"', json(?))`.
+   *
+   * One call with every pair: two `set col = …` assignments would keep only the
+   * last, so the first key written would vanish.
+   *
+   * `json(?)` rather than a bare parameter, so an object or an array is stored as
+   * a document instead of as a string containing one. A scalar goes the same way
+   * — `json('"dark"')` is the string `dark` — which keeps one code path instead
+   * of a type switch that would eventually miss a case.
+   *
+   * `ifnull(col, json('{}'))` because `json_set(null, …)` is null: without it,
+   * writing a key into a column that has never been set silently erases it.
+   */
+  protected override compileJsonUpdate(
+    column: string,
+    writes: Array<{ path: string[]; value: unknown }>,
+    bindings: unknown[]
+  ): string {
+    const wrapped = super.wrap(column)
+    const pairs: string[] = []
+
+    for (const { path, value } of writes) {
+      bindings.push(JSON.stringify(value ?? null))
+      pairs.push(`${this.jsonPath(path)}, json(${this.parameter(bindings.length)})`)
+    }
+
+    return `${wrapped} = json_set(ifnull(${wrapped}, json('{}')), ${pairs.join(', ')})`
+  }
 }

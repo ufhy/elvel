@@ -144,6 +144,41 @@ export class QueryBuilder<T extends Row = Row> {
   }
 
   /**
+   * How many elements a JSON array holds — `whereJsonLength('meta->tags', '>', 2)`.
+   *
+   * Two arguments mean equality, as everywhere else in the builder, so
+   * `whereJsonLength('meta->tags', 0)` finds the documents with an empty array.
+   *
+   * This is an array length, not a key count, and the engines disagree about
+   * what a non-array should answer: MySQL says 1, SQLite says null, Postgres
+   * raises. None of them is wrong — a key that holds different shapes in
+   * different rows is the thing to fix.
+   */
+  whereJsonLength(column: string, operator: string | number, value?: unknown): this {
+    const resolved = value === undefined ? '=' : String(operator)
+    const target = value === undefined ? operator : value
+
+    this.query.wheres.push({
+      type: 'jsonLength',
+      column,
+      operator: resolved,
+      value: target,
+      boolean: 'and'
+    })
+
+    return this
+  }
+
+  orWhereJsonLength(column: string, operator: string | number, value?: unknown): this {
+    this.whereJsonLength(column, operator, value)
+
+    const last = this.query.wheres[this.query.wheres.length - 1]
+    if (last) last.boolean = 'or'
+
+    return this
+  }
+
+  /**
    * Full-text search — `whereFullText(['title', 'body'], 'needle')`.
    *
    * MySQL wants a FULLTEXT index and Postgres a tsvector; each grammar emits its

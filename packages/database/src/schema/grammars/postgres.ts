@@ -121,4 +121,36 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
   compileDisableForeignKeys(): string {
     return 'SET CONSTRAINTS ALL DEFERRED'
   }
+
+  /**
+   * `alter table t alter column "c" type …, alter column "c" set not null, …`.
+   *
+   * Postgres changes one property at a time, so the definition is taken apart
+   * into a list of alterations that run as one statement. Nullability and the
+   * default are always stated — dropping them when the new definition does not
+   * mention them is what makes `change()` a replacement rather than a patch.
+   *
+   * `using` is emitted for the type change so a cast Postgres refuses to make
+   * implicitly — text to integer, say — still goes through when the data allows
+   * it, and fails loudly on the row that does not when it does not.
+   */
+  protected override compileChange(blueprint: Blueprint, column: ColumnAttributes): string[] {
+    const table = this.wrapTable(blueprint.table)
+    const name = this.wrap(column.name)
+    const type = this.typeFor(column)
+
+    const changes = [`alter column ${name} type ${type} using ${name}::${type}`]
+
+    changes.push(
+      `alter column ${name} ${column.nullable === true ? 'drop not null' : 'set not null'}`
+    )
+
+    changes.push(
+      column.default === undefined
+        ? `alter column ${name} drop default`
+        : `alter column ${name} set default ${this.defaultValue(column.default)}`
+    )
+
+    return [`alter table ${table} ${changes.join(', ')}`]
+  }
 }

@@ -1,5 +1,10 @@
 import { isExpression } from '../query/expression.ts'
-import type { Blueprint, ColumnAttributes, Command, ForeignKeyAction } from './blueprint.ts'
+import {
+  Blueprint,
+  type ColumnAttributes,
+  type Command,
+  type ForeignKeyAction
+} from './blueprint.ts'
 
 /** Modifier names, applied in the order each dialect declares. */
 export type Modifier =
@@ -35,6 +40,24 @@ export abstract class SchemaGrammar {
   protected abstract modifiers: Modifier[]
 
   abstract typeFor(column: ColumnAttributes): string
+
+  /**
+   * Does changing a column mean rebuilding the table?
+   *
+   * True only for SQLite, which has no `alter column` at all. The builder asks
+   * because the rebuild needs to read the current schema.
+   */
+  readonly rebuildsToChange: boolean = false
+
+  /** One column as it would appear inside `create table (...)`. */
+  columnDefinition(column: ColumnAttributes): string {
+    return this.columnSql(new Blueprint(''), column)
+  }
+
+  /** Quote one identifier. Public so the builder can write a rebuild. */
+  wrapColumn(value: string): string {
+    return this.wrap(value)
+  }
 
   wrap(value: string): string {
     if (value === '*') return value
@@ -115,9 +138,17 @@ export abstract class SchemaGrammar {
       }
     }
 
-    // Columns added to an existing table become ALTER statements.
+    // Columns added to an existing table become ALTER statements; columns marked
+    // `change()` are modifications of one that is already there.
     if (!blueprint.creating && blueprint.columns.length > 0) {
-      statements.unshift(...this.compileAdd(blueprint))
+      const added = blueprint.columns.filter((column) => column.attributes.change !== true)
+      const changed = blueprint.columns.filter((column) => column.attributes.change === true)
+
+      for (const column of changed) {
+        statements.unshift(...this.compileChange(blueprint, column.attributes))
+      }
+
+      if (added.length > 0) statements.unshift(...this.compileAdd(blueprint, added))
     }
 
     return statements
@@ -150,8 +181,20 @@ export abstract class SchemaGrammar {
     return constraints
   }
 
-  protected compileAdd(blueprint: Blueprint): string[] {
-    return blueprint.columns.map(
+  /**
+   * Modify a column that already exists — `->change()`.
+   *
+   * Every engine spells this differently and one of them cannot do it at all, so
+   * the base refuses rather than guessing. SQLite's answer is a whole-table
+   * rebuild, which needs to read the current schema and therefore lives in the
+   * builder rather than here.
+   */
+  protected compileChange(_blueprint: Blueprint, column: ColumnAttributes): string[] {
+    throw new Error(`This database engine does not support changing a column (\`${column.name}\`).`)
+  }
+
+  protected compileAdd(blueprint: Blueprint, columns = blueprint.columns): string[] {
+    return columns.map(
       (column) =>
         `alter table ${this.wrapTable(blueprint.table)} add column ${this.columnSql(blueprint, column.attributes)}`
     )

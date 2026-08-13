@@ -40,6 +40,7 @@ export type ColumnAttributes = {
   after?: string
   first?: boolean
   collation?: string
+  /** Set by `change()`: alter this column rather than add it. */
   change?: boolean
 }
 
@@ -85,6 +86,22 @@ export class ColumnDefinition {
     readonly attributes: ColumnAttributes,
     private readonly blueprint: Blueprint
   ) {}
+
+  /**
+   * Modify this column instead of adding it — Laravel's `->change()`.
+   *
+   * The definition is read as a **replacement**, not a patch: everything the
+   * column should still be has to be restated. `string('email').nullable()`
+   * followed by `string('email').change()` makes it NOT NULL again, because that
+   * is what the new definition says. Laravel behaves the same way, and the
+   * alternative — merging with whatever is already there — means a migration
+   * whose result depends on the database it is run against.
+   */
+  change(): this {
+    this.attributes.change = true
+
+    return this
+  }
 
   nullable(value = true): this {
     this.attributes.nullable = value

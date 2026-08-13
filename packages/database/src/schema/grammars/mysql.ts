@@ -123,4 +123,17 @@ export class MySqlSchemaGrammar extends SchemaGrammar {
   compileDisableForeignKeys(): string {
     return 'SET FOREIGN_KEY_CHECKS = 0'
   }
+
+  /**
+   * `alter table t modify `col` <type> <modifiers>`.
+   *
+   * `modify` restates the column whole, which is MySQL's only form — there is no
+   * way to change the type and keep the rest. That is why `change()` reads the
+   * definition as a replacement everywhere: anything MySQL is not told, it drops.
+   */
+  protected override compileChange(blueprint: Blueprint, column: ColumnAttributes): string[] {
+    return [
+      `alter table ${this.wrapTable(blueprint.table)} modify ${this.columnSql(blueprint, column)}`
+    ]
+  }
 }

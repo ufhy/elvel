@@ -598,6 +598,44 @@ for (const { name, config } of available) {
         expect(second.data.first()?.name).toBe('User 3')
       })
 
+      test('a column can be changed on every dialect', async () => {
+        const table = `${PREFIX}_change`
+
+        await schema.dropIfExists(table)
+        await schema.create(table, (blueprint) => {
+          blueprint.increments('id')
+          blueprint.string('label', 20).nullable()
+          blueprint.integer('score').nullable()
+          blueprint.index(['score'])
+        })
+
+        await new QueryBuilder(connection, table).insert({ label: 'before', score: 7 })
+
+        await schema.table(table, (blueprint) => {
+          blueprint.string('label', 120).nullable(false).default('none').change()
+        })
+
+        const rows = (await new QueryBuilder(connection, table).get()).all() as Array<
+          Record<string, unknown>
+        >
+
+        // The rows survive the change — on SQLite that means the rebuild copied them.
+        expect(rows.length).toBe(1)
+        expect(String(rows[0]?.label)).toBe('before')
+
+        // The new definition is in force: not-null is refused.
+        await expect(
+          new QueryBuilder(connection, table).insert({ label: null, score: 1 })
+        ).rejects.toThrow()
+
+        // And the other columns, and the index, are still there — the part a
+        // rebuild is most likely to lose.
+        expect(await schema.hasColumn(table, 'score')).toBe(true)
+        expect(await schema.hasIndex(table, ['score'])).toBe(true)
+
+        await schema.dropIfExists(table)
+      })
+
       test('hasIndex reads each dialect its own way', async () => {
         // pragma_index_list, information_schema.statistics and pg_indexes — three
         // different places, one answer.
@@ -634,6 +672,68 @@ for (const { name, config } of available) {
 
         const not = await User.query().whereJsonDoesntContain('meta->tags', 'a').get()
         expect(not.map((user) => user.name).all()).toEqual(['Linus'])
+      })
+
+      test('whereJsonLength counts array elements on every dialect', async () => {
+        await truncate()
+
+        await User.create({ name: 'Ada', meta: { tags: ['a', 'b'] } })
+        await User.create({ name: 'Linus', meta: { tags: ['c'] } })
+        await User.create({ name: 'Grace', meta: { tags: [] } })
+
+        const many = await User.query().whereJsonLength('meta->tags', '>', 1).get()
+        expect(many.map((user) => user.name).all()).toEqual(['Ada'])
+
+        // Two arguments mean equality, as everywhere else in the builder.
+        const empty = await User.query().whereJsonLength('meta->tags', 0).get()
+        expect(empty.map((user) => user.name).all()).toEqual(['Grace'])
+      })
+
+      test('updating a JSON path leaves the rest of the document alone', async () => {
+        await truncate()
+
+        const ada = await User.create({
+          name: 'Ada',
+          meta: { theme: 'dark', tags: ['a'], nested: { keep: true } }
+        })
+
+        await User.query()
+          .where('id', ada.id)
+          .update({ 'meta->theme': 'light', 'meta->tags': ['x', 'y'] })
+
+        const fresh = await User.find(ada.id)
+
+        // The keys that were written, and — the whole point — the ones that were
+        // not. Writing the column would have replaced the document.
+        expect((fresh?.meta as Record<string, unknown>).theme).toBe('light')
+        expect((fresh?.meta as Record<string, unknown>).tags).toEqual(['x', 'y'])
+        expect((fresh?.meta as Record<string, unknown>).nested).toEqual({ keep: true })
+      })
+
+      test('two writes to one document both survive', async () => {
+        await truncate()
+
+        const ada = await User.create({ name: 'Ada', meta: { a: 1, b: 2 } })
+
+        await User.query().where('id', ada.id).update({ 'meta->a': 9, 'meta->b': 8 })
+
+        const fresh = await User.find(ada.id)
+
+        // `set meta = …, meta = …` is legal SQL in which the second wins, so
+        // ungrouped writes would leave `a` at 1.
+        expect(fresh?.meta).toEqual({ a: 9, b: 8 })
+      })
+
+      test('a nested path is reached, and a missing document is created', async () => {
+        await truncate()
+
+        const ada = await User.create({ name: 'Ada', meta: { nested: { deep: 'old' } } })
+
+        await User.query().where('id', ada.id).update({ 'meta->nested->deep': 'new' })
+
+        expect(
+          ((await User.find(ada.id))?.meta as never as { nested: { deep: string } }).nested.deep
+        ).toBe('new')
       })
 
       test('boolean and json casts survive the round trip', async () => {
