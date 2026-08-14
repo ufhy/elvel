@@ -12,7 +12,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 2.**
+**Open: 1.**
 
 ---
 
@@ -30,7 +30,7 @@ Laravel ships 38 components; 30 are covered here, several under different names 
 `Foundation`+`Container`+`Config` → `core`, `Filesystem` → `storage`,
 `Routing`+`Cookie`+`Session` → `http`, `Bus` → `queue/bus.ts` and `batch.ts`,
 `Redis` → `cache`, `Pagination` → `database`,
-`Collections`+`Macroable`+`Conditionable` → `support`. The scheduler is its own
+`Collections`+`Macroable`+`Conditionable`+`Pipeline` → `support`. The scheduler is its own
 package here and lives inside `Console` there.
 
 **Not yet measured: depth.** This compares components, not what is inside them —
@@ -42,7 +42,6 @@ here as rows when it is done, not as a guess now.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Pipeline** | `Pipeline::send()->through()->then()`, used across the framework. | Not present as an abstraction. The pattern is used — a local `reduceRight` at `queue/runner.ts:204` builds the job middleware chain, and HTTP middleware rides Elysia's hooks — but it cannot be borrowed for anything else. |
 | **JsonSchema** | A schema builder (`ObjectType`, `ArrayType`, `AnyOfType`, `UnionType`) with a serializer and deserializer. | Closer than it looks: `validation` is built on TypeBox, which already *is* JSON Schema. What is missing is the builder surface and the round trip, not the representation. |
 
 ## Considered and declined

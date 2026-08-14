@@ -1,6 +1,15 @@
 export { Arr } from './arr.ts'
 export { Collection, collect } from './collection.ts'
 export {
+  type Next,
+  type Pipe,
+  type PipeFunction,
+  Pipehub,
+  Pipeline,
+  type PipeObject,
+  type PipeResolver
+} from './pipeline.ts'
+export {
   amzDate,
   type Credentials,
   canonicalRequest,

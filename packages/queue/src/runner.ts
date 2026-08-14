@@ -1,3 +1,4 @@
+import { Pipeline } from '@elysian/support'
 import type { BatchRepository } from './batch.ts'
 import type { JobPayload, QueuedJob } from './contracts.ts'
 import type { AnyJob, JobMiddleware, JobRegistry } from './job.ts'
@@ -197,16 +198,26 @@ export class JobRunner {
     return this.options.encrypter.decrypt<Record<string, unknown>>(ciphertext, `job:${payload.job}`)
   }
 
-  /** Run `handle()` through the job's middleware, innermost last. */
+  /**
+   * Run `handle()` through the job's middleware, innermost last.
+   *
+   * `JobMiddleware.handle(job, next)` takes a `next` of no arguments, while a
+   * pipeline stage's takes the passable — so the job is closed over rather than
+   * threaded through. The shape is the same either way, and using the shared
+   * pipeline means a fix to the ordering or the error path lands in one place.
+   */
   private async through(job: AnyJob, handle: () => Promise<void>): Promise<void> {
-    const middleware = job.middleware()
-
-    const pipeline = middleware.reduceRight<() => Promise<void>>(
-      (next, layer: JobMiddleware) => () => layer.handle(job, next),
-      handle
-    )
-
-    await pipeline()
+    await new Pipeline<AnyJob, void>()
+      .send(job)
+      .through(
+        job
+          .middleware()
+          .map(
+            (layer: JobMiddleware) => (passable: AnyJob, next: (job: AnyJob) => Promise<void>) =>
+              layer.handle(passable, () => next(passable))
+          )
+      )
+      .then(handle)
   }
 
   private async dispatchChain(queued: QueuedJob): Promise<void> {
