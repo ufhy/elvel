@@ -307,9 +307,19 @@ describe.if(detected !== undefined)(`transformations through ${detected?.name}`,
     const count = [...before].length
 
     await (await open()).resize(15).toBytes()
-    // A failing command must not leak a directory either.
-    await (await open())
-      .crop(999_999, 999_999)
+
+    /**
+     * A failing command must not leak a directory either.
+     *
+     * The failure is a truncated file — a real PNG header with rubbish after it —
+     * so `probe()` accepts it and the backend rejects it immediately. An absurd
+     * crop was the first attempt and was a bad one: `sips` genuinely tries to
+     * build the canvas, so the test timed out under load instead of failing fast.
+     */
+    const truncated = new Uint8Array(64)
+    truncated.set((await bytesOf('sample.png')).subarray(0, 33), 0)
+    await new Image(truncated, detected)
+      .resize(10)
       .toBytes()
       .catch(() => undefined)
 
