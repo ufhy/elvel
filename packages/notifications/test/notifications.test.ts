@@ -838,3 +838,43 @@ describe('the broadcast channel', () => {
     expect<number>(sent.length).toBe(0)
   })
 })
+
+describe('a notification written in markdown', () => {
+  test('the mail channel renders it through the mail package', async () => {
+    const sent: Array<{ html?: string; text?: string }> = []
+
+    const mail = {
+      mailer: () => ({
+        send: async (mailable: { content(): { html?: string; text?: string } }) => {
+          sent.push(mailable.content())
+
+          return null
+        }
+      })
+    }
+
+    class ReleaseNotes extends Notification<Record<string, never>> {
+      via(): string[] {
+        return ['mail']
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage()
+          .subject('What changed')
+          .markdown('## Changes\n\n- One thing\n- Another')
+      }
+    }
+
+    await new MailNotificationChannel(mail as never).send(
+      { email: 'ada@example.com' } as never,
+      new ReleaseNotes({})
+    )
+
+    // A list stays a list — twelve `.line()` calls would lose the structure the
+    // reader needs.
+    expect<boolean>(sent[0]?.html?.includes('<li>One thing</li>') === true).toBe(true)
+    expect<boolean>(sent[0]?.html?.includes('<h2') === true).toBe(true)
+    // And the text part is the markdown itself, still readable.
+    expect<boolean>(sent[0]?.text?.includes('- One thing') === true).toBe(true)
+  })
+})

@@ -12,10 +12,12 @@ export {
   formatAddress,
   Mailable,
   type MailableClass,
+  markdownContent,
   viewContent
 } from './mailable.ts'
 export { Mailer, type MailerOptions, PendingMail, type ViewRenderer } from './mailer.ts'
 export { type MailerConfig, MailManager, type TransportFactory } from './manager.ts'
+export { markdownToHtml, markdownToText } from './markdown.ts'
 export {
   type DeliveryResult,
   recipientsOf,

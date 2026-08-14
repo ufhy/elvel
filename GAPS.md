@@ -1,129 +1,26 @@
 # Known gaps
 
-What is deliberately missing, per package, so it is not rediscovered by
-accident. Everything here is a decision, not an oversight; where something was
-attempted and could not be made to work, that is said plainly.
+**There are none left in the per-package tables.** Every row that once stood
+here has been built, or was deleted because it named something that already
+existed. What remains below is a watch list and the places the test suite does
+not reach — neither of which is a missing feature.
 
-**A row is removed when the thing is built. It is never narrowed.**
-If part of a feature is done, the row goes and what remains is either a new row
-naming something genuinely different, or nothing at all. Rewriting a row to
-describe the leftover keeps the list the same length while the work gets done,
-which makes the list useless as a measure — and that is exactly what it is for.
+This file is kept because the next gap belongs here, and because the rules it
+was given are worth keeping:
+
+**A row is removed when the thing is built. It is never narrowed.** Rewriting a
+row to describe the leftover keeps the list the same length while the work gets
+done, which makes the list useless as a measure — and that is exactly what it is
+for.
 
 **A row whose answer is "this is not actually missing" does not belong here.**
-Eight have been written and then removed on those grounds; the last four named
-`FormRequest`, `sessionOf()`, `fileResponse()` and a transaction arrangement that
-already works. Behaviour that exists and is merely surprising belongs in
-`BEHAVIOURS.md`, which is where the per-package notes moved so that this file
-shortens when work is finished.
+Forty-five were written and then removed on those grounds. Behaviour that exists
+and is merely surprising belongs in `BEHAVIOURS.md`.
 
 Reviewed against the Laravel 13 documentation and, where behaviour mattered, the
 `laravel/framework` source.
 
-Every row was last checked against the code on 2026-08-13: each one's API was
-grepped for in `packages/*/src`. Rows that named something already implemented
-were removed — `Model::withoutTimestamps`, `Log::withoutContext`,
-`connection.transactions.level`, a duplicate pair about console prompting, and
-the four named above.
-
 ---
-
-## @elysian/database — complete for this milestone
-
-The query builder, schema builder, migrator and model layer cover the documented
-Laravel surface that applies to this runtime, and are tested against **SQLite,
-Postgres 17 and MySQL 9**.
-
-Deliberately absent, with reasons:
-
-| Missing | Why |
-| --- | --- |
-
----
-
-## @elysian/view
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/events
-
-Wildcards, halting, subscribers, `push`/`flush`, a fake — and listeners that run in
-a worker instead of the request.
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/log
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/validation
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/http
-
-`FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF, rate
-limiting, CORS and trusted proxies.
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/auth
-
-better-auth 1.6.27 owns credentials, sessions, providers and the endpoints that
-go with them. This package supplies the adapter that puts its tables on our
-connection, the request scope that makes the current user reachable, and the Gate
-and policies on top.
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/queue
-
-Three drivers — `sync`, `database`, `redis` — a worker whose retry policy is
-transcribed step for step from `Illuminate\Queue\Worker`, chains, job middleware,
-a failed-job store, and `defer()` for work too small to queue.
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/mail
-
-Mailables with an envelope, content and attachments; transports for SMTP, Resend,
-Postmark, Mailgun, log and array, plus `failover` and `roundrobin`; queued mail
-through the queue package; and `Mail.fake()` for tests.
-
-| Missing | Why |
-| --- | --- |
-| Markdown mailables | Needs a markdown parser and a theme to render into. HTML mail here is a JSX view, which is the same renderer the web views use — no second template engine, and the props are typechecked. |
-
-## @elysian/storage
-
-Disks for `local`, `s3` and `memory` behind one contract, with `storage:link`,
-streamed downloads and a path guard. The S3 driver is Bun's native client — no SDK,
-and presigning needs no network.
-
-| Missing | Why |
-| --- | --- |
-
-## @elysian/notifications
-
-One notification, several channels — `mail`, `database` and `log` — with `via()`
-deciding per recipient, on-demand recipients, queued delivery, an inbox model and a
-fake.
-
-| Missing | Why |
-| --- | --- |
-| Markdown notification templates | The `MailMessage` builder renders to HTML here, inline-styled, because a mail client ignores most of a stylesheet. `view()` hands the body to one of the application's own JSX components when the default is not enough. |
-
-## @elysian/encryption
-
-| Missing | Why |
-| --- | --- |
 
 ## Not started
 

@@ -6,10 +6,12 @@ import {
   type Content,
   type Envelope,
   Mailable,
+  markdownContent,
   viewContent
 } from '../src/mailable.ts'
 import { Mailer } from '../src/mailer.ts'
 import { MailManager } from '../src/manager.ts'
+import { markdownToHtml, markdownToText } from '../src/markdown.ts'
 import type { SentMessage, Transport } from '../src/message.ts'
 import { ArrayTransport } from '../src/transports/array.ts'
 import { FailoverTransport, RoundRobinTransport } from '../src/transports/fallback.ts'
@@ -913,5 +915,63 @@ describe('attaching from a storage disk', () => {
     // The usual cause is a path relative to the wrong disk, and the alternative
     // is a message that goes out silently missing its invoice.
     await expect(attachFromDisk('s3', 'invoices/may.pdf')).rejects.toThrow('invoices/may.pdf')
+  })
+})
+
+describe('markdown mail', () => {
+  test('the shapes a mail actually uses', () => {
+    const html = markdownToHtml(
+      '# Shipped\n\nIt is **on its way**. [Track it](https://example.com/t/7).\n\n- one\n- two'
+    )
+
+    expect<boolean>(html.includes('<h1')).toBe(true)
+    expect<boolean>(html.includes('<strong>on its way</strong>')).toBe(true)
+    expect<boolean>(html.includes('href="https://example.com/t/7"')).toBe(true)
+    expect<boolean>(html.includes('<li>one</li>')).toBe(true)
+  })
+
+  test('styles are inline, because Gmail strips a style block', () => {
+    const html = markdownToHtml('Hello.')
+
+    expect<boolean>(html.includes('style="margin: 0 0 16px')).toBe(true)
+    expect<boolean>(html.includes('<style')).toBe(false)
+  })
+
+  test('raw HTML in the source is escaped', () => {
+    // Markdown for a mail usually contains something somebody typed, and passing
+    // tags through is how a display name becomes a phishing link.
+    const html = markdownToHtml('Hi <script>alert(1)</script> and <b>bold</b>')
+
+    expect<boolean>(html.includes('<script>')).toBe(false)
+    expect<boolean>(html.includes('&lt;script&gt;')).toBe(true)
+  })
+
+  test('the text part keeps links usable', () => {
+    const text = markdownToText('# Shipped\n\n[Track it](https://example.com/t/7) now.')
+
+    // Not the HTML with tags stripped: a link with its URL removed is a text
+    // part that looks broken to anybody whose client prefers text.
+    expect<boolean>(text.includes('Track it (https://example.com/t/7)')).toBe(true)
+  })
+
+  test('markdownContent produces both parts, dedented', () => {
+    const content = markdownContent(`
+      # Hello
+
+      A line.
+    `) as { html: string; text: string }
+
+    // Without dedenting, every line starts four spaces in and markdown reads the
+    // whole message as one code block.
+    expect<boolean>(content.html.includes('<h1')).toBe(true)
+    expect<boolean>(content.html.includes('<pre')).toBe(false)
+    expect<boolean>(content.text.startsWith('# Hello')).toBe(true)
+  })
+
+  test('fenced code survives as code', () => {
+    const html = markdownToHtml('```\nbun test\n```')
+
+    expect<boolean>(html.includes('<pre')).toBe(true)
+    expect<boolean>(html.includes('bun test')).toBe(true)
   })
 })

@@ -1452,7 +1452,7 @@ describe('restarting workers on signal', () => {
 describe('encrypting some fields of a payload', () => {
   const encrypter = {
     encrypt: (value: unknown, context = '') => `enc(${context}):${JSON.stringify(value)}`,
-    decrypt: <T,>(payload: string, context = ''): T => {
+    decrypt: <T>(payload: string, context = ''): T => {
       const prefix = `enc(${context}):`
 
       if (!payload.startsWith(prefix)) throw new Error('wrong context')
@@ -1479,7 +1479,10 @@ describe('encrypting some fields of a payload', () => {
     app.instance('encrypter' as never, encrypter as never)
 
     const manager = new QueueManager(app)
-    const payload = await manager.payloadFor(new PartlySecret({ customer: 'Ada', card: '4111' }), {})
+    const payload = await manager.payloadFor(
+      new PartlySecret({ customer: 'Ada', card: '4111' }),
+      {}
+    )
 
     // The whole-payload form hides the fields you search a failed-jobs table by;
     // this keeps them.

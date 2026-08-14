@@ -1,4 +1,4 @@
-import type { Content, Envelope, Mailable } from '@elysian/mail'
+import { type Content, type Envelope, type Mailable, markdownContent } from '@elysian/mail'
 import { type Notifiable, routeFor } from '../notifiable.ts'
 import type { AnyNotification } from '../notification.ts'
 
@@ -78,9 +78,21 @@ export class MailNotificationChannel {
       ...(message.replyToOrUndefined ? { replyTo: message.replyToOrUndefined } : {})
     }
 
+    /**
+     * Three ways to write the body, in the order they take precedence: one of
+     * the application's own components, markdown, or the builder's lines.
+     *
+     * Markdown goes through the mail package's renderer rather than a second
+     * one, so a notification and a mailable written the same way produce the
+     * same HTML.
+     */
+    const markdown = message.markdownSource
+
     const content: Content = component
       ? { view: component.view, with: component.with, text: message.toText(this.appName) }
-      : { html: message.toHtml(this.appName), text: message.toText(this.appName) }
+      : markdown !== undefined
+        ? markdownContent(markdown)
+        : { html: message.toHtml(this.appName), text: message.toText(this.appName) }
 
     const mailable = new NotificationMail({
       envelope,

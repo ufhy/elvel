@@ -104,6 +104,31 @@ export class MailMessage {
     return this
   }
 
+  /**
+   * Write the body as markdown instead of as lines.
+   *
+   * The builder covers a greeting, some lines and a button, which is most
+   * notifications. A release note or a summary is not that shape, and expressing
+   * it as twelve `.line()` calls loses the structure the reader needs — a list
+   * stays a list here.
+   *
+   * Rendered by the mail package's own renderer, so the two produce the same
+   * inline-styled HTML and a notification does not look different from a
+   * mailable written the same way.
+   */
+  markdown(source: string): this {
+    this.markdownBody = source
+
+    return this
+  }
+
+  private markdownBody: string | undefined
+
+  /** The markdown body, when one was set. */
+  get markdownSource(): string | undefined {
+    return this.markdownBody
+  }
+
   /** Render the body with one of the application's components instead. */
   view<Props>(component: ViewComponent<Props>, props: Props): this {
     this.component = { view: component as ViewComponent<never>, with: props }

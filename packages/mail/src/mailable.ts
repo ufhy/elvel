@@ -1,4 +1,5 @@
 import type { ViewComponent } from '@elysian/contracts'
+import { markdownToHtml, markdownToText } from './markdown.ts'
 
 /** One mailbox. A bare string is an address with no display name. */
 export type Address = string | { address: string; name?: string }
@@ -133,3 +134,45 @@ export type AnyMailable = Mailable<unknown>
 
 /** A mailable class, as the registry holds it. */
 export type MailableClass = new (data: never) => AnyMailable
+
+/**
+ * Content written as markdown — Laravel's markdown mailables.
+ *
+ * ```ts
+ * content() {
+ *   return markdownContent(`
+ *     # Your order shipped
+ *
+ *     It is on its way. [Track it](${this.data.url}).
+ *   `)
+ * }
+ * ```
+ *
+ * Produces both parts: HTML for the client that wants it, and the markdown
+ * itself as the text alternative — which is the reason to write mail this way,
+ * since the text part stays readable instead of being tags stripped out of the
+ * HTML.
+ */
+export function markdownContent(source: string): Content {
+  const trimmed = dedent(source)
+
+  return { html: markdownToHtml(trimmed), text: markdownToText(trimmed) }
+}
+
+/**
+ * Remove the indentation a template literal picks up from its surroundings.
+ *
+ * Without it every line of a mail written inside a class body starts four
+ * spaces in, which markdown reads as a code block — so the whole message renders
+ * as one grey box.
+ */
+function dedent(source: string): string {
+  const lines = source.replace(/^\n/, '').replace(/\s+$/, '').split('\n')
+  const indents = lines
+    .filter((line) => line.trim() !== '')
+    .map((line) => (/^(\s*)/.exec(line)?.[1] ?? '').length)
+
+  const shortest = indents.length > 0 ? Math.min(...indents) : 0
+
+  return lines.map((line) => line.slice(shortest)).join('\n')
+}
