@@ -105,6 +105,14 @@ export class NotificationManager {
   /** The sender, wired to this manager's channels and the queue. */
   sender(): NotificationSender {
     return new NotificationSender((name) => this.channel(name), {
+      // Only when a translation package is registered; without one a
+      // `preferredLocale()` is simply ignored rather than failing the send.
+      translator: this.app.bound('translator')
+        ? (this.app.make('translator' as never) as {
+            getLocale(): string
+            setLocale(locale: string): unknown
+          })
+        : undefined,
       events: this.app.bound('events')
         ? (this.app.make('events' as never) as {
             dispatch(event: string, payload?: unknown): unknown

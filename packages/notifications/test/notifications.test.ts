@@ -713,3 +713,81 @@ describe('Notification.fake()', () => {
     expect(manager.isFaking).toBe(false)
   })
 })
+
+describe('the recipient’s own language', () => {
+  test('the translator is switched for the send, and restored after', async () => {
+    const locales: string[] = []
+    let current = 'en'
+
+    const translator = {
+      getLocale: () => current,
+      setLocale: (locale: string) => {
+        current = locale
+      }
+    }
+
+    const sender = new NotificationSender(
+      () => ({
+        name: 'probe',
+        send: async () => {
+          locales.push(current)
+        }
+      }),
+      { translator }
+    )
+
+    class Probe extends Notification<Record<string, never>> {
+      via(): string[] {
+        return ['probe']
+      }
+    }
+
+    await sender.sendNow(
+      [
+        { email: 'ada@example.com', preferredLocale: () => 'id' },
+        { email: 'linus@example.com' }
+      ],
+      new Probe({})
+    )
+
+    // The language belongs to the person, not to whoever triggered the
+    // notification — and a recipient who never said keeps the default.
+    expect<string[]>(locales).toEqual(['id', 'en'])
+    expect<string>(current).toBe('en')
+  })
+
+  test('a channel that throws still restores the locale', async () => {
+    let current = 'en'
+
+    const sender = new NotificationSender(
+      () => ({
+        name: 'probe',
+        send: async () => {
+          throw new Error('channel failed')
+        }
+      }),
+      {
+        translator: {
+          getLocale: () => current,
+          setLocale: (locale: string) => {
+            current = locale
+          }
+        }
+      }
+    )
+
+    class Probe extends Notification<Record<string, never>> {
+      via(): string[] {
+        return ['probe']
+      }
+    }
+
+    await expect(
+      sender.sendNow([{ email: 'ada@example.com', preferredLocale: () => 'id' }], new Probe({}))
+    ).rejects.toThrow('channel failed')
+
+    // Otherwise the process speaks the last recipient's language to everybody
+    // after them.
+    expect<string>(current).toBe('en')
+  })
+})

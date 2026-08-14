@@ -28,6 +28,22 @@ export interface Notifiable {
 
   /** Fallback key when there is no `getKey()`. */
   id?: unknown
+
+  /**
+   * The language this recipient reads — Laravel's `preferredLocale()`.
+   *
+   * Read by the notification sender, which switches the translator for the
+   * duration of the send. That is the only correct place: a notification is
+   * rendered long after the request that caused it, often in a worker with no
+   * request at all, so the recipient's language cannot come from the incoming
+   * `Accept-Language`.
+   */
+  preferredLocale?(): string | undefined
+}
+
+/** The locale a notifiable reads, when it says. */
+export function localeFor(notifiable: Notifiable): string | undefined {
+  return typeof notifiable.preferredLocale === 'function' ? notifiable.preferredLocale() : undefined
 }
 
 /**

@@ -25,6 +25,7 @@
     "@elysian/scheduler": "workspace:*",
     "@elysian/storage": "workspace:*",
     "@elysian/support": "workspace:*",
+    "@elysian/translation": "workspace:*",
     "@elysian/validation": "workspace:*",
     "@elysian/view": "workspace:*",
     "@kitajs/html": "^4.2.13",

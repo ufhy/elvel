@@ -1,4 +1,4 @@
-import { AnonymousNotifiable, isAnonymous, type Notifiable } from './notifiable.ts'
+import { AnonymousNotifiable, isAnonymous, localeFor, type Notifiable } from './notifiable.ts'
 import type { AnyNotification } from './notification.ts'
 
 /** A channel the sender can deliver through. */
@@ -18,6 +18,13 @@ export type SenderOptions = {
     notification: AnyNotification,
     channel: string
   ) => Promise<string>
+  /**
+   * The translator, when one is registered.
+   *
+   * Duck-typed rather than imported: notifications must keep working with no
+   * translation package present, and only `preferredLocale()` needs it.
+   */
+  translator?: { getLocale(): string; setLocale(locale: string): unknown }
 }
 
 /**
@@ -79,11 +86,48 @@ export class NotificationSender {
       // One id per recipient, shared by its channels.
       notification.id = preassigned || crypto.randomUUID()
 
-      for (const channel of via) {
-        if (channel === 'database' && isAnonymous(notifiable)) continue
+      /**
+       * The recipient's own language, for the duration of this send.
+       *
+       * Switched here rather than read inside a message, because a notification
+       * is rendered long after the request that caused it — often in a worker
+       * with no request at all — so `Accept-Language` is not available and would
+       * be the wrong answer anyway: the language belongs to the person, not to
+       * whoever triggered the notification.
+       */
+      await this.inLocale(localeFor(notifiable), async () => {
+        for (const channel of via) {
+          if (channel === 'database' && isAnonymous(notifiable)) continue
 
-        await this.sendToNotifiable(notifiable, notification, channel)
-      }
+          await this.sendToNotifiable(notifiable, notification, channel)
+        }
+      })
+    }
+  }
+
+  /**
+   * Run `body` with the translator set to `locale`, restoring it afterwards.
+   *
+   * Restored in a `finally`: a channel that throws must not leave the process
+   * speaking the last recipient's language to everybody after them.
+   */
+  private async inLocale(locale: string | undefined, body: () => Promise<void>): Promise<void> {
+    const translator = this.options.translator
+
+    if (!locale || !translator) {
+      await body()
+
+      return
+    }
+
+    const previous = translator.getLocale()
+
+    translator.setLocale(locale)
+
+    try {
+      await body()
+    } finally {
+      translator.setLocale(previous)
     }
   }
 

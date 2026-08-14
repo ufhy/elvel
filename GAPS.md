@@ -67,7 +67,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| Translations | Messages are one English catalogue; a translator package would carry the rest. |
 
 ## @elysian/http
 
@@ -125,7 +124,6 @@ fake.
 | --- | --- |
 | `broadcast` channel | Needs a websocket package, which does not exist yet. It is the one channel that cannot be a few lines of `fetch`. |
 | Markdown notification templates | The `MailMessage` builder renders to HTML here, inline-styled, because a mail client ignores most of a stylesheet. `view()` hands the body to one of the application's own JSX components when the default is not enough. |
-| `preferredLocale()` / translated notifications | There is no translator package, so there is nothing to switch. |
 
 ## @elysian/encryption
 

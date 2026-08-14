@@ -4,6 +4,7 @@ import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
 import { EncryptionServiceProvider } from '@elysian/encryption'
+import { TranslationServiceProvider } from '@elysian/translation'
 import { EventServiceProvider } from '@elysian/events'
 import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
@@ -16,6 +17,10 @@ import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
 export default {
+  /** Default language, and what to fall back to when a key is missing. */
+  locale: env('APP_LOCALE', 'en'),
+  fallbackLocale: env('APP_FALLBACK_LOCALE', 'en'),
+
   name: env('APP_NAME', 'Elysian'),
 
   /**
@@ -56,6 +61,7 @@ export default {
    * Application providers live in `bootstrap/app.ts` so they boot after these.
    */
   providers: [
+    TranslationServiceProvider,
     EventServiceProvider,
     LogServiceProvider,
     EncryptionServiceProvider,

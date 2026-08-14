@@ -240,6 +240,15 @@
       "name": "@elysian/support",
       "version": "0.0.1",
     },
+    "packages/translation": {
+      "name": "@elysian/translation",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+        "@elysian/support": "workspace:*",
+      },
+    },
     "packages/validation": {
       "name": "@elysian/validation",
       "version": "0.0.1",
@@ -287,6 +296,7 @@
         "@elysian/scheduler": "workspace:*",
         "@elysian/storage": "workspace:*",
         "@elysian/support": "workspace:*",
+        "@elysian/translation": "workspace:*",
         "@elysian/validation": "workspace:*",
         "@elysian/view": "workspace:*",
         "@kitajs/html": "^4.2.13",
@@ -375,6 +385,8 @@
     "@elysian/storage": ["@elysian/storage@workspace:packages/storage"],
 
     "@elysian/support": ["@elysian/support@workspace:packages/support"],
+
+    "@elysian/translation": ["@elysian/translation@workspace:packages/translation"],
 
     "@elysian/validation": ["@elysian/validation@workspace:packages/validation"],
 
