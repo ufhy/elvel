@@ -105,7 +105,18 @@ export class LogTailCommand extends Command {
    * trace — is printed whenever the line before it was, so a trace arrives whole
    * rather than as its first line only.
    */
-  private print(line: string, level: string, filter: string): void {
+  private print(raw: string, level: string, filter: string): void {
+    /**
+     * Control characters are stripped before anything reaches the terminal.
+     *
+     * A log line carries whatever was logged, and that routinely includes user
+     * input — a username, a URL, a rejected payload. An escape sequence in there
+     * is executed by the terminal displaying it: at best it repaints the screen
+     * and hides the lines around it, at worst it drives whatever else that
+     * terminal lets escape sequences drive. What is read here is data, and it is
+     * printed as data.
+     */
+    const line = stripControl(raw)
     const parsed = /^\[[^\]]+\]\s+\S+\.(\w+):/.exec(line)
 
     if (!parsed) {
@@ -131,4 +142,21 @@ export class LogTailCommand extends Command {
 
     return channel?.path ?? this.app.storagePath('logs', 'elysian.log')
   }
+}
+
+/**
+ * Remove escape sequences and other control characters from a log line.
+ *
+ * Tabs and newlines are ordinary in a logged payload and survive; everything
+ * else below 0x20, plus DEL and the C1 range, becomes a replacement character so
+ * the line still shows that something was there rather than silently shortening.
+ */
+export function stripControl(value: string): string {
+  const escapes = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, 'g')
+  const controls = new RegExp(
+    `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}-${String.fromCharCode(31)}${String.fromCharCode(127)}-${String.fromCharCode(159)}]`,
+    'g'
+  )
+
+  return value.replace(escapes, '').replace(controls, '\uFFFD')
 }

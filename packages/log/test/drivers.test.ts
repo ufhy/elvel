@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import type { LogLevel, LogRecord } from '@elysian/contracts'
+import { stripControl } from '../src/console/log-tail.ts'
 import { ConsoleDriver } from '../src/drivers/console.ts'
 import { JsonDriver } from '../src/drivers/json.ts'
 import { ErrorLogDriver, MemoryDriver, NullDriver, SlackDriver } from '../src/drivers/misc.ts'
@@ -237,5 +238,28 @@ describe('the errorlog and slack drivers', () => {
 
     // An unhandled rejection here would take the process down with it.
     expect<number>(reported.length).toBe(1)
+  })
+})
+
+describe('what reaches the terminal', () => {
+  const esc = String.fromCharCode(27)
+
+  test('an escape sequence in a log line is stripped', () => {
+    const hostile = `[2026-08-13T00:00:00.000Z] app.ERROR: user said ${esc}[2J${esc}[Hgotcha`
+
+    // A log line carries whatever was logged, and that routinely includes user
+    // input. An escape sequence in there is executed by the terminal showing it.
+    expect<boolean>(stripControl(hostile).includes(esc)).toBe(false)
+    expect<boolean>(stripControl(hostile).endsWith('user said gotcha')).toBe(true)
+  })
+
+  test('tabs survive, because a logged payload has them', () => {
+    expect<string>(stripControl('a\tb')).toBe('a\tb')
+  })
+
+  test('other control characters are shown, not dropped', () => {
+    // Dropping them would let a line look shorter than what was written.
+    expect<string>(stripControl(`a${String.fromCharCode(0)}b`)).toBe('a�b')
+    expect<string>(stripControl(`a${String.fromCharCode(127)}b`)).toBe('a�b')
   })
 })
