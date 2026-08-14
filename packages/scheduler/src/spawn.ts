@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import type { ApplicationContract } from '@elysian/contracts'
+import { ProcessManager } from '@elysian/process'
 import type { Spawner } from './runner.ts'
 
 /**
@@ -13,28 +14,22 @@ import type { Spawner } from './runner.ts'
  * `emailOutputTo()`. Inheriting is the better default: a background task's
  * logging then reaches wherever the scheduler's does, rather than disappearing
  * into a buffer nobody reads.
+ *
+ * Runs through `@elysian/process` rather than `Bun.spawn` directly, which is
+ * what makes the child its own process group: a scheduled command that forks
+ * used to leave its children behind when the entry was killed.
  */
 export function spawner(app: ApplicationContract): Spawner {
   return async ({ name, parameters }, capture) => {
     const entry = app.config.get<string>('schedule.artisan', join(app.basePath(), 'artisan.ts'))
 
-    const child = Bun.spawn([process.execPath, entry, name, ...parameters], {
-      cwd: app.basePath(),
-      env: process.env,
-      stdout: capture ? 'pipe' : 'inherit',
-      stderr: capture ? 'pipe' : 'inherit'
-    })
+    const runner = new ProcessManager().path(app.basePath())
+    const configured = capture ? runner : runner.inherit()
 
-    if (!capture) return { code: await child.exited }
+    const result = await configured.run([process.execPath, entry, name, ...parameters])
 
-    // Both streams, read before waiting: a child that fills the pipe buffer
-    // blocks on write, and waiting for it first would deadlock.
-    const [out, err, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited
-    ])
-
-    return { code, output: `${out}${err}` }
+    // Both streams, because a task that fails usually explains itself on stderr
+    // and a caller emailing the output wants that half most of all.
+    return capture ? { code: result.exitCode, output: result.all() } : { code: result.exitCode }
   }
 }

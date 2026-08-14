@@ -201,6 +201,7 @@ const FRAMEWORK_PACKAGES = [
   'log',
   'mail',
   'notifications',
+  'process',
   'queue',
   'scheduler',
   'storage',

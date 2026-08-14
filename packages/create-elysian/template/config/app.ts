@@ -10,6 +10,7 @@ import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
 import { NotificationServiceProvider } from '@elysian/notifications'
+import { ProcessServiceProvider } from '@elysian/process'
 import { QueueServiceProvider } from '@elysian/queue'
 import { ScheduleServiceProvider } from '@elysian/scheduler'
 import { StorageServiceProvider } from '@elysian/storage'
@@ -64,6 +65,7 @@ export default {
     TranslationServiceProvider,
     EncryptionServiceProvider,
     ConsoleServiceProvider,
+    ProcessServiceProvider,
     DatabaseServiceProvider,
     StorageServiceProvider,
     CacheServiceProvider,

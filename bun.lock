@@ -13,6 +13,7 @@
         "@clack/prompts": "^1.7.0",
         "@elysiajs/static": "^1.4.10",
         "@elysian/auth": "workspace:*",
+        "@elysian/broadcasting": "workspace:*",
         "@elysian/cache": "workspace:*",
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
@@ -24,10 +25,13 @@
         "@elysian/log": "workspace:*",
         "@elysian/mail": "workspace:*",
         "@elysian/notifications": "workspace:*",
+        "@elysian/process": "workspace:*",
         "@elysian/queue": "workspace:*",
         "@elysian/scheduler": "workspace:*",
         "@elysian/storage": "workspace:*",
         "@elysian/support": "workspace:*",
+        "@elysian/testing": "workspace:*",
+        "@elysian/translation": "workspace:*",
         "@elysian/validation": "workspace:*",
         "@elysian/view": "workspace:*",
         "@kitajs/html": "^4.2.13",
@@ -127,6 +131,7 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/process": "workspace:*",
         "@elysian/support": "workspace:*",
         "picocolors": "^1.1.1",
       },
@@ -211,6 +216,14 @@
         "@elysian/support": "workspace:*",
       },
     },
+    "packages/process": {
+      "name": "@elysian/process",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+    },
     "packages/queue": {
       "name": "@elysian/queue",
       "version": "0.0.1",
@@ -231,6 +244,7 @@
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
+        "@elysian/process": "workspace:*",
       },
       "devDependencies": {
         "@elysian/cache": "workspace:*",
@@ -400,6 +414,8 @@
     "@elysian/mail": ["@elysian/mail@workspace:packages/mail"],
 
     "@elysian/notifications": ["@elysian/notifications@workspace:packages/notifications"],
+
+    "@elysian/process": ["@elysian/process@workspace:packages/process"],
 
     "@elysian/queue": ["@elysian/queue@workspace:packages/queue"],
 

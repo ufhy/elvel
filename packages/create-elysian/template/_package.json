@@ -22,6 +22,7 @@
     "@elysian/log": "{{ dep_log }}",
     "@elysian/mail": "{{ dep_mail }}",
     "@elysian/notifications": "{{ dep_notifications }}",
+    "@elysian/process": "{{ dep_process }}",
     "@elysian/queue": "{{ dep_queue }}",
     "@elysian/scheduler": "{{ dep_scheduler }}",
     "@elysian/storage": "{{ dep_storage }}",

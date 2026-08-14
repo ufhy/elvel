@@ -13,7 +13,8 @@
   "dependencies": {
     "@elysian/console": "workspace:*",
     "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*"
+    "@elysian/core": "workspace:*",
+    "@elysian/process": "workspace:*"
   },
   "devDependencies": {
     "@elysian/cache": "workspace:*",

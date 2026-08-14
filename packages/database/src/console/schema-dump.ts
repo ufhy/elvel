@@ -1,5 +1,6 @@
 import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { ProcessManager } from '@elysian/process'
 import type { ConnectionManager } from '../connection/manager.ts'
 import { MigrationCommand } from './base.ts'
 
@@ -148,28 +149,25 @@ export class SchemaDumpCommand extends MigrationCommand {
             database
           ]
 
-    const child = Bun.spawn(command, {
-      env: {
-        ...process.env,
-        ...(dialect === 'postgres' ? { PGPASSWORD: password } : { MYSQL_PWD: password })
-      },
-      stdout: 'pipe',
-      stderr: 'pipe'
-    })
+    /**
+     * The password goes in the environment, never in the argv.
+     *
+     * `ps` shows another user's command line; it does not show their
+     * environment. `--password=` on the command line would put the database
+     * password on a shared machine's process list for as long as the dump runs.
+     */
+    const result = await new ProcessManager()
+      .env(dialect === 'postgres' ? { PGPASSWORD: password } : { MYSQL_PWD: password })
+      .run(command)
 
-    const [out, err, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited
-    ])
-
-    if (code !== 0) {
+    if (result.failed()) {
       throw new Error(
-        `${command[0]} failed (${code}): ${err.trim() || 'is it installed and on PATH?'}`
+        `${command[0]} failed (${result.exitCode}): ` +
+          (result.errorOutput.trim() || 'is it installed and on PATH?')
       )
     }
 
-    return out
+    return result.output
   }
 
   /** Delete the migration files the dump now stands for. */

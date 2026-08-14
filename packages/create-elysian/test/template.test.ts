@@ -51,6 +51,26 @@ describe('the template ships every package', () => {
   })
 
   /**
+   * The repository root must link them all too.
+   *
+   * Not cosmetic: the smoke test scaffolds an application *inside* this
+   * checkout, and that application has no `node_modules` of its own, so it
+   * resolves `@elysian/*` by walking up to the root's. A package the root does
+   * not depend on is therefore absent from a scaffold that lists it — which is
+   * exactly how `broadcasting` and `translation` got into the template and broke
+   * the boot.
+   */
+  test('the repository root links every package', async () => {
+    const manifest = await Bun.file(resolve(root, 'package.json')).json()
+    const linked = Object.keys(manifest.devDependencies as Record<string, string>)
+      .filter((name) => name.startsWith('@elysian/'))
+      .map((name) => name.slice('@elysian/'.length))
+      .sort()
+
+    expect<string[]>(linked).toEqual(await workspacePackages())
+  })
+
+  /**
    * Every package that *has* a provider must be registered.
    *
    * Not every package has one — `contracts`, `support` and `testing` are plain

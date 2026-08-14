@@ -1,4 +1,5 @@
 import type { ApplicationContract } from '@elysian/contracts'
+import { ProcessManager } from '@elysian/process'
 import { type EventCallback, ScheduledEvent } from './event.ts'
 
 /** A job, structurally — the queue package satisfies this. */
@@ -76,22 +77,16 @@ export class Schedule {
   exec(command: string | string[]): ScheduledEvent {
     const summary = Array.isArray(command) ? command.join(' ') : command
 
-    // An array is passed straight to the program; only an explicit string opts
-    // into a shell.
-    const argv = Array.isArray(command) ? command : ['sh', '-c', command]
-
     return this.add(
       new ScheduledEvent(async () => {
-        const spawned = Bun.spawn(argv, {
-          cwd: this.app.basePath(),
-          stdout: 'inherit',
-          stderr: 'inherit'
-        })
+        // An array is passed straight to the program; only an explicit string
+        // opts into a shell. `@elysian/process` makes the same distinction, and
+        // gives the command its own process group so a scheduled task that forks
+        // does not leave children behind.
+        const result = await new ProcessManager().path(this.app.basePath()).inherit().run(command)
 
-        const code = await spawned.exited
-
-        if (code !== 0) {
-          throw new Error(`Scheduled command [${summary}] exited with code ${code}.`)
+        if (result.failed()) {
+          throw new Error(`Scheduled command [${summary}] exited with code ${result.exitCode}.`)
         }
       }, summary)
     )

@@ -12,7 +12,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 4.**
+**Open: 3.**
 
 ---
 
@@ -42,7 +42,6 @@ here as rows when it is done, not as a guess now.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Process** | `Factory`, `PendingProcess`, `Pool`, `InvokedProcessPool`, and fakes (`FakeProcessSequence`, `FakeProcessResult`, `FakeProcessDescription`). | `Bun.spawn` is called directly in `scheduler/spawn.ts` and `database/console/schema-dump.ts` — no abstraction, no pool, and nothing to fake against, so anything spawning a process is untestable without spawning it. |
 | **Hashing** | `Hash::make()` / `Hash::check()` / `Hash::needsRehash()` over bcrypt and argon2. | better-auth hashes passwords internally, so authentication is covered, but there is no way to hash anything that is *not* a password. Cheap on Bun: `Bun.password` is already argon2id and bcrypt. |
 | **Pipeline** | `Pipeline::send()->through()->then()`, used across the framework. | Not present as an abstraction. The pattern is used — a local `reduceRight` at `queue/runner.ts:204` builds the job middleware chain, and HTTP middleware rides Elysia's hooks — but it cannot be borrowed for anything else. |
 | **JsonSchema** | A schema builder (`ObjectType`, `ArrayType`, `AnyOfType`, `UnionType`) with a serializer and deserializer. | Closer than it looks: `validation` is built on TypeBox, which already *is* JSON Schema. What is missing is the builder surface and the round trip, not the representation. |
