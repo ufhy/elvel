@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 22.**
+**Open: 19.**
 
 ---
 
@@ -45,18 +45,11 @@ checked item by item.
 
 ## Missing
 
-### The one that shapes everything else
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-| **Route middleware** | 11 aliases (`auth`, `guest`, `verified`, `can`, `signed`, `password.confirm`, `throttle`, `auth.session`, …), applied per route or per group, with priority, `withoutMiddleware`, and 38 configuration methods on `Middleware.php`. Plus `make:middleware`. | Nothing here has it. `throttle()` is an Elysia plugin and `requireUser()` throws a 401 — right for an API, wrong for a page that should redirect to `/sign-in`. The consequence is visible in the auth kit, where `if (!user) return redirect('/sign-in')` is written **eleven times**, and where a comment praises that as a design. Every route file written before this exists will have to be revisited after it does. |
-
 ### HTTP
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
 | **HTTP client** | `Illuminate\Http\Client`: `PendingRequest` with ~70 methods (`retry`, `timeout`, `withToken`, `asForm`, `attach`, `sink`, `throw`), `Pool`, `Batch`, and a fake with `assertSent`, `assertSentCount`, `assertNothingSent`, `preventStrayRequests`. | Absent entirely — zero hits in `packages/*/src`. Missed in the component sweep because `Http` was mapped onto our `http` package, which is the server side. Anything calling an API today uses bare `fetch` with no retry, no timeout, and nothing to assert against. |
-| **Signed URLs** | `URL::signedRoute`, `temporarySignedRoute`, `hasValidSignature`, and the `signed` middleware. | Zero hits. Fortify verifies email through a signed URL; without this the kit's verification link cannot be tamper-proof. |
 | **Route model binding** | `{post}` resolved to a model, `getRouteKey`, `getRouteKeyName`, `resolveRouteBinding`. | Zero hits. Every handler loads its own row by id. |
 | **Method spoofing** | `@method('PUT')` writes `_method`, so an HTML form can reach a `PUT`/`PATCH`/`DELETE` route. | Absent. Laravel's own starter kit uses `PATCH settings/profile`, `PUT settings/password`, `DELETE settings/profile`; ours had to make all six routes `POST`. |
 | **View helpers Blade has** | `@error`, `@auth`, `@guest`, `@can`, `@stack`/`@push`, `@once`. | Only `csrfField()` exists. `@stack`/`@push` is the one with no JSX workaround — a page cannot contribute to the layout's `<head>`. |
@@ -88,7 +81,7 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **~45 commands of 111** | Counted from `ArtisanServiceProvider`. | Notable: `make:middleware`, `make:test`, `make:rule`, `make:cast`, `make:observer`, `make:enum`, `make:exception`, `optimize`, `optimize:clear`, `route:cache`/`route:clear`, `view:cache`, `event:cache`, `config:show`, `env:encrypt`/`env:decrypt`, `db:wipe`, `db:monitor`, `model:show`, `model:prune`, `queue:listen`, `queue:monitor`, `queue:pause`/`resume`, `schedule:interrupt`, `vendor:publish`, `lang:publish`. |
+| **~44 commands of 111** | Counted from `ArtisanServiceProvider`. | Notable: `make:test`, `make:rule`, `make:cast`, `make:observer`, `make:enum`, `make:exception`, `optimize`, `optimize:clear`, `route:cache`/`route:clear`, `view:cache`, `event:cache`, `config:show`, `env:encrypt`/`env:decrypt`, `db:wipe`, `db:monitor`, `model:show`, `model:prune`, `queue:listen`, `queue:monitor`, `queue:pause`/`resume`, `schedule:interrupt`, `vendor:publish`, `lang:publish`. |
 | **Validation rules — 18 of 110** | Verified one by one after normalising. | `active_url`, `ascii`, `doesnt_contain`, `doesnt_end_with`, `doesnt_start_with`, `hex_color`, `mac_address`, `max_digits`, `min_digits`, `multiple_of`, `timezone`, `ulid`, `ipv4`, `encoding`, `array_keys`, `in_array_keys`, `prohibited_if_accepted`, `prohibited_if_declined`. |
 
 ### The scaffolded application
@@ -105,7 +98,6 @@ Found by scaffolding one and following the printed instructions.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Throttling on the credential routes** | `throttle:6,1` on verification, the `login` limiter turned on by the starter kit, `throttle:6,1` on `settings/password`. | Started and not finished: the plugin is written, the routes are not inside it. Until they are, `/sign-in` is an unthrottled credential-stuffing endpoint and `/forgot-password` posts mail to any address on demand. |
 | **Email re-verification on change** | `ProfileController::update` clears `email_verified_at` when the address is dirty. | The kit sends the new address to better-auth and does not check what it does with verification state. |
 | **Password confirmation window** | `RequirePassword` middleware guards the security page; `password.confirm` re-asks within a window. | Absent. The kit asks for a password on account deletion only, which was my judgement rather than Laravel's design. |
 

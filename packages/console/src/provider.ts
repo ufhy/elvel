@@ -8,6 +8,7 @@ import { MakeComponentCommand } from './commands/make-component.ts'
 import { MakeControllerCommand } from './commands/make-controller.ts'
 import { MakeEventCommand } from './commands/make-event.ts'
 import { MakeListenerCommand } from './commands/make-listener.ts'
+import { MakeMiddlewareCommand } from './commands/make-middleware.ts'
 import { MakeProviderCommand } from './commands/make-provider.ts'
 import { MakeViewCommand } from './commands/make-view.ts'
 import { RouteListCommand } from './commands/route-list.ts'
@@ -41,6 +42,7 @@ export class ConsoleServiceProvider extends ServiceProvider {
       MakeControllerCommand,
       MakeViewCommand,
       MakeComponentCommand,
+      MakeMiddlewareCommand,
       MakeProviderCommand,
       MakeCommandCommand,
       MakeEventCommand,

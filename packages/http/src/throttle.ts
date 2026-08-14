@@ -81,60 +81,77 @@ export function throttle(limiter: string | ThrottleOptions = {}): Elysia {
   const options = typeof limiter === 'string' ? {} : limiter
 
   return new Elysia({ name: `elysian:throttle:${named ?? `${options.max}/${options.decay}`}` })
-    .onBeforeHandle({ as: 'scoped' }, async (context) => {
-      const limits = await resolveLimits(named, options, context as never)
+    .onBeforeHandle({ as: 'scoped' }, (context) =>
+      enforceThrottle(context as never, named, options)
+    )
+    .onAfterHandle({ as: 'scoped' }, (context) => writeRateHeaders(context as never))
+}
 
-      for (const limit of limits) {
-        if (isUnlimited(limit)) continue
+/**
+ * The check itself, callable outside the plugin.
+ *
+ * Extracted so the `throttle` middleware alias runs this rather than a second
+ * copy of it. Two implementations of a rate limit is one implementation and one
+ * bug, and the bug is always the one that counts wrong.
+ */
+export async function enforceThrottle(
+  context: { request: Request },
+  named: string | undefined,
+  options: ThrottleOptions
+): Promise<void> {
+  const limits = await resolveLimits(named, options, context as never)
 
-        const counter = rateLimiter()
+  for (const limit of limits) {
+    if (isUnlimited(limit)) continue
 
-        if (await counter.tooManyAttempts(limit.key, limit.maxAttempts)) {
-          const retryAfter = await counter.availableIn(limit.key)
+    const counter = rateLimiter()
 
-          throw new TooManyRequestsError('Too Many Attempts.', {
-            'X-RateLimit-Limit': String(limit.maxAttempts),
-            'X-RateLimit-Remaining': '0',
-            'Retry-After': String(retryAfter),
-            'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + retryAfter)
-          })
-        }
+    if (await counter.tooManyAttempts(limit.key, limit.maxAttempts)) {
+      const retryAfter = await counter.availableIn(limit.key)
 
-        await counter.hit(limit.key, limit.decaySeconds)
+      throw new TooManyRequestsError('Too Many Attempts.', {
+        'X-RateLimit-Limit': String(limit.maxAttempts),
+        'X-RateLimit-Remaining': '0',
+        'Retry-After': String(retryAfter),
+        'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + retryAfter)
+      })
+    }
 
-        // Kept for the response hook, which cannot recompute them without
-        // knowing which limits this request was measured against.
-        applied(context as never).push(limit)
-      }
-    })
-    .onAfterHandle({ as: 'scoped' }, async (context) => {
-      const limits = applied(context as never)
-      if (limits.length === 0) return
+    await counter.hit(limit.key, limit.decaySeconds)
 
-      const counter = rateLimiter()
-      const set = (context as { set: { headers: Record<string, string> } }).set
+    // Kept for the response hook, which cannot recompute them without knowing
+    // which limits this request was measured against.
+    applied(context as never).push(limit)
+  }
+}
 
-      /**
-       * The tightest window wins the headers.
-       *
-       * With two limits in play, reporting the last one read would tell a client
-       * it has 48 requests left while the minute window is one away from
-       * refusing it. Laravel keeps whichever remaining count is lower, and so
-       * does this.
-       */
-      let tightest: { max: number; left: number } | undefined
+/**
+ * The headers a client backs off with.
+ *
+ * The tightest window wins: with two limits in play, reporting the last one read
+ * would tell a client it has 48 requests left while the minute window is one
+ * away from refusing it. Laravel keeps whichever remaining count is lower.
+ */
+export async function writeRateHeaders(context: {
+  request: Request
+  set: { headers: Record<string, string> }
+}): Promise<void> {
+  const limits = applied(context as never)
+  if (limits.length === 0) return
 
-      for (const limit of limits) {
-        const left = await counter.remaining(limit.key, limit.maxAttempts)
+  const counter = rateLimiter()
+  let tightest: { max: number; left: number } | undefined
 
-        if (!tightest || left < tightest.left) tightest = { max: limit.maxAttempts, left }
-      }
+  for (const limit of limits) {
+    const left = await counter.remaining(limit.key, limit.maxAttempts)
 
-      if (!tightest) return
+    if (!tightest || left < tightest.left) tightest = { max: limit.maxAttempts, left }
+  }
 
-      set.headers['X-RateLimit-Limit'] = String(tightest.max)
-      set.headers['X-RateLimit-Remaining'] = String(tightest.left)
-    })
+  if (!tightest) return
+
+  context.set.headers['X-RateLimit-Limit'] = String(tightest.max)
+  context.set.headers['X-RateLimit-Remaining'] = String(tightest.left)
 }
 
 /** Limits applied to one request, kept per request rather than on the plugin. */

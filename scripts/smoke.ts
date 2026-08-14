@@ -3297,6 +3297,67 @@ async function proveTheKitWorks(target: string): Promise<void> {
       afterSignOut.status >= 300 && afterSignOut.status < 400,
       `status ${afterSignOut.status}`
     )
+
+    // ------------------------------------------------- what the middleware adds
+
+    /**
+     * `guest` — the inverse of `auth`, and new.
+     *
+     * Before the middleware existed the kit checked for a user on the pages that
+     * needed one and never on the pages that needed nobody, so a signed-in person
+     * could land on a sign-in form and sign in as themselves again.
+     */
+    const signedInAgain = await fetch(`${origin}/sign-in`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email, password: 'longenough1' }).toString(),
+      redirect: 'manual'
+    })
+
+    const live = signedInAgain.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(';')[0])
+      .join('; ')
+
+    const onSignIn = await fetch(`${origin}/sign-in`, {
+      headers: { cookie: live },
+      redirect: 'manual'
+    })
+
+    check(
+      'a signed-in visitor is sent away from the sign-in page',
+      (onSignIn.headers.get('location') ?? '') === '/dashboard',
+      onSignIn.headers.get('location') ?? `status ${onSignIn.status}`
+    )
+
+    /**
+     * `throttle:6,1` on the credential routes.
+     *
+     * Six a minute, as Fortify does it. Without this `/sign-in` is a
+     * credential-stuffing endpoint, and the kit had nothing until the middleware
+     * existed to hang it on.
+     */
+    let refused = 0
+    for (let attempt = 0; attempt < 9; attempt += 1) {
+      const guess = await fetch(`${origin}/sign-in`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ email, password: `wrong-${attempt}` }).toString(),
+        redirect: 'manual'
+      })
+
+      if (guess.status === 429) refused += 1
+    }
+
+    check('guessing the password is throttled', refused > 0, `${refused} of 9 refused`)
+
+    const protectedPage = await fetch(`${origin}/settings/security`, { redirect: 'manual' })
+
+    check(
+      'a settings page is behind auth too',
+      (protectedPage.headers.get('location') ?? '').includes('/sign-in'),
+      protectedPage.headers.get('location') ?? `status ${protectedPage.status}`
+    )
   } finally {
     await server.stop(2000)
   }

@@ -1,0 +1,25 @@
+import type { MiddlewareHook } from '@elysian/http'
+
+/**
+ * Registered as an alias, then used by name on a route:
+ *
+ * ```ts
+ * // in a service provider's register()
+ * middlewares().alias('{{ alias }}', () => {{ camel }}())
+ *
+ * // on a route
+ * controller('posts').get('/mine', handler, middleware('{{ alias }}'))
+ * ```
+ *
+ * Return nothing to let the request through. Return a `Response` — or throw
+ * something the exception handler renders, such as `redirect(…).toResponse()` or
+ * an `HttpException` — to stop it. Nothing after a refusal runs, including the
+ * handler.
+ */
+export function {{ camel }}(): MiddlewareHook {
+  return (_context) => {
+    //
+
+    return undefined
+  }
+}

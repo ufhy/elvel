@@ -19,12 +19,14 @@ import {
 } from './cors.ts'
 import { TokenMismatchError, tokensMatch } from './csrf.ts'
 import { maintenancePlugin } from './maintenance.ts'
+import { MiddlewareRegistry } from './middleware.ts'
 import { PREVIOUS_URL_KEY } from './redirect.ts'
 import { RouteRegistry } from './routes.ts'
 import { enterRequestScope } from './scope.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
 import { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
-import { LimiterRegistry } from './throttle.ts'
+import { hasValidSignature, InvalidSignatureError } from './signed-url.ts'
+import { enforceThrottle, LimiterRegistry } from './throttle.ts'
 
 declare module '@elysian/contracts' {
   interface ContainerBindings {
@@ -40,7 +42,62 @@ declare module '@elysian/contracts' {
  * a `ValidationError` into a 422 with the error bag.
  */
 export class HttpServiceProvider extends ServiceProvider {
+  /**
+   * The middleware registry, and the aliases this package owns.
+   *
+   * `auth`, `guest`, `verified`, `can` and `password.confirm` are registered by
+   * `@elysian/auth` instead — this package must not depend on it, and an
+   * application without authentication should still have `throttle` and `signed`.
+   *
+   * The priority list is set here because it is the whole application's order,
+   * not one package's: `auth` must run before `verified`, and `verified` before
+   * `password.confirm`, whatever order a route lists them in.
+   */
+  private registerMiddleware(): void {
+    this.app.singleton('middleware', () => {
+      const registry = new MiddlewareRegistry()
+
+      registry
+        .alias('throttle', (max?: string, decay?: string) => {
+          // `throttle:uploads` names a limiter; `throttle:6,1` gives the numbers.
+          const named = max !== undefined && decay === undefined && Number.isNaN(Number(max))
+
+          return (context) =>
+            enforceThrottle(
+              context as never,
+              named ? max : undefined,
+              named
+                ? {}
+                : {
+                    max: max === undefined ? undefined : Number(max),
+                    decay: decay === undefined ? undefined : Number(decay) * 60
+                  }
+            )
+        })
+        .alias('signed', (relative?: string) => (context) => {
+          const { request } = context as unknown as { request: Request }
+
+          if (hasValidSignature(request, relative !== 'relative')) return undefined
+
+          throw new InvalidSignatureError()
+        })
+        .alias('cache.headers', (...parts: string[]) => (context) => {
+          // `cache.headers:public;max_age=120` — Laravel's own separator is `;`.
+          const value = parts.join(',').replace(/;/g, ', ').replace(/_/g, '-')
+          const set = (context as unknown as { set: { headers: Record<string, string> } }).set
+          set.headers['cache-control'] = value
+
+          return undefined
+        })
+        .priority(['throttle', 'signed', 'auth', 'verified', 'password.confirm', 'can'])
+
+      return registry
+    })
+  }
+
   register(): void {
+    this.registerMiddleware()
+
     this.app.singleton('session.driver', (app) => {
       const driver = this.config<string>('session.driver', 'file')
 

@@ -35,5 +35,19 @@ export default {
   },
 
   /** Trusted origins for better-auth's own CSRF checks. */
-  trustedOrigins: [env('APP_URL', 'http://localhost:3000')]
+  trustedOrigins: [env('APP_URL', 'http://localhost:3000')],
+
+  // ------------------------------------------------------- framework middleware
+  /** Where the `auth` middleware sends a guest. Laravel's `redirectGuestsTo`. */
+  redirectGuestsTo: '/sign-in',
+
+  /** Where the `guest` middleware sends somebody already signed in. */
+  redirectUsersTo: '/dashboard',
+
+  /** Where `verified` sends an unconfirmed address. */
+  verifyRoute: '/verify-email',
+
+  /** Where `password.confirm` asks, and how long an answer counts for. */
+  passwordConfirmRoute: '/confirm-password',
+  passwordTimeout: 10800
 }

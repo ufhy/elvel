@@ -55,6 +55,13 @@ export {
   validateRequest
 } from './form-request.ts'
 export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
+export {
+  type MiddlewareFactory,
+  type MiddlewareHook,
+  MiddlewareRegistry,
+  middleware,
+  middlewares
+} from './middleware.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
   AWS_ELB_HEADERS,
@@ -102,6 +109,13 @@ export {
   sessionOf
 } from './session.ts'
 export { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
+export {
+  hasValidSignature,
+  InvalidSignatureError,
+  signedRoute,
+  signedUrl,
+  temporarySignedRoute
+} from './signed-url.ts'
 export {
   type LimiterCallback,
   type LimiterContext,

@@ -1,5 +1,5 @@
 import { ServiceProvider } from '@elysian/core'
-import { registerCurrentPasswordRule } from '@elysian/http'
+import { middlewares, registerCurrentPasswordRule } from '@elysian/http'
 import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
 import { type Dialect, elysianAdapter } from './adapter.ts'
@@ -8,6 +8,13 @@ import { MakePolicyCommand } from './console/make-policy.ts'
 import { Gate } from './gate.ts'
 import { authMailHooks, type Notifier, withAuthMail } from './mail-hooks.ts'
 import { type AuthInstance, AuthManager } from './manager.ts'
+import {
+  authenticate,
+  canAccess,
+  ensureVerified,
+  guestOnly,
+  requirePassword
+} from './middleware.ts'
 
 declare module '@elysian/contracts' {
   interface ContainerBindings {
@@ -46,7 +53,35 @@ export type AuthConfig = {
  * through a Gate with policies.
  */
 export class AuthServiceProvider extends ServiceProvider {
+  /**
+   * The five aliases that need to know who is signed in.
+   *
+   * Registered here rather than in `@elysian/http`, which owns the registry but
+   * must not depend on this package — an application with no authentication still
+   * wants `throttle` and `signed`.
+   *
+   * Transcribed from `Illuminate\Auth\Middleware`, including the parts that look
+   * wrong until you read why:
+   *
+   * - `auth` throws for JSON and redirects for a page, because a client that
+   *   follows redirects would report the sign-in page as a successful answer
+   * - `verified` treats a guest as unverified rather than deferring to `auth`, so
+   *   a route carrying only `verified` does not fall open
+   * - `password.confirm` answers **423** rather than 403: the caller is
+   *   authenticated and the resource is locked, which is a different thing
+   */
+  private registerMiddleware(): void {
+    middlewares()
+      .alias('auth', (...guards: string[]) => authenticate(...guards))
+      .alias('guest', (...guards: string[]) => guestOnly(...guards))
+      .alias('verified', (notice?: string) => ensureVerified(notice))
+      .alias('can', (ability: string, ...args: string[]) => canAccess(ability, ...args))
+      .alias('password.confirm', (to?: string, seconds?: string) => requirePassword(to, seconds))
+  }
+
   register(): void {
+    this.registerMiddleware()
+
     // The gate is useful with or without better-auth mounted, and it resolves
     // the user lazily so it can be built before the auth instance exists.
     this.app.singleton('gate', (app) => {

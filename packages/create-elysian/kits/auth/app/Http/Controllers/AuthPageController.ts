@@ -1,8 +1,8 @@
 import { auth } from '@elysian/auth'
 import { controller } from '@elysian/core'
-import { errors, redirect, throttle } from '@elysian/http'
+import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
-import { Elysia, t } from 'elysia'
+import { t } from 'elysia'
 import { Dashboard } from '../../../resources/views/pages/dashboard.tsx'
 import { ForgotPassword } from '../../../resources/views/pages/forgot-password.tsx'
 import { ResetPassword } from '../../../resources/views/pages/reset-password.tsx'
@@ -38,34 +38,6 @@ type ServerApi = {
 const api = () => auth().instance.api as unknown as ServerApi
 
 /**
- * Already signed in? Then these pages are not for you.
- *
- * Fortify puts `guest:` middleware on login, register, forgot-password and
- * reset-password for the same reason: a signed-in person landing on a sign-in
- * form either signs in as themselves again for no reason, or is confused about
- * which account they are using.
- */
-function ifGuest(user: unknown, page: () => Response | Promise<Response> | unknown) {
-  return user ? redirect('/dashboard').toResponse() : page()
-}
-
-/**
- * The routes that accept a credential or send an email, rate limited together.
- *
- * A separate plugin rather than a `use()` on the whole controller, because
- * `throttle()` is scoped to the plugin it sits in and the GET pages have no
- * business sharing a budget with the POSTs.
- *
- * Fortify's own limits are the model: the starter kit turns the `login` limiter
- * on, and verification is throttled at six a minute whether you ask for it or
- * not. Without this, `/sign-in` is a credential-stuffing endpoint and
- * `/forgot-password` is a way to post mail to somebody else's inbox all day.
- */
-const credentials = new Elysia({ name: 'auth-pages:credentials' }).use(
-  throttle({ max: 6, decay: 60, prefix: 'auth-credentials' })
-)
-
-/**
  * Sign in, sign up, sign out — server-rendered, no client JavaScript.
  *
  * The forms post here rather than to better-auth's own endpoints, and the
@@ -78,23 +50,25 @@ const credentials = new Elysia({ name: 'auth-pages:credentials' }).use(
  * same way a validation failure does anywhere else.
  */
 export default controller('auth-pages')
-  .get('/sign-in', ({ user }) =>
-    ifGuest(user, () => view(SignIn, { title: 'Sign in', error: errors().first('email') }))
+  .get(
+    '/sign-in',
+    () => view(SignIn, { title: 'Sign in', error: errors().first('email') }),
+    middleware('guest')
   )
 
-  .get('/sign-up', ({ user }) =>
-    ifGuest(user, () =>
-      view(SignUp, { title: 'Create an account', error: errors().first('email') })
-    )
+  .get(
+    '/sign-up',
+    () => view(SignUp, { title: 'Create an account', error: errors().first('email') }),
+    middleware('guest')
   )
 
-  .get('/dashboard', ({ user }) => {
-    // `user` is resolved by the auth plugin; `guest()` remembers where we were
-    // going so signing in returns here rather than to the landing page.
-    if (!user) return redirect('/sign-in').guest().toResponse()
-
-    return view(Dashboard, { title: 'Dashboard', name: user.name ?? user.email })
-  })
+  .get(
+    '/dashboard',
+    // `auth` has already sent a guest to sign in, remembering where they were
+    // going — so `user` is present here by the time this runs.
+    ({ user }) => view(Dashboard, { title: 'Dashboard', name: user?.name ?? user?.email }),
+    middleware('auth')
+  )
 
   .post(
     '/sign-in',
@@ -122,7 +96,10 @@ export default controller('auth-pages')
 
       return withSession(answer, await redirect('/dashboard').seeOther().toResponse())
     },
-    { body: t.Object({ email: t.String(), password: t.String() }) }
+    {
+      ...middleware('guest', 'throttle:6,1'),
+      body: t.Object({ email: t.String(), password: t.String() })
+    }
   )
 
   .post(
@@ -144,19 +121,23 @@ export default controller('auth-pages')
       // Signing up signs you in, so the cookie travels the same way.
       return withSession(answer, await redirect('/dashboard').seeOther().toResponse())
     },
-    { body: t.Object({ name: t.String(), email: t.String(), password: t.String() }) }
+    {
+      ...middleware('guest', 'throttle:6,1'),
+      body: t.Object({ name: t.String(), email: t.String(), password: t.String() })
+    }
   )
 
   // ------------------------------------------------------ forgotten password
 
-  .get('/forgot-password', ({ query, user }) =>
-    ifGuest(user, () =>
+  .get(
+    '/forgot-password',
+    ({ query }) =>
       view(ForgotPassword, {
         title: 'Reset your password',
         error: errors().first('email'),
         sent: query.sent === '1'
-      })
-    )
+      }),
+    middleware('guest')
   )
 
   .post(
@@ -177,11 +158,15 @@ export default controller('auth-pages')
        */
       return redirect('/forgot-password?sent=1').seeOther().toResponse()
     },
-    { body: t.Object({ email: t.String() }) }
+    {
+      ...middleware('guest', 'throttle:6,1'),
+      body: t.Object({ email: t.String() })
+    }
   )
 
-  .get('/reset-password', ({ query, user }) =>
-    ifGuest(user, () => {
+  .get(
+    '/reset-password',
+    ({ query }) => {
       // better-auth appends the token to `redirectTo`; without one there is
       // nothing to reset and the form would post an empty token.
       if (!query.token) return redirect('/forgot-password').toResponse()
@@ -191,7 +176,8 @@ export default controller('auth-pages')
         token: query.token,
         error: errors().first('password')
       })
-    })
+    },
+    middleware('guest')
   )
 
   .post(
@@ -223,6 +209,7 @@ export default controller('auth-pages')
       return redirect('/sign-in').seeOther().toResponse()
     },
     {
+      ...middleware('guest', 'throttle:6,1'),
       body: t.Object({
         token: t.String(),
         password: t.String(),
@@ -233,48 +220,52 @@ export default controller('auth-pages')
 
   // -------------------------------------------------------- email verification
 
-  .get('/verify-email', ({ user, query }) => {
-    if (!user) return redirect('/sign-in').guest().toResponse()
+  .get(
+    '/verify-email',
+    ({ user, query }) => {
+      return view(VerifyEmail, {
+        title: 'Confirm your address',
+        email: user.email,
+        sent: query.sent === '1',
+        error: errors().first('email')
+      })
+    },
+    middleware('auth')
+  )
 
-    return view(VerifyEmail, {
-      title: 'Confirm your address',
-      email: user.email,
-      sent: query.sent === '1',
-      error: errors().first('email')
-    })
-  })
+  .post(
+    '/verify-email/resend',
+    async ({ user }) => {
+      await api().sendVerificationEmail({
+        body: { email: user.email, callbackURL: '/dashboard' },
+        asResponse: true
+      })
 
-  .post('/verify-email/resend', async ({ user }) => {
-    if (!user) return redirect('/sign-in').guest().toResponse()
-
-    await api().sendVerificationEmail({
-      body: { email: user.email, callbackURL: '/dashboard' },
-      asResponse: true
-    })
-
-    return redirect('/verify-email?sent=1').seeOther().toResponse()
-  })
+      return redirect('/verify-email?sent=1').seeOther().toResponse()
+    },
+    middleware('auth', 'throttle:6,1')
+  )
 
   // ------------------------------------------------------------------ profile
 
-  .get('/settings/profile', ({ user, query }) => {
-    if (!user) return redirect('/sign-in').guest().toResponse()
-
-    return view(Profile, {
-      title: 'Profile',
-      name: user.name ?? '',
-      email: user.email,
-      emailVerified: user.emailVerified === true,
-      saved: query.saved === '1',
-      error: errors().first('name') ?? errors().first('email')
-    })
-  })
+  .get(
+    '/settings/profile',
+    ({ user, query }) => {
+      return view(Profile, {
+        title: 'Profile',
+        name: user.name ?? '',
+        email: user.email,
+        emailVerified: user.emailVerified === true,
+        saved: query.saved === '1',
+        error: errors().first('name') ?? errors().first('email')
+      })
+    },
+    middleware('auth')
+  )
 
   .post(
     '/settings/profile',
     async ({ body, request, user }) => {
-      if (!user) return redirect('/sign-in').guest().toResponse()
-
       const answer = await api().updateUser({
         // `email` is sent only when it changed: better-auth restarts
         // verification for a new address, and resending the same one would
@@ -297,14 +288,15 @@ export default controller('auth-pages')
         await redirect('/settings/profile?saved=1').seeOther().toResponse()
       )
     },
-    { body: t.Object({ name: t.String(), email: t.String() }) }
+    {
+      ...middleware('auth'),
+      body: t.Object({ name: t.String(), email: t.String() })
+    }
   )
 
   .post(
     '/settings/profile/delete',
     async ({ body, request, user }) => {
-      if (!user) return redirect('/sign-in').guest().toResponse()
-
       const answer = await api().deleteUser({
         body: { password: body.password },
         headers: request.headers,
@@ -319,26 +311,29 @@ export default controller('auth-pages')
 
       return withSession(answer, await redirect('/').seeOther().toResponse())
     },
-    { body: t.Object({ password: t.String() }) }
+    {
+      ...middleware('auth'),
+      body: t.Object({ password: t.String() })
+    }
   )
 
   // ----------------------------------------------------------------- password
 
-  .get('/settings/password', ({ user, query }) => {
-    if (!user) return redirect('/sign-in').guest().toResponse()
-
-    return view(Password, {
-      title: 'Password',
-      saved: query.saved === '1',
-      error: errors().first('password')
-    })
-  })
+  .get(
+    '/settings/password',
+    ({ user, query }) => {
+      return view(Password, {
+        title: 'Password',
+        saved: query.saved === '1',
+        error: errors().first('password')
+      })
+    },
+    middleware('auth')
+  )
 
   .post(
     '/settings/password',
     async ({ body, request, user }) => {
-      if (!user) return redirect('/sign-in').guest().toResponse()
-
       if (body.password !== body.password_confirmation) {
         return redirect('/settings/password')
           .withErrors({ password: 'The two passwords do not match.' })
@@ -369,6 +364,9 @@ export default controller('auth-pages')
       )
     },
     {
+      // Fortify throttles this one at six a minute too: a change form that takes
+      // the current password is a place to guess it.
+      ...middleware('auth', 'throttle:6,1'),
       body: t.Object({
         current: t.String(),
         password: t.String(),
@@ -379,24 +377,24 @@ export default controller('auth-pages')
 
   // ----------------------------------------------------------------- security
 
-  .get('/settings/security', async ({ request, user, query }) => {
-    if (!user) return redirect('/sign-in').guest().toResponse()
+  .get(
+    '/settings/security',
+    async ({ request, user, query }) => {
+      const listed = (await api().listSessions({ headers: request.headers })) as unknown
 
-    const listed = (await api().listSessions({ headers: request.headers })) as unknown
-
-    return view(Security, {
-      title: 'Security',
-      sessions: sessionRows(listed, request.headers),
-      revoked: query.revoked === '1',
-      error: errors().first('session')
-    })
-  })
+      return view(Security, {
+        title: 'Security',
+        sessions: sessionRows(listed, request.headers),
+        revoked: query.revoked === '1',
+        error: errors().first('session')
+      })
+    },
+    middleware('auth')
+  )
 
   .post(
     '/settings/security/revoke',
     async ({ body, request, user }) => {
-      if (!user) return redirect('/sign-in').guest().toResponse()
-
       await api().revokeSession({
         body: { token: body.id },
         headers: request.headers,
@@ -405,22 +403,27 @@ export default controller('auth-pages')
 
       return redirect('/settings/security?revoked=1').seeOther().toResponse()
     },
-    { body: t.Object({ id: t.String() }) }
+    {
+      ...middleware('auth'),
+      body: t.Object({ id: t.String() })
+    }
   )
 
-  .post('/settings/security/revoke-others', async ({ request, user }) => {
-    if (!user) return redirect('/sign-in').guest().toResponse()
+  .post(
+    '/settings/security/revoke-others',
+    async ({ request, user }) => {
+      const answer = await api().revokeOtherSessions({
+        headers: request.headers,
+        asResponse: true
+      })
 
-    const answer = await api().revokeOtherSessions({
-      headers: request.headers,
-      asResponse: true
-    })
-
-    return withSession(
-      answer,
-      await redirect('/settings/security?revoked=1').seeOther().toResponse()
-    )
-  })
+      return withSession(
+        answer,
+        await redirect('/settings/security?revoked=1').seeOther().toResponse()
+      )
+    },
+    middleware('auth')
+  )
 
   .post('/sign-out', async ({ request }) => {
     const answer = await api().signOut({ headers: request.headers, asResponse: true })
