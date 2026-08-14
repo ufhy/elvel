@@ -18,6 +18,7 @@
     "@elysian/database": "{{ dep_database }}",
     "@elysian/encryption": "{{ dep_encryption }}",
     "@elysian/events": "{{ dep_events }}",
+    "@elysian/hashing": "{{ dep_hashing }}",
     "@elysian/http": "{{ dep_http }}",
     "@elysian/log": "{{ dep_log }}",
     "@elysian/mail": "{{ dep_mail }}",

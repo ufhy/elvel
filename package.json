@@ -32,6 +32,7 @@
     "@elysian/database": "workspace:*",
     "@elysian/encryption": "workspace:*",
     "@elysian/events": "workspace:*",
+    "@elysian/hashing": "workspace:*",
     "@elysian/http": "workspace:*",
     "@elysian/log": "workspace:*",
     "@elysian/mail": "workspace:*",

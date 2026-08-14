@@ -6,6 +6,7 @@ import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
 import { EncryptionServiceProvider } from '@elysian/encryption'
 import { EventServiceProvider } from '@elysian/events'
+import { HashServiceProvider } from '@elysian/hashing'
 import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
@@ -64,6 +65,7 @@ export default {
     // Early: notifications, validation messages and views all read through it.
     TranslationServiceProvider,
     EncryptionServiceProvider,
+    HashServiceProvider,
     ConsoleServiceProvider,
     ProcessServiceProvider,
     DatabaseServiceProvider,

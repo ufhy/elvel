@@ -197,6 +197,7 @@ const FRAMEWORK_PACKAGES = [
   'database',
   'encryption',
   'events',
+  'hashing',
   'http',
   'log',
   'mail',

@@ -21,6 +21,7 @@
         "@elysian/database": "workspace:*",
         "@elysian/encryption": "workspace:*",
         "@elysian/events": "workspace:*",
+        "@elysian/hashing": "workspace:*",
         "@elysian/http": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/mail": "workspace:*",
@@ -157,6 +158,14 @@
     "packages/events": {
       "name": "@elysian/events",
       "version": "0.0.1",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+    },
+    "packages/hashing": {
+      "name": "@elysian/hashing",
+      "version": "0.1.0",
       "dependencies": {
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
@@ -406,6 +415,8 @@
     "@elysian/encryption": ["@elysian/encryption@workspace:packages/encryption"],
 
     "@elysian/events": ["@elysian/events@workspace:packages/events"],
+
+    "@elysian/hashing": ["@elysian/hashing@workspace:packages/hashing"],
 
     "@elysian/http": ["@elysian/http@workspace:packages/http"],
 
