@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@elysian/auth": "{{ dep_auth }}",
+    "@elysian/broadcasting": "{{ dep_broadcasting }}",
     "@elysian/cache": "{{ dep_cache }}",
     "@elysian/console": "{{ dep_console }}",
     "@elysian/contracts": "{{ dep_contracts }}",
@@ -25,6 +26,8 @@
     "@elysian/scheduler": "{{ dep_scheduler }}",
     "@elysian/storage": "{{ dep_storage }}",
     "@elysian/support": "{{ dep_support }}",
+    "@elysian/testing": "{{ dep_testing }}",
+    "@elysian/translation": "{{ dep_translation }}",
     "@elysian/validation": "{{ dep_validation }}",
     "@elysian/view": "{{ dep_view }}",
     "@kitajs/html": "^4.2.13",

@@ -309,6 +309,33 @@ describe('AuthManager', () => {
 
     expect(await failing.resolve(new Request('http://localhost/'))).toBeNull()
   })
+
+  /**
+   * What `actingAs` stands on.
+   *
+   * The override has to sit inside `resolve()` rather than beside it, because
+   * `resolve()` is the single door every path uses — `withSession`, `remember`,
+   * and the provider's hook. An override anywhere else would work for one of
+   * them and quietly not for the others.
+   */
+  test('impersonation overrides what better-auth would answer', async () => {
+    const real = new AuthManager({
+      handler: async () => new Response(),
+      api: { getSession: async () => session('grace') }
+    })
+
+    expect((await real.resolve(new Request('http://localhost/')))?.user.id).toBe('grace')
+
+    real.impersonate(session('ada'))
+    expect((await real.resolve(new Request('http://localhost/')))?.user.id).toBe('ada')
+
+    // Impersonating a guest is distinct from not impersonating at all.
+    real.impersonate(null)
+    expect(await real.resolve(new Request('http://localhost/'))).toBeNull()
+
+    real.stopImpersonating()
+    expect((await real.resolve(new Request('http://localhost/')))?.user.id).toBe('grace')
+  })
 })
 
 describe('request scope', () => {

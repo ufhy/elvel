@@ -39,6 +39,9 @@ export class AuthManager {
    */
   private readonly pending = new WeakMap<Request, AuthSession | null>()
 
+  /** Set by `impersonate()`; `undefined` means "ask better-auth". */
+  private impersonated: AuthSession | null | undefined
+
   constructor(private readonly auth: AuthInstance) {}
 
   /** Run `callback` with this request's session in scope. */
@@ -74,8 +77,31 @@ export class AuthManager {
     return this.storage.run({ session }, callback)
   }
 
+  /**
+   * Resolve every request as this session, whatever its cookies say.
+   *
+   * What `actingAs` needs, and the only honest way to give it: the alternative
+   * is signing a user in for real on every test, which needs a user row, a
+   * password, and a round trip — enough friction that tests stop covering
+   * authenticated routes. Laravel's `be()` makes the same trade.
+   *
+   * Deliberately a method on the manager rather than a header the test sets: a
+   * header would be a live authentication bypass shipped in the framework, and
+   * this cannot be reached from outside the process.
+   */
+  impersonate(session: AuthSession | null): void {
+    this.impersonated = session
+  }
+
+  /** Undo `impersonate()`, going back to the request's own cookies. */
+  stopImpersonating(): void {
+    this.impersonated = undefined
+  }
+
   /** Ask better-auth who this request belongs to. */
   async resolve(request: Request): Promise<AuthSession | null> {
+    if (this.impersonated !== undefined) return this.impersonated
+
     try {
       return await this.auth.api.getSession({ headers: request.headers })
     } catch {

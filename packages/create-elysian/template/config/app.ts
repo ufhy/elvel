@@ -1,4 +1,5 @@
 import { AuthServiceProvider } from '@elysian/auth'
+import { BroadcastServiceProvider } from '@elysian/broadcasting'
 import { CacheServiceProvider } from '@elysian/cache'
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
@@ -12,6 +13,7 @@ import { NotificationServiceProvider } from '@elysian/notifications'
 import { QueueServiceProvider } from '@elysian/queue'
 import { ScheduleServiceProvider } from '@elysian/scheduler'
 import { StorageServiceProvider } from '@elysian/storage'
+import { TranslationServiceProvider } from '@elysian/translation'
 import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
@@ -58,6 +60,8 @@ export default {
   providers: [
     EventServiceProvider,
     LogServiceProvider,
+    // Early: notifications, validation messages and views all read through it.
+    TranslationServiceProvider,
     EncryptionServiceProvider,
     ConsoleServiceProvider,
     DatabaseServiceProvider,
@@ -65,6 +69,8 @@ export default {
     CacheServiceProvider,
     QueueServiceProvider,
     MailServiceProvider,
+    // Before notifications: its `broadcast` channel resolves this at build time.
+    BroadcastServiceProvider,
     NotificationServiceProvider,
     ScheduleServiceProvider,
     ValidationServiceProvider,

@@ -178,8 +178,18 @@ async function main(): Promise<number> {
   return 0
 }
 
+/**
+ * Every framework package the template depends on.
+ *
+ * Hand-maintained, and therefore the thing that drifts: `broadcasting` and
+ * `translation` were both built and both missing from here, which a scaffolded
+ * application only discovers when it tries to resolve a provider that was never
+ * installed. `create-elysian.test.ts` holds this list to the contents of
+ * `packages/`, so the next one fails a test instead of a user.
+ */
 const FRAMEWORK_PACKAGES = [
   'auth',
+  'broadcasting',
   'cache',
   'console',
   'contracts',
@@ -195,6 +205,8 @@ const FRAMEWORK_PACKAGES = [
   'scheduler',
   'storage',
   'support',
+  'testing',
+  'translation',
   'validation',
   'view'
 ] as const

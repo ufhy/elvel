@@ -12,7 +12,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 5.**
+**Open: 4.**
 
 ---
 
@@ -42,7 +42,6 @@ here as rows when it is done, not as a guess now.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Testing** | `TestResponse`, `assertStatus`, `assertJson`, `actingAs`, `AssertableJson`, `PendingCommand`, `TestView`, and a parallel runner. | The largest of these by some margin. What exists here is per-package fakes — `events`, `mail`, `notifications`, `storage` — and no idiomatic way to press a route and assert on the response. That absence shaped the suite: thick in unit tests, thin in feature tests, with the playground reaching for raw `fetch`. Building this is what would let a feature test be the cheap thing to write. |
 | **Process** | `Factory`, `PendingProcess`, `Pool`, `InvokedProcessPool`, and fakes (`FakeProcessSequence`, `FakeProcessResult`, `FakeProcessDescription`). | `Bun.spawn` is called directly in `scheduler/spawn.ts` and `database/console/schema-dump.ts` — no abstraction, no pool, and nothing to fake against, so anything spawning a process is untestable without spawning it. |
 | **Hashing** | `Hash::make()` / `Hash::check()` / `Hash::needsRehash()` over bcrypt and argon2. | better-auth hashes passwords internally, so authentication is covered, but there is no way to hash anything that is *not* a password. Cheap on Bun: `Bun.password` is already argon2id and bcrypt. |
 | **Pipeline** | `Pipeline::send()->through()->then()`, used across the framework. | Not present as an abstraction. The pattern is used — a local `reduceRight` at `queue/runner.ts:204` builds the job middleware chain, and HTTP middleware rides Elysia's hooks — but it cannot be borrowed for anything else. |

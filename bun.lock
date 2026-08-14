@@ -251,6 +251,15 @@
       "name": "@elysian/support",
       "version": "0.0.1",
     },
+    "packages/testing": {
+      "name": "@elysian/testing",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+        "@elysian/support": "workspace:*",
+      },
+    },
     "packages/translation": {
       "name": "@elysian/translation",
       "version": "0.1.0",
@@ -399,6 +408,8 @@
     "@elysian/storage": ["@elysian/storage@workspace:packages/storage"],
 
     "@elysian/support": ["@elysian/support@workspace:packages/support"],
+
+    "@elysian/testing": ["@elysian/testing@workspace:packages/testing"],
 
     "@elysian/translation": ["@elysian/translation@workspace:packages/translation"],
 
