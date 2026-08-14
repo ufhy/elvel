@@ -4,6 +4,8 @@ import { app } from '@elysian/core'
 export type { ViewComponent } from '@elysian/contracts'
 export { JsxViewFactory, type ViewFactoryOptions } from './factory.ts'
 export { ViewServiceProvider } from './provider.ts'
+export { Vite } from './vite.ts'
+export { vite } from './vite-helper.ts'
 
 /**
  * Render a view component into an HTML response.

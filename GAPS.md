@@ -47,7 +47,6 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Vite integration, asset versioning | The static plugin serves `public/`; there is no manifest reader. |
 
 ## @elysian/events
 
