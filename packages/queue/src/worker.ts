@@ -230,7 +230,8 @@ export class Worker {
    * The attempt is *abandoned*, not killed: without process isolation there is no
    * way to stop an async function that is already running. The worker stops
    * waiting and the job is failed or retried, which is the honest half of what
-   * Laravel's `pcntl` alarm does — stated in GAPS rather than implied here.
+   * Laravel's `pcntl` alarm does — stated in BEHAVIOURS.md rather than implied
+   * here.
    */
   private async runWithTimeout(job: QueuedJob, options: WorkerOptions): Promise<void> {
     const seconds = job.payload.timeout ?? options.timeout ?? 0

@@ -8,7 +8,7 @@ import { SqsQueue } from '../src/drivers/sqs.ts'
  * ElasticMQ speaks the same query protocol and the same SigV4, so everything the
  * driver actually does — signing, the receipt-handle lifecycle, the receive
  * count, delayed visibility — is exercised for real. What it cannot cover is
- * AWS's own eventual consistency, which is noted in GAPS.
+ * AWS's own eventual consistency, which is noted in BEHAVIOURS.md.
  *
  *   docker run -d --name elysian-sqs -p 9324:9324 softwaremill/elasticmq-native
  *   TEST_SQS_ENDPOINT=http://127.0.0.1:9324/000000000000 bun test packages/queue

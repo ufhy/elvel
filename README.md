@@ -693,18 +693,17 @@ It reaches three places:
 | Queue payloads | `static encrypted = true` on a job. The queue stores a ciphertext it cannot read; the worker decrypts it, bound to the job class. |
 | Model columns | `casts = { editor_note: 'encrypted' }` (or `'encrypted:json'`). Ciphertext at rest, the value on the model — and no `where` on the plaintext will ever match, which is the price. |
 
-## Known gaps
+## Behaviours and limits
 
-[`GAPS.md`](GAPS.md) records what is deliberately missing in every finished
-package, and why — including one thing that was attempted and could not be made
-to work (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
-`@kitajs/ts-html-plugin`). It holds only what is absent, so finishing something
-shortens it.
+[`BEHAVIOURS.md`](BEHAVIOURS.md) explains the decisions that are easy to misread
+from the outside — why a cancelled batch never finishes, why a `..` that stays
+inside a disk is allowed, why the day-of-month rule is POSIX's and not the
+obvious one.
 
-[`BEHAVIOURS.md`](BEHAVIOURS.md) is the other half: behaviour that *does* exist
-and is easy to misread from the outside — why a cancelled batch never finishes,
-why a `..` that stays inside a disk is allowed, why the day-of-month rule is
-POSIX's and not the obvious one.
+Its last section is where the framework stops: what the tests do not reach and
+why, two things that are correct today and will not always be, and the one
+feature that was attempted and could not be made to work (compile-time XSS
+checking, blocked by a TypeScript 7 incompatibility in `@kitajs/ts-html-plugin`).
 
 ## Roadmap
 
@@ -713,5 +712,5 @@ database, validation, http, auth, cache, queue, scheduler, mail, storage,
 notifications, and the encryption package the last three items were waiting on
 (encrypted cookies, encrypted queue payloads, encrypted model casts).
 
-What is deliberately left out of each package — and why — is in
-[`GAPS.md`](GAPS.md).
+Where each package stops — and why — is in
+[`BEHAVIOURS.md`](BEHAVIOURS.md).

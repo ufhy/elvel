@@ -3,9 +3,15 @@
 Why some things here work the way they do — the decisions that are easy to
 misread from the outside, and the failures that led to them.
 
-This is not a list of what is missing; that is `GAPS.md`, and it stays a list of
-gaps so that finishing something visibly shortens it. Everything below is
-behaviour that already exists and would otherwise have to be rediscovered.
+Everything below is behaviour that already exists and would otherwise have to be
+rediscovered — through a bug, usually, since none of it can be read back off the
+code. The code says what happens; this says why.
+
+It once had a companion, `GAPS.md`, holding what was still missing. That list
+counted down to zero and was deleted; the limits that outlived it are at the
+bottom of this file. Should a new milestone bring real debt, the list is worth
+recreating — a list whose length measures the work left only works when it is
+allowed to reach zero and go.
 
 ---
 
@@ -268,11 +274,25 @@ Five behaviours worth knowing rather than discovering:
 - **`retryAfter` must exceed your slowest job.** It is how long a reservation is
   trusted; a job still running when it expires will be picked up a second time,
   which is the same trade Laravel makes.
+- **A timed-out job is abandoned, not killed.** Without process isolation there
+  is no way to stop an async function already running, so the worker stops
+  waiting, fails or retries the job, and moves on — while the original attempt
+  keeps going in the background until it finishes on its own. Laravel's `pcntl`
+  alarm does kill it. This is the honest half of that, and it means a timeout
+  bounds *the worker's* wait, not the job's work: a job that leaks a connection
+  will still leak it after being declared failed.
 
 
 ## @elysian/scheduler
 
-Four things worth knowing:
+Five things worth knowing:
+
+- **`command()` runs in this process, so a slow command holds the minute.**
+  There is no second runtime to start and the exit code comes back directly,
+  which is the whole reason; the cost is that `schedule:run` is occupied until
+  the command returns, and anything else due that minute waits. Laravel spawns,
+  and pays a PHP boot per entry instead. `runInBackground()` is the escape hatch
+  when a command is long enough to matter.
 
 - **Only a command can run in the background.** A child process is a fresh one
   with nothing to rebuild a closure from — the same wall a queued closure hits —
@@ -416,3 +436,58 @@ One thing worth knowing, and two worth remembering:
   list` — a command only appears if its provider booted, which needs the
   dependency, the provider entry and the config file all present. A ninth package
   that forgets the template fails there.
+
+
+## Limits
+
+Not gaps — nothing here is waiting to be built. These are the places the
+framework stops, and the reasons are the useful part.
+
+**Compile-time XSS checking was attempted and is blocked.**
+`@kitajs/ts-html-plugin`'s CLI reads `typescript.sys`, which TypeScript 7 removed
+from the default export, so it crashes under both Bun and Node. `safe` remains a
+runtime guarantee and a review responsibility. This is the one thing that was
+tried and could not be made to work, as opposed to deliberately left out.
+
+Two things that are correct today and will not always be:
+
+- **`sessions.last_activity` is a 32-bit integer**, like Laravel's. It holds a
+  unix timestamp, so it is correct until 2038 and then it is not — the same shape
+  as the cache's `expiration` bug that Postgres and MySQL caught. Left alone
+  because nothing writes a value beyond the range today; worth widening the next
+  time that table changes.
+- `node_modules/.bun` holds **two copies of elysia 1.4.29** under different peer
+  hashes. Nothing misbehaves today, but dual module identity is exactly what the
+  `file:`-dependency episode was about, and Elysia deduplicates plugins by name
+  within one module instance. Worth collapsing if plugin registration ever gets
+  strange.
+
+### What the tests do not reach
+
+`bun test --coverage` reports roughly three quarters of functions. Known
+uncovered, and why:
+
+- terminal formatting (`output.ts`, `about.ts`, `db:show`, `db:table`) — the
+  smoke test asserts the text that matters; pinning colour codes would test
+  `picocolors`
+- `serve.ts` — its `handle()` never resolves by design; the smoke test binds a
+  real socket instead
+- `create-elysian` — covered end to end by the smoke test rather than by units:
+  it scaffolds, boots, and every package's commands are registered in what it
+  wrote. Not covered is a scaffold installed *from npm* rather than resolved
+  through the workspace
+- MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
+  `insertGetId` on MariaDB
+- the S3 disk against AWS itself — the round trip is covered against MinIO
+  (`TEST_S3_ENDPOINT`), which is the same protocol, but not against S3's own
+  eventual-consistency and region behaviour
+- the `sqs` driver against AWS itself — the round trip is covered against
+  ElasticMQ, which speaks the same query protocol and the same SigV4, but not
+  against AWS's own eventual consistency, its 120,000 in-flight limit, or FIFO
+  queues
+- the queue's `redis` driver against a cluster; single-node Redis is covered, and
+  the database driver is covered on SQLite, Postgres 17 and MySQL 9 including the
+  two-workers-race case that only a real server can exercise
+- better-auth **plugin** schemas against real servers — the adapter itself is
+  covered on SQLite, Postgres 17 and MySQL 9 by `packages/auth/test/dialects.test.ts`,
+  but only for the four core tables

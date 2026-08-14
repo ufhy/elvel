@@ -30,7 +30,7 @@ export class Schedule {
    *
    * In this process, not a spawned one: there is no second runtime to start, and
    * the exit code comes back directly. The cost is that a slow command holds the
-   * minute — see GAPS.
+   * minute — see BEHAVIOURS.md.
    */
   command(command: string, parameters: string[] = []): ScheduledEvent {
     const summary = [command, ...parameters].join(' ')
