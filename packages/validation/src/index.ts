@@ -21,6 +21,22 @@ export {
   sizeOf
 } from './rules.ts'
 export {
+  AnyOfSchema,
+  ArraySchema,
+  BooleanSchema,
+  fromJsonSchema,
+  fromTypeBox,
+  IntegerSchema,
+  type JsonSchemaObject,
+  NumberSchema,
+  ObjectSchema,
+  Schema,
+  SchemaType,
+  StringSchema,
+  toTypeBox,
+  UnionSchema
+} from './schema/index.ts'
+export {
   type ClosureRule,
   ConditionalRules,
   type Data,
