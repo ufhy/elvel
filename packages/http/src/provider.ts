@@ -209,8 +209,25 @@ export class HttpServiceProvider extends ServiceProvider {
 
     const sessionName = this.config<string>('session.cookie', 'elysian_session')
 
-    if (this.config<boolean>('session.enabled', true) !== false) {
+    /**
+     * No key, no sessions — and no crash either.
+     *
+     * The session cookie is signed with `APP_KEY`, so an application without one
+     * cannot have sessions. It used to throw here, which meant the whole
+     * application refused to boot, which meant `artisan key:generate` refused to
+     * run: the command that sets the key needed the key. That was invisible while
+     * the template shipped a placeholder key, and turned up the moment it shipped
+     * an empty one.
+     *
+     * Skipped with a warning instead. Anything that actually needs a session
+     * still fails, and the command that fixes it can run.
+     */
+    const signingKeySet = this.config<string>('app.key', '') !== ''
+
+    if (this.config<boolean>('session.enabled', true) !== false && signingKeySet) {
       this.use(await this.sessionPlugin())
+    } else if (!signingKeySet) {
+      console.warn('[http] APP_KEY is not set, so sessions are off. Run: artisan key:generate')
     }
 
     /**
@@ -233,11 +250,15 @@ export class HttpServiceProvider extends ServiceProvider {
       if (router?.routes) this.app.make('routes').verify(router.routes)
     })
 
-    this.use(
-      cookiePlugin(this.app.make('cookies'), {
-        except: [sessionName, ...this.config<string[]>('cookies.except', [])]
-      })
-    )
+    // Same reason as the session plugin: the jar signs with `APP_KEY`, and
+    // resolving it here would stop `key:generate` from ever running.
+    if (signingKeySet) {
+      this.use(
+        cookiePlugin(this.app.make('cookies'), {
+          except: [sessionName, ...this.config<string[]>('cookies.except', [])]
+        })
+      )
+    }
   }
 
   /**

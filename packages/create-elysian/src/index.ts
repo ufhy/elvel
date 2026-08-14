@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+
+import { randomBytes } from 'node:crypto'
 import { mkdir, readdir, stat } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 import * as prompts from '@clack/prompts'
@@ -136,28 +138,28 @@ async function main(): Promise<number> {
     await registerKitRoutes(target, KITS[kit as string]?.routes ?? [])
   }
 
-  // Ship a working .env, not just the example.
+  // Ship a working .env, not just the example — with its secrets filled in.
   const exampleEnv = Bun.file(join(target, '.env.example'))
   if (await exampleEnv.exists()) {
-    await Bun.write(join(target, '.env'), await exampleEnv.text())
+    await Bun.write(join(target, '.env'), withSecrets(await exampleEnv.text()))
   }
 
   spinner.stop(`Created ${written} files`)
 
   /**
-   * `key:generate` and the auth tables are steps, not defaults.
+   * The auth tables are a step; the secrets are not.
    *
-   * The key has to be generated per application — a shipped one would be a
-   * shared secret — and better-auth's tables are whatever `config/auth.ts` asks
-   * for, so they are generated rather than copied in. Without the migration the
-   * first sign-up answers 500, which is a poor way to learn about it.
+   * Both secrets are written above, because generating one is not a decision
+   * anybody needs to make and the alternative was worse than it looked: the
+   * template used to ship a placeholder `APP_KEY`, `key:generate` counted that as
+   * "already set" and refused, and the application ran on a key published in this
+   * repository. The first command in these steps failed, every time.
+   *
+   * better-auth's tables stay a step, because they are whatever `config/auth.ts`
+   * asks for and the generator has to read it. Without the migration the first
+   * sign-up answers 500, which is a poor way to learn about it.
    */
-  const start = [
-    'bun artisan key:generate',
-    'bun artisan auth:schema',
-    'bun artisan migrate',
-    'bun run dev'
-  ]
+  const start = ['bun artisan auth:schema', 'bun artisan migrate', 'bun run dev']
 
   const steps = workspaceMode
     ? [
@@ -176,6 +178,27 @@ async function main(): Promise<number> {
 
   prompts.outro(`Then open ${pc.underline('http://localhost:3000')}`)
   return 0
+}
+
+/**
+ * Fill in the secrets the template deliberately leaves empty.
+ *
+ * Written here rather than by shelling out to `artisan key:generate`, which
+ * cannot run yet: in workspace mode the framework packages are not linked until
+ * `bun install` runs at the repository root, so artisan would fail on its first
+ * import. `node:crypto` needs nothing.
+ *
+ * `APP_KEY` is 32 random bytes as base64url, matching what `generateKey()`
+ * writes; `AUTH_SECRET` is 32 bytes of hex, which is what better-auth documents.
+ * They are separate values on purpose.
+ */
+function withSecrets(env: string): string {
+  const key = randomBytes(32).toString('base64url')
+  const secret = randomBytes(32).toString('hex')
+
+  return env
+    .replace(/^APP_KEY=.*$/m, `APP_KEY=${key}`)
+    .replace(/^AUTH_SECRET=.*$/m, `AUTH_SECRET=${secret}`)
 }
 
 /**

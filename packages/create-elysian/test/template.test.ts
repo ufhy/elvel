@@ -94,3 +94,54 @@ describe('the template ships every package', () => {
     expect<string[]>(missing).toEqual([])
   })
 })
+
+/**
+ * The secrets a scaffolded application starts with.
+ *
+ * The template used to ship `APP_KEY=change-me-to-32-characters-or-more`, which
+ * `key:generate` counted as "already set" and refused to replace — so the first
+ * command the scaffolder printed failed, and the application ran on a key
+ * published in this repository. These hold that shut.
+ */
+describe('the template ships no secrets of its own', () => {
+  test('APP_KEY and AUTH_SECRET are empty in the example', async () => {
+    const example = await Bun.file(resolve(templateDir, '_env.example')).text()
+
+    expect(example).toMatch(/^APP_KEY=$/m)
+    expect(example).toMatch(/^AUTH_SECRET=$/m)
+  })
+
+  test('and no placeholder secret is left anywhere in the template', async () => {
+    const suspects: string[] = []
+
+    for await (const path of new Bun.Glob('**/*').scan({ cwd: templateDir, absolute: true })) {
+      const text = await Bun.file(path)
+        .text()
+        .catch(() => '')
+
+      // A value that looks like an instruction is a value somebody will ship.
+      if (/change-me|changeme|your-secret-here/i.test(text)) suspects.push(path)
+    }
+
+    expect<string[]>(suspects).toEqual([])
+  })
+
+  test('the printed next steps do not include key:generate', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+    const steps = source.match(/const start = \[[^\]]*\]/s)?.[0] ?? ''
+
+    // The scaffolder fills both secrets in, so telling somebody to generate a key
+    // would be telling them to rotate one they already have.
+    expect(steps).not.toContain('key:generate')
+    expect(steps).not.toContain('auth:secret')
+    expect(steps).toContain('auth:schema')
+  })
+
+  test('the scaffolder writes a distinct value for each', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+
+    // One value used for both would make a leak of either a leak of both.
+    expect(source).toContain('APP_KEY=${key}')
+    expect(source).toContain('AUTH_SECRET=${secret}')
+  })
+})

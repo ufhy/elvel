@@ -7,6 +7,7 @@ export {
   schemaShape
 } from './adapter.ts'
 export { AuthSchemaCommand } from './console/auth-schema.ts'
+export { AuthSecretCommand } from './console/auth-secret.ts'
 export { MakePolicyCommand } from './console/make-policy.ts'
 export {
   type AbilityCallback,

@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 19.**
+**Open: 17.**
 
 ---
 
@@ -90,9 +90,7 @@ Found by scaffolding one and following the printed instructions.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **A new application ships a known encryption key** | `.env.example` has `APP_KEY=` **empty**, and the installer runs `key:generate` itself (`NewCommand.php:662`). | Our template ships `APP_KEY=change-me-to-32-characters-or-more`, and the first command the scaffolder tells you to run — `artisan key:generate` — **fails**, because it refuses to replace a key that is already set. So the application runs with a key that is published in this repository, and every encrypted cookie, queue payload and model cast is readable by anyone who reads the template. This is a security default, not a convenience. |
-| **`AUTH_SECRET` is empty and nothing says so** | Fortify signs with `APP_KEY`; there is no second secret to forget. | Ships empty, no warning at boot, and no command generates one — `artisan list` has `auth:schema` and `key:generate` and nothing else. |
-| **Three manual steps before the kit works** | The installer prompts for a database and offers to migrate. | `key:generate`, `auth:schema`, `migrate`, by hand, with the first one failing. |
+| **Two manual steps before the kit works** | The installer prompts for a database and offers to migrate. | `auth:schema` and `migrate`, by hand. Down from three now the secrets are generated, and the remaining two cannot be run by the scaffolder in workspace mode: the framework packages are not linked until `bun install` runs at the repository root, so artisan cannot start. Laravel's installer runs `composer install` itself, which is what closing this would take. |
 
 ### The auth kit
 

@@ -4,8 +4,14 @@ APP_DEBUG=true
 APP_URL=http://localhost:3000
 APP_TIMEZONE=UTC
 
-# At least 32 characters. Write one with: artisan key:generate
-APP_KEY=change-me-to-32-characters-or-more
+# Empty on purpose. `create-elysian` fills it in, and `artisan key:generate`
+# writes one for a checkout that starts from this file.
+#
+# A shipped default would be a shared secret: it lives in the framework's own
+# repository, so every application carrying it can be decrypted by anyone who
+# reads the template. Empty fails loudly at boot instead, which is the honest
+# failure of the two.
+APP_KEY=
 # Keys that are no longer primary but can still read what they wrote.
 # Comma-separated; set this before running key:generate --force.
 APP_PREVIOUS_KEYS=
@@ -29,7 +35,12 @@ SESSION_CSRF=true
 # Encrypt the session cookie instead of only signing it.
 SESSION_ENCRYPT=false
 
-# Signs better-auth's tokens. Generate your own; never reuse APP_KEY.
+# Signs better-auth's tokens. Never reuse APP_KEY: one key for both means a leak
+# of either is a leak of both. Filled in by `create-elysian`, or by:
+#   artisan auth:secret
+#
+# Empty is worse than wrong here — better-auth signs with an empty string and
+# says nothing — so it is generated rather than defaulted.
 # The tables come from: artisan auth:schema && artisan migrate
 AUTH_SECRET=
 AUTH_MOUNT=true

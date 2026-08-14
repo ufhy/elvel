@@ -4,6 +4,7 @@ import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
 import { type Dialect, elysianAdapter } from './adapter.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
+import { AuthSecretCommand } from './console/auth-secret.ts'
 import { MakePolicyCommand } from './console/make-policy.ts'
 import { Gate } from './gate.ts'
 import { authMailHooks, type Notifier, withAuthMail } from './mail-hooks.ts'
@@ -105,7 +106,7 @@ export class AuthServiceProvider extends ServiceProvider {
 
   override async boot(): Promise<void> {
     if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(AuthSchemaCommand, MakePolicyCommand)
+      this.app.make('artisan').register(AuthSchemaCommand, AuthSecretCommand, MakePolicyCommand)
     }
 
     /**

@@ -52,12 +52,27 @@ export class EncryptionServiceProvider extends ServiceProvider {
    * Imported lazily so this package does not depend on the database one: an
    * application that encrypts cookies but has no database still works, and one
    * with a database gets `encrypted` casts without asking.
+   *
+   * What is handed over is a **deferred** encrypter, not a resolved one. The
+   * binding above throws when `APP_KEY` is empty, and resolving it here meant the
+   * whole application refused to boot — including `artisan key:generate`, the one
+   * command that fixes an empty key. The chicken-and-egg was hidden for as long
+   * as the template shipped a placeholder key that counted as set.
+   *
+   * The casts need a synchronous encrypter, so this forwards each call rather
+   * than awaiting anything: the key is checked the first time something actually
+   * encrypts, which is what the comment on the binding always claimed.
    */
   private async enableEncryptedCasts(): Promise<void> {
     if (!this.app.bound('db')) return
 
     const { setAttributeEncrypter } = await import('@elysian/database')
+    const resolve = () => this.app.make('encrypter')
 
-    setAttributeEncrypter(this.app.make('encrypter'))
+    setAttributeEncrypter({
+      encryptString: (value, context) => resolve().encryptString(value, context),
+      decryptString: (payload, context) => resolve().decryptString(payload, context),
+      blindIndex: (value, context) => resolve().blindIndex(value, context)
+    })
   }
 }
