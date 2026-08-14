@@ -38,7 +38,6 @@ Deliberately absent, with reasons:
 
 | Missing | Why |
 | --- | --- |
-| Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
 
 ---
 

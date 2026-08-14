@@ -6,6 +6,7 @@ import type {
   Boolean_,
   JoinClause,
   QueryComponents,
+  VectorMetric,
   WhereClause
 } from './types.ts'
 import { cloneQuery, emptyQuery } from './types.ts'
@@ -154,6 +155,48 @@ export class QueryBuilder<T extends Row = Row> {
    * raises. None of them is wrong — a key that holds different shapes in
    * different rows is the thing to fix.
    */
+  /**
+   * Nearest by vector distance — `orderByVector('embedding', query)`.
+   *
+   * The ordering half of a similarity search: rows come back nearest first, and
+   * an index on the same operator turns it into a scan rather than a sort.
+   * Requires Postgres with pgvector; other grammars refuse rather than emitting
+   * SQL that would quietly order by something else.
+   */
+  orderByVector(column: string, vector: number[], metric: VectorMetric = 'cosine'): this {
+    this.query.orders.push({ vector: { column, metric, values: vector } })
+
+    return this
+  }
+
+  /**
+   * Filter by distance — `whereVectorDistance('embedding', v, '<', 0.25)`.
+   *
+   * Ordering finds the nearest rows; this asks "near enough", which is the
+   * question a recommendation or a duplicate check actually has. The nearest row
+   * to a nonsense query is still a row, and only a threshold can say it was not
+   * a match.
+   */
+  whereVectorDistance(
+    column: string,
+    vector: number[],
+    operator: string,
+    value: number,
+    metric: VectorMetric = 'cosine'
+  ): this {
+    this.query.wheres.push({
+      type: 'vectorDistance',
+      column,
+      metric,
+      vector,
+      operator,
+      value,
+      boolean: 'and'
+    })
+
+    return this
+  }
+
   whereJsonLength(column: string, operator: string | number, value?: unknown): this {
     const resolved = value === undefined ? '=' : String(operator)
     const target = value === undefined ? operator : value

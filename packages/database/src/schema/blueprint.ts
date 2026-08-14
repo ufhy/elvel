@@ -22,6 +22,7 @@ export type ColumnType =
   | 'uuid'
   | 'binary'
   | 'enum'
+  | 'vector'
 
 export type ColumnAttributes = {
   name: string
@@ -313,6 +314,17 @@ export class Blueprint {
 
   enum(name: string, allowed: string[]): ColumnDefinition {
     return this.addColumn('enum', name, { allowed })
+  }
+
+  /**
+   * A pgvector column — `table.vector('embedding', 1536)`.
+   *
+   * The dimension is required and fixed, because pgvector's indexes are built
+   * for one: a column that accepts any length cannot be indexed, and an
+   * unindexed similarity search reads the whole table.
+   */
+  vector(name: string, dimensions: number): ColumnDefinition {
+    return this.addColumn('vector', name, { length: dimensions })
   }
 
   uuid(name = 'uuid'): ColumnDefinition {

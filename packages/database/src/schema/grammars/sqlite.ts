@@ -45,6 +45,12 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
         return 'time'
       case 'binary':
         return 'blob'
+      case 'vector':
+        // Named rather than silently mapped to blob: a vector column that stores
+        // bytes nobody can search is worse than a migration that refuses.
+        throw new Error(
+          `[${column.name}] is a vector column, which needs Postgres with pgvector. sqlite has no equivalent.`
+        )
       default: {
         const exhaustive: never = column.type
         throw new Error(`Unsupported column type [${exhaustive}] for sqlite.`)

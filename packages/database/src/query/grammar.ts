@@ -96,6 +96,18 @@ export abstract class Grammar {
     throw new Error(`This database engine does not support JSON paths (\`column->key\`).`)
   }
 
+  /** A vector as the driver should bind it. Only Postgres has an opinion. */
+  protected vectorLiteral(vector: number[]): string {
+    return `[${vector.join(',')}]`
+  }
+
+  /** The distance expression, when the engine has vectors at all. */
+  protected compileVectorDistance(_column: string, _metric: string, _value: string): string {
+    throw new Error(
+      'This database engine has no vector distance operators. Postgres with pgvector does.'
+    )
+  }
+
   /** `json_length(...) > ?`, spelled differently by every engine. */
   protected compileJsonLength(_column: string, _operator: string, _value: string): string {
     throw new Error('This database engine does not support whereJsonLength().')
@@ -172,11 +184,22 @@ export abstract class Grammar {
 
     if (query.orders.length > 0) {
       const orders = query.orders
-        .map((order) =>
-          isExpression(order.column)
+        .map((order) => {
+          if (order.vector) {
+            bindings.push(this.vectorLiteral(order.vector.values))
+
+            // Ascending always: every distance operator returns "smaller is
+            // nearer", which is also what lets an index answer the ordering.
+            return `${this.compileVectorDistance(order.vector.column, order.vector.metric, this.parameter(bindings.length))} asc`
+          }
+
+          if (order.column === undefined) return ''
+
+          return isExpression(order.column)
             ? order.column.value
-            : `${this.wrap(order.column)} ${order.direction}`
-        )
+            : `${this.wrap(order.column)} ${order.direction ?? 'asc'}`
+        })
+        .filter((clause) => clause !== '')
         .join(', ')
       parts.push(`order by ${orders}`)
     }
@@ -270,6 +293,19 @@ export abstract class Grammar {
 
       case 'jsonContains': {
         return this.compileJsonContains(where.column, where.value, where.not, bindings)
+      }
+
+      case 'vectorDistance': {
+        bindings.push(this.vectorLiteral(where.vector))
+        const distance = this.compileVectorDistance(
+          where.column,
+          where.metric,
+          this.parameter(bindings.length)
+        )
+
+        bindings.push(where.value)
+
+        return `${distance} ${where.operator} ${this.parameter(bindings.length)}`
       }
 
       case 'jsonLength': {

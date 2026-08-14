@@ -693,6 +693,57 @@ for (const { name, config } of available) {
         await manager.disconnectAll()
       })
 
+      /**
+       * Vector search, where the server has pgvector.
+       *
+       * Skipped elsewhere rather than failing: the extension is the operator's to
+       * install, and SQLite and MySQL have no equivalent at all.
+       */
+      test('vector distance orders and filters, where pgvector exists', async () => {
+        if (name !== 'postgres') return
+
+        try {
+          await connection.unprepared('create extension if not exists vector')
+        } catch {
+          return
+        }
+
+        const table = `${PREFIX}_vectors`
+
+        await schema.dropIfExists(table)
+        await schema.create(table, (blueprint) => {
+          blueprint.increments('id')
+          blueprint.string('label')
+          blueprint.vector('embedding', 3)
+        })
+
+        try {
+          const rows = new QueryBuilder(connection, table)
+
+          await connection.affectingStatement(
+            `insert into ${connection.grammar.wrapTable(table)} (label, embedding) values ($1, $2::vector), ($3, $4::vector), ($5, $6::vector)`,
+            ['near', '[1,0,0]', 'middle', '[0.7,0.7,0]', 'far', '[0,0,1]']
+          )
+
+          const nearest = await rows.clone().orderByVector('embedding', [1, 0, 0]).limit(2).get()
+
+          // Nearest first, by cosine distance — direction, not magnitude, which is
+          // what an embedding carries.
+          expect(nearest.all().map((row) => String(row.label))).toEqual(['near', 'middle'])
+
+          const close = await rows
+            .clone()
+            .whereVectorDistance('embedding', [1, 0, 0], '<', 0.1)
+            .get()
+
+          // The threshold half: the nearest row to a nonsense query is still a row,
+          // and only a distance can say it was not a match.
+          expect(close.all().map((row) => String(row.label))).toEqual(['near'])
+        } finally {
+          await schema.dropIfExists(table)
+        }
+      })
+
       test('a column can be changed on every dialect', async () => {
         const table = `${PREFIX}_change`
 

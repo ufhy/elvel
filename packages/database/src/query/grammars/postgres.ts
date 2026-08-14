@@ -162,4 +162,17 @@ export class PostgresGrammar extends Grammar {
 
     return `${wrapped} = ${expression}`
   }
+
+  /**
+   * pgvector's distance operators.
+   *
+   * The vector is bound as text and cast, for the same reason the JSON writes
+   * are: Bun's driver would otherwise encode it, and `'[1,2,3]'` would arrive as
+   * a quoted string rather than a vector literal.
+   */
+  protected override compileVectorDistance(column: string, metric: string, value: string): string {
+    const operator = metric === 'cosine' ? '<=>' : metric === 'inner' ? '<#>' : '<->'
+
+    return `(${super.wrap(column)} ${operator} (${value}::text)::vector)`
+  }
 }

@@ -26,6 +26,8 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
         return `char(${column.length ?? 255})`
       case 'uuid':
         return 'uuid'
+      case 'vector':
+        return `vector(${column.length ?? 1536})`
       case 'enum':
         return `varchar(255) check (${this.wrap(column.name)} in (${(column.allowed ?? [])
           .map((value) => `'${value}'`)

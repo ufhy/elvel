@@ -2,6 +2,7 @@ import { Collection } from '@elysian/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { raw } from '../query/expression.ts'
+import type { VectorMetric } from '../query/types.ts'
 import { attributeEncrypter, formatDateTime } from './casts.ts'
 import type { Model, ModelClass } from './model.ts'
 
@@ -220,6 +221,26 @@ export class ModelBuilder<M extends Model> {
 
     return this.defer((query) => {
       query.where(column, fingerprint)
+    })
+  }
+
+  /** Nearest by vector distance — the ordering half of a similarity search. */
+  orderByVector(column: string, vector: number[], metric: VectorMetric = 'cosine'): this {
+    return this.defer((query) => {
+      query.orderByVector(column, vector, metric)
+    })
+  }
+
+  /** Near enough by vector distance — the threshold half. */
+  whereVectorDistance(
+    column: string,
+    vector: number[],
+    operator: string,
+    value: number,
+    metric: VectorMetric = 'cosine'
+  ): this {
+    return this.defer((query) => {
+      query.whereVectorDistance(column, vector, operator, value, metric)
     })
   }
 
