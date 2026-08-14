@@ -56,7 +56,6 @@ a worker instead of the request.
 
 | Missing | Why |
 | --- | --- |
-| Broadcasting | Needs a driver and a socket layer. |
 
 ## @elysian/log
 
@@ -122,7 +121,6 @@ fake.
 
 | Missing | Why |
 | --- | --- |
-| `broadcast` channel | Needs a websocket package, which does not exist yet. It is the one channel that cannot be a few lines of `fetch`. |
 | Markdown notification templates | The `MailMessage` builder renders to HTML here, inline-styled, because a mail client ignores most of a stylesheet. `view()` hands the body to one of the application's own JSX components when the default is not enough. |
 
 ## @elysian/encryption

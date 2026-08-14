@@ -1,3 +1,4 @@
+export { type Broadcasting, BroadcastNotificationChannel } from './channels/broadcast.ts'
 export { type DatabaseChannelOptions, DatabaseNotificationChannel } from './channels/database.ts'
 export { LogNotificationChannel, type LogWriter } from './channels/log.ts'
 export { type Mailer, MailNotificationChannel } from './channels/mail.ts'

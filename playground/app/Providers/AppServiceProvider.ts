@@ -1,3 +1,4 @@
+import { channels } from '@elysian/broadcasting'
 import { Limit } from '@elysian/cache'
 import { ServiceProvider } from '@elysian/core'
 import { SendArticleDigest } from '../Jobs/SendArticleDigest.ts'
@@ -36,6 +37,7 @@ export class AppServiceProvider extends ServiceProvider {
     // worker, which is a different process, needs to know the name.
     this.app.make('queue').models.register(Article)
 
+    this.registerChannels()
     this.registerSchedule()
     this.registerLimiters()
   }
@@ -69,6 +71,17 @@ export class AppServiceProvider extends ServiceProvider {
    * Nothing here runs on its own: a crontab calls `artisan schedule:run` every
    * minute, or a long-lived process runs `artisan schedule:work`.
    */
+  /**
+   * Who may listen to what.
+   *
+   * A channel nobody declares is refused, so this is the whole guest list.
+   */
+  private registerChannels(): void {
+    channels()
+      .public('status')
+      .channel('orders.{id}', (user, { id }) => user?.id !== undefined && id === '7')
+  }
+
   private registerSchedule(): void {
     const schedule = this.app.make('schedule')
 

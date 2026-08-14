@@ -55,6 +55,17 @@
         "elysia": ">=1.4.0",
       },
     },
+    "packages/broadcasting": {
+      "name": "@elysian/broadcasting",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "elysia": ">=1.4.0",
+      },
+    },
     "packages/cache": {
       "name": "@elysian/cache",
       "version": "0.0.1",
@@ -281,6 +292,7 @@
       "name": "playground",
       "dependencies": {
         "@elysian/auth": "workspace:*",
+        "@elysian/broadcasting": "workspace:*",
         "@elysian/cache": "workspace:*",
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
@@ -355,6 +367,8 @@
     "@elysiajs/static": ["@elysiajs/static@1.4.10", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-BN/3PZVWjqkL/6TM7RH69Pae89CfU0OqfEYPeBp2hB/GR5Euds39Wy+0ug9Vbvu++GG4tRRANf2QjaLnriJveg=="],
 
     "@elysian/auth": ["@elysian/auth@workspace:packages/auth"],
+
+    "@elysian/broadcasting": ["@elysian/broadcasting@workspace:packages/broadcasting"],
 
     "@elysian/cache": ["@elysian/cache@workspace:packages/cache"],
 

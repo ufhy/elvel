@@ -1,4 +1,5 @@
 import type { ApplicationContract } from '@elysian/contracts'
+import { BroadcastNotificationChannel } from './channels/broadcast.ts'
 import { DatabaseNotificationChannel } from './channels/database.ts'
 import { LogNotificationChannel } from './channels/log.ts'
 import { MailNotificationChannel } from './channels/mail.ts'
@@ -170,6 +171,20 @@ export class NotificationManager {
           connection: this.app.config.get<string | undefined>('notifications.connection'),
           table: this.app.config.get<string>('notifications.table', 'notifications')
         })
+
+      case 'broadcast': {
+        if (!this.app.bound('broadcaster')) {
+          throw new Error(
+            'The broadcast channel needs BroadcastServiceProvider. Register it in config/app.ts.'
+          )
+        }
+
+        return new BroadcastNotificationChannel(
+          this.app.make('broadcaster' as never) as {
+            broadcast(message: { channel: string; event: string; payload: unknown }): number
+          }
+        )
+      }
 
       case 'log':
         return new LogNotificationChannel(

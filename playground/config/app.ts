@@ -1,10 +1,10 @@
 import { AuthServiceProvider } from '@elysian/auth'
+import { BroadcastServiceProvider } from '@elysian/broadcasting'
 import { CacheServiceProvider } from '@elysian/cache'
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
 import { EncryptionServiceProvider } from '@elysian/encryption'
-import { TranslationServiceProvider } from '@elysian/translation'
 import { EventServiceProvider } from '@elysian/events'
 import { HttpServiceProvider } from '@elysian/http'
 import { LogServiceProvider } from '@elysian/log'
@@ -13,6 +13,7 @@ import { NotificationServiceProvider } from '@elysian/notifications'
 import { QueueServiceProvider } from '@elysian/queue'
 import { ScheduleServiceProvider } from '@elysian/scheduler'
 import { StorageServiceProvider } from '@elysian/storage'
+import { TranslationServiceProvider } from '@elysian/translation'
 import { ValidationServiceProvider } from '@elysian/validation'
 import { ViewServiceProvider } from '@elysian/view'
 
@@ -61,6 +62,7 @@ export default {
    * Application providers live in `bootstrap/app.ts` so they boot after these.
    */
   providers: [
+    BroadcastServiceProvider,
     TranslationServiceProvider,
     EventServiceProvider,
     LogServiceProvider,

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elysian/core'
 import { ConnectionManager } from '@elysian/database'
+import { BroadcastNotificationChannel } from '../src/channels/broadcast.ts'
 import { DatabaseNotificationChannel } from '../src/channels/database.ts'
 import { LogNotificationChannel } from '../src/channels/log.ts'
 import { MailNotificationChannel } from '../src/channels/mail.ts'
@@ -743,10 +744,7 @@ describe('the recipient’s own language', () => {
     }
 
     await sender.sendNow(
-      [
-        { email: 'ada@example.com', preferredLocale: () => 'id' },
-        { email: 'linus@example.com' }
-      ],
+      [{ email: 'ada@example.com', preferredLocale: () => 'id' }, { email: 'linus@example.com' }],
       new Probe({})
     )
 
@@ -789,5 +787,54 @@ describe('the recipient’s own language', () => {
     // Otherwise the process speaks the last recipient's language to everybody
     // after them.
     expect<string>(current).toBe('en')
+  })
+})
+
+describe('the broadcast channel', () => {
+  const sent: Array<{ channel: string; event: string; payload: unknown }> = []
+  const broadcaster = {
+    broadcast: (message: { channel: string; event: string; payload: unknown }) => {
+      sent.push(message)
+
+      return 1
+    }
+  }
+
+  class OrderShipped extends Notification<{ order: number }> {
+    via(): string[] {
+      return ['broadcast']
+    }
+
+    override toArray(): Record<string, unknown> {
+      return { order: this.data.order }
+    }
+  }
+
+  test('it goes to the recipient’s own channel', async () => {
+    sent.length = 0
+
+    const channel = new BroadcastNotificationChannel(broadcaster)
+    const notification = new OrderShipped({ order: 7 })
+    notification.id = 'note-1'
+
+    await channel.send({ getKey: () => 42 } as never, notification)
+
+    // One channel per recipient is what lets a page subscribe once and receive
+    // everything addressed to whoever is signed in.
+    expect<string | undefined>(sent[0]?.channel).toBe('notifications.42')
+    expect<string | undefined>(sent[0]?.event).toBe('OrderShipped')
+    expect<unknown>(sent[0]?.payload).toEqual({ id: 'note-1', order: 7 })
+  })
+
+  test('an anonymous recipient is skipped', async () => {
+    sent.length = 0
+
+    const channel = new BroadcastNotificationChannel(broadcaster)
+
+    // There is no id, so there is no private channel it could belong to — and a
+    // guessable name would deliver somebody's notification to whoever subscribed.
+    await channel.send({} as never, new OrderShipped({ order: 7 }))
+
+    expect<number>(sent.length).toBe(0)
   })
 })
