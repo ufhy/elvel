@@ -443,6 +443,18 @@ One thing worth knowing, and two worth remembering:
 Not gaps — nothing here is waiting to be built. These are the places the
 framework stops, and the reasons are the useful part.
 
+**A function cannot be sent to a worker, and the reason is worse than "closures
+do not travel".** `Function.prototype.toString()` gives the body without the
+scope, which is the expected half. The other half is that Bun's transpiler
+*inlines a captured `const` primitive into the source*: `const name = 'ada'`
+followed by `() => name.toUpperCase()` stringifies as
+`() => "ada".toUpperCase()` and works in a worker, while the identical code
+written with `let` stringifies as `() => name.toUpperCase()` and throws
+`ReferenceError`. A feature whose success depends on which keyword declared a
+variable is a trap, so `WorkerDriver` refuses a function outright and asks for
+`{ module, export, args }`. `SyncDriver` accepts one, because nothing crosses a
+boundary there — which also makes `sync` a poor rehearsal for `worker`.
+
 **Laravel's `Reflection` component cannot be written here.**
 `Reflector` exists to read a constructor's parameter *types* and resolve each one
 from the container. TypeScript erases those types, and nothing puts them back:

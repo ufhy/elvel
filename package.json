@@ -26,6 +26,7 @@
     "@elysian/auth": "workspace:*",
     "@elysian/broadcasting": "workspace:*",
     "@elysian/cache": "workspace:*",
+    "@elysian/concurrency": "workspace:*",
     "@elysian/console": "workspace:*",
     "@elysian/contracts": "workspace:*",
     "@elysian/core": "workspace:*",

@@ -191,6 +191,7 @@ const FRAMEWORK_PACKAGES = [
   'auth',
   'broadcasting',
   'cache',
+  'concurrency',
   'console',
   'contracts',
   'core',

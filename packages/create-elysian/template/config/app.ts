@@ -1,6 +1,7 @@
 import { AuthServiceProvider } from '@elysian/auth'
 import { BroadcastServiceProvider } from '@elysian/broadcasting'
 import { CacheServiceProvider } from '@elysian/cache'
+import { ConcurrencyServiceProvider } from '@elysian/concurrency'
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
@@ -67,6 +68,7 @@ export default {
     EncryptionServiceProvider,
     HashServiceProvider,
     ConsoleServiceProvider,
+    ConcurrencyServiceProvider,
     ProcessServiceProvider,
     DatabaseServiceProvider,
     StorageServiceProvider,

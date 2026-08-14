@@ -15,6 +15,7 @@
         "@elysian/auth": "workspace:*",
         "@elysian/broadcasting": "workspace:*",
         "@elysian/cache": "workspace:*",
+        "@elysian/concurrency": "workspace:*",
         "@elysian/console": "workspace:*",
         "@elysian/contracts": "workspace:*",
         "@elysian/core": "workspace:*",
@@ -80,6 +81,14 @@
         "@elysian/core": "workspace:*",
         "@elysian/database": "workspace:*",
         "@elysian/support": "workspace:*",
+      },
+    },
+    "packages/concurrency": {
+      "name": "@elysian/concurrency",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
       },
     },
     "packages/console": {
@@ -403,6 +412,8 @@
     "@elysian/broadcasting": ["@elysian/broadcasting@workspace:packages/broadcasting"],
 
     "@elysian/cache": ["@elysian/cache@workspace:packages/cache"],
+
+    "@elysian/concurrency": ["@elysian/concurrency@workspace:packages/concurrency"],
 
     "@elysian/console": ["@elysian/console@workspace:packages/console"],
 
