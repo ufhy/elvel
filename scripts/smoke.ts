@@ -3570,6 +3570,78 @@ const port = 41_987
 await app.listen(port, '127.0.0.1')
 
 try {
+  // --------------------------------------------------------------- http client
+
+  section('HTTP client')
+
+  {
+    /**
+     * Over a real socket, calling this same application.
+     *
+     * `app.handle()` would not do: a retry, a timeout and a connection failure
+     * are exactly the behaviours that only exist once there is a socket between
+     * the two halves. The port is passed to the controller through `PORT`.
+     */
+    const json = async (path: string) =>
+      (await (await fetch(`http://127.0.0.1:${port}${path}`)).json()) as Record<string, unknown>
+
+    const fetched = await json('/check/client/get')
+    check('a request comes back decoded', fetched.ok === true && fetched.status === 200)
+    check('with the body parsed', JSON.stringify(fetched.body) === '{"hello":"world"}')
+
+    const failure = await json('/check/client/failure')
+    check('a 4xx is a result, not an exception', failure.failed === true)
+    check(
+      'and throw() reports the status and the URL',
+      String(failure.thrown).startsWith('422 from')
+    )
+
+    /**
+     * The reason to have a client at all.
+     *
+     * The upstream fails twice and succeeds on the third attempt; the client is
+     * told it may try four times. `attempts: 3` is the proof it repeated rather
+     * than got lucky.
+     */
+    const retried = await json(`/check/client/retry?run=smoke-${Date.now()}`)
+    check(
+      'a retry repeats until the upstream recovers',
+      retried.ok === true && (retried.body as { attempts?: number }).attempts === 3,
+      JSON.stringify(retried)
+    )
+
+    const exhausted = await json(`/check/client/retry-exhausted?run=smoke-${Date.now()}`)
+    check(
+      'and throws once the attempts run out',
+      exhausted.threw === true && exhausted.status === 503,
+      JSON.stringify(exhausted)
+    )
+
+    const timed = await json('/check/client/timeout')
+    check('a timeout cancels rather than waiting', timed.timedOut === true)
+    check(
+      'and returns long before the upstream would have',
+      typeof timed.elapsed === 'number' && (timed.elapsed as number) < 2000,
+      `${String(timed.elapsed)}ms against a 3000ms upstream`
+    )
+
+    const pooled = await json('/check/client/pool')
+    check(
+      'a pool keeps its keys and reports failures in place',
+      pooled.first === 200 && pooled.second === 404 && pooled.broken === 'ConnectionError',
+      JSON.stringify(pooled)
+    )
+
+    const faked = await json('/check/client/fake')
+    check('a fake answers without a network', JSON.stringify(faked.body) === '{"faked":true}')
+    check('a stray request is refused under a fake', faked.strayRefused === true)
+    check(
+      "and only this test's requests are recorded",
+      faked.recorded === 1,
+      `recorded ${String(faked.recorded)}`
+    )
+  }
+
   const response = await fetch(`http://127.0.0.1:${port}/health`)
   check('listen() serves real requests', response.status === 200)
   check('reported port matches', app.router.server?.port === port)

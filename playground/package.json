@@ -19,6 +19,7 @@
     "@elysian/encryption": "workspace:*",
     "@elysian/events": "workspace:*",
     "@elysian/http": "workspace:*",
+    "@elysian/http-client": "workspace:*",
     "@elysian/log": "workspace:*",
     "@elysian/mail": "workspace:*",
     "@elysian/notifications": "workspace:*",

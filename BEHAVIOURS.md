@@ -319,6 +319,27 @@ application by hand does not, and `Retry-After` goes missing for that reason alo
 rather than because the limiter forgot it.
 
 
+## @elysian/http-client
+
+**Nothing is recorded until something asks.** `recorded()` and the `assertSent`
+family read an array the client only fills while `fake()` or `record()` has
+turned recording on. Filling it unconditionally looked harmless and is a slow
+leak — a server running for a week would keep every outbound request and response
+it ever made, and nothing would ever read them. Laravel guards the same array with
+the same flag, and `fake()` empties it so an assertion describes the test rather
+than the process.
+
+**The default retry policy is narrow, and that is the safety.** A connection
+failure, a 429 and 5xx are repeated; everything else is the server saying no on
+purpose. Repeating a 422 sends the same invalid body again, and repeating a 401
+is how an account gets locked. Widen it per call with the `when` callback rather
+than globally.
+
+**A 3xx is not a failure.** `failed()` is 4xx and 5xx only, so `throw()` leaves a
+redirect alone — otherwise every caller using `withoutRedirecting()` to read a
+`Location` would have to catch.
+
+
 ## @elysian/scheduler
 
 Five things worth knowing:

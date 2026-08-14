@@ -9,6 +9,7 @@ import { EncryptionServiceProvider } from '@elysian/encryption'
 import { EventServiceProvider } from '@elysian/events'
 import { HashServiceProvider } from '@elysian/hashing'
 import { HttpServiceProvider } from '@elysian/http'
+import { HttpClientServiceProvider } from '@elysian/http-client'
 import { ImageServiceProvider } from '@elysian/image'
 import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
@@ -83,6 +84,7 @@ export default {
     ScheduleServiceProvider,
     ValidationServiceProvider,
     HttpServiceProvider,
+    HttpClientServiceProvider,
     // Before the view provider: its static handler claims `GET /*`, which would
     // otherwise shadow the auth endpoints.
     AuthServiceProvider,

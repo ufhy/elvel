@@ -24,6 +24,7 @@
         "@elysian/events": "workspace:*",
         "@elysian/hashing": "workspace:*",
         "@elysian/http": "workspace:*",
+        "@elysian/http-client": "workspace:*",
         "@elysian/image": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/mail": "workspace:*",
@@ -198,6 +199,14 @@
         "elysia": ">=1.4.0",
       },
     },
+    "packages/http-client": {
+      "name": "@elysian/http-client",
+      "version": "0.1.0",
+      "dependencies": {
+        "@elysian/contracts": "workspace:*",
+        "@elysian/core": "workspace:*",
+      },
+    },
     "packages/image": {
       "name": "@elysian/image",
       "version": "0.1.0",
@@ -353,6 +362,7 @@
         "@elysian/encryption": "workspace:*",
         "@elysian/events": "workspace:*",
         "@elysian/http": "workspace:*",
+        "@elysian/http-client": "workspace:*",
         "@elysian/log": "workspace:*",
         "@elysian/mail": "workspace:*",
         "@elysian/notifications": "workspace:*",
@@ -441,6 +451,8 @@
     "@elysian/hashing": ["@elysian/hashing@workspace:packages/hashing"],
 
     "@elysian/http": ["@elysian/http@workspace:packages/http"],
+
+    "@elysian/http-client": ["@elysian/http-client@workspace:packages/http-client"],
 
     "@elysian/image": ["@elysian/image@workspace:packages/image"],
 
