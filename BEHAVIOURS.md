@@ -421,6 +421,18 @@ Five decisions worth knowing rather than discovering:
 
 ## create-elysian
 
+**The kit is now proven, not merely scaffolded.** Every earlier check on the auth
+kit asserted that files landed and that a string appears in `routes/web.ts`. A
+kit whose controller threw on its first request would have passed all of them.
+The smoke run now writes the scaffold an environment, runs `auth:schema` and
+`migrate`, serves it on a socket in its own process, and walks the cycle over
+HTTP: the sign-in page renders, a guest is turned away from the dashboard,
+registering redirects with a session cookie, the dashboard greets that user by
+name, a duplicate address and a wrong password both go back to their form, and —
+the one worth having — the cookie stops opening the dashboard after sign-out
+rather than merely being cleared in the browser.
+
+
 One thing worth knowing, and two worth remembering:
 
 - **No migrations ship in the box.** Laravel's skeleton carries `users`, `cache`

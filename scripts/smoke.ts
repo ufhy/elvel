@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 import { createHmac } from 'node:crypto'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elysian/database'
+import { ProcessManager } from '@elysian/process'
 import { ScheduleRunner } from '@elysian/scheduler'
 import { canonicalRequest, signingKey, stringToSign } from '@elysian/support'
 import pc from 'picocolors'
@@ -2454,6 +2455,8 @@ try {
   // leave somebody wondering where their sign-in page went.
   check('an unknown kit is refused', unknownKit.exitCode === 1)
 
+  await proveTheKitWorks(kitTarget)
+
   // --------------------------------------------------------------- route names
 
   section('Named routes')
@@ -3081,6 +3084,223 @@ const forwarded = (await (
 // request, which is a rate limit that counts nothing.
 check('a forwarding header is ignored from an untrusted source', forwarded.ip !== '9.9.9.9')
 check('and believed from a trusted one', forwarded.trusting === '9.9.9.9')
+
+/**
+ * The auth kit, actually used.
+ *
+ * Every check above this asserted that files landed and that a string appears in
+ * `routes/web.ts`. None of them booted the thing. A kit whose controller throws
+ * on the first request would have passed all of them, which makes them a check
+ * that scaffolding works rather than that the kit does.
+ *
+ * So: give the scaffold an environment, run its migrations, serve it on a socket,
+ * and walk the cycle a person walks — register, land on a protected page, sign
+ * out, and be refused again. Over HTTP, in a separate process, against SQLite on
+ * disk.
+ */
+async function proveTheKitWorks(target: string): Promise<void> {
+  section('The auth kit, over HTTP')
+
+  const port = 41_991
+  const origin = `http://127.0.0.1:${port}`
+
+  /**
+   * `AUTH_SECRET` is deliberately not `APP_KEY`.
+   *
+   * The template says so in a comment and this is where it would be caught: one
+   * key signing both the framework's ciphertext and better-auth's tokens means a
+   * leak of either is a leak of both.
+   */
+  await writeFile(
+    join(target, '.env'),
+    [
+      'APP_NAME=SmokeKit',
+      'APP_ENV=local',
+      'APP_DEBUG=true',
+      `APP_URL=${origin}`,
+      'APP_KEY=smoke-kit-application-key-32-chars-min',
+      'AUTH_SECRET=smoke-kit-better-auth-secret-not-the-app-key',
+      'AUTH_MOUNT=true',
+      'DB_CONNECTION=sqlite',
+      'DB_DATABASE=database/kit.sqlite',
+      'DB_FOREIGN_KEYS=true',
+      'SESSION_DRIVER=file',
+      'SESSION_CSRF=false',
+      'CACHE_STORE=file',
+      'QUEUE_CONNECTION=sync',
+      'MAIL_MAILER=log',
+      'VIEW_CACHE=false',
+      'LOG_LEVEL=error',
+      `PORT=${port}`,
+      ''
+    ].join('\n')
+  )
+
+  const runner = new ProcessManager().path(target).timeout(120_000)
+
+  const schema = await runner.run(['bun', 'artisan.ts', 'auth:schema'])
+  check('auth:schema writes the migration', schema.successful(), schema.all().slice(-200))
+
+  const migrated = await runner.run(['bun', 'artisan.ts', 'migrate', '--force'])
+  check('migrate creates better-auth’s tables', migrated.successful(), migrated.all().slice(-300))
+
+  // Its own process group, so a server that ignores SIGTERM still dies with the
+  // group rather than holding the port for the next run.
+  const server = new ProcessManager()
+    .path(target)
+    .forever()
+    .start(['bun', 'artisan.ts', 'serve', `--port=${port}`])
+
+  try {
+    await server.waitUntil((output) => output.includes('Server running'))
+
+    const signIn = await fetch(`${origin}/sign-in`)
+    const signInBody = await signIn.text()
+
+    check('the sign-in page renders', signIn.status === 200, `status ${signIn.status}`)
+    check(
+      'and posts back to the route that handles it',
+      signInBody.includes('action="/sign-in"') && signInBody.includes('name="password"')
+    )
+
+    const guest = await fetch(`${origin}/dashboard`, { redirect: 'manual' })
+
+    check('a guest is turned away from the dashboard', guest.status >= 300 && guest.status < 400)
+    check(
+      'and sent to sign in',
+      (guest.headers.get('location') ?? '').includes('/sign-in'),
+      guest.headers.get('location') ?? '(no location)'
+    )
+
+    /**
+     * Registering is the check that matters.
+     *
+     * better-auth is called with `asResponse: true` so the cookie it sets is a
+     * real one, and the controller moves that cookie onto a redirect. If either
+     * half were wrong the browser would get a session-less redirect and land back
+     * on the sign-in page — which is exactly what a file-existence check cannot
+     * tell you.
+     */
+    const stamp = Date.now()
+    const email = `kit-${stamp}@example.com`
+    // Unique, so finding it on the page proves the session resolved *this* user
+    // rather than that the word happens to appear in the template.
+    const name = `Ada ${stamp}`
+    const registered = await fetch(`${origin}/sign-up`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ name, email, password: 'longenough1' }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'registering redirects rather than answering with JSON',
+      registered.status >= 300 && registered.status < 400,
+      `status ${registered.status}`
+    )
+    check(
+      'and lands on the dashboard',
+      (registered.headers.get('location') ?? '').includes('/dashboard'),
+      registered.headers.get('location') ?? '(no location)'
+    )
+
+    const cookies = registered.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(';')[0])
+      .join('; ')
+
+    check('the session cookie travels with the redirect', cookies.length > 0, cookies || '(none)')
+
+    const dashboard = await fetch(`${origin}/dashboard`, { headers: { cookie: cookies } })
+    const dashboardBody = await dashboard.text()
+
+    check(
+      'the dashboard opens with that cookie',
+      dashboard.status === 200,
+      `status ${dashboard.status}`
+    )
+    // The page greets by name, not by address — asserting on the email was wrong
+    // about the view rather than about the kit.
+    check(
+      'and greets the user it signed in',
+      dashboardBody.includes(name),
+      dashboardBody.slice(0, 240)
+    )
+
+    // A second registration with the same address must fail, or the unique index
+    // is missing and two accounts share an email.
+    const duplicate = await fetch(`${origin}/sign-up`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ name, email, password: 'longenough1' }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'a duplicate address is refused',
+      (duplicate.headers.get('location') ?? '').includes('/sign-up'),
+      duplicate.headers.get('location') ?? `status ${duplicate.status}`
+    )
+
+    const wrong = await fetch(`${origin}/sign-in`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email, password: 'not-the-password' }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'a wrong password goes back to the form',
+      (wrong.headers.get('location') ?? '').includes('/sign-in'),
+      wrong.headers.get('location') ?? `status ${wrong.status}`
+    )
+
+    const again = await fetch(`${origin}/sign-in`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email, password: 'longenough1' }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'signing in with the right one reaches the dashboard',
+      (again.headers.get('location') ?? '').includes('/dashboard'),
+      again.headers.get('location') ?? `status ${again.status}`
+    )
+
+    const fresh = again.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(';')[0])
+      .join('; ')
+
+    const signedOut = await fetch(`${origin}/sign-out`, {
+      method: 'POST',
+      headers: { cookie: fresh },
+      redirect: 'manual'
+    })
+
+    check('signing out redirects home', (signedOut.headers.get('location') ?? '') === '/')
+
+    /**
+     * The cookie must stop working, not merely be cleared.
+     *
+     * A sign-out that only tells the browser to forget the cookie leaves the
+     * session valid for anyone who kept a copy of it.
+     */
+    const afterSignOut = await fetch(`${origin}/dashboard`, {
+      headers: { cookie: fresh },
+      redirect: 'manual'
+    })
+
+    check(
+      'and the old cookie no longer opens the dashboard',
+      afterSignOut.status >= 300 && afterSignOut.status < 400,
+      `status ${afterSignOut.status}`
+    )
+  } finally {
+    await server.stop(2000)
+  }
+}
 
 // -------------------------------------------------------------------- server
 
