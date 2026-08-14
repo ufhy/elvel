@@ -7,13 +7,14 @@ Everything below is behaviour that already exists and would otherwise have to be
 rediscovered — through a bug, usually, since none of it can be read back off the
 code. The code says what happens; this says why.
 
-It has twice had a companion, `GAPS.md`, holding what was still missing. The
-second one measured the distance to Laravel component by component and counted
-down from five to zero, and like the first it was deleted when it emptied — a
-list whose length measures the work left only means anything if it is allowed to
-reach zero and go. Git history keeps its rules for the next time there is real
-debt to count. The limits that outlive any such list — the places this framework
-simply stops — are at the bottom of this file.
+Its companion is [`GAPS.md`](GAPS.md), holding what is still missing. Two earlier
+ones counted down to zero and were deleted, which is the only way their length
+meant anything. The third exists because the second measured the wrong thing: it
+compared Laravel *component by component* and found 30 of 38 covered, while the
+real distance was inside them. Measured at method level, it is considerably
+larger — and the file itself says so, along with the command to re-measure. The
+limits that outlive any such list — the places this framework simply stops — are
+at the bottom of this file.
 
 ---
 

@@ -1,0 +1,118 @@
+# Known gaps
+
+What Laravel has and this does not — measured at method level, not component
+level.
+
+**A row is removed when the thing is built. It is never narrowed.** Rewriting a
+row to describe the leftover keeps the list the same length while the work gets
+done, which makes the list useless as a measure — and that is exactly what it is
+for. When the table empties, the file goes; git history keeps these rules for the
+next time there is real debt to count.
+
+**A row whose answer is "this is not actually missing" does not belong here.**
+Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
+the limits that are permanent.
+
+**Open: 22.**
+
+---
+
+## How this was measured
+
+Against `laravel/framework` **13.25.0** and `laravel/fortify`, on **14 August
+2026**. The earlier sweep compared *components* and found 30 of 38 covered; this
+one compares what is inside them, which is where the real distance turned out to
+be.
+
+The method, repeatable:
+
+```sh
+# every public method of a Laravel class
+gh api repos/laravel/framework/contents/src/Illuminate/Collections/Collection.php \
+  --jq '.content' | base64 -d | grep -oE "public (static )?function [a-zA-Z_]+" \
+  | sed 's/.*function //' | sort -u
+```
+
+…then the same for ours, and diff. **Normalise before diffing**: Laravel's
+`requiredIf` is our `required_if`, and a first pass that skipped this reported 52
+missing validation rules where there are 18.
+
+**Raw counts overstate.** A diff of method names counts PHP-isms nobody wants
+(`offsetGet`, `getQueueableId`, `cleanBindings`, `dd`) and counts a method we
+implement under another name. Every row below names what is actually missing
+rather than quoting the raw difference; where a count appears, it has been
+checked item by item.
+
+## Missing
+
+### The one that shapes everything else
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **Route middleware** | 11 aliases (`auth`, `guest`, `verified`, `can`, `signed`, `password.confirm`, `throttle`, `auth.session`, …), applied per route or per group, with priority, `withoutMiddleware`, and 38 configuration methods on `Middleware.php`. Plus `make:middleware`. | Nothing here has it. `throttle()` is an Elysia plugin and `requireUser()` throws a 401 — right for an API, wrong for a page that should redirect to `/sign-in`. The consequence is visible in the auth kit, where `if (!user) return redirect('/sign-in')` is written **eleven times**, and where a comment praises that as a design. Every route file written before this exists will have to be revisited after it does. |
+
+### HTTP
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **HTTP client** | `Illuminate\Http\Client`: `PendingRequest` with ~70 methods (`retry`, `timeout`, `withToken`, `asForm`, `attach`, `sink`, `throw`), `Pool`, `Batch`, and a fake with `assertSent`, `assertSentCount`, `assertNothingSent`, `preventStrayRequests`. | Absent entirely — zero hits in `packages/*/src`. Missed in the component sweep because `Http` was mapped onto our `http` package, which is the server side. Anything calling an API today uses bare `fetch` with no retry, no timeout, and nothing to assert against. |
+| **Signed URLs** | `URL::signedRoute`, `temporarySignedRoute`, `hasValidSignature`, and the `signed` middleware. | Zero hits. Fortify verifies email through a signed URL; without this the kit's verification link cannot be tamper-proof. |
+| **Route model binding** | `{post}` resolved to a model, `getRouteKey`, `getRouteKeyName`, `resolveRouteBinding`. | Zero hits. Every handler loads its own row by id. |
+| **Method spoofing** | `@method('PUT')` writes `_method`, so an HTML form can reach a `PUT`/`PATCH`/`DELETE` route. | Absent. Laravel's own starter kit uses `PATCH settings/profile`, `PUT settings/password`, `DELETE settings/profile`; ours had to make all six routes `POST`. |
+| **View helpers Blade has** | `@error`, `@auth`, `@guest`, `@can`, `@stack`/`@push`, `@once`. | Only `csrfField()` exists. `@stack`/`@push` is the one with no JSX workaround — a page cannot contribute to the layout's `<head>`. |
+
+### Support
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **Collection** | 110 methods. | 25 here. Missing and wanted: `chunk`, `chunkWhile`, `collapse`, `combine`, `concat`, `countBy`, `crossJoin`, `diff`, `diffKeys`, `dot`, `duplicates`, `except`, `flatten`, `flip`, `groupBy`, `keyBy`, `mapWithKeys`, `partition`, `pluck`, `random`, `skipWhile`, `sliding`, `sole`, `takeWhile`, `zip`. |
+| **Str** | 110 methods. | 29 here. Missing and wanted: `ascii`, `beforeLast`, `between`, `charAt`, `deduplicate`, `excerpt`, `initials`, `is`, `isJson`, `isUlid`, `isUuid`, `mask`, `password`, `plural`/`singular`, `remove`, `replaceArray`, `squish`, `swap`, `take`, `ulid`, `wordCount`, `wrap`. |
+| **Arr** | 59 methods. | 16 here. Missing and wanted: `collapse`, `crossJoin`, `divide`, `every`, `hasAny`, `isAssoc`, `isList`, `keyBy`, `mapWithKeys`, `mapSpread`, `partition`, `pluck`, `prepend`, `pull`, `push`, `query`, `random`, `reject`, `sole`, `undot`. |
+
+### Database
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **Query builder methods** | 226 public methods. | 121 here. Missing and genuinely used: `cursor`, `average`, `inRandomOrder`, `groupByRaw`, `havingBetween`, `havingNull`/`havingNotNull`, `joinLateral`, `fromSub`, `crossJoinSub`, `insertUsing`, `incrementEach`/`decrementEach`, `forPageAfterId`, `implode`, `inOrderOf`. |
+| **Model methods** | `destroy`, `deleteOrFail`, `saveOrFail`, named scopes via `callNamedScope`, `getRouteKey`, `broadcastChannel`, `automaticallyEagerLoadRelationships`. | The named-scope surface and `destroy` are the ones an application reaches for daily. |
+
+### Framework services
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **Cache** | `getMultiple`, `setMultiple`, `deleteMultiple`, `touch`, `supportsTags`, `rememberWithWarmth`. | The PSR-16 multi-key methods are the gap that shows: fetching fifty keys is fifty round trips today. |
+| **Storage** | `assertExists`, `assertMissing`, `assertCount`, `assertDirectoryEmpty`; `temporaryUrl`, `temporaryUploadUrl`, `checksum`, `download`, `response`, `serve`, `directoryExists`. | The assertions belong with the testing work; `temporaryUrl` is what a private S3 file needs to reach a browser at all. |
+| **Mailable assertions** | 30-odd `assertHasTo`, `assertHasSubject`, `assertSeeInHtml`, `assertHasAttachment`, … | The mail fake records sends; nothing asserts what was in one. |
+
+### Artisan
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **~45 commands of 111** | Counted from `ArtisanServiceProvider`. | Notable: `make:middleware`, `make:test`, `make:rule`, `make:cast`, `make:observer`, `make:enum`, `make:exception`, `optimize`, `optimize:clear`, `route:cache`/`route:clear`, `view:cache`, `event:cache`, `config:show`, `env:encrypt`/`env:decrypt`, `db:wipe`, `db:monitor`, `model:show`, `model:prune`, `queue:listen`, `queue:monitor`, `queue:pause`/`resume`, `schedule:interrupt`, `vendor:publish`, `lang:publish`. |
+| **Validation rules — 18 of 110** | Verified one by one after normalising. | `active_url`, `ascii`, `doesnt_contain`, `doesnt_end_with`, `doesnt_start_with`, `hex_color`, `mac_address`, `max_digits`, `min_digits`, `multiple_of`, `timezone`, `ulid`, `ipv4`, `encoding`, `array_keys`, `in_array_keys`, `prohibited_if_accepted`, `prohibited_if_declined`. |
+
+### The scaffolded application
+
+Found by scaffolding one and following the printed instructions.
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **A new application ships a known encryption key** | `.env.example` has `APP_KEY=` **empty**, and the installer runs `key:generate` itself (`NewCommand.php:662`). | Our template ships `APP_KEY=change-me-to-32-characters-or-more`, and the first command the scaffolder tells you to run — `artisan key:generate` — **fails**, because it refuses to replace a key that is already set. So the application runs with a key that is published in this repository, and every encrypted cookie, queue payload and model cast is readable by anyone who reads the template. This is a security default, not a convenience. |
+| **`AUTH_SECRET` is empty and nothing says so** | Fortify signs with `APP_KEY`; there is no second secret to forget. | Ships empty, no warning at boot, and no command generates one — `artisan list` has `auth:schema` and `key:generate` and nothing else. |
+| **Three manual steps before the kit works** | The installer prompts for a database and offers to migrate. | `key:generate`, `auth:schema`, `migrate`, by hand, with the first one failing. |
+
+### The auth kit
+
+| Gap | What Laravel has | Why it matters here |
+| --- | --- | --- |
+| **Throttling on the credential routes** | `throttle:6,1` on verification, the `login` limiter turned on by the starter kit, `throttle:6,1` on `settings/password`. | Started and not finished: the plugin is written, the routes are not inside it. Until they are, `/sign-in` is an unthrottled credential-stuffing endpoint and `/forgot-password` posts mail to any address on demand. |
+| **Email re-verification on change** | `ProfileController::update` clears `email_verified_at` when the address is dirty. | The kit sends the new address to better-auth and does not check what it does with verification state. |
+| **Password confirmation window** | `RequirePassword` middleware guards the security page; `password.confirm` re-asks within a window. | Absent. The kit asks for a password on account deletion only, which was my judgement rather than Laravel's design. |
+
+## Not yet measured
+
+Named so the list is not mistaken for complete: events beyond the dispatcher,
+queue job internals (the raw diff there is mostly PHP-isms and needs reading, not
+counting), notifications channels, translation, broadcasting, encryption, the
+scheduler's expression surface, and Blade's directive set as a whole rather than
+the six helpers named above.

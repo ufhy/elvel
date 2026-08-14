@@ -131,3 +131,170 @@ code {
 .dot {
   opacity: 0.5;
 }
+
+/* -------------------------------------------------------------- auth kit
+ *
+ * These live in the base stylesheet rather than in the kit, even though only
+ * the kit uses them today. A kit is a folder copied over the template, so
+ * shipping its own CSS would mean either a second stylesheet the layout has to
+ * know about or a copy of this file that drifts from it. They are ordinary UI
+ * primitives; the landing page is welcome to them.
+ */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.panel h1 {
+  margin-top: 0;
+}
+
+.panel.danger {
+  border-color: color-mix(in srgb, #d94848 45%, var(--border));
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1.25rem;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form label > span {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+}
+
+.form input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.form button,
+.inline button {
+  align-self: flex-start;
+  background: var(--accent);
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.6rem 1.1rem;
+}
+
+.form button.destructive {
+  background: #d94848;
+}
+
+.form button.link,
+.inline button.link {
+  background: none;
+  color: var(--accent);
+  padding: 0;
+  text-decoration: underline;
+}
+
+.error,
+.notice {
+  border-radius: 9px;
+  font-size: 0.95rem;
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.9rem;
+}
+
+.error {
+  background: color-mix(in srgb, #d94848 12%, transparent);
+  color: #b23434;
+}
+
+.notice {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+/* The settings tabs, which without this run together as one word. */
+.tabs {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.tab {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  text-decoration: none;
+}
+
+.tab.current {
+  border-bottom: 2px solid var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 1.25rem 0;
+  padding: 0;
+}
+
+.session {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem 0.9rem;
+}
+
+.session.current {
+  border-color: var(--accent);
+}
+
+.session small {
+  display: block;
+}
+
+.badge {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.inline {
+  display: inline;
+}
