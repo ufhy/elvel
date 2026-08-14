@@ -263,7 +263,7 @@ export default controller('auth-pages')
     middleware('auth')
   )
 
-  .post(
+  .patch(
     '/settings/profile',
     async ({ body, request, user }) => {
       const answer = await api().updateUser({
@@ -294,8 +294,8 @@ export default controller('auth-pages')
     }
   )
 
-  .post(
-    '/settings/profile/delete',
+  .delete(
+    '/settings/profile',
     async ({ body, request, user }) => {
       const answer = await api().deleteUser({
         body: { password: body.password },
@@ -331,7 +331,7 @@ export default controller('auth-pages')
     middleware('auth')
   )
 
-  .post(
+  .put(
     '/settings/password',
     async ({ body, request, user }) => {
       if (body.password !== body.password_confirmation) {

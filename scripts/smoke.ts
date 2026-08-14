@@ -3550,6 +3550,42 @@ async function proveTheKitWorks(target: string): Promise<void> {
 
     check('guessing the password is throttled', refused > 0, `${refused} of 9 refused`)
 
+    /**
+     * A form reaching a PATCH route.
+     *
+     * The browser can only POST; `_method=PATCH` is what the framework reads
+     * before routing. Before method spoofing existed the kit had to register
+     * `POST /settings/profile`, where Laravel's starter kit has `PATCH`.
+     */
+    const patched = await fetch(`${origin}/settings/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
+      body: new URLSearchParams({
+        _method: 'PATCH',
+        name: 'Renamed By Spoof',
+        email
+      }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'a form reaches the PATCH route through _method',
+      (patched.headers.get('location') ?? '').includes('saved=1'),
+      patched.headers.get('location') ?? `status ${patched.status}`
+    )
+
+    const renamed = await fetch(`${origin}/settings/profile`, { headers: { cookie: live } })
+
+    check('and the change actually landed', (await renamed.text()).includes('Renamed By Spoof'))
+
+    // The page carries the hidden field that makes the above possible.
+    check(
+      'the form ships the hidden _method field',
+      (
+        await (await fetch(`${origin}/settings/password`, { headers: { cookie: live } })).text()
+      ).includes('name="_method" value="PUT"')
+    )
+
     const protectedPage = await fetch(`${origin}/settings/security`, { redirect: 'manual' })
 
     check(

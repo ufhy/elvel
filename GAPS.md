@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 16.**
+**Open: 15.**
 
 ---
 
@@ -50,7 +50,6 @@ checked item by item.
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
 | **Route model binding** | `{post}` resolved to a model, `getRouteKey`, `getRouteKeyName`, `resolveRouteBinding`. | Zero hits. Every handler loads its own row by id. |
-| **Method spoofing** | `@method('PUT')` writes `_method`, so an HTML form can reach a `PUT`/`PATCH`/`DELETE` route. | Absent. Laravel's own starter kit uses `PATCH settings/profile`, `PUT settings/password`, `DELETE settings/profile`; ours had to make all six routes `POST`. |
 | **View helpers Blade has** | `@error`, `@auth`, `@guest`, `@can`, `@stack`/`@push`, `@once`. | Only `csrfField()` exists. `@stack`/`@push` is the one with no JSX workaround — a page cannot contribute to the layout's `<head>`. |
 
 ### Support

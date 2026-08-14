@@ -1,4 +1,4 @@
-import { csrfField } from '@elysian/http'
+import { csrfField, methodField } from '@elysian/http'
 import { Layout } from '../../components/layout.tsx'
 import { SettingsNav } from './nav.tsx'
 
@@ -24,6 +24,7 @@ export function Password({ title, saved, error }: PasswordProps) {
 
         <form method="post" action="/settings/password" class="form">
           {csrfField()}
+          {methodField('PUT')}
 
           {/* The current one is required even though the session proves who this
               is: it is what stops a borrowed, unlocked browser becoming a

@@ -57,6 +57,13 @@ export {
 } from './form-request.ts'
 export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
 export {
+  METHOD_FIELD,
+  METHOD_HEADER,
+  type MethodOverrideOptions,
+  methodField,
+  methodOverridePlugin
+} from './method-override.ts'
+export {
   MIDDLEWARE_NAMES,
   type MiddlewareContext,
   type MiddlewareFactory,

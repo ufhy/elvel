@@ -296,6 +296,20 @@ the smoke test presses the routes sequentially because that is what a client doe
 It matters for a limit meant to stop a burst rather than a rate — an atomic
 increment-and-compare in the store is what would fix it.
 
+**Method spoofing happens before routing, and it has to.** Elysia picks a handler
+from the method, and a `beforeHandle` hook runs after that choice is already made
+— too late to change it. `Request.method` is read-only, so nothing can be edited
+in place either. What works is `onRequest`, which runs first: it builds a new
+`Request` carrying the real method and hands it back through the router, with a
+marker header so the rewritten request is not rewritten again. The plugin is
+registered before maintenance mode and CSRF for the same reason — a CSRF check
+that ran while the request still claimed to be a `POST` would be checking the
+wrong question.
+
+`GET`, `HEAD`, `CONNECT` and `TRACE` cannot be spoofed to, as in Symfony. A POST
+turned into a GET is a state-changing request wearing the clothes of a safe,
+cacheable one.
+
 **A route's middleware names are read off the hook function, not the route table.**
 Elysia compiles a route's `beforeHandle` list into an anonymous chain, so by the
 time there is a route table there is nothing to say *which* middleware guards

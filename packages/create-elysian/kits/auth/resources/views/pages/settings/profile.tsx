@@ -1,4 +1,4 @@
-import { csrfField, old } from '@elysian/http'
+import { csrfField, methodField, old } from '@elysian/http'
 import { Layout } from '../../components/layout.tsx'
 import { SettingsNav } from './nav.tsx'
 
@@ -25,8 +25,11 @@ export function Profile({ title, name, email, emailVerified, saved, error }: Pro
         ) : null}
         {saved ? <p class="notice">Saved.</p> : null}
 
+        {/* A browser form can only POST; `_method` is what reaches the PATCH
+            route the framework registered. */}
         <form method="post" action="/settings/profile" class="form">
           {csrfField()}
+          {methodField('PATCH')}
 
           <label>
             <span>Name</span>
@@ -55,8 +58,9 @@ export function Profile({ title, name, email, emailVerified, saved, error }: Pro
         <h2>Delete this account</h2>
         <p class="lede">Everything goes, and none of it comes back.</p>
 
-        <form method="post" action="/settings/profile/delete" class="form">
+        <form method="post" action="/settings/profile" class="form">
           {csrfField()}
+          {methodField('DELETE')}
 
           {/* Typing the password is the confirmation: a button alone is one
               mis-click away from a permanent loss. */}

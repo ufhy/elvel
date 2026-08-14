@@ -20,6 +20,7 @@ import {
 } from './cors.ts'
 import { TokenMismatchError, tokensMatch } from './csrf.ts'
 import { maintenancePlugin } from './maintenance.ts'
+import { methodOverridePlugin } from './method-override.ts'
 import { MiddlewareRegistry } from './middleware.ts'
 import { PREVIOUS_URL_KEY } from './redirect.ts'
 import { RouteRegistry } from './routes.ts'
@@ -197,6 +198,23 @@ export class HttpServiceProvider extends ServiceProvider {
      * starting sessions, checking CSRF or counting rate limits for requests it is
      * about to refuse.
      */
+    /**
+     * Before everything, including maintenance mode.
+     *
+     * It rewrites the request rather than reading it, so anything registered
+     * earlier would see a `POST` that the router is about to treat as a `PUT` —
+     * and a CSRF check that ran on the wrong method is a check on the wrong
+     * question.
+     */
+    if (this.config<boolean>('http.methodOverride', true) !== false) {
+      this.use(
+        methodOverridePlugin((request) => this.app.router.handle(request), {
+          allow: this.config<string[] | undefined>('http.methodOverrideAllow', undefined),
+          fromQuery: this.config<boolean>('http.methodOverrideFromQuery', false)
+        })
+      )
+    }
+
     this.use(maintenancePlugin(this.app.make('maintenance'), this.config('session.path', '/')))
 
     // Its own plugin, and registered before the session check: deferred work has
