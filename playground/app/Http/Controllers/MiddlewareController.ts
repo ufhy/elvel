@@ -1,6 +1,8 @@
 import { user } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { middleware, routes, signedRoute, signedUrl } from '@elysian/http'
+import { view } from '@elysian/view'
+import { Middleware } from '../../../resources/views/pages/middleware.tsx'
 
 /**
  * Named so `signedRoute()` has something to sign.
@@ -37,8 +39,107 @@ routes().names({
  *   POST /api/auth/sign-in/email  {"email","password"}
  */
 export default controller('middleware-demo')
+  /**
+   * The page that makes the rest visible.
+   *
+   * Deliberately unguarded: a guest is who most of the rows below demonstrate, so
+   * putting `auth` on the index would hide the thing it is indexing.
+   */
+  .get('/middleware', () => {
+    const current = user()
+
+    return view(Middleware, {
+      title: 'Route middleware',
+      signedIn: current !== null,
+      email: (current?.email as string | undefined) ?? null,
+      signedLink: signedUrl('/check/middleware/unsubscribe-relative?list=7', undefined, false),
+      routes: [
+        { path: '/check/middleware/open', declared: 'none', expect: '200 — nothing guards it' },
+        {
+          path: '/check/middleware/token?token=let-me-in',
+          declared: "middleware('token')",
+          expect: "200 — the application's own middleware, aliased in AppServiceProvider"
+        },
+        {
+          path: '/check/middleware/token',
+          declared: "middleware('token')",
+          expect: '403 — same route without the token'
+        },
+        {
+          path: '/check/middleware/token-other?token=let-me-in',
+          declared: "middleware('token:something-else')",
+          expect: '403 — the parameter after the colon changes what it wants'
+        },
+        {
+          path: '/check/middleware/locked?token=let-me-in',
+          declared: "middleware('locked-down')",
+          expect: "302 — a group the application defined: ['auth', 'verified', 'token']"
+        },
+        {
+          path: '/check/middleware/private',
+          declared: "middleware('auth')",
+          expect: '302 to /sign-in for a guest, 200 once signed in'
+        },
+        {
+          path: '/check/middleware/guest-only',
+          declared: "middleware('guest')",
+          expect: '200 for a guest, 302 to /dashboard once signed in'
+        },
+        {
+          path: '/check/middleware/verified',
+          declared: "middleware('verified')",
+          expect: '302 to /verify-email until the address is confirmed'
+        },
+        {
+          path: '/check/middleware/ordered',
+          declared: "middleware('verified', 'auth')",
+          expect: '302 to /sign-in — priority runs auth first despite the order written'
+        },
+        {
+          path: '/check/middleware/gated',
+          declared: "middleware('can:access-admin')",
+          expect: '403 unless the Gate allows it'
+        },
+        {
+          path: '/check/middleware/limited',
+          declared: "middleware('throttle:3,1')",
+          expect: '200 three times a minute, then 429 with Retry-After'
+        },
+        {
+          path: '/check/middleware/group/one',
+          declared: "guard(middleware('auth'), …)",
+          expect: '302 for a guest — the group declares it once for both routes'
+        },
+        {
+          path: '/check/middleware/unsubscribe-relative?list=7',
+          declared: "middleware('signed:relative')",
+          expect: '403 without a signature; use the signed link below'
+        }
+      ]
+    })
+  })
+
   /** No middleware at all, for comparison. */
   .get('/check/middleware/open', () => ({ open: true }))
+
+  /**
+   * The application's own middleware, by name.
+   *
+   * `app/Http/Middleware/EnsureTokenIsValid.ts`, aliased as `token` in
+   * `AppServiceProvider.register()`. Nothing distinguishes it from a built-in
+   * alias at the call site, which is the point.
+   */
+  .get('/check/middleware/token', () => ({ token: 'accepted' }), middleware('token'))
+
+  /** The same middleware, told to want a different token. */
+  .get(
+    '/check/middleware/token-other',
+    () => ({ token: 'accepted' }),
+    middleware('token:something-else')
+  )
+
+  /** A group the application defined: `['auth', 'verified', 'token']`. */
+  .get('/check/middleware/locked', () => ({ locked: false }), middleware('locked-down'))
 
   /** A page: a guest is redirected and where they were going is remembered. */
   .get('/check/middleware/private', () => ({ email: user()?.email ?? null }), middleware('auth'))

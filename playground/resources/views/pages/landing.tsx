@@ -46,6 +46,16 @@ export function Landing({ title }: LandingProps) {
           </article>
         </div>
 
+        <div class="cards">
+          <article class="card">
+            <h2>Route middleware</h2>
+            <p>
+              <code>middleware('auth', 'verified')</code> on a route, and a page that shows where
+              each one sends you. <a href="/middleware">Open it</a>.
+            </p>
+          </article>
+        </div>
+
         <p class="hint">
           Try <code>bun run artisan route:list</code> and <code>bun run artisan about</code>.
         </p>

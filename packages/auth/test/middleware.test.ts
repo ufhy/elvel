@@ -6,6 +6,7 @@ import {
   HttpServiceProvider,
   MiddlewareRegistry,
   middleware,
+  middlewareNamesOf,
   middlewares,
   signedRoute
 } from '@elysian/http'
@@ -358,5 +359,106 @@ describe('several at once', () => {
     app.useRoutes(new Elysia().get('/x', () => 'x', middleware('dashboard')))
 
     expect((await app.handle(new Request('http://localhost/x'))).status).toBe(302)
+  })
+})
+
+/**
+ * Three ways to change what a built-in middleware does.
+ *
+ * Laravel offers the same three — `redirectTo()` with a string or a callable,
+ * re-aliasing a name, and `replace()` — and the callable is the one that matters:
+ * an admin area sends a guest somewhere else, which no fixed string expresses.
+ */
+describe('customising a built-in middleware', () => {
+  test('1. a config string changes where it sends people', async () => {
+    const app = await application({ redirectGuestsTo: '/login' })
+    app.useRoutes(new Elysia().get('/x', () => 'x', middleware('auth')))
+
+    expect((await app.handle(new Request('http://localhost/x'))).headers.get('location')).toBe(
+      '/login'
+    )
+  })
+
+  test('2. a callable decides per request', async () => {
+    const app = await application({
+      redirectGuestsTo: (request: Request) =>
+        new URL(request.url).pathname.startsWith('/admin') ? '/admin/login' : '/sign-in'
+    })
+
+    app.useRoutes(
+      new Elysia()
+        .get('/admin/panel', () => 'x', middleware('auth'))
+        .get('/profile', () => 'x', middleware('auth'))
+    )
+
+    const admin = await app.handle(new Request('http://localhost/admin/panel'))
+    const profile = await app.handle(new Request('http://localhost/profile'))
+
+    expect(admin.headers.get('location')).toBe('/admin/login')
+    expect(profile.headers.get('location')).toBe('/sign-in')
+  })
+
+  test('3. re-aliasing the name replaces it outright', async () => {
+    const app = await application()
+
+    // An application provider registers after the framework's, so the last
+    // registration wins — which is what makes this an override rather than a
+    // collision.
+    middlewares().alias('auth', () => () => new Response('mine', { status: 418 }))
+    app.useRoutes(new Elysia().get('/x', () => 'x', middleware('auth')))
+
+    const response = await app.handle(new Request('http://localhost/x'))
+
+    expect(response.status).toBe(418)
+    expect(await response.text()).toBe('mine')
+  })
+
+  test('and the guest middleware honours a callable too', async () => {
+    const app = await application({
+      redirectUsersTo: (request: Request) =>
+        new URL(request.url).searchParams.has('next') ? '/next' : '/dashboard'
+    })
+
+    app.useRoutes(new Elysia().get('/sign-in', () => 'form', middleware('guest')))
+
+    const withNext = await app
+      .make('auth')
+      .runWith({ user: { id: '1', email: 'a@b.co' }, session: { id: 's' } }, () =>
+        app.handle(new Request('http://localhost/sign-in?next=1'))
+      )
+
+    expect(withNext.headers.get('location')).toBe('/next')
+  })
+})
+
+describe('seeing what is registered', () => {
+  test('names() reports aliases and groups together', async () => {
+    await application()
+    const registry = middlewares()
+
+    // What `middleware:list` prints, and the only answer to "what may I write on
+    // a route?" — the aliases come from whichever packages are installed.
+    expect(registry.names()).toContain('auth')
+    expect(registry.names()).toContain('throttle')
+    expect(registry.names()).toContain('signed')
+
+    registry.group('locked', ['auth', 'verified'])
+
+    expect(registry.names()).toContain('locked')
+    expect<string[] | undefined>(registry.expands('locked')).toEqual(['auth', 'verified'])
+    // A plain alias expands to nothing, which is how the two are told apart.
+    expect(registry.expands('auth')).toBeUndefined()
+  })
+
+  test('a route carries the names it was declared with', async () => {
+    const app = await application()
+    app.useRoutes(new Elysia().get('/x', () => 'x', middleware('auth', 'throttle:6,1')))
+
+    const route = app.router.routes.find((one) => one.path === '/x')
+
+    // Elysia compiles hooks into an anonymous chain, so the names are read back
+    // off the function rather than from the route table — which is what lets
+    // `route:list` print a column instead of a shrug.
+    expect<string[]>(middlewareNamesOf(route)).toEqual(['auth', 'throttle:6,1'])
   })
 })

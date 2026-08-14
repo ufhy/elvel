@@ -131,3 +131,32 @@ code {
 .dot {
   opacity: 0.5;
 }
+
+/* The middleware index: a table of routes you can click. */
+.routes {
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  margin-top: 1.25rem;
+  width: 100%;
+}
+
+.routes th,
+.routes td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.55rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.routes th {
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.routes code {
+  background: var(--code-bg);
+  border-radius: 5px;
+  padding: 0.1rem 0.35rem;
+}

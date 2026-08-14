@@ -1,6 +1,8 @@
 import { channels } from '@elysian/broadcasting'
 import { Limit } from '@elysian/cache'
 import { ServiceProvider } from '@elysian/core'
+import { middlewares } from '@elysian/http'
+import { ensureTokenIsValid } from '../Http/Middleware/EnsureTokenIsValid.ts'
 import { SendArticleDigest } from '../Jobs/SendArticleDigest.ts'
 import { Article } from '../Models/Article.ts'
 import { ArticlePolicy } from '../Policies/ArticlePolicy.ts'
@@ -11,7 +13,22 @@ export class AppServiceProvider extends ServiceProvider {
    * Do not resolve anything here — other providers may not have registered yet.
    */
   register(): void {
-    //
+    /**
+     * The application's own middleware, given a name.
+     *
+     * In `register()` rather than `boot()` because a controller is built while
+     * providers are still registering, and a route asking for `token` before the
+     * alias exists would fail on the first request. The framework's own aliases —
+     * `auth`, `guest`, `verified`, `can`, `throttle`, `signed` — are registered
+     * the same way by their packages.
+     *
+     * The default matters: `middleware('token')` with no parameter still works,
+     * and `middleware('token:something-else')` overrides it.
+     */
+    middlewares()
+      .alias('token', (expected = 'let-me-in') => ensureTokenIsValid(expected))
+      // A group, so a route can say one word and mean three.
+      .group('locked-down', ['auth', 'verified', 'token'])
   }
 
   /**

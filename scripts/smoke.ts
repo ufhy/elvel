@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elysian/database'
+import { middlewareNamesOf, middlewares } from '@elysian/http'
 import { ProcessManager } from '@elysian/process'
 import { ScheduleRunner } from '@elysian/scheduler'
 import { canonicalRequest, signingKey, stringToSign } from '@elysian/support'
@@ -2571,6 +2572,90 @@ try {
     )
 
     check('parameter order does not change the signature', reordered.status === 200)
+
+    // ------------------------------------- middleware the application wrote
+
+    /**
+     * `app/Http/Middleware/EnsureTokenIsValid.ts`, aliased as `token`.
+     *
+     * Nothing distinguishes it from a built-in alias at the call site, which is
+     * the whole claim. The parameter after the colon is what the framework's own
+     * `throttle:6,1` uses, so an application gets the same mechanism.
+     */
+    const withoutToken = await at('/check/middleware/token')
+    const withToken = await at('/check/middleware/token?token=let-me-in')
+    const viaHeader = await at('/check/middleware/token', { 'x-demo-token': 'let-me-in' })
+    const wrongToken = await at('/check/middleware/token?token=nope')
+    const otherAlias = await at('/check/middleware/token-other?token=let-me-in')
+
+    check("the application's own middleware refuses", withoutToken.status === 403)
+    check('and says how to satisfy it', (await withoutToken.text()).includes('needs a token'))
+    check('the right token is accepted', withToken.status === 200)
+    check('a header works as well as a query parameter', viaHeader.status === 200)
+    check('a wrong token is refused', wrongToken.status === 403)
+    check(
+      'the alias parameter changes what it wants',
+      otherAlias.status === 403,
+      `status ${otherAlias.status}`
+    )
+
+    const lockedDown = await at('/check/middleware/locked?token=let-me-in')
+    check(
+      'a group the application defined applies all three',
+      (lockedDown.headers.get('location') ?? '').includes('/sign-in'),
+      lockedDown.headers.get('location') ?? `status ${lockedDown.status}`
+    )
+
+    // ------------------------------------------------ seeing what is registered
+
+    const registry = middlewares()
+
+    check(
+      'the registry lists what a route may name',
+      ['auth', 'guest', 'verified', 'can', 'throttle', 'signed', 'token'].every((name) =>
+        registry.names().includes(name)
+      ),
+      registry.names().join(', ')
+    )
+    check(
+      'and a group reports what it expands to',
+      (registry.expands('locked-down') ?? []).join(',') === 'auth,verified,token',
+      (registry.expands('locked-down') ?? []).join(',')
+    )
+
+    /**
+     * What `route:list` prints in its MIDDLEWARE column.
+     *
+     * Elysia compiles hooks into an anonymous chain, so the names are read back
+     * off the hook function. Without this a listing could only report that *some*
+     * middleware guards a route.
+     */
+    const guarded = app.router.routes.find((one) => one.path === '/check/middleware/ordered')
+
+    check(
+      'a route reports the middleware it was declared with',
+      middlewareNamesOf(guarded).join(',') === 'verified,auth',
+      middlewareNamesOf(guarded).join(',')
+    )
+
+    const page = await at('/middleware')
+    const pageBody = await page.text()
+
+    check('the middleware page renders', page.status === 200)
+    /**
+     * Matched without the quotes on purpose.
+     *
+     * The page renders `middleware('auth')` through `safe`, so the apostrophes
+     * arrive as `&#x27;` — which is the escaping working. Asserting on the literal
+     * source would be asserting that it does not.
+     */
+    check(
+      'and lists every alias it demonstrates',
+      ['auth', 'token', 'throttle:3,1', 'signed:relative', 'locked-down'].every((name) =>
+        pageBody.includes(name)
+      ),
+      pageBody.length > 0 ? '' : 'empty body'
+    )
   }
 
   section('Named routes')

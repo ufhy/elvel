@@ -3,6 +3,7 @@ import { flushDeferred, ServiceProvider } from '@elysian/core'
 import { Elysia } from 'elysia'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
+import { MiddlewareListCommand } from './console/middleware-list.ts'
 import { SessionTableCommand } from './console/session-table.ts'
 import { cookiePlugin } from './cookie-plugin.ts'
 import { CookieJar } from './cookies.ts'
@@ -183,7 +184,12 @@ export class HttpServiceProvider extends ServiceProvider {
     if (this.app.bound('artisan')) {
       this.app
         .make('artisan')
-        .register(MakeRequestCommand, MakeResourceCommand, SessionTableCommand)
+        .register(
+          MakeRequestCommand,
+          MakeResourceCommand,
+          MiddlewareListCommand,
+          SessionTableCommand
+        )
     }
 
     /**

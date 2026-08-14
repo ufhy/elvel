@@ -79,6 +79,13 @@ export class MiddlewareRegistry {
     return [...this.aliases.keys(), ...this.groups.keys()].sort()
   }
 
+  /** What a group expands to, or `undefined` when the name is a plain alias. */
+  expands(name: string): string[] | undefined {
+    const group = this.groups.get(this.bare(name))
+
+    return group ? [...group] : undefined
+  }
+
   /** Expand groups, build each hook from its parameters, sort by priority. */
   resolve(names: string[]): MiddlewareHook[] {
     const flat = this.expand(names, new Set())
@@ -202,7 +209,40 @@ export function middleware(...names: string[]): { beforeHandle: MiddlewareHook[]
     return sequence(resolved, context)
   }
 
+  /**
+   * The names, left on the function for `route:list` to read back.
+   *
+   * Elysia compiles a route's hooks into an anonymous chain, so by the time the
+   * router has a route table there is nothing to say *which* middleware guards
+   * it — a listing could only report that one exists. Elysia wraps each hook as
+   * `{ fn }` and leaves the function's own properties alone, so tagging it here is
+   * what lets `route:list` show a column instead of a shrug.
+   */
+  Object.defineProperty(run, MIDDLEWARE_NAMES, { value: [...names], enumerable: false })
+
   return { beforeHandle: [run] }
+}
+
+/** Where `middleware()` records its names, and `route:list` looks for them. */
+export const MIDDLEWARE_NAMES = Symbol.for('elysian.middleware.names')
+
+/**
+ * Read the middleware names off a compiled route, in declaration order.
+ *
+ * Tolerant of shape on purpose: this reaches into Elysia's route table, which is
+ * not a public contract, so a version that stops wrapping hooks as `{ fn }`
+ * should make the column empty rather than break `route:list`.
+ */
+export function middlewareNamesOf(route: unknown): string[] {
+  const hooks = (route as { hooks?: { beforeHandle?: unknown } }).hooks?.beforeHandle
+  const list = Array.isArray(hooks) ? hooks : hooks === undefined ? [] : [hooks]
+
+  return list.flatMap((entry) => {
+    const fn = (entry as { fn?: unknown })?.fn ?? entry
+    const names = (fn as Record<symbol, unknown>)?.[MIDDLEWARE_NAMES]
+
+    return Array.isArray(names) ? (names as string[]) : []
+  })
 }
 
 /** Run hooks in order, stopping at the first that answers with a `Response`. */

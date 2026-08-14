@@ -296,6 +296,17 @@ the smoke test presses the routes sequentially because that is what a client doe
 It matters for a limit meant to stop a burst rather than a rate — an atomic
 increment-and-compare in the store is what would fix it.
 
+**A route's middleware names are read off the hook function, not the route table.**
+Elysia compiles a route's `beforeHandle` list into an anonymous chain, so by the
+time there is a route table there is nothing to say *which* middleware guards
+what — a listing could only report that some does. `middleware()` tags its hook
+with `Symbol.for('elysian.middleware.names')`, and Elysia wraps each hook as
+`{ fn }` while leaving the function's own properties alone, which is what lets
+`route:list` print a column and `middleware:list` count usage. That wrapping is
+not a public contract, so both readers come back empty rather than throwing if it
+changes. The global symbol is also why `@elysian/console` needs no dependency on
+`@elysian/http` to print the column.
+
 **`signed` covers the origin and `signed:relative` does not.** The absolute form
 is right for a link in an email and cannot be followed on a host `APP_URL` does
 not name — including any ephemeral port, which is why the playground demonstrates

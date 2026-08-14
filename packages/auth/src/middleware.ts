@@ -8,6 +8,22 @@ export const PASSWORD_CONFIRMED_AT = 'auth.password_confirmed_at'
 
 type Context = { request: Request; user?: unknown }
 
+/**
+ * Where a middleware sends somebody: a path, or a function that decides.
+ *
+ * Laravel's `redirectTo()` takes either, and the callable is the half that
+ * matters: an application with an admin area sends a guest to `/admin/login` from
+ * `/admin/*` and to `/sign-in` from everywhere else, which one fixed string
+ * cannot express.
+ */
+export type RedirectTarget = string | ((request: Request) => string)
+
+function destination(target: unknown, request: Request, fallback: string): string {
+  if (typeof target === 'function') return (target as (request: Request) => string)(request)
+
+  return typeof target === 'string' && target !== '' ? target : fallback
+}
+
 function manager(): AuthManager {
   return app('auth')
 }
@@ -48,7 +64,11 @@ export function authenticate(..._guards: string[]) {
 
     if (expectsJson(context.request)) throw new UnauthorizedException('Unauthenticated.')
 
-    const to = app().config.get<string>('auth.redirectGuestsTo', '/sign-in')
+    const to = destination(
+      app().config.get<RedirectTarget>('auth.redirectGuestsTo', '/sign-in'),
+      context.request,
+      '/sign-in'
+    )
 
     return redirect(to).guest().toResponse()
   }
@@ -62,10 +82,14 @@ export function authenticate(..._guards: string[]) {
  * confused about which account they are using.
  */
 export function guestOnly(..._guards: string[]) {
-  return () => {
+  return (context: Context) => {
     if (!manager().check()) return undefined
 
-    const to = app().config.get<string>('auth.redirectUsersTo', '/dashboard')
+    const to = destination(
+      app().config.get<RedirectTarget>('auth.redirectUsersTo', '/dashboard'),
+      context.request,
+      '/dashboard'
+    )
 
     return redirect(to).toResponse()
   }
@@ -97,7 +121,13 @@ export function ensureVerified(notice?: string) {
       throw new ForbiddenException('Your email address is not verified.')
     }
 
-    const to = notice ?? app().config.get<string>('auth.verifyRoute', '/verify-email')
+    const to =
+      notice ??
+      destination(
+        app().config.get<RedirectTarget>('auth.verifyRoute', '/verify-email'),
+        context.request,
+        '/verify-email'
+      )
 
     return redirect(to).guest().toResponse()
   }
@@ -146,7 +176,12 @@ export function requirePassword(redirectTo?: string, timeoutSeconds?: string) {
     }
 
     const to =
-      redirectTo ?? app().config.get<string>('auth.passwordConfirmRoute', '/confirm-password')
+      redirectTo ??
+      destination(
+        app().config.get<RedirectTarget>('auth.passwordConfirmRoute', '/confirm-password'),
+        context.request,
+        '/confirm-password'
+      )
 
     return redirect(to).guest().toResponse()
   }

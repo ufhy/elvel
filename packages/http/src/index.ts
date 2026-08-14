@@ -1,5 +1,6 @@
 export { MakeRequestCommand } from './console/make-request.ts'
 export { MakeResourceCommand } from './console/make-resource.ts'
+export { MiddlewareListCommand } from './console/middleware-list.ts'
 export { SessionTableCommand } from './console/session-table.ts'
 export {
   CookieBag,
@@ -56,10 +57,13 @@ export {
 } from './form-request.ts'
 export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
 export {
+  MIDDLEWARE_NAMES,
+  type MiddlewareContext,
   type MiddlewareFactory,
   type MiddlewareHook,
   MiddlewareRegistry,
   middleware,
+  middlewareNamesOf,
   middlewares
 } from './middleware.ts'
 export { HttpServiceProvider } from './provider.ts'
