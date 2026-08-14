@@ -24,6 +24,7 @@ import {
   MorphOne,
   MorphTo,
   MorphToMany,
+  MorphToManyThrough,
   type OfManyColumn,
   type Relation
 } from './relations.ts'
@@ -1209,6 +1210,38 @@ export class Model {
       'max',
       this.self.primaryKey,
       options.narrow
+    )
+  }
+
+  /**
+   * A morph pivot reached through another relation.
+   *
+   * ```ts
+   * commentTags() {
+   *   return this.morphToManyThrough(Tag, Comment, 'taggable', 'taggables', 'article_id', 'tag_id')
+   * }
+   * ```
+   *
+   * "Every tag used on this article's comments" — three tables and a morph type,
+   * which neither `morphToMany` nor `hasManyThrough` can express alone.
+   */
+  morphToManyThrough<R extends Model>(
+    related: ModelClass<R>,
+    through: ModelClass<Model>,
+    morphName: string,
+    pivotTable: string,
+    throughForeignKey: string,
+    relatedPivotKey: string
+  ): MorphToManyThrough<R> {
+    return new MorphToManyThrough(
+      related,
+      this,
+      through,
+      morphName,
+      pivotTable,
+      throughForeignKey,
+      relatedPivotKey,
+      this.self.primaryKey
     )
   }
 

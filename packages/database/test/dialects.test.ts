@@ -974,6 +974,54 @@ for (const { name, config } of available) {
         }
       })
 
+      test('morphToManyThrough reaches a pivot two hops away', async () => {
+        await truncate()
+
+        const ada = await User.create({ name: 'Ada' })
+        const post = await Post.create({ user_id: ada.id, title: 'Post' })
+
+        const news = await Tag.create({ label: 'news' })
+        const draft = await Tag.create({ label: 'draft' })
+
+        // Two posts by the same author, sharing a tag: the duplicate is what the
+        // relation has to collapse.
+        const second = await Post.create({ user_id: ada.id, title: 'Second' })
+
+        await table(taggables).insert([
+          { tag_id: news.id, taggable_id: post.id, taggable_type: Post.getMorphClass() },
+          { tag_id: news.id, taggable_id: second.id, taggable_type: Post.getMorphClass() },
+          { tag_id: draft.id, taggable_id: post.id, taggable_type: Post.getMorphClass() }
+        ])
+
+        class Author extends User {
+          static override table = users
+
+          postTags() {
+            return this.morphToManyThrough(
+              Tag as never,
+              Post as never,
+              'taggable',
+              taggables,
+              'user_id',
+              'tag_id'
+            )
+          }
+        }
+
+        const author = (await Author.find(ada.id)) as Author
+        const tags = await (
+          author.postTags() as never as { get(): Promise<{ all(): Array<{ label: string }> }> }
+        ).get()
+
+        // Every tag used on this author's posts, once each.
+        expect(
+          tags
+            .all()
+            .map((tag) => tag.label)
+            .sort()
+        ).toEqual(['draft', 'news'])
+      })
+
       test('boolean and json casts survive the round trip', async () => {
         await truncate()
 

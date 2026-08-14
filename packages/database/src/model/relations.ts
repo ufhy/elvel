@@ -1211,3 +1211,147 @@ export class HasOneOfMany<R extends Model> extends Relation<R> {
     }
   }
 }
+
+/**
+ * A morph pivot reached through another relation — `morphToManyThrough`.
+ *
+ * The shape: an article has comments, and comments are tagged polymorphically.
+ * "Every tag used on this article's comments" needs three tables and a morph
+ * type, which neither `morphToMany` (one hop) nor `hasManyThrough` (no pivot)
+ * can express alone.
+ *
+ * One query with two joins rather than two round trips: the alternative — fetch
+ * the through-keys, then fetch the pivot rows — is an `in (…)` whose length
+ * grows with the parent's children, and that is the query that stops working on
+ * the first article with a thousand comments.
+ *
+ * Duplicates are dropped: two comments carrying the same tag is the normal case,
+ * and returning the tag twice would push the deduplication onto every caller.
+ */
+export class MorphToManyThrough<R extends Model> extends Relation<R> {
+  constructor(
+    related: ModelClass<R>,
+    parent: Model,
+    /** The relation in the middle — `Comment`, in the example above. */
+    private readonly through: ModelClass<Model>,
+    /** `taggable`, giving `taggable_id` and `taggable_type`. */
+    private readonly morphName: string,
+    private readonly pivotTable: string,
+    /** How the middle table points back at the parent. */
+    private readonly throughForeignKey: string,
+    private readonly relatedPivotKey: string,
+    private readonly localKey = 'id',
+    private readonly throughLocalKey = 'id',
+    private readonly relatedKey = 'id'
+  ) {
+    super(related, parent)
+  }
+
+  private get throughTable(): string {
+    return (this.through as typeof Model).getTable()
+  }
+
+  private get relatedTable(): string {
+    return (this.related as typeof Model).getTable()
+  }
+
+  query(): ModelBuilder<R> {
+    const morphType = (this.through as typeof Model).getMorphClass()
+
+    return (
+      ((this.related as typeof Model).query() as ModelBuilder<R>)
+        // Distinct, not a post-filter: two comments sharing a tag is ordinary,
+        // and deduplicating in memory would page through rows nobody wanted.
+        .deferBase((query) => {
+          query.distinct()
+        })
+        .select(`${this.relatedTable}.*`)
+        .join(
+          this.pivotTable,
+          `${this.pivotTable}.${this.relatedPivotKey}`,
+          '=',
+          `${this.relatedTable}.${this.relatedKey}`
+        )
+        .join(
+          this.throughTable,
+          `${this.throughTable}.${this.throughLocalKey}`,
+          '=',
+          `${this.pivotTable}.${this.morphName}_id`
+        )
+        .where(`${this.pivotTable}.${this.morphName}_type`, morphType)
+        .where(
+          `${this.throughTable}.${this.throughForeignKey}`,
+          this.parent.attributes[this.localKey]
+        )
+    )
+  }
+
+  async get(): Promise<Collection<R>> {
+    return this.query().get()
+  }
+
+  async getOne(): Promise<R | undefined> {
+    return this.query().first()
+  }
+
+  existsConstraint(parentTable: string) {
+    return {
+      table: this.throughTable,
+      foreign: `${this.throughTable}.${this.throughForeignKey}`,
+      local: `${parentTable}.${this.localKey}`,
+      // The middle relation, not the far one: `whereHas` on this asks whether
+      // the parent has any *comments* carrying such a tag.
+      related: this.through as unknown as ModelClass<R>
+    }
+  }
+
+  async eagerLoad(models: Model[], name: string): Promise<void> {
+    const keys = this.keysOf(models, this.localKey)
+
+    if (keys.length === 0) return
+
+    const morphType = (this.through as typeof Model).getMorphClass()
+
+    /**
+     * The parent's key is selected alongside the related row, because the join
+     * loses it otherwise and there would be nothing to group the results by.
+     */
+    const rows = await ((this.related as typeof Model).query() as ModelBuilder<R>)
+      .select(
+        `${this.relatedTable}.*`,
+        `${this.throughTable}.${this.throughForeignKey} as __through_key`
+      )
+      .join(
+        this.pivotTable,
+        `${this.pivotTable}.${this.relatedPivotKey}`,
+        '=',
+        `${this.relatedTable}.${this.relatedKey}`
+      )
+      .join(
+        this.throughTable,
+        `${this.throughTable}.${this.throughLocalKey}`,
+        '=',
+        `${this.pivotTable}.${this.morphName}_id`
+      )
+      .where(`${this.pivotTable}.${this.morphName}_type`, morphType)
+      .whereIn(`${this.throughTable}.${this.throughForeignKey}`, keys)
+      .get()
+
+    const grouped = new Map<string, R[]>()
+
+    for (const row of rows) {
+      const key = String((row.attributes as Record<string, unknown>).__through_key)
+      const bucket = grouped.get(key) ?? []
+
+      // Deduplicated per parent: the same tag reached through two comments is
+      // one tag on the article.
+      if (!bucket.some((existing) => existing.getKey() === row.getKey())) bucket.push(row)
+
+      grouped.set(key, bucket)
+    }
+
+    for (const model of models) {
+      model.setRelation(name, grouped.get(String(model.attributes[this.localKey])) ?? [])
+    }
+  }
+}

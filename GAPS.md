@@ -39,7 +39,6 @@ Deliberately absent, with reasons:
 | Missing | Why |
 | --- | --- |
 | Vector/similarity clauses (pgvector) | Needs its own grammar and the pgvector extension. |
-| `morphToMany` **through** another relation | Reaching a morph pivot via a second relation is a join shape nothing here composes yet. |
 
 ---
 
