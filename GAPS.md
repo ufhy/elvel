@@ -24,13 +24,15 @@ Reviewed against the Laravel 13 documentation and, where behaviour mattered, the
 
 ## Not started
 
+Nothing.
+
 Every package on the roadmap is built — core, console, view, events, log,
 database, validation, http, auth, cache, queue, scheduler, mail, storage,
-notifications, and the encryption package the last three items were waiting on.
+notifications, translation, broadcasting, and encryption.
 
-Delivery is done too: the scaffolder ships all of them, and a scaffolded
-application boots every provider without a service running. What remains is in
-the per-package tables above — starter-kit views being the largest of it.
+Delivery is done too: the scaffolder ships all of them, a scaffolded application
+boots every provider without a service running, and the auth starter kit
+scaffolds its own sign-in, sign-up and dashboard pages.
 
 ## Watch list
 
