@@ -639,22 +639,39 @@ for (const candidate of candidates) {
       expect(await cache.get<string>('report')).toBe('value-2')
     })
 
-    test('the rate limiter counts, denies and recovers', async () => {
+    test('the rate limiter counts and denies', async () => {
       const limiter = new RateLimiter(cache)
 
-      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe('ok')
-      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe('ok')
+      /**
+       * A long window, deliberately.
+       *
+       * These four calls are four round trips to the store, and with a
+       * one-second window a loaded machine can spend the whole window getting
+       * to the third — which then passes, because the limit genuinely reset.
+       * That is the limiter working and the test lying; expiry is asserted
+       * separately below, where waiting is the point.
+       */
+      expect(await limiter.attempt('login', 2, () => 'ok', 60)).toBe('ok')
+      expect(await limiter.attempt('login', 2, () => 'ok', 60)).toBe('ok')
       // Third attempt in the window is refused.
-      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe(false)
+      expect(await limiter.attempt('login', 2, () => 'ok', 60)).toBe(false)
 
       expect(await limiter.attempts('login')).toBe(2)
       expect(await limiter.remaining('login', 2)).toBe(0)
       expect(await limiter.availableIn('login')).toBeGreaterThan(0)
+    })
 
+    test('and starts again once the window closes', async () => {
+      const limiter = new RateLimiter(cache)
+
+      expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe('ok')
+      expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe(false)
+
+      // Only one call stands between the hit and the wait, so the window cannot
+      // close before the refusal is observed.
       await Bun.sleep(1100)
 
-      // The window closed, so the counter starts again.
-      expect(await limiter.attempt('login', 2, () => 'ok', 1)).toBe('ok')
+      expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe('ok')
     })
 
     test('clearing a limit forgets both the counter and its window', async () => {

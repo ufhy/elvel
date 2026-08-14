@@ -327,6 +327,7 @@ describe('shutting down', () => {
   test('one that throws does not stop the rest', async () => {
     const app = new Application(process.cwd())
     const order: string[] = []
+    const reported: string[] = []
 
     app.terminating(() => {
       throw new Error('cleanup failed')
@@ -335,10 +336,21 @@ describe('shutting down', () => {
       order.push('still ran')
     })
 
-    // Shutdown is the worst moment to abandon the remaining cleanup.
-    await app.terminate()
+    // The failure is reported through `console.error`, which is right in a real
+    // shutdown and noise in a test run — captured so the suite's own output does
+    // not carry what looks like a failure.
+    const original = console.error
+    console.error = (...args: unknown[]) => reported.push(args.map(String).join(' '))
+
+    try {
+      // Shutdown is the worst moment to abandon the remaining cleanup.
+      await app.terminate()
+    } finally {
+      console.error = original
+    }
 
     expect<string[]>(order).toEqual(['still ran'])
+    expect<boolean>(reported.some((line) => line.includes('cleanup failed'))).toBe(true)
   })
 
   test('terminating twice runs nothing twice', async () => {
