@@ -14,6 +14,14 @@ export class InvalidSignatureError extends HttpException {
 const SIGNATURE = 'signature'
 const EXPIRES = 'expires'
 
+/**
+ * The origin a relative signature is computed against.
+ *
+ * Never reached over the network; it exists only so both sides sign the same
+ * bytes without either of them knowing the real hostname.
+ */
+const RELATIVE_ORIGIN = 'http://signature.local'
+
 function key(): string {
   const secret = app().config.get<string>('app.key', '')
 
@@ -59,24 +67,38 @@ function sign(url: URL): string {
  * signature covers the path and every parameter, so changing `list=7` to
  * `list=8` invalidates it.
  */
-export function signedUrl(url: string, expiresInSeconds?: number): string {
-  const built = new URL(url, app().config.get<string>('app.url', 'http://localhost'))
+export function signedUrl(url: string, expiresInSeconds?: number, absolute = true): string {
+  const origin = app().config.get<string>('app.url', 'http://localhost')
+  const built = new URL(url, origin)
 
   if (expiresInSeconds !== undefined) {
     built.searchParams.set(EXPIRES, String(Math.floor(Date.now() / 1000) + expiresInSeconds))
   }
 
-  built.searchParams.set(SIGNATURE, sign(built))
+  /**
+   * `absolute: false` signs the path and query only, and both sides must agree.
+   *
+   * `hasValidSignature(request, false)` rebuilds the URL against a fixed private
+   * origin before checking, so the minting side has to sign against the same one.
+   * The first version of this had the verifier but not the minter, which meant
+   * `signed:relative` could never pass — it was a check with nothing able to
+   * satisfy it.
+   */
+  built.searchParams.set(
+    SIGNATURE,
+    sign(absolute ? built : new URL(`${built.pathname}${built.search}`, RELATIVE_ORIGIN))
+  )
 
-  return built.toString()
+  return absolute ? built.toString() : `${built.pathname}${built.search}`
 }
 
 export function signedRoute(
   name: string,
   parameters: Record<string, unknown> = {},
-  expiresInSeconds?: number
+  expiresInSeconds?: number,
+  absolute = true
 ): string {
-  return signedUrl(route(name, parameters, true), expiresInSeconds)
+  return signedUrl(route(name, parameters, absolute), expiresInSeconds, absolute)
 }
 
 export function temporarySignedRoute(
@@ -107,7 +129,7 @@ export function hasValidSignature(request: Request, absolute = true): boolean {
    * on more than one hostname, a signature over the origin fails on the second
    * hostname even though nothing was tampered with.
    */
-  const target = absolute ? url : new URL(`${url.pathname}${url.search}`, 'http://signature.local')
+  const target = absolute ? url : new URL(`${url.pathname}${url.search}`, RELATIVE_ORIGIN)
 
   const expected = sign(target)
 

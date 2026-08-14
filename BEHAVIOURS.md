@@ -286,6 +286,28 @@ Five behaviours worth knowing rather than discovering:
   will still leak it after being declared failed.
 
 
+## @elysian/http — route middleware
+
+**A rate limit checks and then increments, so concurrent requests slip past.**
+Four simultaneous calls against `throttle:3,1` all return 200: each reads the
+counter before any of them has written to it. `Illuminate\Routing\Middleware\ThrottleRequests`
+has the same shape, so this is Laravel's behaviour rather than a divergence, and
+the smoke test presses the routes sequentially because that is what a client does.
+It matters for a limit meant to stop a burst rather than a rate — an atomic
+increment-and-compare in the store is what would fix it.
+
+**`signed` covers the origin and `signed:relative` does not.** The absolute form
+is right for a link in an email and cannot be followed on a host `APP_URL` does
+not name — including any ephemeral port, which is why the playground demonstrates
+both. Both sides have to agree: the first version shipped the verifier without
+the minter, so `signed:relative` was a check nothing could satisfy.
+
+**An `HttpException`'s headers only reach the response once `handleExceptions()`
+is wired.** `Application.create()` does it at bootstrap; a test that builds an
+application by hand does not, and `Retry-After` goes missing for that reason alone
+rather than because the limiter forgot it.
+
+
 ## @elysian/scheduler
 
 Five things worth knowing:

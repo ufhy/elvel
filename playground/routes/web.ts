@@ -8,6 +8,7 @@ import FileController from '../app/Http/Controllers/FileController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
 import LimitController from '../app/Http/Controllers/LimitController.ts'
 import MailController from '../app/Http/Controllers/MailController.ts'
+import MiddlewareController from '../app/Http/Controllers/MiddlewareController.ts'
 import NotificationController from '../app/Http/Controllers/NotificationController.ts'
 import PageController from '../app/Http/Controllers/PageController.ts'
 import QueueController from '../app/Http/Controllers/QueueController.ts'
@@ -34,4 +35,5 @@ export default new Elysia({ name: 'routes:web' })
   .use(NotificationController)
   .use(SecretController)
   .use(LimitController)
+  .use(MiddlewareController)
   .use(SubscribeController)

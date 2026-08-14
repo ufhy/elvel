@@ -2459,6 +2459,120 @@ try {
 
   // --------------------------------------------------------------- route names
 
+  // ------------------------------------------------------- route middleware
+
+  section('Route middleware')
+
+  {
+    const at = (path: string, headers: Record<string, string> = {}) =>
+      app.handle(new Request(`http://localhost${path}`, { headers }))
+
+    check('an unguarded route is untouched', (await at('/check/middleware/open')).status === 200)
+
+    /**
+     * One middleware, two renderings.
+     *
+     * The same `middleware('auth')` on the same guest: a page gets a 302 to
+     * sign-in, a JSON caller gets a 401 with no `Location`. A client that follows
+     * redirects would otherwise treat the sign-in page as the answer to its
+     * request, which is the bug the split exists to prevent.
+     */
+    const asPage = await at('/check/middleware/private')
+    const asJson = await at('/check/middleware/api', { accept: 'application/json' })
+
+    check('a guest is redirected from a page', asPage.status === 302, `status ${asPage.status}`)
+    check('and sent to sign in', asPage.headers.get('location') === '/sign-in')
+    check('a JSON caller gets 401 instead', asJson.status === 401, `status ${asJson.status}`)
+    check('with no location to follow', asJson.headers.get('location') === null)
+
+    check(
+      'guest-only lets a guest through',
+      (await at('/check/middleware/guest-only')).status === 200
+    )
+
+    const unverified = await at('/check/middleware/verified')
+    check(
+      'verified turns a guest away rather than falling open',
+      unverified.status === 302 && unverified.headers.get('location') === '/verify-email',
+      `${unverified.status} ${unverified.headers.get('location')}`
+    )
+
+    /**
+     * Written as `middleware('verified', 'auth')` on purpose.
+     *
+     * `verified` reads the user `auth` guarantees, so the registry sorts them
+     * back: a guest lands on sign-in rather than being told their address is
+     * unconfirmed. Route order alone would get this wrong.
+     */
+    const ordered = await at('/check/middleware/ordered')
+    check(
+      'priority runs auth before verified whatever the route says',
+      ordered.headers.get('location') === '/sign-in',
+      ordered.headers.get('location') ?? `status ${ordered.status}`
+    )
+
+    check('can: refuses with 403', (await at('/check/middleware/gated')).status === 403)
+
+    /**
+     * Sequential, which is what a client actually does.
+     *
+     * Four at once all pass: the limiter checks the count and then increments it,
+     * so concurrent requests can each read the same number before any of them has
+     * written. Laravel's `ThrottleRequests` has the same shape. It is worth
+     * knowing and it is not what this check is about.
+     */
+    const limited: number[] = []
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      limited.push((await at('/check/middleware/limited')).status)
+    }
+
+    check(
+      'throttle:3,1 refuses the fourth',
+      limited.slice(0, 3).every((status) => status === 200) && limited[3] === 429,
+      limited.join(',')
+    )
+
+    const grouped = await Promise.all([
+      at('/check/middleware/group/one'),
+      at('/check/middleware/group/two')
+    ])
+    check(
+      'a group applies to every route inside it',
+      grouped.every((one) => one.status === 302),
+      grouped.map((one) => one.status).join(',')
+    )
+
+    /**
+     * Signed URLs, over the relative form.
+     *
+     * The absolute form signs the origin, which is right for a link in an email
+     * and untestable on an ephemeral port. Both sides of `relative` had to be
+     * built: the first version had the verifier and no minter, so `signed:relative`
+     * was a check nothing could satisfy.
+     */
+    const minted = (await (await at('/check/middleware/sign?list=7')).json()) as {
+      relative: string
+    }
+
+    const followed = await at(minted.relative)
+    const tampered = await at(minted.relative.replace('list=7', 'list=8'))
+    const bare = await at('/check/middleware/unsubscribe-relative?list=7')
+
+    check('a signed link is accepted', followed.status === 200, `status ${followed.status}`)
+    check('editing a parameter invalidates it', tampered.status === 403)
+    check('and an unsigned request is refused', bare.status === 403)
+
+    // A proxy may reorder the query string; a signature over a set must survive it.
+    const parts = new URLSearchParams(minted.relative.split('?')[1])
+    const signature = parts.get('signature') as string
+    parts.delete('signature')
+    const reordered = await at(
+      `/check/middleware/unsubscribe-relative?signature=${signature}&${parts.toString()}`
+    )
+
+    check('parameter order does not change the signature', reordered.status === 200)
+  }
+
   section('Named routes')
 
   const links = (await (
