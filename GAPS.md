@@ -131,7 +131,6 @@ fake.
 
 | Missing | Why |
 | --- | --- |
-| Asymmetric keys, signing, envelope encryption, a KMS | Different problem: this package protects data at rest with a key the app already has. A KMS-backed key would slot in behind `deriveKey`. |
 
 ## Not started
 

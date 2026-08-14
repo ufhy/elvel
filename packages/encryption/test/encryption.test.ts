@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { DecryptError, EncryptError, Encrypter } from '../src/encrypter.ts'
+import { EnvelopeEncrypter, LocalMasterKey } from '../src/envelope.ts'
 import { deriveKey, generateKey, KEY_BYTES, secretBytes } from '../src/keys.ts'
 
 const SECRET = 'playground-key-at-least-32-characters'
@@ -296,5 +297,54 @@ describe('a blind index', () => {
     expect<boolean>(fingerprint.includes('ada')).toBe(false)
     // base64url, so it is safe in a URL and in every column type.
     expect<boolean>(/^[A-Za-z0-9_-]+$/.test(fingerprint)).toBe(true)
+  })
+})
+
+describe('envelope encryption', () => {
+  const master = () => new LocalMasterKey(Buffer.alloc(32, 7))
+  const envelope = () => new EnvelopeEncrypter(master())
+
+  test('a value round trips through a wrapped data key', async () => {
+    const payload = await envelope().encrypt({ card: '4111' }, 'orders.card')
+
+    expect<boolean>(payload.startsWith('e1.')).toBe(true)
+    expect<unknown>(await envelope().decrypt(payload, 'orders.card')).toEqual({ card: '4111' })
+  })
+
+  test('every payload gets its own data key', async () => {
+    const one = await envelope().encryptString('same', 'x')
+    const two = await envelope().encryptString('same', 'x')
+
+    // The wrapped key differs, not just the IV: a leaked data key opens one
+    // payload rather than the table.
+    expect<boolean>(one.split('.')[1] === two.split('.')[1]).toBe(false)
+  })
+
+  test('the context is authenticated', async () => {
+    const payload = await envelope().encryptString('secret', 'orders.card')
+
+    await expect(envelope().decryptString(payload, 'users.card')).rejects.toThrow()
+  })
+
+  test('another master key cannot unwrap it', async () => {
+    const payload = await envelope().encryptString('secret', 'x')
+    const stranger = new EnvelopeEncrypter(new LocalMasterKey(Buffer.alloc(32, 9)))
+
+    await expect(stranger.decryptString(payload, 'x')).rejects.toThrow()
+  })
+
+  test('rewrapping leaves the ciphertext alone', async () => {
+    const payload = await envelope().encryptString('secret', 'x')
+    const rewrapped = await envelope().rewrap(payload, 'x')
+
+    // The rotation an envelope makes cheap: ten million rows become ten million
+    // small updates rather than as many decrypt-and-re-encrypt round trips.
+    expect<boolean>(rewrapped.split('.')[3] === payload.split('.')[3]).toBe(true)
+    expect<boolean>(rewrapped.split('.')[1] === payload.split('.')[1]).toBe(false)
+    expect<string>(await envelope().decryptString(rewrapped, 'x')).toBe('secret')
+  })
+
+  test('a payload in the wrong format says so', async () => {
+    await expect(envelope().decryptString('v1.abc.def', 'x')).rejects.toThrow('envelope format')
   })
 })
