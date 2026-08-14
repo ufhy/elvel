@@ -18,7 +18,22 @@ export type RetryOptions = {
   throw: boolean
 }
 
-export type RequestOptions = {
+/**
+ * The options Bun's `fetch` adds beyond the standard.
+ *
+ * Forwarded rather than reimplemented — these reach into the runtime's own
+ * networking and nothing at this layer could provide them.
+ */
+export type BunOptions = {
+  /** `http://user:pass@proxy:3128`, for a client behind one. */
+  proxy?: string
+  /** A socket file instead of a host and port. */
+  unix?: string
+  /** Client certificates, or `rejectUnauthorized` for a private CA. */
+  tls?: Record<string, unknown>
+}
+
+export type RequestOptions = BunOptions & {
   baseUrl?: string
   headers?: Record<string, string>
   query?: Record<string, string>
@@ -121,6 +136,22 @@ export class PendingRequest {
     shouldThrow = true
   ): PendingRequest {
     return this.derive({ retry: { times, delay, when, throw: shouldThrow } })
+  }
+
+  /**
+   * Bun's own networking options, passed straight through.
+   *
+   * `proxy` for a client behind one, `unix` for a socket file, `tls` for a
+   * private CA or a client certificate. Not reimplemented here and not
+   * reinventable: they are the runtime's, and a client that swallowed them would
+   * be unusable inside a corporate network.
+   */
+  withBunOptions(options: BunOptions): PendingRequest {
+    return this.derive(options)
+  }
+
+  proxy(url: string): PendingRequest {
+    return this.derive({ proxy: url })
   }
 
   /** Follow redirects, or do not — `withoutRedirecting()`. */
@@ -255,6 +286,11 @@ export class PendingRequest {
         headers: attempt.headers,
         body: attempt.body,
         redirect: this.config.redirect ?? 'follow',
+        // Bun's own, and only when asked: passing `undefined` for `unix` makes
+        // Bun try to open a socket file called "undefined".
+        ...(this.config.proxy === undefined ? {} : { proxy: this.config.proxy }),
+        ...(this.config.unix === undefined ? {} : { unix: this.config.unix }),
+        ...(this.config.tls === undefined ? {} : { tls: this.config.tls }),
         // `AbortSignal.timeout` aborts in the runtime rather than racing a
         // promise, so a slow response is actually cancelled and not merely
         // ignored while it keeps downloading.

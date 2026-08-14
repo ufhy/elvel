@@ -123,6 +123,12 @@ export class HttpClient {
   withoutRedirecting(): PendingRequest {
     return this.base().withoutRedirecting()
   }
+  withBunOptions(options: Parameters<PendingRequest['withBunOptions']>[0]): PendingRequest {
+    return this.base().withBunOptions(options)
+  }
+  proxy(url: string): PendingRequest {
+    return this.base().proxy(url)
+  }
   throwOnFailure(shouldThrow?: boolean): PendingRequest {
     return this.base().throwOnFailure(shouldThrow)
   }

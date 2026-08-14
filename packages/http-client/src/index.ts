@@ -14,6 +14,7 @@ export { type FakeDefinition, fakeResponse, HttpClient } from './factory.ts'
 export { http } from './helpers.ts'
 export {
   type Attempt,
+  type BunOptions,
   type Method,
   PendingRequest,
   type RequestOptions,

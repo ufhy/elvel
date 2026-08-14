@@ -407,3 +407,48 @@ describe('recording', () => {
     http.assertSentCount(1)
   })
 })
+
+/**
+ * What Bun's fetch does and does not already do.
+ *
+ * Worth pinning, because Bun accepts `timeout` and `retry` as options and
+ * silently ignores both — a caller writing `fetch(url, { timeout: 200 })` gets no
+ * error, no timeout, and no way to tell.
+ */
+describe('against bare fetch', () => {
+  test("Bun's fetch ignores a timeout option, so the client uses AbortSignal", async () => {
+    const started = Date.now()
+    const response = await fetch(at('/slow'), { timeout: 200 } as RequestInit)
+
+    expect(response.status).toBe(200)
+    // It waited the full three seconds: the option did nothing at all.
+    expect(Date.now() - started).toBeGreaterThan(2000)
+  })
+
+  test('and ignores a retry option', async () => {
+    attempts = 0
+    const response = await fetch(at('/flaky'), { retry: 5 } as RequestInit)
+
+    expect(response.status).toBe(503)
+    // One attempt. The client's own retry is not duplicating anything.
+    expect(attempts).toBe(1)
+  })
+
+  test("Bun's real options are forwarded rather than reimplemented", async () => {
+    const path = `/tmp/elysian-client-${process.pid}.sock`
+    const socket = Bun.serve({ unix: path, fetch: () => new Response('over a socket file') })
+
+    try {
+      const response = await client()
+        .withBunOptions({ unix: path })
+        .get('http://localhost/anything')
+
+      expect(response.body).toBe('over a socket file')
+    } finally {
+      socket.stop(true)
+      await Bun.file(path)
+        .delete()
+        .catch(() => undefined)
+    }
+  })
+})

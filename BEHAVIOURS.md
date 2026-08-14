@@ -321,6 +321,18 @@ rather than because the limiter forgot it.
 
 ## @elysian/http-client
 
+**Bun's `fetch` accepts `timeout` and `retry` and silently ignores both.**
+Measured on 1.3.12: `fetch(url, { timeout: 200 })` against a three-second handler
+returns after 2018ms with a 200, and `{ retry: 5 }` against an endpoint that
+fails twice calls it once and hands back the 503. No error, no warning — an
+unknown option to `fetch` is discarded. `AbortSignal.timeout()` is the one that
+works, and is what this package uses. Two tests pin the ignoring, so the day Bun
+implements them the duplication is noticed rather than left in.
+
+What Bun *does* add is real and not reimplementable here: `proxy`, `unix` and
+`tls` reach into the runtime's own networking. They are forwarded untouched —
+a client that swallowed them would be unusable inside a corporate network.
+
 **Nothing is recorded until something asks.** `recorded()` and the `assertSent`
 family read an array the client only fills while `fake()` or `record()` has
 turned recording on. Filling it unconditionally looked harmless and is a slow
