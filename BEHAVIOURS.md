@@ -443,6 +443,18 @@ One thing worth knowing, and two worth remembering:
 Not gaps — nothing here is waiting to be built. These are the places the
 framework stops, and the reasons are the useful part.
 
+**Laravel's `Reflection` component cannot be written here.**
+`Reflector` exists to read a constructor's parameter *types* and resolve each one
+from the container. TypeScript erases those types, and nothing puts them back:
+`Reflect.getMetadata('design:paramtypes', …)` is `undefined` under Bun even with
+`experimentalDecorators` and `emitDecoratorMetadata` both switched on, because
+Bun does not emit the metadata that NestJS-style autowiring depends on. Checked
+directly rather than assumed, on Bun 1.3.12 and TypeScript 7.0.2. The container
+here resolves by token instead, which is a deliberate choice and not a
+workaround — copying the reflective approach would mean asking every application
+to carry a metadata polyfill so the framework could guess what a token already
+says outright.
+
 **Compile-time XSS checking was attempted and is blocked.**
 `@kitajs/ts-html-plugin`'s CLI reads `typescript.sys`, which TypeScript 7 removed
 from the default export, so it crashes under both Bun and Node. `safe` remains a

@@ -12,7 +12,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 3.**
+**Open: 2.**
 
 ---
 
@@ -40,12 +40,15 @@ here as rows when it is done, not as a guess now.
 
 ## Missing
 
-Three rows that were once declined on my judgement. That judgement was
-overridden: they are being built, so they belong here where they can be counted
-and removed rather than in a list of settled decisions.
+Two rows that were once declined on my judgement. That judgement was overridden:
+they are being built, so they belong here where they can be counted and removed
+rather than in a list of settled decisions.
+
+A third, **Reflection**, was removed instead of built — not as a judgement call
+but because it cannot be written in this language. The check is in
+`BEHAVIOURS.md`; it is a limit, not debt.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
 | **Concurrency** | `ConcurrencyManager` with `Fork`, `Process` and `Sync` drivers, plus `InvokeSerializedClosureCommand`. | It exists in PHP because PHP cannot await, and `Promise.all` covers most of what it is used for. What it does *not* cover is real CPU parallelism: `Worker` is available and nothing here uses it, so a caller with work to spread across cores has to build the plumbing. |
 | **Image** | `ImageManager` over GD/Imagick/Intervention, with twelve transformations (`Resize`, `Cover`, `Crop`, `Blur`, `Grayscale`, `Orient`, …). | The largest of the three, and the one with no native library behind it on Bun. Whatever is built will have to be honest about what it can and cannot do without one. |
-| **Reflection** | `Reflector`, which inspects parameter types to autowire. | Cannot be copied: TypeScript erases the types it would inspect. What can be built is the useful half — inspecting what a class and its methods actually expose at runtime — and the row stays until that exists or is proven pointless. |
