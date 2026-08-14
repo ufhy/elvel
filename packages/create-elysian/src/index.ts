@@ -200,6 +200,7 @@ const FRAMEWORK_PACKAGES = [
   'events',
   'hashing',
   'http',
+  'image',
   'log',
   'mail',
   'notifications',

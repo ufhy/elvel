@@ -9,6 +9,7 @@ import { EncryptionServiceProvider } from '@elysian/encryption'
 import { EventServiceProvider } from '@elysian/events'
 import { HashServiceProvider } from '@elysian/hashing'
 import { HttpServiceProvider } from '@elysian/http'
+import { ImageServiceProvider } from '@elysian/image'
 import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
 import { NotificationServiceProvider } from '@elysian/notifications'
@@ -72,6 +73,7 @@ export default {
     ProcessServiceProvider,
     DatabaseServiceProvider,
     StorageServiceProvider,
+    ImageServiceProvider,
     CacheServiceProvider,
     QueueServiceProvider,
     MailServiceProvider,

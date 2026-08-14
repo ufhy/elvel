@@ -7,11 +7,13 @@ Everything below is behaviour that already exists and would otherwise have to be
 rediscovered — through a bug, usually, since none of it can be read back off the
 code. The code says what happens; this says why.
 
-Its companion is [`GAPS.md`](GAPS.md), holding what is still missing — measured
-against Laravel component by component. That list is allowed to reach zero and be
-deleted, which is the only way its length means anything; it has done so once
-already. The limits that outlive any such list — the places this framework simply
-stops — are at the bottom of this file.
+It has twice had a companion, `GAPS.md`, holding what was still missing. The
+second one measured the distance to Laravel component by component and counted
+down from five to zero, and like the first it was deleted when it emptied — a
+list whose length measures the work left only means anything if it is allowed to
+reach zero and go. Git history keeps its rules for the next time there is real
+debt to count. The limits that outlive any such list — the places this framework
+simply stops — are at the bottom of this file.
 
 ---
 
@@ -442,6 +444,25 @@ One thing worth knowing, and two worth remembering:
 
 Not gaps — nothing here is waiting to be built. These are the places the
 framework stops, and the reasons are the useful part.
+
+**Bun has no image API at all.** No `createImageBitmap`, no `OffscreenCanvas`,
+nothing native — checked directly on 1.3.12. So `@elysian/image` is two halves.
+`probe()` reads format and dimensions out of the bytes in pure TypeScript for
+png, jpeg, gif, webp, bmp, tiff, avif and heic, needs nothing installed, and
+covers the check most applications actually want, since a file extension and a
+client's `content-type` are claims and the header is the file. Transforming needs
+a backend that is looked for rather than assumed — `sharp` if the application
+installed it, ImageMagick if the machine has it, `sips` on macOS — and a driver
+that cannot perform a queued step raises an error rather than skipping it. Only
+ImageMagick and `sharp` can blur, sharpen or greyscale; `sips` cannot, and says
+so through `supports()`.
+
+**`@elysian/process` hands back output as text, so it cannot carry binary.**
+`ProcessResult.output` is a decoded string, which turns a PNG on stdout into
+replacement characters. Both image CLI drivers therefore work through temporary
+files instead of pipes — two writes and a read per image, and correct. Worth
+revisiting only if something needs a binary pipe badly enough to widen the
+process contract.
 
 **A function cannot be sent to a worker, and the reason is worse than "closures
 do not travel".** `Function.prototype.toString()` gives the body without the

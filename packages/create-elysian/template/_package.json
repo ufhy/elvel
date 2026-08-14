@@ -21,6 +21,7 @@
     "@elysian/events": "{{ dep_events }}",
     "@elysian/hashing": "{{ dep_hashing }}",
     "@elysian/http": "{{ dep_http }}",
+    "@elysian/image": "{{ dep_image }}",
     "@elysian/log": "{{ dep_log }}",
     "@elysian/mail": "{{ dep_mail }}",
     "@elysian/notifications": "{{ dep_notifications }}",

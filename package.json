@@ -35,6 +35,7 @@
     "@elysian/events": "workspace:*",
     "@elysian/hashing": "workspace:*",
     "@elysian/http": "workspace:*",
+    "@elysian/image": "workspace:*",
     "@elysian/log": "workspace:*",
     "@elysian/mail": "workspace:*",
     "@elysian/notifications": "workspace:*",

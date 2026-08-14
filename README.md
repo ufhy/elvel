@@ -693,13 +693,6 @@ It reaches three places:
 | Queue payloads | `static encrypted = true` on a job. The queue stores a ciphertext it cannot read; the worker decrypts it, bound to the job class. |
 | Model columns | `casts = { editor_note: 'encrypted' }` (or `'encrypted:json'`). Ciphertext at rest, the value on the model — and no `where` on the plaintext will ever match, which is the price. |
 
-## Known gaps
-
-[`GAPS.md`](GAPS.md) records what Laravel has and this does not, measured against
-`laravel/framework` component by component, with the method written down so the
-measurement can be repeated rather than re-argued. It holds only what is absent,
-so finishing something shortens it.
-
 ## Behaviours and limits
 
 [`BEHAVIOURS.md`](BEHAVIOURS.md) explains the decisions that are easy to misread
