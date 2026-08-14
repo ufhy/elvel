@@ -7,11 +7,11 @@ Everything below is behaviour that already exists and would otherwise have to be
 rediscovered — through a bug, usually, since none of it can be read back off the
 code. The code says what happens; this says why.
 
-It once had a companion, `GAPS.md`, holding what was still missing. That list
-counted down to zero and was deleted; the limits that outlived it are at the
-bottom of this file. Should a new milestone bring real debt, the list is worth
-recreating — a list whose length measures the work left only works when it is
-allowed to reach zero and go.
+Its companion is [`GAPS.md`](GAPS.md), holding what is still missing — measured
+against Laravel component by component. That list is allowed to reach zero and be
+deleted, which is the only way its length means anything; it has done so once
+already. The limits that outlive any such list — the places this framework simply
+stops — are at the bottom of this file.
 
 ---
 
