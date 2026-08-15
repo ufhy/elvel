@@ -4,6 +4,7 @@ import { Arr, collect, Str } from '@elysian/support'
 import { test } from '@elysian/testing'
 import { __, trans } from '@elysian/translation'
 import app from '../bootstrap/app.ts'
+import './database.ts'
 
 /**
  * The parts of the framework a route does not obviously reach.

@@ -5,6 +5,7 @@ import { hash } from '@elysian/hashing'
 import { notifications } from '@elysian/notifications'
 import { storage } from '@elysian/storage'
 import app from '../bootstrap/app.ts'
+import './database.ts'
 
 /**
  * The services an application reaches for without a request in hand.

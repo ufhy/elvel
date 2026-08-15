@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, test as it } from 'bun:test'
 import { type MailFake, mail, mailer, mailTo } from '@elysian/mail'
 import '../bootstrap/app.ts'
+import './database.ts'
 import { ArticlePublished } from '../app/Mail/ArticlePublished.ts'
 
 /**

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test as it } from 'bun:test'
 import { cache } from '@elysian/cache'
 import '../bootstrap/app.ts'
+import './database.ts'
 
 /**
  * The cache, against the store the application is configured with.

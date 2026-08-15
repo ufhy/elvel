@@ -1,6 +1,7 @@
 import { describe, expect, test as it } from 'bun:test'
 import { test } from '@elysian/testing'
 import app from '../bootstrap/app.ts'
+import './database.ts'
 
 /**
  * The four packages this application did not have.

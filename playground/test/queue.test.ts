@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test as it } from 'bun:test'
 import { dispatch, type QueueFake, queue } from '@elysian/queue'
 import '../bootstrap/app.ts'
+import './database.ts'
 import { ImportRow } from '../app/Jobs/ImportRow.ts'
 import { SendArticleDigest } from '../app/Jobs/SendArticleDigest.ts'
 

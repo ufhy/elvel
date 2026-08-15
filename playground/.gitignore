@@ -11,6 +11,12 @@ public/storage
 storage/app/private/
 storage/app/public/
 
+# The database is built, not committed: it is migrations plus seeders, and a
+# binary that changes on every run put itself into 76 commits before anybody
+# looked. `bun run playground migrate --force && bun run playground db:seed`
+# rebuilds it.
+database/*.sqlite
+
 # …except this one. The playground is a fixture in this repository, not
 # somebody's application: its APP_KEY and AUTH_SECRET are placeholders, and
 # `bun test` cannot pass without it — a fresh clone runs against an empty

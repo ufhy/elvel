@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test as it } from 'bun:test'
 import '../bootstrap/app.ts'
+import './database.ts'
 import { Article } from '../app/Models/Article.ts'
 
 /**

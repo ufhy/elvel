@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises'
 import { Output } from '@elysian/console'
 import { artisan } from '@elysian/testing'
 import app from '../bootstrap/app.ts'
+import './database.ts'
 
 /**
  * Artisan commands, run in the application rather than shelled out to.
