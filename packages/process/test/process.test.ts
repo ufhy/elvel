@@ -1,5 +1,19 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdtemp, realpath } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { ProcessFailedError, ProcessManager } from '../src/index.ts'
+
+/**
+ * Asking the process itself where it is, rather than asking a shell.
+ *
+ * `pwd` is a POSIX command that prints a POSIX path, so the directory tests
+ * used to assert both the shell and the path spelling of one platform — on
+ * Windows the same `pwd` prints `/d/a/elyvel`, which is nothing `path()` was
+ * given and nothing `process.cwd()` returns. This runs without a shell and
+ * prints the working directory the way the platform spells it.
+ */
+const WHERE = ['bun', '-e', 'process.stdout.write(process.cwd())']
 
 /** Real commands throughout, except where a fake is the thing under test. */
 const run = () => new ProcessManager()
@@ -55,9 +69,10 @@ describe('running a command', () => {
 
 describe('configuration', () => {
   test('runs in a given directory', async () => {
-    const result = await run().path('/tmp').run('pwd')
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elysian-process-')))
+    const result = await run().path(directory).run(WHERE)
 
-    expect(result.output.trim()).toMatch(/tmp$/)
+    expect(await realpath(result.output.trim())).toBe(directory)
   })
 
   test('adds to the environment without replacing it', async () => {
@@ -75,12 +90,13 @@ describe('configuration', () => {
   })
 
   test('an immutable builder does not leak between calls', async () => {
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elysian-process-')))
     const base = run()
-    const inTmp = base.path('/tmp')
+    const elsewhere = base.path(directory)
 
-    expect((await inTmp.run('pwd')).output.trim()).toMatch(/tmp$/)
+    expect(await realpath((await elsewhere.run(WHERE)).output.trim())).toBe(directory)
     // The base never learned about the directory.
-    expect((await base.run('pwd')).output.trim()).toBe(process.cwd())
+    expect((await base.run(WHERE)).output.trim()).toBe(process.cwd())
   })
 })
 

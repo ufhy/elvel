@@ -1,5 +1,5 @@
 import { chmod, mkdir, rename, rm, stat } from 'node:fs/promises'
-import { dirname, join, posix } from 'node:path'
+import { dirname, join, posix, sep } from 'node:path'
 import { Glob } from 'bun'
 import { type Disk, MissingFileError, type Visibility, type Writable, type WriteOptions } from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename, withinRoot } from '../paths.ts'
@@ -360,7 +360,18 @@ export class LocalDisk implements Disk {
         if (!isDirectory) continue
       }
 
-      found.push(relative === '' ? entry : posix.join(relative, entry))
+      /**
+       * A key is always `/`-separated, whatever the platform's separator is.
+       *
+       * Bun's glob answers with the native one, so `nested/inner.txt` listed on
+       * Windows came back as `nested\inner.txt` — a different string for the
+       * same file, and one that would not match the key the same disk was
+       * written with, nor the key an S3 disk uses for it. The disks share a key
+       * space on purpose; the filesystem's spelling stops here.
+       */
+      const key = entry.replaceAll(sep, '/')
+
+      found.push(relative === '' ? key : posix.join(relative, key))
     }
 
     return found.sort()

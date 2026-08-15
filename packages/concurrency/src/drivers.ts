@@ -9,6 +9,7 @@ import {
   type TaskResult,
   type Tasks
 } from './contracts.ts'
+import { specifierFor } from './specifier.ts'
 
 /** Shared `run()`: settle everything, then throw on the first failure. */
 abstract class BaseDriver implements ConcurrencyDriver {
@@ -81,11 +82,10 @@ export class SyncDriver extends BaseDriver {
   private async one<T>(key: string, task: Task<T>, options: RunOptions): Promise<TaskResult<T>> {
     try {
       if (isDescriptor(task)) {
-        const specifier = task.module.startsWith('/')
-          ? task.module
-          : new URL(task.module, `file://${this.basePath}/`).pathname
-
-        const module = (await import(specifier)) as Record<string, unknown>
+        const module = (await import(specifierFor(task.module, this.basePath))) as Record<
+          string,
+          unknown
+        >
         const fn = module[task.export ?? 'default']
 
         if (typeof fn !== 'function') {

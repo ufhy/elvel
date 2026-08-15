@@ -11,6 +11,8 @@
  * `new Function` in this file, and nothing a caller passes can become code.
  */
 
+import { specifierFor } from './specifier.ts'
+
 declare const self: Worker
 
 type Incoming = { base: string; module: string; export: string; args: unknown[] }
@@ -33,11 +35,7 @@ self.onmessage = async (event: MessageEvent<Incoming>) => {
 }
 
 async function invoke(task: Incoming): Promise<unknown> {
-  const specifier = task.module.startsWith('/')
-    ? task.module
-    : new URL(task.module, `file://${task.base}/`).pathname
-
-  const module = (await import(specifier)) as Record<string, unknown>
+  const module = (await import(specifierFor(task.module, task.base))) as Record<string, unknown>
   const fn = module[task.export]
 
   if (typeof fn !== 'function') {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Application } from '@elysian/core'
 import {
   ConcurrencyManager,
@@ -8,6 +9,7 @@ import {
   type TaskResult,
   WorkerDriver
 } from '../src/index.ts'
+import { specifierFor } from '../src/specifier.ts'
 
 const fixtures = resolve(import.meta.dir, 'fixtures', 'tasks.ts')
 
@@ -110,23 +112,19 @@ describe('the worker driver only', () => {
   /**
    * The reason the package exists.
    *
-   * The comparison is against `sync`, not against a multiplier: the same four
-   * CPU-bound tasks, run one after another on this thread and across four
-   * workers. Measured on an 8-core machine, 60M rounds each: 391ms for one
-   * worker, 427ms for four (1.09x), 1556ms serial (3.8x). `Promise.all` would
-   * score like the serial run — it interleaves waiting, and there is no waiting
-   * here to interleave.
+   * Two CPU-bound tasks, each reporting the window it ran in. `Promise.all`
+   * cannot make these overlap — it interleaves waiting, and there is no waiting
+   * here to interleave — so an overlap is proof of a second thread and nothing
+   * else. For scale: on an 8-core machine at 60M rounds each, four workers take
+   * 427ms against 1556ms serial.
    *
-   * The threshold is a fifth off, not a half.
-   *
-   * Half was the first attempt and it assumed the machine. Four tasks on a
-   * two-core runner can be at most twice as fast before worker start-up is paid
-   * for, so demanding a halving asked for the theoretical best and CI failed on
-   * hardware rather than on code. A fifth still fails loudly if the driver ever
-   * serialises — that would land at parity or worse, since spawning workers is
-   * not free — which is the thing this test is actually for.
+   * Two thresholds were tried before this and both measured the machine rather
+   * than the code. `parallel < serial / 2` asked for the theoretical best and
+   * failed on a two-core runner; `< serial * 0.8` still failed on CI runners
+   * that were demonstrably running the tasks at once. A ratio taken from a wall
+   * clock on shared hardware is a measurement of the neighbours.
    */
-  test('genuinely uses more than one core', async () => {
+  test('genuinely runs two tasks at the same time', async () => {
     const cores = navigator.hardwareConcurrency ?? 1
 
     if (cores < 2) {
@@ -135,18 +133,37 @@ describe('the worker driver only', () => {
       return
     }
 
-    const task = { module: fixtures, export: 'spin', args: [40_000_000] }
-    const four = [task, task, task, task]
+    /**
+     * Overlap, not speedup.
+     *
+     * This asserted `parallel < serial * 0.8` and was right about the intent and
+     * wrong about the measurement: a wall clock on a shared CI runner measures
+     * the neighbours as much as the work, and the ratio failed on runners that
+     * were plainly running the tasks in parallel. Two intervals that overlap
+     * cannot have come from one thread, whatever the machine was doing at the
+     * time — and if the driver ever quietly fell back to running them one after
+     * another, no amount of hardware would make them overlap.
+     */
+    const task = { module: fixtures, export: 'window', args: [40_000_000] }
 
-    const serialStarted = Date.now()
-    await new SyncDriver(import.meta.dir).run(four)
-    const serial = Date.now() - serialStarted
+    const [first, second] = (await new WorkerDriver(import.meta.dir).run([task, task])) as Array<{
+      start: number
+      end: number
+    }>
 
-    const parallelStarted = Date.now()
-    await new WorkerDriver(import.meta.dir).run(four)
-    const parallel = Date.now() - parallelStarted
+    const overlap =
+      Math.min(first?.end ?? 0, second?.end ?? 0) - Math.max(first?.start ?? 0, second?.start ?? 0)
 
-    expect(parallel).toBeLessThan(serial * 0.8)
+    expect(overlap).toBeGreaterThan(0)
+
+    // And the sync driver is the control: the same two tasks, strictly one after
+    // the other, which is what makes the assertion above mean something.
+    const [one, two] = (await new SyncDriver(import.meta.dir).run([task, task])) as Array<{
+      start: number
+      end: number
+    }>
+
+    expect((two?.start ?? 0) >= (one?.end ?? 0)).toBe(true)
   })
 
   test('refuses a function, and says what to use instead', async () => {
@@ -265,5 +282,27 @@ describe('both drivers resolve a module the same way', () => {
 
     expect<unknown>(await new SyncDriver(import.meta.dir).run([relative])).toEqual([9])
     expect<unknown>(await new WorkerDriver(import.meta.dir).run([relative])).toEqual([9])
+  })
+
+  /**
+   * The resolution itself, because the drivers can only prove it for this
+   * platform.
+   *
+   * Both used to build `file://${base}/${module}` by hand and take `.pathname`
+   * back off it. On Linux and macOS that round-trips; on Windows it produces
+   * `/D:/app/x.ts`, a leading slash in front of a drive letter, and every task
+   * on that platform failed to import — which is exactly the shape of bug that
+   * only a run on the other operating system finds.
+   */
+  test('a specifier is a file URL, on every platform', () => {
+    const specifier = specifierFor('./fixtures/tasks.ts', import.meta.dir)
+
+    expect(specifier.startsWith('file://')).toBe(true)
+    expect(specifier).toBe(pathToFileURL(fixtures).href)
+    // A drive letter never arrives with a slash in front of it.
+    expect(specifier).not.toMatch(/file:\/\/\/?\/[A-Za-z]:/)
+
+    // An absolute module is taken as it is, not re-resolved against the base.
+    expect(specifierFor(fixtures, '/somewhere/else')).toBe(pathToFileURL(fixtures).href)
   })
 })

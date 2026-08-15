@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Application } from '@elysian/core'
 import { type Disk, MissingFileError } from '../src/contracts.ts'
 import { LocalDisk } from '../src/disks/local.ts'
@@ -208,7 +208,7 @@ for (const candidate of candidates) {
       expect(await disk.allFiles()).toEqual([])
     })
 
-    test('visibility is remembered', async () => {
+    test.skipIf(!posixModes)('visibility is remembered', async () => {
       await disk.put('private.txt', 'secret')
       expect(await disk.getVisibility('private.txt')).toBe('private')
 
@@ -256,6 +256,18 @@ for (const candidate of candidates) {
   })
 }
 
+/**
+ * Windows has no POSIX file mode, so the mode-based behaviour cannot be tested
+ * there — and does not exist there.
+ *
+ * `chmod` on Windows toggles one read-only bit and nothing else: a file written
+ * `private` reads back as `public`, and a directory set to `0o000` stays
+ * readable. That is a limit of the platform rather than of this disk, which is
+ * why these skip rather than assert something weaker; the S3 disk carries
+ * visibility in the object's ACL and is unaffected. See BEHAVIOURS.
+ */
+const posixModes = process.platform !== 'win32'
+
 describe('paths', () => {
   test('a relative path is normalised, not rewritten', () => {
     expect(normalisePath('a/b.txt')).toBe('a/b.txt')
@@ -277,8 +289,14 @@ describe('paths', () => {
   })
 
   test('withinRoot resolves against the root and checks the result', () => {
-    expect(withinRoot('/srv/app', 'files/a.txt')).toBe('/srv/app/files/a.txt')
-    expect(() => withinRoot('/srv/app', '../a.txt')).toThrow(PathOutsideDiskError)
+    // A key is `/`-separated everywhere; what comes back is a *filesystem* path,
+    // so it is spelled the way the platform spells one. Building the expectation
+    // with `join` is the difference between testing the function and testing
+    // which operating system the suite happens to be running on.
+    const root = resolve('/srv/app')
+
+    expect(withinRoot(root, 'files/a.txt')).toBe(join(root, 'files', 'a.txt'))
+    expect(() => withinRoot(root, '../a.txt')).toThrow(PathOutsideDiskError)
   })
 })
 
@@ -299,7 +317,7 @@ describe('LocalDisk specifics', () => {
     expect(disk.path('a/b.txt')).toBe(join(root, 'a/b.txt'))
   })
 
-  test('visibility is a file mode', async () => {
+  test.skipIf(!posixModes)('visibility is a file mode', async () => {
     await disk.put('secret.txt', 'shh', { visibility: 'private' })
 
     const { mode } = await Bun.file(disk.path('secret.txt')).stat()
@@ -333,6 +351,14 @@ describe('LocalDisk specifics', () => {
   })
 
   test('a directory that is missing lists as empty, one that is unreadable does not', async () => {
+    if (!posixModes) {
+      // Half of this test is still worth running: the missing-directory half
+      // does not depend on modes at all.
+      expect(await disk.files('never-created')).toEqual([])
+
+      return
+    }
+
     // The distinction is deliberate. A directory nobody has written to yet is a
     // normal state and reads as empty; one that exists but cannot be read is a
     // misconfiguration, and reporting it as "empty" would hide it.

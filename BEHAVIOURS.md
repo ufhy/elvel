@@ -693,6 +693,20 @@ One thing worth knowing, and two worth remembering:
 Not gaps — nothing here is waiting to be built. These are the places the
 framework stops, and the reasons are the useful part.
 
+**A file's visibility is a POSIX mode, so it does not exist on Windows.** The
+local disk writes `public` as `0o644` and `private` as `0o600`, and reads
+visibility back off the mode. Windows has no such mode: `chmod` there toggles one
+read-only bit, so a file written `private` reads back `public` and a directory set
+to `0o000` stays readable. The disk does not pretend otherwise and the tests for
+it skip rather than assert something weaker. The S3 disk carries visibility in the
+object's ACL and is unaffected; so is everything else the local disk does.
+
+**A command written as a string needs a POSIX shell.** `run('a | b')` executes
+`sh -c`, which is what makes pipes, `&&` and `$VAR` work at all. On Windows that
+means a `sh` on the PATH — Git Bash provides one, and CI runs there. Passing an
+array (`run(['git', 'status'])`) needs no shell on any platform, and is the form
+to use for anything built from input regardless.
+
 **MySQL is unusable from Bun on Windows.** Not slow — it stops. The dialect suite
 reaches the MySQL block and produces nothing further; the process never prints a
 summary and never exits. The same file, the same servers, the same Bun 1.3.14,

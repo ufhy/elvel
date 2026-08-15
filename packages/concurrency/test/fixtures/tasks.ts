@@ -20,6 +20,19 @@ export function spin(rounds: number): number {
   return Math.round(total)
 }
 
+/**
+ * The same busy work, reporting when it ran rather than how long it took.
+ *
+ * Two of these overlap only if two of them were running at once, which is the
+ * thing a worker driver claims and a wall-clock ratio only ever implies.
+ */
+export function window(rounds: number): { start: number; end: number } {
+  const start = Date.now()
+  spin(rounds)
+
+  return { start, end: Date.now() }
+}
+
 export function forever(): number {
   // Never returns; used to prove a timeout actually terminates the thread.
   while (true) {

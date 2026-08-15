@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { ConnectionError, HttpClient, HttpResponse, RequestError } from '../src/index.ts'
 
 /**
@@ -434,21 +436,31 @@ describe('against bare fetch', () => {
     expect(attempts).toBe(1)
   })
 
-  test("Bun's real options are forwarded rather than reimplemented", async () => {
-    const path = `/tmp/elysian-client-${process.pid}.sock`
-    const socket = Bun.serve({ unix: path, fetch: () => new Response('over a socket file') })
+  /**
+   * Windows has no unix domain socket to serve on, and `/tmp` does not exist
+   * there either. The option being tested is Bun's, not this client's — what
+   * matters is that whatever is handed to `withBunOptions` reaches `fetch`
+   * untouched, and a socket file is simply the least ambiguous way to prove it
+   * on the platforms that have one.
+   */
+  test.skipIf(process.platform === 'win32')(
+    "Bun's real options are forwarded rather than reimplemented",
+    async () => {
+      const path = join(tmpdir(), `elysian-client-${process.pid}.sock`)
+      const socket = Bun.serve({ unix: path, fetch: () => new Response('over a socket file') })
 
-    try {
-      const response = await client()
-        .withBunOptions({ unix: path })
-        .get('http://localhost/anything')
+      try {
+        const response = await client()
+          .withBunOptions({ unix: path })
+          .get('http://localhost/anything')
 
-      expect(response.body).toBe('over a socket file')
-    } finally {
-      socket.stop(true)
-      await Bun.file(path)
-        .delete()
-        .catch(() => undefined)
+        expect(response.body).toBe('over a socket file')
+      } finally {
+        socket.stop(true)
+        await Bun.file(path)
+          .delete()
+          .catch(() => undefined)
+      }
     }
-  })
+  )
 })
