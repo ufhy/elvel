@@ -1,3 +1,4 @@
+import { broadcaster } from '@elysian/broadcasting'
 import { cache } from '@elysian/cache'
 import { app, controller } from '@elysian/core'
 import { db } from '@elysian/database'
@@ -5,6 +6,7 @@ import { dispatch, events } from '@elysian/events'
 import { log, MemoryDriver } from '@elysian/log'
 import { queue } from '@elysian/queue'
 import { OrderShipped } from '../../Events/OrderShipped.ts'
+import { RoomPinged } from '../../Events/RoomPinged.ts'
 import { RecordShipments } from '../../Listeners/RecordShipments.ts'
 
 /**
@@ -149,6 +151,28 @@ export default controller('signal', '/signal')
 
     return { duringDeferral, insideCount, abandoned, heard }
   })
+
+  /**
+   * An event that broadcasts itself, dispatched normally.
+   *
+   * The route returns how many sockets it reached, which is the only honest
+   * answer a broadcast can give: nothing about it guarantees delivery.
+   */
+  .post('/broadcast/:room', async ({ params, body }) => {
+    const note =
+      typeof (body as { note?: string })?.note === 'string'
+        ? (body as { note: string }).note
+        : 'ping'
+
+    await dispatch(new RoomPinged(params.room, note))
+
+    return { room: params.room, listeners: broadcaster().count(`room.${params.room}`) }
+  })
+
+  /** Who is on a presence channel right now. */
+  .get('/presence/:room', ({ params }) => ({
+    members: broadcaster().presence(`room.${params.room}`)
+  }))
 
   /** Level thresholds, placeholder interpolation, sticky context, extend(). */
   .get('/log', () => {

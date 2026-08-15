@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Application } from '@elysian/core'
 import { JsxViewFactory } from '../src/factory.ts'
-import { stream } from '../src/index.ts'
+import { classes, json, stream, styles } from '../src/index.ts'
 import { Vite } from '../src/vite.ts'
 
 beforeEach(() => {
@@ -137,5 +137,91 @@ describe('Vite tags', () => {
 
   test('no manifest at all says what to do', () => {
     expect(() => new Vite({ publicPath: '/nowhere' }).tags('app.ts')).toThrow('Run the build')
+  })
+})
+
+describe('class, style and json helpers', () => {
+  /** What a browser does to the escapes, so a test can compare values. */
+  const readable = (value: string) =>
+    value
+      .replaceAll('\\u0022', '\\"')
+      .replaceAll('\\u0027', "'")
+      .replaceAll('\\u003c', '<')
+      .replaceAll('\\u003e', '>')
+      .replaceAll('\\u0026', '&')
+
+  test('classes takes strings and conditions', () => {
+    expect<string>(classes('card', { 'card--wide': true, 'is-active': false })).toBe(
+      'card card--wide'
+    )
+    // A falsy input contributes nothing rather than the word "false", which is
+    // what the hand-rolled join does.
+    expect<string>(classes('card', false, null, undefined)).toBe('card')
+    expect<string>(classes()).toBe('')
+  })
+
+  test('and does not deduplicate, which is what Laravel does', () => {
+    // `Arr::toCssClasses` joins what it was given. Removing duplicates reads
+    // like an improvement and is an undocumented difference from Laravel.
+    expect<string>(classes('card card', { card: true })).toBe('card card card')
+  })
+
+  test('styles writes declarations, terminated', () => {
+    expect<string>(
+      styles('color: red', { 'font-weight: bold': true, 'display: none': false })
+    ).toBe('color: red; font-weight: bold;')
+    // Terminated on purpose: appending another declaration later must not merge
+    // two properties into one.
+    expect<string>(styles('color: red;')).toBe('color: red;')
+    expect<string>(styles({ 'color: red': false })).toBe('')
+  })
+
+  test('json escapes the same set Laravel does', () => {
+    // @json encodes with JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP |
+    // JSON_HEX_QUOT — the quotes are what make it safe in an attribute as well
+    // as in a script body.
+    const escaped = json({ says: `he said "hi", it's fine <b>&</b>` })
+
+    for (const character of ['<', '>', '&', "'"]) {
+      expect(escaped.includes(character)).toBe(false)
+    }
+
+    // The structural quotes stay; only the ones inside strings are escaped.
+    expect(escaped.startsWith('{"says":"')).toBe(true)
+    expect(escaped).toContain('\\u0022hi\\u0022')
+
+    // And it is still the same value once a browser has parsed it.
+    expect<unknown>(JSON.parse(readable(escaped))).toEqual({
+      says: `he said "hi", it's fine <b>&</b>`
+    })
+  })
+
+  test('json escapes what a script tag can be broken out of', () => {
+    const embedded = json({ bio: '</script><img src=x onerror=alert(1)>' })
+
+    // The escaping HTML needs is not the escaping a script body needs: the
+    // parser is looking for the literal `</script`, and JSON.stringify has no
+    // reason to care.
+    expect(embedded).not.toContain('</script')
+    expect(embedded).toContain('\\u003c')
+
+    // And it is still JSON: what comes out the other side is the original.
+    expect<unknown>(
+      JSON.parse(embedded.replaceAll('\\u003c', '<').replaceAll('\\u003e', '>'))
+    ).toEqual({
+      bio: '</script><img src=x onerror=alert(1)>'
+    })
+  })
+
+  test('json escapes the line separators that are legal in JSON and not in JS', () => {
+    // U+2028 inside a JSON string is fine; inside a script body it is a line
+    // terminator, so leaving it produces a syntax error in the page.
+    expect(json({ a: 'x y' })).toBe('{"a":"x\\u2028y"}')
+  })
+
+  test('json of nothing is null, not undefined', () => {
+    // `undefined` is not JSON and would be written into the script as the bare
+    // identifier, which throws at parse time.
+    expect<string>(json(undefined)).toBe('null')
   })
 })

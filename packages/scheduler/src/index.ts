@@ -12,7 +12,7 @@ export {
   MONTH,
   partsIn
 } from './cron.ts'
-export { type EventCallback, ScheduledEvent } from './event.ts'
+export { type EventCallback, ScheduledEvent, setPinger } from './event.ts'
 export { schedule } from './helpers.ts'
 export { ScheduleServiceProvider } from './provider.ts'
 export {

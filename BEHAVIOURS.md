@@ -7,14 +7,17 @@ Everything below is behaviour that already exists and would otherwise have to be
 rediscovered — through a bug, usually, since none of it can be read back off the
 code. The code says what happens; this says why.
 
-Its companion is [`GAPS.md`](GAPS.md), holding what is still missing. Two earlier
-ones counted down to zero and were deleted, which is the only way their length
-meant anything. The third exists because the second measured the wrong thing: it
+It had a companion, `GAPS.md`, holding what was still missing. Three of them have
+now counted down to zero and been deleted, which is the only way their length ever
+meant anything — the third because the second measured the wrong thing: it
 compared Laravel *component by component* and found 30 of 38 covered, while the
-real distance was inside them. Measured at method level, it is considerably
-larger — and the file itself says so, along with the command to re-measure. The
-limits that outlive any such list — the places this framework simply stops — are
-at the bottom of this file.
+real distance was inside them. Measured at method level against 13.25.0, that
+distance is closed as well; the `gh api` recipe for re-measuring is in the git
+history, and a fourth list belongs there only when there is real debt to count
+again.
+
+The limits that outlive any such list — the places this framework simply stops —
+are at the bottom of this file.
 
 ---
 
@@ -482,7 +485,7 @@ redirect alone — otherwise every caller using `withoutRedirecting()` to read a
 
 ## @elysian/scheduler
 
-Five things worth knowing:
+Things worth knowing:
 
 - **`command()` runs in this process, so a slow command holds the minute.**
   There is no second runtime to start and the exit code comes back directly,
@@ -510,6 +513,12 @@ Five things worth knowing:
   a test for it, because the intuitive reading turns a schedule into one that
   almost never runs.
 
+
+- **A ping that fails is swallowed.** `pingOnSuccess`, `thenPing` and the rest
+  report to a monitor, and monitoring being unreachable must not turn a backup
+  that worked into a run that failed. It is also the only reporting a schedule
+  can have that survives the schedule not running at all — no hook inside a
+  process that is not running can notice its own absence.
 
 ### Capturing a scheduled task's output
 
@@ -616,6 +625,21 @@ Four behaviours worth knowing:
   quoted string or split the header; the real name travels in `filename*`.
 
 
+## @elysian/translation
+
+- **A missing key comes back as the key.** An untranslated page shows
+  `orders.title` — obviously wrong, obviously fixable — where an empty string
+  shows a page that looks finished and says nothing. `whenMissing()` is the hook
+  for finding them in bulk: log them, count them, or fail a test run that
+  introduced one, since a missing translation is invisible in a language nobody
+  on the team reads.
+- **A sentence can be its own key.** `lang/id.json` translates whole strings —
+  `__('You have no orders yet.')` — beside the dotted keys in `lang/id/`. Both
+  shapes live in the same directory and are consulted sentence-first. The reason
+  Laravel has both is that inventing a key for every string is what stops people
+  translating anything, and a sentence key still reads correctly untranslated.
+
+
 ## @elysian/notifications
 
 Two things to know about language:
@@ -692,6 +716,78 @@ Decisions worth knowing rather than discovering:
   match a ciphertext, and no amount of care changes that — a fresh nonce per write
   means the same plaintext never produces the same bytes twice. Encrypt what you
   read, not what you search by.
+
+
+## @elysian/broadcasting
+
+- **A presence channel authorises and identifies in one answer.** What the
+  callback returns *is* what the other members are told, so everything on the
+  member list is something the server chose to publish — a channel that leaked an
+  address would have had to name `email`. Returning nothing refuses.
+- **`here` includes the joiner; `joined` does not go to them.** That is Echo's
+  contract, and any client written for Laravel already expects it. The other
+  arrangement — a list without yourself, plus your own arrival — makes a client
+  render itself twice.
+- **One person with two tabs is one member and one arrival.** Membership is
+  tracked per socket and reported per person, so the second tab announces
+  nothing and closing it announces nothing; the `left` event waits for the last
+  socket. Otherwise closing one tab tells everybody you went away while you are
+  still there.
+- **On `redis`, a process does not deliver to its own sockets first.** Every
+  broadcast is published to the bus, and the publishing process is served when
+  the message comes back round with everybody else's. That is Reverb's
+  arrangement and the reason is ordering: one path means every process sees the
+  same sequence, where a local delivery ahead of the publish would let one
+  process order its own events differently from the rest. It also means
+  `broadcast()` answers `0` on `redis` — at that point nothing has been written
+  to a socket, and how many sockets the other processes hold is not knowable from
+  here.
+- **The excluded socket travels with the message.** `toOthers()` names a socket
+  id, and that socket lives in exactly one process; every other process looks for
+  it, finds nothing, and delivers to everyone — which is the correct answer
+  there, not a case to resolve before publishing.
+- **A failed publish is swallowed.** A broadcast was never a delivery guarantee,
+  and a Redis that is down must not take down the request that caused the event.
+  What is lost is the other processes hearing it, which is the same outcome as
+  having no bus at all.
+- **Presence lists are per process.** A member list is built from the sockets a
+  process holds, so behind a load balancer each half sees its own half. The join
+  and leave events cross — they are broadcasts — but `here` does not. Reverb has
+  the same shape and solves it with a shared channel manager; this does not solve
+  it yet.
+- **An event broadcasts itself by having `broadcastOn()`.** There is no interface
+  to implement, because TypeScript erases interfaces and a marker nothing can
+  check at runtime is not a marker. `broadcastAs()` and `broadcastWith()` are
+  optional and default to the class name and the event's own fields — which is
+  usually right and exactly what you do not want when one of those fields is a
+  model or a secret.
+
+
+## @elysian/view — what Blade's directives became
+
+Most of Blade's directive set is a workaround for PHP-in-HTML that TSX makes
+unnecessary, and the mapping is worth stating once so the absence does not read
+as a gap. `@if` is a ternary, `@foreach` is `.map()`, `@include` is a component,
+`@checked`/`@selected`/`@disabled` are ordinary boolean attributes, `@props` is a
+parameter list, and `{{ }}`'s escaping is the `safe` attribute. `@lang`/`@choice`
+are `__()`/`choice()`; `@inject` is `app()`; `@csrf`/`@method` are `csrfField()`
+and `methodField()`.
+
+What is left is the handful where the *string being built* needs rules of its
+own, and those are functions here: `whenError`, `whenAuth`, `whenGuest`,
+`whenCan` for what a page cannot see from its props; `stack`/`push`/`prepend`/
+`once`/`pushOnce` for writing into a layout that already rendered; and
+`classes`/`styles`/`json` for attributes and embedded data.
+
+`json()` is the one with teeth. Inside a `<script>` the parser is looking for the
+literal `</script`, so a value containing one closes the block early and
+everything after it is markup again — a working XSS through a field that never
+touched the HTML escaper. `JSON.stringify` has no reason to care, which is why
+this is a helper rather than an instruction to remember.
+
+`$loop` has no counterpart and does not need one: `.map((item, index, all) =>
+…)` already carries the index and the array, so `first`, `last` and `count` are
+each one expression. Blade needs `$loop` because its `foreach` hands over neither.
 
 
 ## create-elysian

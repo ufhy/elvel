@@ -1505,6 +1505,56 @@ check(
 
 await app.handle(new Request('http://localhost/check/notifications', { method: 'DELETE' }))
 
+// -------------------------------------------------------------- translation
+
+section('Translation')
+
+const language = async (locale: string, count = 2) =>
+  (await (
+    await app.handle(new Request(`http://localhost/check/lang/${locale}?count=${count}`))
+  ).json()) as Record<string, string>
+
+const indonesian = await language('id')
+
+check('a dotted key is read from lang/<locale>/', indonesian.title === 'Pesanan')
+check(
+  'a replacement matches the case it was written in',
+  indonesian.greeting === 'Halo Ada, selamat datang kembali'
+)
+check(
+  'a whole sentence is keyed by itself, from lang/<locale>.json',
+  indonesian.sentence === 'Kamu belum punya pesanan.'
+)
+// A missing key shows itself: obviously wrong on the page, obviously fixable —
+// where an empty string shows a page that looks finished and says nothing.
+check('an untranslated key comes back as the key', indonesian.missing === 'orders.nowhere')
+check(
+  'and a key only the fallback has falls back',
+  indonesian.fallback === 'Only English has this one'
+)
+
+const english = await language('en')
+
+check('the same routes answer in the fallback language', english.title === 'Orders')
+check(
+  'an untranslated sentence is still a readable sentence',
+  english.sentence === 'You have no orders yet.'
+)
+
+// Bahasa Indonesia has one plural form; English has two. Same key, same count.
+check(
+  'plural forms are chosen per locale',
+  (await language('id', 0)).count === 'Kamu belum punya pesanan'
+)
+check(
+  'with :count filled in without being passed',
+  (await language('en', 5)).count === 'You have 5 orders'
+)
+
+// One process serves everybody: a locale left set would answer the next request
+// in the last one's language.
+check('and the locale does not leak between requests', (await language('en')).locale === 'en')
+
 // ------------------------------------------------------------------ storage
 
 section('Storage')
@@ -2789,6 +2839,30 @@ try {
     // A marker left behind would be an unsubstituted stack, which is worse than
     // an empty one: it ships an HTML comment naming the internals.
     check('no marker survives into the page', !page.includes('elysian:stack'), page.slice(0, 200))
+
+    // Blade's @class / @style: the list is assembled from conditions, and a
+    // false one contributes nothing rather than the word "false".
+    check(
+      'classes writes only the conditions that hold',
+      page.includes('class="card card--wide"') && !page.includes('is-active'),
+      page.slice(page.indexOf('id="conditional"'), page.indexOf('id="conditional"') + 160)
+    )
+    check(
+      'styles writes a terminated declaration list',
+      page.includes('style="color: rebeccapurple; font-weight: bold;"')
+    )
+
+    /**
+     * The one with teeth.
+     *
+     * The embedded value ends with a literal `</script>`. Unescaped it closes
+     * the block early and everything after it is markup again — a working XSS
+     * through a field that never touched the HTML escaper.
+     */
+    const script = page.slice(page.indexOf('<script id="state">'), page.indexOf('</section>\n'))
+
+    check('json escapes a script-tag breakout', !script.includes('</script><img'))
+    check('and leaves the value readable to the browser', script.includes('\\u003c/script'))
 
     check('whenGuest renders for a visitor', page.includes('Nobody is signed in.'))
     check('whenAuth does not', !page.includes('Signed in as'))
@@ -4352,6 +4426,132 @@ try {
   }
 
   check('an IPv4 client is reported as IPv4, not ::ffff:', address.ip === '127.0.0.1')
+
+  // ------------------------------------------------------------- broadcasting
+
+  section('Broadcasting')
+
+  {
+    /**
+     * Real websockets, because nothing here exists without one.
+     *
+     * Subscribing, presence and a self-broadcasting event are all about frames
+     * arriving at a socket in an order, which `app.handle()` cannot express at
+     * all.
+     */
+    const open = async (): Promise<{
+      socket: WebSocket
+      frames: Array<Record<string, unknown>>
+    }> => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/broadcast`)
+      const frames: Array<Record<string, unknown>> = []
+
+      socket.addEventListener('message', (event: MessageEvent) => {
+        frames.push(JSON.parse(String(event.data)) as Record<string, unknown>)
+      })
+
+      await new Promise<void>((resolve, reject) => {
+        socket.addEventListener('open', () => resolve(), { once: true })
+        socket.addEventListener('error', () => reject(new Error('socket failed')), { once: true })
+      })
+
+      return { socket, frames }
+    }
+
+    /** Frames arrive on their own schedule; this is the whole reason to wait. */
+    const settle = () => Bun.sleep(60)
+
+    const first = await open()
+
+    first.socket.send(JSON.stringify({ subscribe: 'status' }))
+    await settle()
+
+    check(
+      'a socket subscribes to a declared channel',
+      first.frames.some((frame) => frame.event === 'subscribed' && frame.channel === 'status')
+    )
+
+    first.socket.send(JSON.stringify({ subscribe: 'orders.9' }))
+    await settle()
+
+    // Order 9 is not this user's, and the guest is not signed in at all — a
+    // refusal rather than a closed connection, since one socket asks for many
+    // channels.
+    check(
+      'and is refused one it may not join',
+      first.frames.some((frame) => frame.event === 'refused' && frame.channel === 'orders.9')
+    )
+
+    // A presence channel: the joiner is told who is here, including itself.
+    first.socket.send(JSON.stringify({ subscribe: 'room.7' }))
+    await settle()
+
+    const here = first.frames.find((frame) => frame.event === 'presence.here')
+
+    check('a presence channel tells the joiner who is here', here !== undefined)
+    check(
+      'and the list includes the joiner',
+      JSON.stringify((here?.payload as { members?: unknown })?.members) ===
+        JSON.stringify([{ id: 'anonymous', room: '7' }])
+    )
+
+    const second = await open()
+    second.socket.send(JSON.stringify({ subscribe: 'room.7' }))
+    await settle()
+
+    // Both sockets are the same guest, so this is one member on two tabs — one
+    // arrival, not two, and nothing left when only one of them goes.
+    const membersNow = (await (
+      await fetch(`http://127.0.0.1:${port}/signal/presence/7`)
+    ).json()) as { members: Array<{ id: string }> }
+
+    check('two sockets for one person are one member', membersNow.members.length === 1)
+    check(
+      'and the second tab is not a second arrival',
+      first.frames.filter((frame) => frame.event === 'presence.joined').length === 0
+    )
+
+    /**
+     * An event that broadcasts itself.
+     *
+     * Dispatched as any other event is; the sockets hear it because it declares
+     * `broadcastOn()`, and they hear the name and payload it chose rather than
+     * its class and its fields.
+     */
+    const pinged = (await (
+      await fetch(`http://127.0.0.1:${port}/signal/broadcast/7`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ note: 'stand-up in five' })
+      })
+    ).json()) as { listeners: number }
+
+    await settle()
+
+    check('a dispatched event reaches the sockets on its channel', pinged.listeners === 2)
+
+    const ping = first.frames.find((frame) => frame.event === 'room.pinged')
+
+    check('broadcastAs names it', ping !== undefined)
+    check(
+      'and broadcastWith decides what travels',
+      JSON.stringify(ping?.payload) === JSON.stringify({ note: 'stand-up in five' })
+    )
+
+    // Closing the last socket of a member announces the leave.
+    second.socket.close()
+    first.socket.send(JSON.stringify({ unsubscribe: 'room.7' }))
+    await settle()
+
+    const membersAfter = (await (
+      await fetch(`http://127.0.0.1:${port}/signal/presence/7`)
+    ).json()) as { members: unknown[] }
+
+    check('leaving empties the presence list', membersAfter.members.length === 0)
+
+    first.socket.close()
+    await settle()
+  }
 
   // ----------------------------------------------------------- cookies, bags
 

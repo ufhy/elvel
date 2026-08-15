@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elysian/core'
 import { CronExpression, partsIn } from '../src/cron.ts'
-import { ScheduledEvent } from '../src/event.ts'
+import { ScheduledEvent, setPinger } from '../src/event.ts'
 import { type MutexStore, ScheduleRunner } from '../src/runner.ts'
 import { Schedule } from '../src/schedule.ts'
 
@@ -264,6 +264,29 @@ describe('frequency helpers write the expression', () => {
     }
 
     expect(cron.matches(at('2026-02-01T00:00:00Z'), 'UTC')).toBe(false)
+  })
+
+  test('the frequencies added to close the gap with Laravel', () => {
+    // Every-two-hours skips the odd hours, which is exactly what makes
+    // everyOddHour useful: two jobs that must not share an hour.
+    expect(event().everyFourHours().cronExpression).toBe('0 */4 * * *')
+    expect(event().everyOddHour().cronExpression).toBe('0 1-23/2 * * *')
+    expect(event().everyOddHour(15).cronExpression).toBe('15 1-23/2 * * *')
+    expect(event().quarterlyOn(15, '9:30').cronExpression).toBe('30 9 15 1-12/3 *')
+    // `at()` is `dailyAt()` — one reads better in a sentence, the other in a list.
+    expect(event().at('13:30').cronExpression).toBe(event().dailyAt('13:30').cronExpression)
+    expect(event().everyTwoSeconds().repeatInterval).toBe(2)
+    expect(event().everyFifteenSeconds().repeatInterval).toBe(15)
+    expect(event().everyTwentySeconds().repeatInterval).toBe(20)
+  })
+
+  test('everyOddHour really misses the even hours', () => {
+    const cron = CronExpression.parse(event().everyOddHour().cronExpression)
+
+    expect(cron.matches(at('2026-01-01T01:00:00Z'), 'UTC')).toBe(true)
+    expect(cron.matches(at('2026-01-01T23:00:00Z'), 'UTC')).toBe(true)
+    expect(cron.matches(at('2026-01-01T02:00:00Z'), 'UTC')).toBe(false)
+    expect(cron.matches(at('2026-01-01T00:00:00Z'), 'UTC')).toBe(false)
   })
 
   test('a sub-minute frequency still fires once a minute', () => {
@@ -942,5 +965,112 @@ describe('capturing what a task printed', () => {
     await new ScheduleRunner({ report: (error) => reported.push(error) }).runEvent(event)
 
     expect<boolean>((reported[0] as Error).message.includes('no mailer is registered')).toBe(true)
+  })
+})
+
+describe('pings', () => {
+  test('a task can report to a monitor before, after, on success and on failure', async () => {
+    const called: string[] = []
+
+    setPinger(async (url) => {
+      called.push(url)
+    })
+
+    try {
+      const ok = new ScheduledEvent(() => undefined, 'ok')
+        .pingBefore('https://monitor.test/start')
+        .thenPing('https://monitor.test/done')
+        .pingOnSuccess('https://monitor.test/ok')
+        .pingOnFailure('https://monitor.test/failed')
+
+      expect(await new ScheduleRunner().runEvent(ok)).toBe('ran')
+
+      // A monitor that expects a request every hour is the only thing that can
+      // notice a schedule which stopped running altogether.
+      expect<string[]>(called).toEqual([
+        'https://monitor.test/start',
+        'https://monitor.test/ok',
+        'https://monitor.test/done'
+      ])
+
+      called.length = 0
+
+      const broken = new ScheduledEvent(() => {
+        throw new Error('nope')
+      }, 'broken')
+        .pingOnSuccess('https://monitor.test/ok')
+        .pingOnFailure('https://monitor.test/failed')
+
+      expect(await new ScheduleRunner({ report: () => undefined }).runEvent(broken)).toBe('failed')
+
+      // "Did not run" and "ran and broke" are different alerts, and a service
+      // can only tell them apart if both are reported.
+      expect<string[]>(called).toEqual(['https://monitor.test/failed'])
+    } finally {
+      setPinger((url) => fetch(url, { method: 'GET' }))
+    }
+  })
+
+  test('a monitor being down does not fail the task it was watching', async () => {
+    setPinger(async () => {
+      throw new Error('monitoring is down')
+    })
+
+    try {
+      const event = new ScheduledEvent(() => undefined, 'ok').thenPing('https://monitor.test/done')
+
+      expect(await new ScheduleRunner().runEvent(event)).toBe('ran')
+    } finally {
+      setPinger((url) => fetch(url, { method: 'GET' }))
+    }
+  })
+
+  test('the conditional forms only register when the condition holds', async () => {
+    const called: string[] = []
+    setPinger(async (url) => {
+      called.push(url)
+    })
+
+    try {
+      const event = new ScheduledEvent(() => undefined, 'ok')
+        .pingBeforeIf(false, 'https://monitor.test/never')
+        .thenPingIf(true, 'https://monitor.test/always')
+
+      await new ScheduleRunner().runEvent(event)
+
+      expect<string[]>(called).toEqual(['https://monitor.test/always'])
+    } finally {
+      setPinger((url) => fetch(url, { method: 'GET' }))
+    }
+  })
+})
+
+describe('group', () => {
+  test('settings apply to everything defined inside, and nothing outside', () => {
+    const schedule = new Schedule(new Application(process.cwd()))
+
+    schedule.call(() => undefined, 'loose').daily()
+
+    schedule.group(
+      (event) => event.onOneServer().withoutOverlapping(),
+      (grouped) => {
+        grouped.call(() => undefined, 'first').dailyAt('2:00')
+        grouped.call(() => undefined, 'second').weeklyOn(1, '3:00')
+      }
+    )
+
+    schedule.call(() => undefined, 'after').daily()
+
+    const [loose, first, second, after] = schedule.events()
+
+    // The point of a group: two tasks that must share a policy say it once.
+    expect(first?.runsOnOneServer).toBe(true)
+    expect(second?.runsOnOneServer).toBe(true)
+    expect(loose?.runsOnOneServer).toBe(false)
+    expect(after?.runsOnOneServer).toBe(false)
+
+    // And the schedule each task set for itself is untouched.
+    expect(first?.cronExpression).toBe('0 2 * * *')
+    expect(second?.cronExpression).toBe('0 3 * * 1')
   })
 })

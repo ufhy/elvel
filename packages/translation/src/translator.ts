@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Arr } from '@elysian/support'
 import { choose } from './selector.ts'
@@ -20,9 +20,26 @@ export type Messages = Record<string, unknown>
 export class Translator {
   private readonly messages = new Map<string, Messages>()
 
+  /**
+   * Whole-sentence translations, keyed by the sentence itself.
+   *
+   * Laravel's JSON translations, and the reason they exist is worth stating:
+   * `__('orders.empty_state_heading')` needs a key invented for every string,
+   * and inventing keys is what stops people translating anything. `__('You have
+   * no orders yet.')` reads in the source, works untranslated, and is looked up
+   * here — `lang/id.json` supplies the Indonesian.
+   *
+   * Kept apart from the group messages, and consulted first, exactly as Laravel
+   * does: a sentence is not a dotted key and the two never collide.
+   */
+  private readonly sentences = new Map<string, Record<string, string>>()
+
+  /** Called with a key nothing translated. See `whenMissing`. */
+  private missing: ((key: string, locale: string) => string | undefined) | undefined
+
   constructor(
     private locale = 'en',
-    private readonly fallback = 'en'
+    private fallback = 'en'
   ) {}
 
   /** Load every `lang/<locale>/<group>.ts` under a directory. */
@@ -37,7 +54,21 @@ export class Translator {
       return this
     }
 
-    for (const locale of locales) {
+    for (const entry of locales) {
+      /**
+       * `lang/id.json` is a locale's sentences; `lang/id/` is its groups.
+       *
+       * Both shapes exist in the same directory, as they do in Laravel, so the
+       * entries that are files are read here and the rest are read as
+       * directories below.
+       */
+      if (entry.endsWith('.json')) {
+        await this.loadSentences(join(directory, entry), entry.replace(/\.json$/, ''))
+
+        continue
+      }
+
+      const locale = entry
       let files: string[]
 
       try {
@@ -59,6 +90,56 @@ export class Translator {
     return this
   }
 
+  /** Read one `lang/<locale>.json` of whole-sentence translations. */
+  private async loadSentences(path: string, locale: string): Promise<void> {
+    try {
+      const parsed = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
+
+      const lines: Record<string, string> = { ...this.sentences.get(locale) }
+
+      for (const [sentence, translation] of Object.entries(parsed)) {
+        if (typeof translation === 'string') lines[sentence] = translation
+      }
+
+      this.sentences.set(locale, lines)
+    } catch {
+      // A malformed or unreadable file leaves the locale with whatever it had.
+      // Refusing to boot over one language file would be a worse trade than
+      // showing the untranslated sentences, which are still readable English.
+    }
+  }
+
+  /** Add whole-sentence translations directly — the JSON file, in code. */
+  addSentences(locale: string, lines: Record<string, string>): this {
+    this.sentences.set(locale, { ...this.sentences.get(locale), ...lines })
+
+    return this
+  }
+
+  /**
+   * Called with any key nothing translated, in any locale.
+   *
+   * Return a string to use it, or nothing to keep the default behaviour of
+   * showing the key. What this is actually for is finding the gaps: log them,
+   * count them, or fail a test run that introduced one — a missing translation
+   * is invisible in a language nobody on the team reads.
+   */
+  whenMissing(handler: (key: string, locale: string) => string | undefined): this {
+    this.missing = handler
+
+    return this
+  }
+
+  setFallback(locale: string): this {
+    this.fallback = locale
+
+    return this
+  }
+
+  getFallback(): string {
+    return this.fallback
+  }
+
   /** Add messages directly — for tests, and for a package shipping its own. */
   add(locale: string, group: string, messages: Messages): this {
     const existing = this.messages.get(locale) ?? {}
@@ -78,8 +159,16 @@ export class Translator {
     return this.locale
   }
 
+  /** Is this key translated in this locale, ignoring the fallback? */
+  hasForLocale(key: string, locale?: string): boolean {
+    const resolved = locale ?? this.locale
+
+    return this.sentence(key, resolved) !== undefined || this.lookup(key, resolved) !== undefined
+  }
+
+  /** Is this key translated at all — in this locale or the fallback? */
   has(key: string, locale?: string): boolean {
-    return this.lookup(key, locale ?? this.locale) !== undefined
+    return this.hasForLocale(key, locale) || this.hasForLocale(key, this.fallback)
   }
 
   /**
@@ -89,7 +178,17 @@ export class Translator {
    * locale shows English for what it is missing rather than raw keys.
    */
   get(key: string, replace: Record<string, unknown> = {}, locale?: string): string {
-    const line = this.lookup(key, locale ?? this.locale) ?? this.lookup(key, this.fallback) ?? key
+    const resolved = locale ?? this.locale
+
+    // Sentences first, then dotted keys, then the fallback locale in the same
+    // order. A sentence is not a dotted key, so nothing here can collide.
+    const line =
+      this.sentence(key, resolved) ??
+      this.lookup(key, resolved) ??
+      this.sentence(key, this.fallback) ??
+      this.lookup(key, this.fallback) ??
+      this.missing?.(key, resolved) ??
+      key
 
     return interpolate(String(line), replace)
   }
@@ -108,9 +207,18 @@ export class Translator {
     locale?: string
   ): string {
     const resolved = locale ?? this.locale
-    const line = this.lookup(key, resolved) ?? this.lookup(key, this.fallback) ?? key
+    const line =
+      this.sentence(key, resolved) ??
+      this.lookup(key, resolved) ??
+      this.sentence(key, this.fallback) ??
+      this.lookup(key, this.fallback) ??
+      key
 
     return interpolate(choose(String(line), count, resolved), { count, ...replace })
+  }
+
+  private sentence(key: string, locale: string): string | undefined {
+    return this.sentences.get(locale)?.[key]
   }
 
   private lookup(key: string, locale: string): unknown {

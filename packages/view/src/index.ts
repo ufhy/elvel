@@ -2,6 +2,7 @@ import type { ViewComponent } from '@elysian/contracts'
 import { app } from '@elysian/core'
 
 export type { ViewComponent } from '@elysian/contracts'
+export { type ClassInput, classes, json, styles } from './attributes.ts'
 export { JsxViewFactory, type ViewFactoryOptions } from './factory.ts'
 export { ViewServiceProvider } from './provider.ts'
 export { once, prepend, push, pushOnce, resolveStacks, stack, withStacks } from './stacks.ts'

@@ -114,6 +114,19 @@ export class AppServiceProvider extends ServiceProvider {
     channels()
       .public('status')
       .channel('orders.{id}', (user, { id }) => user?.id !== undefined && id === '7')
+      /**
+       * A presence channel: one that knows who is on it.
+       *
+       * The callback authorises and identifies in one answer — what it returns
+       * is what the other members are told. A real application would refuse a
+       * guest by returning null; this one admits them under one shared identity,
+       * which also exercises the case that matters most: two sockets belonging
+       * to the same person are one member and one arrival.
+       */
+      .presence('room.{id}', (user, { id }) => ({
+        id: user?.id ?? 'anonymous',
+        room: id
+      }))
   }
 
   private registerSchedule(): void {

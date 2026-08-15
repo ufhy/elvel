@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { choose, pluralIndex } from '../src/selector.ts'
 import { interpolate, Translator } from '../src/translator.ts'
 
@@ -89,5 +92,131 @@ describe('choosing by count', () => {
     // A slightly wrong plural beats a crash inside a view.
     expect<number>(pluralIndex('xx', 1)).toBe(0)
     expect<number>(pluralIndex('xx', 2)).toBe(1)
+  })
+})
+
+describe('whole-sentence translations', () => {
+  const translator = () =>
+    new Translator('id', 'en')
+      .add('en', 'orders', { title: 'Orders' })
+      .add('id', 'orders', { title: 'Pesanan' })
+      .addSentences('id', {
+        'You have no orders yet.': 'Kamu belum punya pesanan.',
+        'Hello :name': 'Halo :name'
+      })
+
+  test('the sentence is the key', () => {
+    // The reason these exist: no key has to be invented, and the source reads as
+    // the sentence it will show.
+    expect<string>(translator().get('You have no orders yet.')).toBe('Kamu belum punya pesanan.')
+  })
+
+  test('an untranslated sentence shows itself, which is still readable', () => {
+    expect<string>(translator().get('Nothing has been translated here.')).toBe(
+      'Nothing has been translated here.'
+    )
+  })
+
+  test('placeholders work the same as in a dotted key', () => {
+    expect<string>(translator().get('Hello :name', { name: 'Ada' })).toBe('Halo Ada')
+  })
+
+  test('sentences and dotted keys do not collide', () => {
+    const trans = translator()
+
+    expect<string>(trans.get('orders.title')).toBe('Pesanan')
+    expect<string>(trans.get('You have no orders yet.')).toBe('Kamu belum punya pesanan.')
+  })
+
+  test('has() looks in the fallback, hasForLocale does not', () => {
+    const trans = translator()
+
+    // `orders.title` exists in both; a key only English has is the interesting
+    // case, since that is what a half-translated locale looks like.
+    trans.add('en', 'billing', { invoice: 'Invoice' })
+
+    expect(trans.has('billing.invoice')).toBe(true)
+    expect(trans.hasForLocale('billing.invoice')).toBe(false)
+    expect(trans.hasForLocale('billing.invoice', 'en')).toBe(true)
+  })
+
+  test('whenMissing sees every key nothing translated', () => {
+    const seen: Array<[string, string]> = []
+
+    const trans = translator().whenMissing((key, locale) => {
+      seen.push([key, locale])
+
+      return undefined
+    })
+
+    expect<string>(trans.get('orders.title')).toBe('Pesanan')
+    expect<string>(trans.get('orders.nowhere')).toBe('orders.nowhere')
+    expect<Array<[string, string]>>(seen).toEqual([['orders.nowhere', 'id']])
+  })
+
+  test('and can answer for it', () => {
+    const trans = translator().whenMissing((key) => `[[${key}]]`)
+
+    // Loud on purpose: a test run can fail on this, where a returned key looks
+    // like an ordinary string.
+    expect<string>(trans.get('orders.nowhere')).toBe('[[orders.nowhere]]')
+  })
+
+  test('the fallback locale can be changed after construction', () => {
+    const trans = new Translator('id', 'en').add('fr', 'orders', { title: 'Commandes' })
+
+    expect<string>(trans.get('orders.title')).toBe('orders.title')
+    expect<string>(trans.setFallback('fr').get('orders.title')).toBe('Commandes')
+    expect<string>(trans.getFallback()).toBe('fr')
+  })
+})
+
+describe('loading a lang directory', () => {
+  test('it reads both shapes: a locale directory and a locale json file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'elysian-lang-'))
+
+    try {
+      await mkdir(join(root, 'id'), { recursive: true })
+      await writeFile(
+        join(root, 'id', 'orders.ts'),
+        'export default { title: "Pesanan" }\n',
+        'utf8'
+      )
+      await writeFile(
+        join(root, 'id.json'),
+        JSON.stringify({ 'You have no orders yet.': 'Kamu belum punya pesanan.' }),
+        'utf8'
+      )
+
+      const trans = await new Translator('id', 'en').load(root)
+
+      expect<string>(trans.get('orders.title')).toBe('Pesanan')
+      expect<string>(trans.get('You have no orders yet.')).toBe('Kamu belum punya pesanan.')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test('a malformed json file does not stop the rest from loading', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'elysian-lang-'))
+
+    try {
+      await mkdir(join(root, 'id'), { recursive: true })
+      await writeFile(
+        join(root, 'id', 'orders.ts'),
+        'export default { title: "Pesanan" }\n',
+        'utf8'
+      )
+      await writeFile(join(root, 'id.json'), '{ not json', 'utf8')
+
+      const trans = await new Translator('id', 'en').load(root)
+
+      // Refusing to boot over one language file is a worse trade than showing
+      // the untranslated sentences, which are still readable.
+      expect<string>(trans.get('orders.title')).toBe('Pesanan')
+      expect<string>(trans.get('Anything at all.')).toBe('Anything at all.')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

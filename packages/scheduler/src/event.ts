@@ -8,6 +8,26 @@ type Filter = () => Promise<boolean> | boolean
 type Hook = (event: ScheduledEvent) => Promise<unknown> | unknown
 
 /**
+ * How a ping is sent. Replaceable, because a test must not reach the network.
+ */
+let pinger: (url: string) => Promise<unknown> = (url) => fetch(url, { method: 'GET' })
+
+/** Swap the pinger — for tests, and for an application that needs headers. */
+export function setPinger(send: (url: string) => Promise<unknown>): void {
+  pinger = send
+}
+
+async function ping(url: string): Promise<void> {
+  try {
+    await pinger(url)
+  } catch {
+    // Deliberately silent. A monitoring endpoint being unreachable must not turn
+    // a successful backup into a failed one, and the ping has no other caller to
+    // report to.
+  }
+}
+
+/**
  * One entry in the schedule — `Illuminate\Console\Scheduling\Event`.
  *
  * Every frequency helper writes into the same cron expression rather than into a
@@ -128,12 +148,32 @@ export class ScheduledEvent {
     return this.hourBased(offset, '*/3')
   }
 
+  everyFourHours(offset: number | number[] = 0): this {
+    return this.hourBased(offset, '*/4')
+  }
+
   everySixHours(offset: number | number[] = 0): this {
     return this.hourBased(offset, '*/6')
   }
 
+  /**
+   * At 1am, 3am, 5am … — the hours an every-two-hours schedule misses.
+   *
+   * Useful for exactly the reason it exists in Laravel: two jobs that must not
+   * run in the same hour as each other, where one takes the even hours and the
+   * other takes these.
+   */
+  everyOddHour(offset: number | number[] = 0): this {
+    return this.hourBased(offset, '1-23/2')
+  }
+
   daily(): this {
     return this.hourBased(0, 0)
+  }
+
+  /** Laravel's `at()`: the same thing as `dailyAt`, read aloud differently. */
+  at(time: string): this {
+    return this.dailyAt(time)
   }
 
   /** `dailyAt('13:30')`, or `dailyAt('13')` for the hour alone. */
@@ -226,6 +266,11 @@ export class ScheduledEvent {
     return this.hourBased(0, 0).splice(DAY_OF_MONTH, 1).splice(MONTH, '1-12/3')
   }
 
+  /** A quarter, on a day and at a time of your own. */
+  quarterlyOn(dayOfMonth = 1, time = '0:0'): this {
+    return this.dailyAt(time).splice(DAY_OF_MONTH, dayOfMonth).splice(MONTH, '1-12/3')
+  }
+
   yearly(): this {
     return this.hourBased(0, 0).splice(DAY_OF_MONTH, 1).splice(MONTH, 1)
   }
@@ -258,6 +303,18 @@ export class ScheduledEvent {
 
   everyTenSeconds(): this {
     return this.repeatEvery(10)
+  }
+
+  everyTwoSeconds(): this {
+    return this.repeatEvery(2)
+  }
+
+  everyFifteenSeconds(): this {
+    return this.repeatEvery(15)
+  }
+
+  everyTwentySeconds(): this {
+    return this.repeatEvery(20)
   }
 
   everyThirtySeconds(): this {
@@ -396,6 +453,62 @@ export class ScheduledEvent {
     this.failureHooks.push(hook)
 
     return this
+  }
+
+  // -------------------------------------------------------------------- pings
+
+  /**
+   * Call a URL before the task runs.
+   *
+   * This is how a scheduled task is monitored from outside: a service that
+   * expects a request every hour and shouts when one does not arrive is the only
+   * thing that can notice a schedule that stopped running altogether — no hook
+   * inside a process that is not running can.
+   *
+   * A ping that fails is swallowed. The monitoring being down must not fail the
+   * backup it was watching.
+   */
+  pingBefore(url: string): this {
+    return this.before(() => ping(url))
+  }
+
+  /** As `pingBefore`, when `condition` holds. */
+  pingBeforeIf(condition: boolean, url: string): this {
+    return condition ? this.pingBefore(url) : this
+  }
+
+  /** Call a URL after the task, whether it succeeded or not. */
+  thenPing(url: string): this {
+    return this.after(() => ping(url))
+  }
+
+  /** As `thenPing`, when `condition` holds. */
+  thenPingIf(condition: boolean, url: string): this {
+    return condition ? this.thenPing(url) : this
+  }
+
+  /** Call a URL only when the task succeeded. */
+  pingOnSuccess(url: string): this {
+    return this.onSuccess(() => ping(url))
+  }
+
+  pingOnSuccessIf(condition: boolean, url: string): this {
+    return condition ? this.pingOnSuccess(url) : this
+  }
+
+  /**
+   * Call a URL only when the task failed.
+   *
+   * The failure URL is usually a different endpoint of the same monitor — the
+   * distinction between "did not run" and "ran and broke" is one the service can
+   * only draw if both are reported.
+   */
+  pingOnFailure(url: string): this {
+    return this.onFailure(() => ping(url))
+  }
+
+  pingOnFailureIf(condition: boolean, url: string): this {
+    return condition ? this.pingOnFailure(url) : this
   }
 
   // ------------------------------------------------------------------ reading

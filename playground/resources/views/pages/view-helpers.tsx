@@ -1,6 +1,6 @@
 import { whenAuth, whenCan, whenGuest } from '@elysian/auth'
 import { whenError } from '@elysian/http'
-import { once, prepend, push, pushOnce } from '@elysian/view'
+import { classes, json, once, prepend, push, pushOnce, styles } from '@elysian/view'
 import { Layout } from '../components/layout.tsx'
 
 export type ViewHelpersProps = {
@@ -48,6 +48,27 @@ export function ViewHelpers({ title, editable }: ViewHelpersProps) {
       <section id="can">
         <h2>whenCan</h2>
         {editable}
+      </section>
+
+      <section id="attributes">
+        <h2>classes, styles and json</h2>
+        {/* Blade's @class and @style: a list assembled from conditions. */}
+        <p
+          id="conditional"
+          class={classes('card', { 'card--wide': true, 'is-active': false })}
+          style={styles('color: rebeccapurple', { 'font-weight: bold': true })}
+        >
+          Conditional attributes.
+        </p>
+
+        {/*
+          Blade's @json. The escaping is the point: this value ends with a
+          literal `</script>`, which would close the block early and turn the
+          rest of the page back into markup.
+        */}
+        <script id="state">
+          {`window.__STATE__ = ${json({ signedIn: false, note: '</script><img onerror=alert(1)>' })}`}
+        </script>
       </section>
 
       <section id="once">

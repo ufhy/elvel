@@ -100,6 +100,31 @@ export class Schedule {
   }
 
   /** Everything registered, in the order it was registered. */
+  /**
+   * Apply the same settings to several tasks — Laravel's `group()`.
+   *
+   * ```ts
+   * schedule.group((event) => event.onOneServer().withoutOverlapping(), (s) => {
+   *   s.command('reports:daily').dailyAt('2:00')
+   *   s.command('reports:weekly').weeklyOn(1, '3:00')
+   * })
+   * ```
+   *
+   * Everything defined inside the callback is configured by `settings`, which is
+   * applied *after* the definition — so a task that set something of its own
+   * inside the block does not have it silently reverted... unless the group sets
+   * the same thing, which is what a group is for.
+   */
+  group(settings: (event: ScheduledEvent) => unknown, define: (schedule: this) => void): this {
+    const before = this.entries.length
+
+    define(this)
+
+    for (const event of this.entries.slice(before)) settings(event)
+
+    return this
+  }
+
   events(): ScheduledEvent[] {
     return [...this.entries]
   }

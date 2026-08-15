@@ -7,6 +7,7 @@ import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
 import FileController from '../app/Http/Controllers/FileController.ts'
 import GuardController from '../app/Http/Controllers/GuardController.ts'
 import HttpClientController from '../app/Http/Controllers/HttpClientController.ts'
+import LanguageController from '../app/Http/Controllers/LanguageController.ts'
 import LimitController from '../app/Http/Controllers/LimitController.ts'
 import MailController from '../app/Http/Controllers/MailController.ts'
 import MiddlewareController from '../app/Http/Controllers/MiddlewareController.ts'
@@ -38,6 +39,7 @@ export default new Elysia({ name: 'routes:web' })
   .use(NotificationController)
   .use(SecretController)
   .use(HttpClientController)
+  .use(LanguageController)
   .use(LimitController)
   .use(MiddlewareController)
   .use(SubscribeController)
