@@ -70,3 +70,35 @@ import { About } from '../../../resources/views/pages/about.tsx'
 
 Controllers stay `.ts`; only files containing JSX syntax need `.tsx`. Always mark
 interpolated user input with `safe` so it is HTML-escaped.
+
+## Tests
+
+```sh
+bun test          # this application's own tests
+bun test test/http.test.ts
+```
+
+`test/` is the answer to "how do I test an application built with this". Each
+file presses the booted application through `@elysian/testing` rather than
+starting a server, so routing, middleware, the session, validation and the
+exception handler all run — the only thing skipped is the socket.
+
+| File | What it covers |
+| --- | --- |
+| `http.test.ts` | pages, JSON, validation, headers, cookies, the exception handler |
+| `session.test.ts` | session across requests, CSRF, flash data, the cookie's flags |
+| `auth.test.ts` | `actingAs`, the guard, the Gate |
+| `database.test.ts` | models, soft deletes, casts, the query builder |
+| `cache.test.ts` | put/get/forget, `remember`, counters, locks |
+| `mail.test.ts` | `mail().fake()` and the message assertions |
+| `queue.test.ts` | `queue().fake()` — what was pushed, where, and with what delay |
+| `services.test.ts` | storage, notifications, encryption, hashing, events |
+| `framework.test.ts` | the schedule, translation, channels, the support helpers |
+| `tooling.test.ts` | hashing, concurrency, process and image, over HTTP |
+| `console.test.ts` | artisan commands, their output and their exit codes |
+
+Two things are deliberately **not** here. The HTTP client's retry, timeout and
+connection-failure paths need a real socket, so they are exercised by
+`bun run smoke` against a listening server. And the auth kit's pages live in
+`packages/create-elysian/kits/auth`, so they are proved by the same smoke run
+against a freshly scaffolded application.
