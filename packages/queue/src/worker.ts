@@ -302,6 +302,19 @@ export class Worker {
       error
     })
 
+    /**
+     * A job that asked to fail on timeout fails here, whatever it has left.
+     *
+     * The attempts are not the point: work that does not fit in the timeout
+     * will not fit in it on the next attempt either, so retrying spends every
+     * remaining try to arrive at the same failure — each one having done some
+     * fraction of the work again. Off by default, because a timeout is more
+     * often the network having a bad minute than the job being too big.
+     */
+    if (!job.hasFailed() && job.payload.failOnTimeout && error instanceof TimeoutExceededError) {
+      await this.fail(job, error)
+    }
+
     if (!job.hasFailed()) {
       // Step 3: give up early when this job has thrown too often, then fail now
       // when the next attempt could not run anyway.

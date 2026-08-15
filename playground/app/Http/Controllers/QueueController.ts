@@ -1,5 +1,6 @@
 import { cache } from '@elysian/cache'
 import { controller, defer, NotFoundException } from '@elysian/core'
+import { db } from '@elysian/database'
 import { chain, dispatch, dispatchSync, queue } from '@elysian/queue'
 import { t } from 'elysia'
 import { ChainStep } from '../../Jobs/ChainStep.ts'
@@ -119,9 +120,16 @@ export default controller('queue')
         await cache().forget(`import:row:${row}`)
       }
 
+      await cache().forget('import:aborted')
+
       const jobs = Array.from(
         { length: rows },
-        (_entry, index) => new ImportRow({ row: index + 1, fail: body.failRow === index + 1 })
+        (_entry, index) =>
+          new ImportRow({
+            row: index + 1,
+            fail: body.failRow === index + 1,
+            abort: body.abortRow === index + 1
+          })
       )
 
       const pending = queue()
@@ -140,6 +148,7 @@ export default controller('queue')
       body: t.Object({
         rows: t.Optional(t.Number()),
         failRow: t.Optional(t.Number()),
+        abortRow: t.Optional(t.Number()),
         allowFailures: t.Optional(t.Boolean())
       })
     }
@@ -193,7 +202,8 @@ export default controller('queue')
     return {
       batch: batch?.toJSON() ?? null,
       report: (await cache().get(`import:report:${params.id}`)) ?? null,
-      rows: [1, 2, 3].map(() => null)
+      aborted: (await cache().get<{ total: number }>('import:aborted')) ?? null,
+      rows: await Promise.all([1, 2, 3].map((row) => cache().get(`import:row:${row}`)))
     }
   })
 
@@ -235,6 +245,37 @@ export default controller('queue')
     await cache().forget('digest:log')
 
     return { cleared: true }
+  })
+
+  /**
+   * A dispatch inside a transaction that rolls back.
+   *
+   * `SendArticleDigest` is dispatched with `afterCommit`, so the queue must be
+   * exactly as empty afterwards as it was before: the rows the job is about
+   * never existed. The committing half of the same story is the second request.
+   */
+  .post('/check/queue/after-commit', async ({ body, query }) => {
+    const connection = typeof query.connection === 'string' ? query.connection : undefined
+    const commit = (body as { commit?: boolean })?.commit === true
+
+    await queue().connection(connection).clear()
+
+    let duringTransaction = -1
+
+    await (await db().connection())
+      .transaction(async () => {
+        await dispatch(new SendArticleDigest({ label: 'after-commit' }), {
+          connection,
+          afterCommit: true
+        })
+
+        duringTransaction = await queue().connection(connection).size()
+
+        if (!commit) throw new Error('deliberate rollback')
+      })
+      .catch(() => undefined)
+
+    return { duringTransaction, after: await queue().connection(connection).size() }
   })
 
   /** Retry everything in the failed table, as `queue:retry all` does. */

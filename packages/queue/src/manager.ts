@@ -31,6 +31,11 @@ export type DispatchOptions = {
   chain?: AnyJob[]
   /** Set by a batch; the worker counts the job against it. */
   batchId?: string
+  /**
+   * Hold the push until the enclosing transaction commits — `Job.afterCommit`
+   * for one dispatch. `false` overrides a job that asked for it.
+   */
+  afterCommit?: boolean
 }
 
 /**
@@ -212,8 +217,40 @@ export class QueueManager {
     }
 
     const delay = options.delay ?? 0
+    const push = () => (delay > 0 ? driver.later(delay, payload, queue) : driver.push(payload, queue))
 
-    return delay > 0 ? driver.later(delay, payload, queue) : driver.push(payload, queue)
+    if (!(options.afterCommit ?? jobClass.afterCommit ?? false)) return push()
+
+    return this.pushAfterCommit(payload, push)
+  }
+
+  /**
+   * Hold a push until the outermost transaction commits.
+   *
+   * What the caller gets back is the payload's uuid rather than the driver's
+   * identifier, because at this point there is no row and no Redis entry to have
+   * an identifier — and waiting for one would mean waiting for the commit, which
+   * is the thing the caller asked not to do. The uuid identifies the job in the
+   * failed table, in the logs and to a batch, so it is the more useful of the two
+   * anyway.
+   *
+   * With no database bound there is no transaction to wait for, and the job goes
+   * now: a queue is allowed to exist without one.
+   */
+  private async pushAfterCommit(payload: JobPayload, push: () => Promise<string>): Promise<string> {
+    if (!this.app.bound('db')) {
+      await push()
+
+      return payload.uuid
+    }
+
+    const connection = await this.app.make('db').connection()
+
+    // Dropped entirely on a rollback, by the connection: a job about rows that
+    // never existed must not run.
+    await connection.afterCommit(push)
+
+    return payload.uuid
   }
 
   /**
@@ -391,6 +428,7 @@ export class QueueManager {
       maxExceptions: jobClass.maxExceptions,
       backoff: jobClass.backoff,
       timeout: jobClass.timeout,
+      failOnTimeout: jobClass.failOnTimeout === true ? true : undefined,
       retryUntil: jobClass.retryFor ? Math.floor(Date.now() / 1000) + jobClass.retryFor : undefined,
       chain: chain.length > 0 ? chain : undefined,
       encrypted: encrypted ? true : undefined,

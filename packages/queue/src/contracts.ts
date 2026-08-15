@@ -16,6 +16,8 @@ export type JobPayload = {
   backoff?: number | number[] | undefined
   /** Seconds a single attempt may run. */
   timeout?: number | undefined
+  /** Fail a timed-out attempt outright, rather than retrying it. */
+  failOnTimeout?: boolean | undefined
   /** UNIX timestamp after which no further attempt is made. */
   retryUntil?: number | undefined
   /** Jobs to dispatch once this one succeeds. */

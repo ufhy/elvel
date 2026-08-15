@@ -141,7 +141,7 @@ export class JobRunner {
     // keeps a job readable: `new SendReport({ userId })`, not a bag of setters.
     const instance = new (jobClass as unknown as new (data: unknown) => AnyJob)(data)
 
-    return instance.setQueuedJob(queued)
+    return instance.setQueuedJob(queued).setBatchRepository(this.options.batches)
   }
 
   /**

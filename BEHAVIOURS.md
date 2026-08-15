@@ -292,7 +292,20 @@ Three behaviours worth knowing rather than discovering:
 
 ## @elysian/queue
 
-Five behaviours worth knowing rather than discovering:
+Behaviours worth knowing rather than discovering:
+
+- **`afterCommit` returns the uuid, not the driver's id.** A job held for a
+  commit has no row and no Redis entry yet, so there is no identifier to hand
+  back — and waiting for one would mean waiting for the commit, which is what the
+  caller asked not to do. The uuid is what the failed table, the logs and a batch
+  use anyway. A rollback drops the job rather than delaying it: the rows it was
+  about never existed.
+- **A timeout retries by default.** A timed-out attempt is usually the network
+  having a bad minute, so it goes back on the queue like any other failure.
+  `failOnTimeout = true` is for the other case — work that simply does not fit in
+  the timeout will not fit on the next attempt either, and retrying spends every
+  remaining try to reach the same failure, having done a fraction of the work
+  again each time.
 
 - **`maxExceptions` needs a cache.** The count is kept there, keyed by the
   payload's uuid, because it has to survive a release and a different worker

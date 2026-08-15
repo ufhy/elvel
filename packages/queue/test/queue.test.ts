@@ -471,6 +471,25 @@ describe('Worker', () => {
     expect(ran).toEqual(['slow:start'])
   })
 
+  test('failOnTimeout gives up instead of spending the remaining attempts', async () => {
+    await driver.push({ ...payloadFor('Slow'), maxTries: 3, timeout: 1, failOnTimeout: true })
+
+    const outcome = await worker().runNextJob(undefined, { maxTries: 3, timeout: 1 })
+
+    // Two attempts still available, and neither is worth taking: the work does
+    // not fit in the timeout, so the next one ends exactly here.
+    expect(outcome).toBe('failed')
+    expect(ran).toEqual(['slow:start'])
+    expect((await failed.all()).length).toBe(1)
+    expect(await driver.size()).toBe(0)
+  })
+
+  test('and only on a timeout — an ordinary throw is still retried', async () => {
+    await driver.push({ ...payloadFor('Failing'), maxTries: 3, failOnTimeout: true })
+
+    expect(await worker().runNextJob(undefined, { maxTries: 3 })).toBe('released')
+  })
+
   test('work() stops when the queue is empty', async () => {
     await driver.push(payloadFor('Simple', { label: 'only' }))
 
@@ -952,7 +971,26 @@ describe('batches', () => {
     }
   }
 
-  const registry = new JobRegistry().register(Counted, Breaks, Afterwards, Rescue)
+  /**
+   * A job that reads its own batch and calls the rest of it off.
+   *
+   * The direction Laravel's `$this->batch()` is mostly used in: one job finds
+   * out the whole run is pointless — the import file is malformed, the account
+   * is gone — and stops the others without touching the queue.
+   */
+  class Aborts extends Job<{ label: string }> {
+    static seen: Array<{ total: number; batching: boolean }> = []
+
+    async handle(): Promise<void> {
+      const batch = await this.batch()
+
+      Aborts.seen.push({ total: batch?.totalJobs ?? 0, batching: this.batching() })
+
+      await batch?.cancel()
+    }
+  }
+
+  const registry = new JobRegistry().register(Counted, Breaks, Afterwards, Rescue, Aborts)
 
   function runnerFor(driver: QueueDriver) {
     return new JobRunner(registry, new ModelRegistry(), {
@@ -974,6 +1012,39 @@ describe('batches', () => {
     Counted.ran = []
     Afterwards.seen = []
     Rescue.seen = []
+    Aborts.seen = []
+  })
+
+  test('a job can read its own batch, and call the rest of it off', async () => {
+    const driver = new SyncQueue('sync', (queued) => runnerFor(driver).run(queued))
+
+    await new PendingBatch(
+      {
+        batches: () => batches,
+        jobs: { has: () => true, register: () => undefined },
+        dispatch: async (job: AnyJob, options: { batchId?: string }) => {
+          const payload = payloadFor(job.constructor.name, { ...(job.data as object) })
+          payload.batchId = options.batchId
+          await driver.push(payload)
+
+          return payload.uuid
+        }
+      } as never,
+      [new Aborts({ label: 'first' }), new Counted({ label: 'never' })]
+    ).dispatch()
+
+    // It saw the batch it belongs to, not a copy of its own payload.
+    expect(Aborts.seen).toEqual([{ total: 2, batching: true }])
+    // And the one behind it was dropped at reservation rather than run.
+    expect(Counted.ran).toEqual([])
+  })
+
+  test('a job outside a batch says so rather than inventing one', async () => {
+    const driver = new SyncQueue('sync', (queued) => runnerFor(driver).run(queued))
+
+    await driver.push(payloadFor('Aborts', { label: 'alone' }))
+
+    expect(Aborts.seen).toEqual([{ total: 0, batching: false }])
   })
 
   test('dispatching records the batch before queueing anything', async () => {
@@ -1604,5 +1675,130 @@ describe('encrypting some fields of a payload', () => {
         hasFailed: () => false
       } as never)
     ).rejects.toThrow('wrong context')
+  })
+})
+
+/**
+ * A dispatch inside a transaction, which is where a queue most often goes wrong.
+ *
+ * The worker is faster than the commit. It reserves the job, looks for the row
+ * the job is about and does not find it — reliably under load, never on a
+ * laptop. `afterCommit` is the answer, and a rollback has to drop the job
+ * entirely rather than merely delay it.
+ */
+describe('afterCommit', () => {
+  class Announce extends Job<{ orderId: number }> {
+    static override afterCommit = true
+
+    async handle(): Promise<void> {
+      ran.push(`announced:${this.data.orderId}`)
+    }
+  }
+
+  let db: ConnectionManager
+  let manager: QueueManager
+
+  beforeEach(async () => {
+    ran.length = 0
+
+    const app = new Application(process.cwd())
+    app.config.set('database.default', 'commit-test')
+    app.config.set('database.connections.commit-test', { driver: 'sqlite', database: ':memory:' })
+    app.config.set('queue.default', 'database')
+    app.config.set('queue.connections', { database: { driver: 'database' } })
+
+    db = new ConnectionManager(app)
+    app.instance('db', db)
+
+    const schema = await db.schema()
+
+    await schema.create('jobs', (table) => {
+      table.id()
+      table.string('queue')
+      table.text('payload')
+      table.integer('attempts')
+      table.integer('reserved_at').nullable()
+      table.integer('available_at')
+      table.integer('created_at')
+    })
+
+    manager = new QueueManager(app)
+  })
+
+  afterEach(async () => {
+    await db.disconnectAll()
+  })
+
+  test('nothing is queued until the transaction commits', async () => {
+    const connection = await db.connection()
+
+    await connection.transaction(async () => {
+      await manager.dispatch(new Announce({ orderId: 1 }))
+
+      // The worker cannot see it, which is the entire point: the row the job is
+      // about is not visible to anyone else yet either.
+      expect(await manager.connection().size()).toBe(0)
+    })
+
+    expect(await manager.connection().size()).toBe(1)
+  })
+
+  test('a rollback drops the job rather than delaying it', async () => {
+    const connection = await db.connection()
+
+    await connection
+      .transaction(async () => {
+        await manager.dispatch(new Announce({ orderId: 2 }))
+
+        throw new Error('deliberate rollback')
+      })
+      .catch(() => undefined)
+
+    // The order never existed, so nothing should announce it.
+    expect(await manager.connection().size()).toBe(0)
+  })
+
+  test('outside a transaction there is nothing to wait for', async () => {
+    await manager.dispatch(new Announce({ orderId: 3 }))
+
+    expect(await manager.connection().size()).toBe(1)
+  })
+
+  test('the dispatch answers with the uuid it will be known by', async () => {
+    const connection = await db.connection()
+    let id = ''
+
+    await connection.transaction(async () => {
+      id = await manager.dispatch(new Announce({ orderId: 4 }))
+    })
+
+    // Not a row id: there was no row when the caller was answered. The uuid is
+    // what the failed table, the logs and a batch use anyway.
+    expect(id).toMatch(/^[0-9a-f-]{36}$/)
+
+    const queued = await manager.connection().pop()
+    expect(queued?.payload.uuid).toBe(id)
+  })
+
+  test('a job that did not ask for it is queued at once, mid-transaction', async () => {
+    const connection = await db.connection()
+
+    await connection.transaction(async () => {
+      await manager.dispatch(new Simple({ label: 'immediate' }))
+
+      expect(await manager.connection().size()).toBe(1)
+    })
+  })
+
+  test('one dispatch can ask for it without the job class doing so', async () => {
+    const connection = await db.connection()
+
+    await connection.transaction(async () => {
+      await manager.dispatch(new Simple({ label: 'held' }), { afterCommit: true })
+
+      expect(await manager.connection().size()).toBe(0)
+    })
+
+    expect(await manager.connection().size()).toBe(1)
   })
 })

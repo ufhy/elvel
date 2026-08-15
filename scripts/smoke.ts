@@ -1249,6 +1249,35 @@ for (const connection of connections) {
     afterRetry.size === 1 && afterRetry.failed.length === 0
   )
 
+  /**
+   * A dispatch inside a transaction, which is where a queue most often goes
+   * wrong: without `afterCommit` a worker reserves the job before the commit and
+   * finds none of the rows it is about.
+   */
+  await clear()
+
+  const rolledBackDispatch = (await (
+    await postJson(`/check/queue/after-commit?connection=${connection}`, { commit: false })
+  ).json()) as { duringTransaction: number; after: number }
+
+  check(
+    `${connection}: afterCommit keeps the job off the queue mid-transaction`,
+    rolledBackDispatch.duringTransaction === 0
+  )
+  check(
+    `${connection}: and a rollback drops it rather than delaying it`,
+    rolledBackDispatch.after === 0
+  )
+
+  const committedDispatch = (await (
+    await postJson(`/check/queue/after-commit?connection=${connection}`, { commit: true })
+  ).json()) as { duringTransaction: number; after: number }
+
+  check(
+    `${connection}: a commit releases the job to the queue`,
+    committedDispatch.duringTransaction === 0 && committedDispatch.after === 1
+  )
+
   // A chain: each link is queued by its predecessor's success.
   await clear()
   await postJson(`/check/queue/chain?connection=${connection}`, {})
@@ -3110,6 +3139,34 @@ check(
 // A job class, not a closure: the worker cannot rebuild a closure, which is the
 // same wall a queued listener hits.
 check('and the then callback ran', finishedBatch.report?.total === 3)
+
+/**
+ * A job calling the rest of its own batch off.
+ *
+ * The first row aborts, so the two behind it must never run — dropped at
+ * reservation rather than deleted from the queue, since a driver has no random
+ * access and another worker may already hold one.
+ */
+const abortedBatch = (await (
+  await postJson('/check/queue/batch', { rows: 3, abortRow: 1 })
+).json()) as { batch: { id: string } }
+
+await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+
+const afterAbort = (await (
+  await app.handle(new Request(`http://localhost/check/queue/batch/${abortedBatch.batch.id}`))
+).json()) as {
+  batch: { cancelled: boolean; pendingJobs: number }
+  aborted: { total: number } | null
+  rows: Array<string | null>
+}
+
+check('a job can read the batch it belongs to', afterAbort.aborted?.total === 3)
+check('cancelling from inside cancels the batch', afterAbort.batch.cancelled === true)
+check(
+  'and the rows behind it never run',
+  afterAbort.rows[1] === null && afterAbort.rows[2] === null
+)
 
 /**
  * A batch of chains: two rows, three ordered steps each.

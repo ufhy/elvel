@@ -1,3 +1,4 @@
+import type { Batch, BatchRepository } from './batch.ts'
 import type { JobPayload, QueuedJob } from './contracts.ts'
 
 /** Middleware wrapped around a job's `handle()`. */
@@ -62,8 +63,32 @@ export abstract class Job<TData = Record<string, never>> {
   /** Seconds before a retry. A list is indexed by attempt number. */
   static backoff: number | number[] | undefined
 
+  /**
+   * Hold the push until the enclosing database transaction commits.
+   *
+   * The bug this exists for is the most common one in a queue: a controller
+   * opens a transaction, writes a row, dispatches a job about it and commits. A
+   * worker is faster than the commit, reserves the job, looks for the row and
+   * does not find it — reliably on a busy queue, never on a developer's laptop.
+   *
+   * Outside a transaction there is nothing to wait for and the job is pushed at
+   * once. A rollback drops it entirely: the rows it was about never existed.
+   */
+  static afterCommit = false
+
   /** Seconds one attempt may run. */
   static timeout: number | undefined
+
+  /**
+   * Fail a timed-out attempt instead of retrying it.
+   *
+   * The default is to retry, because a timeout is often the network having a bad
+   * minute. Set this when it is not: a job whose work simply takes longer than
+   * the timeout allows will take just as long on every remaining attempt, and
+   * retrying it spends `tries` timeouts to reach the same failure — with the
+   * work half-done each time.
+   */
+  static failOnTimeout = false
 
   /**
    * Stop retrying after this many seconds from the first dispatch.
@@ -94,6 +119,9 @@ export abstract class Job<TData = Record<string, never>> {
   /** The reserved job, set by the worker before `handle()` runs. */
   protected queuedJob?: QueuedJob
 
+  /** Where batches are counted, when this job belongs to one. */
+  protected batches?: BatchRepository
+
   abstract handle(): Promise<void> | void
 
   /** Middleware to wrap `handle()` with. */
@@ -108,6 +136,39 @@ export abstract class Job<TData = Record<string, never>> {
 
   /** Called once the job has failed for the last time. */
   failed(_error: unknown): Promise<void> | void {}
+
+  /** Give the running job access to the batch bookkeeping. */
+  setBatchRepository(repository: BatchRepository | undefined): this {
+    this.batches = repository
+
+    return this
+  }
+
+  /** Is this job part of a batch at all? */
+  batching(): boolean {
+    return this.queuedJob?.payload.batchId !== undefined
+  }
+
+  /**
+   * The batch this job belongs to, read fresh.
+   *
+   * Read fresh because the useful things to do with it are about *now*: how far
+   * the batch has got, and whether it is still worth continuing. The commonest
+   * use is the reverse direction — `await (await this.batch())?.cancel()` when a
+   * job discovers the whole run is pointless, which stops the remaining jobs
+   * without touching the queue itself.
+   *
+   * Jobs of a batch that was already cancelled never reach `handle()`: the
+   * runner drops them at reservation, so this never has to be asked defensively
+   * at the top of a job.
+   */
+  async batch(): Promise<Batch | undefined> {
+    const id = this.queuedJob?.payload.batchId
+
+    if (!id || !this.batches) return undefined
+
+    return this.batches.find(id)
+  }
 
   /** Give the running job access to its own reservation. */
   setQueuedJob(job: QueuedJob): this {
@@ -157,6 +218,8 @@ export type JobClass = (new (
   maxExceptions?: number | undefined
   backoff?: number | number[] | undefined
   timeout?: number | undefined
+  failOnTimeout?: boolean
+  afterCommit?: boolean
   retryFor?: number | undefined
   unique?: boolean
   uniqueFor?: number | undefined
