@@ -1,0 +1,142 @@
+name: verify
+
+# Three platforms, because the bugs that got through were all platform-shaped.
+#
+# A Windows path lost its separators inside generated source; `for await` over a
+# ReadableStream compiled on macOS and Windows and failed to typecheck on Linux —
+# and a scaffolded application inherited that error. Each was found by somebody
+# happening to change machines. This is what should have found them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Available on all three runners, so one script works everywhere.
+    shell: bash
+
+env:
+  # Pinned rather than "latest": a runtime that changes under us turns a red
+  # build into a mystery. Bump it deliberately.
+  BUN_VERSION: 1.3.14
+
+jobs:
+  # ---------------------------------------------------------------- linux
+  #
+  # The full run: every dialect, both caches, the queue drivers, and the smoke
+  # suite. Service containers only exist on Linux runners, so this is the only
+  # job that can exercise Postgres, MySQL and Redis.
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          # The suite connects as `postgres` with no password.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        # 3309 outside, because that is what the suite looks for.
+        ports: ['3309:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      # The playground reads `.env`; without one it falls back to an empty
+      # `database/database.sqlite` instead of the seeded `playground.sqlite`, and
+      # its tests assert against rows that are not there.
+      - name: Give the playground its environment
+        run: cp playground/.env.example playground/.env
+
+      # A dialect whose server is unreachable is *skipped* with a note, which is
+      # right on a laptop and wrong here: a container that failed to start would
+      # let this job go green without testing Postgres, MySQL or Redis at all.
+      - name: Every server this job promises is actually up
+        run: |
+          fail=0
+          for hostport in 127.0.0.1:5432 127.0.0.1:3309 127.0.0.1:6379; do
+            if timeout 5 bash -c "echo > /dev/tcp/${hostport%:*}/${hostport#*:}" 2>/dev/null; then
+              echo "  $hostport up"
+            else
+              echo "  $hostport DOWN — the suite would silently skip it"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run smoke
+
+  # ------------------------------------------------------- macos & windows
+  #
+  # No service containers, so the dialect and driver suites skip their servers
+  # and say so. What is left is still worth running on both: lint, the types, and
+  # every test that does not need a server — which is where the platform-shaped
+  # bugs actually lived.
+  #
+  # MySQL is deliberately absent on Windows rather than merely unconfigured:
+  # Bun hangs on it there, with no error and no timeout. See BEHAVIOURS.
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      - name: Give the playground its environment
+        run: cp playground/.env.example playground/.env
+
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
