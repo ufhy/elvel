@@ -1,0 +1,14 @@
+import { HttpException } from '@elysian/core'
+
+/**
+ * {{ class }}
+ *
+ * Extending `HttpException` is what lets this carry its own status: thrown from
+ * anywhere, the handler answers with that status instead of a 500. Throw a plain
+ * `Error` when the failure is a bug rather than an outcome.
+ */
+export class {{ class }} extends HttpException {
+  constructor(message = '{{ studly }}') {
+    super(422, message)
+  }
+}

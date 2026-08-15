@@ -1,0 +1,18 @@
+import type { RuleHandler } from '@elysian/validation'
+
+/**
+ * {{ class }} — a validation rule.
+ *
+ * Register it in a service provider so the string name works anywhere a rule
+ * string does:
+ *
+ * ```ts
+ * extendRules('{{ snake }}', {{ camel }})
+ * ```
+ *
+ * Return `false` to fail. The message comes from the `validation` messages under
+ * the same key; without one the validator falls back to naming the rule.
+ */
+export const {{ camel }}: RuleHandler = ({ value, params }) => {
+  return typeof value === 'string' && value !== ''
+}

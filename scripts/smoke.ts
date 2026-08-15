@@ -2445,6 +2445,69 @@ try {
   check('a scaffolded application boots', scaffoldedArtisan.exitCode === 0, listed.slice(-400))
 
   /**
+   * Every generator, run in a real application, and the result typechecked.
+   *
+   * A generator that writes a file is easy; a generator that writes a file which
+   * compiles is the thing worth checking. The stubs import from the framework
+   * packages by name, so a renamed export — `CastsAttributes` was not exported at
+   * all when the cast stub was written — turns every generated file into a
+   * compile error in somebody else's project rather than in ours.
+   */
+  const generators: Array<[string, string, string]> = [
+    ['make:enum', 'ArticleStatus', 'app/Enums/ArticleStatus.ts'],
+    ['make:exception', 'PaymentDeclined', 'app/Exceptions/PaymentDeclined.ts'],
+    ['make:interface', 'Payable', 'app/Contracts/Payable.ts'],
+    ['make:class', 'Support/Money', 'app/Support/Money.ts'],
+    ['make:config', 'billing', 'config/billing.ts'],
+    ['make:test', 'http/articles', 'test/http/articles.test.ts'],
+    ['make:cast', 'Money', 'app/Casts/Money.ts'],
+    ['make:observer', 'ArticleObserver', 'app/Observers/ArticleObserver.ts'],
+    ['make:scope', 'Published', 'app/Models/Scopes/Published.ts'],
+    ['make:rule', 'Uppercase', 'app/Rules/Uppercase.ts'],
+    ['make:job-middleware', 'WithoutOverlapping', 'app/Jobs/Middleware/WithoutOverlapping.ts']
+  ]
+
+  for (const [command, name, path] of generators) {
+    const made = Bun.spawnSync({
+      cmd: ['bun', 'artisan.ts', command, name],
+      cwd: scaffoldTarget,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    check(
+      `${command} writes ${path}`,
+      made.exitCode === 0 && (await Bun.file(join(scaffoldTarget, path)).exists()),
+      plain(made.stdout.toString() + made.stderr.toString()).slice(-200)
+    )
+  }
+
+  // Refusing to overwrite is the behaviour that keeps a generator safe to
+  // re-run; a second `make:enum` must not quietly replace the one being used.
+  const twice = Bun.spawnSync({
+    cmd: ['bun', 'artisan.ts', 'make:enum', 'ArticleStatus'],
+    cwd: scaffoldTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('and a generator refuses to overwrite', twice.exitCode === 1)
+
+  const generatedTypecheck = Bun.spawnSync({
+    // The scaffold's own script, so this is exactly what a developer runs.
+    cmd: ['bun', 'run', 'typecheck'],
+    cwd: scaffoldTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    'and everything they wrote typechecks',
+    generatedTypecheck.exitCode === 0,
+    plain(generatedTypecheck.stdout.toString() + generatedTypecheck.stderr.toString()).slice(-600)
+  )
+
+  /**
    * The auth kit, scaffolded over the same template.
    *
    * A kit is a folder copied on top rather than a second template, so what is

@@ -31,6 +31,7 @@ export { type MigrationRecord, MigrationRepository } from './migrations/reposito
 export { ModelBuilder, ModelNotFoundError, type Paginated } from './model/builder.ts'
 export {
   type AttributeEncrypter,
+  type CastsAttributes,
   type CastType,
   castFromDatabase,
   castToDatabase,

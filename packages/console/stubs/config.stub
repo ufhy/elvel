@@ -1,0 +1,12 @@
+import { env } from '@elysian/core'
+
+/**
+ * {{ kebab }} configuration.
+ *
+ * Read with `config('{{ kebab }}.key')`. Values come from the environment through
+ * `env()` so a deployment can change them without a code change — and so that
+ * `config:cache` can freeze the result.
+ */
+export default {
+  enabled: env('{{ snake }}_ENABLED', true)
+}

@@ -1,0 +1,10 @@
+/**
+ * {{ class }}
+ *
+ * A contract, with no implementation. Bind an implementation in a service
+ * provider and resolve it by the string key rather than by the type — TypeScript
+ * types are erased at runtime, so the container cannot key on one.
+ */
+export interface {{ class }} {
+  handle(): Promise<void>
+}

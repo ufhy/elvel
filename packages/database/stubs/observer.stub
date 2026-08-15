@@ -1,0 +1,27 @@
+import type { Model } from '@elysian/database'
+
+/**
+ * {{ class }} — model lifecycle hooks in one place.
+ *
+ * Register it on the model so every write goes through it, whoever wrote it:
+ *
+ * ```ts
+ * {{ studly }}.observe(new {{ class }}())
+ * ```
+ *
+ * A `saving`/`creating`/`updating`/`deleting` hook that returns `false` cancels
+ * the write. The past-tense ones run after it landed and cannot.
+ */
+export class {{ class }} {
+  async creating(model: Model): Promise<void | false> {}
+
+  async created(model: Model): Promise<void> {}
+
+  async updating(model: Model): Promise<void | false> {}
+
+  async updated(model: Model): Promise<void> {}
+
+  async deleting(model: Model): Promise<void | false> {}
+
+  async deleted(model: Model): Promise<void> {}
+}

@@ -2,6 +2,7 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ServiceProvider } from '@elysian/core'
 import { MakeJobCommand } from './console/make-job.ts'
+import { MakeJobMiddlewareCommand } from './console/make-job-middleware.ts'
 import { QueueClearCommand } from './console/queue-clear.ts'
 import { QueueFailedCommand } from './console/queue-failed.ts'
 import { QueueFlushCommand } from './console/queue-flush.ts'
@@ -57,7 +58,8 @@ export class QueueServiceProvider extends ServiceProvider {
           QueueTableCommand,
           QueueFailedTableCommand,
           QueueBatchesTableCommand,
-          MakeJobCommand
+          MakeJobCommand,
+          MakeJobMiddlewareCommand
         )
     }
 

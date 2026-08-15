@@ -1,0 +1,21 @@
+import type { CastsAttributes } from '@elysian/database'
+
+/**
+ * {{ class }} — how one column becomes one value and back.
+ *
+ * `get` runs on the way out of the database, `set` on the way in. Both have to
+ * be there: a cast that only reads leaves the write path putting whatever the
+ * property happens to hold into the column.
+ *
+ * The whole attribute row is passed as well, because a cast like Money may span
+ * two columns — an amount and a currency.
+ */
+export class {{ class }} implements CastsAttributes {
+  get(model: unknown, key: string, value: unknown, attributes: Record<string, unknown>): unknown {
+    return value
+  }
+
+  set(model: unknown, key: string, value: unknown, attributes: Record<string, unknown>): unknown {
+    return value
+  }
+}

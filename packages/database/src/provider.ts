@@ -3,9 +3,12 @@ import { ConnectionManager } from './connection/manager.ts'
 import { DbSeedCommand } from './console/db-seed.ts'
 import { DbShowCommand } from './console/db-show.ts'
 import { DbTableCommand } from './console/db-table.ts'
+import { MakeCastCommand } from './console/make-cast.ts'
 import { MakeFactoryCommand } from './console/make-factory.ts'
 import { MakeMigrationCommand } from './console/make-migration.ts'
 import { MakeModelCommand } from './console/make-model.ts'
+import { MakeObserverCommand } from './console/make-observer.ts'
+import { MakeScopeCommand } from './console/make-scope.ts'
 import { MakeSeederCommand } from './console/make-seeder.ts'
 import { MigrateCommand } from './console/migrate.ts'
 import { MigrateFreshCommand } from './console/migrate-fresh.ts'
@@ -58,6 +61,9 @@ export class DatabaseServiceProvider extends ServiceProvider {
         MakeModelCommand,
         MakeSeederCommand,
         MakeFactoryCommand,
+        MakeCastCommand,
+        MakeObserverCommand,
+        MakeScopeCommand,
         DbSeedCommand,
         DbShowCommand,
         DbTableCommand

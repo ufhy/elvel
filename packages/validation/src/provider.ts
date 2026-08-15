@@ -1,4 +1,5 @@
 import { app, ServiceProvider } from '@elysian/core'
+import { MakeRuleCommand } from './console/make-rule.ts'
 import type { Data, PresenceVerifier, Rules, ValidatorOptions } from './types.ts'
 import { Validator } from './validator.ts'
 
@@ -78,6 +79,12 @@ export class ValidationServiceProvider extends ServiceProvider {
 
       return new DatabasePresenceVerifier(app.make('db' as never) as Manager)
     })
+  }
+
+  override async boot(): Promise<void> {
+    if (!this.app.bound('artisan')) return
+
+    this.app.make('artisan').register(MakeRuleCommand)
   }
 }
 

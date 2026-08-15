@@ -1,0 +1,22 @@
+/**
+ * {{ class }}
+ *
+ * A union of string literals with a companion object, rather than TypeScript's
+ * `enum`. `enum` emits a runtime object with reverse mappings, is not erasable,
+ * and its values do not compare equal to the strings that come out of a database
+ * or a JSON body — which is where the value actually arrives from.
+ */
+export const {{ class }} = {
+  Draft: 'draft',
+  Published: 'published'
+} as const
+
+export type {{ class }} = (typeof {{ class }})[keyof typeof {{ class }}]
+
+/** Every value, for a `in` validation rule or a select box. */
+export const {{ camel }}Values = Object.values({{ class }}) as {{ class }}[]
+
+/** Whether a value off the wire is one of them. */
+export function is{{ class }}(value: unknown): value is {{ class }} {
+  return typeof value === 'string' && ({{ camel }}Values as string[]).includes(value)
+}

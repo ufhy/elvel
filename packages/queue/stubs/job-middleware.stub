@@ -1,0 +1,12 @@
+/**
+ * {{ class }} — wraps a job, in the worker.
+ *
+ * `next` runs the job. Anything before it runs first, anything after it runs on
+ * the way out, and not calling it at all drops the job without failing it —
+ * which is how rate limiting and "without overlapping" are built.
+ */
+export class {{ class }} {
+  async handle(job: unknown, next: (job: unknown) => Promise<void>): Promise<void> {
+    await next(job)
+  }
+}

@@ -1,0 +1,13 @@
+import type { ModelBuilder } from '@elysian/database'
+
+/**
+ * {{ class }} — a constraint applied to every query for a model.
+ *
+ * Added with `{{ studly }}.addGlobalScope(...)`, it is on by default and taken off
+ * for one query with `withoutGlobalScope('{{ camel }}')`. That escape hatch is the
+ * reason a global scope is safe to add: a soft-delete scope with no way off
+ * makes the deleted rows unreachable rather than hidden.
+ */
+export const {{ camel }} = (query: ModelBuilder<never>): void => {
+  query.whereNull('deleted_at')
+}
