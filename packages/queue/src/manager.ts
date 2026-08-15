@@ -217,7 +217,8 @@ export class QueueManager {
     }
 
     const delay = options.delay ?? 0
-    const push = () => (delay > 0 ? driver.later(delay, payload, queue) : driver.push(payload, queue))
+    const push = () =>
+      delay > 0 ? driver.later(delay, payload, queue) : driver.push(payload, queue)
 
     if (!(options.afterCommit ?? jobClass.afterCommit ?? false)) return push()
 
