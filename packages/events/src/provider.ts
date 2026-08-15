@@ -2,6 +2,7 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { EventSubscriber } from '@elysian/contracts'
 import { ServiceProvider } from '@elysian/core'
+import { EventListCommand } from './console/event-list.ts'
 import { Dispatcher } from './dispatcher.ts'
 import { EventRegistry } from './event-registry.ts'
 import { isQueuedListener } from './listener.ts'
@@ -31,6 +32,8 @@ export class EventServiceProvider extends ServiceProvider {
 
   override async boot(): Promise<void> {
     const dispatcher = this.app.make('events')
+
+    if (this.app.bound('artisan')) this.app.make('artisan').register(EventListCommand)
 
     // Events first: a subscriber's `listen()` may register a queued listener, and
     // the worker that runs it has to be able to rebuild the event.

@@ -43,6 +43,18 @@ export class ChannelRegistry {
   }
 
   /**
+   * Every declared pattern, in the order they are matched.
+   *
+   * Order is what `channel:list` shows and the reason it is worth showing: the
+   * first pattern that matches decides, so a broad `{anything}` declared above a
+   * specific channel silently takes every authorization the specific one was
+   * written for.
+   */
+  patterns(): string[] {
+    return [...this.channels.keys()]
+  }
+
+  /**
    * May this user join this channel?
    *
    * The first declared pattern that matches decides — so a specific channel goes

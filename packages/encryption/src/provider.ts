@@ -1,5 +1,6 @@
 import { ServiceProvider } from '@elysian/core'
 import { EncryptionRotateCommand } from './console/encryption-rotate.ts'
+import { EnvironmentDecryptCommand, EnvironmentEncryptCommand } from './console/env-encrypt.ts'
 import { KeyGenerateCommand } from './console/key-generate.ts'
 import { Encrypter } from './encrypter.ts'
 
@@ -40,7 +41,14 @@ export class EncryptionServiceProvider extends ServiceProvider {
 
   override async boot(): Promise<void> {
     if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(KeyGenerateCommand, EncryptionRotateCommand)
+      this.app
+        .make('artisan')
+        .register(
+          KeyGenerateCommand,
+          EncryptionRotateCommand,
+          EnvironmentEncryptCommand,
+          EnvironmentDecryptCommand
+        )
     }
 
     await this.enableEncryptedCasts()

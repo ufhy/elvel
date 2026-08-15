@@ -1,0 +1,19 @@
+import type { ChannelAuthorizer } from '@elysian/broadcasting'
+
+/**
+ * {{ class }} — who may listen to this channel.
+ *
+ * Register it in a service provider, where the order matters: the first pattern
+ * that matches decides, so declare specific channels above broad ones.
+ *
+ * ```ts
+ * channels().channel('{{ kebab }}.{id}', {{ camel }})
+ * ```
+ *
+ * Return `true` to admit. A guest arrives as `null`, and returning anything but
+ * `true` refuses — including throwing, which is treated as a refusal rather than
+ * an error so a broken check cannot let somebody in.
+ */
+export const {{ camel }}: ChannelAuthorizer = (user, parameters) => {
+  return user !== null && String(user.id) === parameters.id
+}

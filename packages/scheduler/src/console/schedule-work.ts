@@ -1,4 +1,5 @@
 import { Command } from '@elysian/console'
+import { INTERRUPT_KEY, PAUSE_KEY } from './schedule-interrupt.ts'
 
 /**
  * `schedule:work`
@@ -24,8 +25,28 @@ export class ScheduleWorkCommand extends Command {
     process.on('SIGINT', stop)
     process.on('SIGTERM', stop)
 
+    /**
+     * The signal as it stood at start-up, as `queue:work` reads its restart.
+     *
+     * Compared against the value from *now*, a runner started after somebody
+     * interrupted would quit immediately and the supervisor would loop.
+     */
+    const startedWith = await this.signal(INTERRUPT_KEY)
+
     while (!stopping) {
-      await this.call('schedule:run', this.flag('run-output-only') ? ['--quiet-when-empty'] : [])
+      if (await this.paused()) {
+        // Skipped, not queued: a missed run is missed, exactly as it is when
+        // cron itself is stopped. Catching up would run an hour of entries at
+        // once the moment somebody resumed.
+        if (!this.flag('run-output-only')) this.comment('Paused — nothing ran this minute.')
+      } else {
+        await this.call('schedule:run', this.flag('run-output-only') ? ['--quiet-when-empty'] : [])
+      }
+
+      if ((await this.signal(INTERRUPT_KEY)) !== startedWith) {
+        this.info('Interrupted. Stopping after this minute.')
+        break
+      }
 
       if (stopping) break
 
@@ -38,5 +59,18 @@ export class ScheduleWorkCommand extends Command {
     }
 
     return 0
+  }
+
+  /** The timestamp `schedule:interrupt` writes, or undefined without a cache. */
+  private async signal(key: string): Promise<number | undefined> {
+    if (!this.app.bound('cache')) return undefined
+
+    return (await this.app.make('cache').store().get<number>(key)) ?? undefined
+  }
+
+  private async paused(): Promise<boolean> {
+    if (!this.app.bound('cache')) return false
+
+    return (await this.app.make('cache').store().get<boolean>(PAUSE_KEY)) === true
   }
 }

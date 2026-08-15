@@ -257,17 +257,33 @@ export class Migrator {
 
   /** Drop every table and migrate from scratch — `migrate:fresh`. */
   async fresh(): Promise<string[]> {
+    await this.wipe()
+
+    return this.run()
+  }
+
+  /**
+   * Drop every table and stop — `db:wipe`.
+   *
+   * The difference from `fresh()` is that nothing is re-created, which is what a
+   * schema dump wants to be loaded into and what `migrate:fresh` would undo.
+   *
+   * Constraints go off for the duration: dropping in an arbitrary order breaks
+   * foreign keys, and there is no ordering that is right for every schema.
+   */
+  async wipe(): Promise<string[]> {
     const schema = this.schema
+    const dropped = await this.tables()
 
     await schema.withoutForeignKeyConstraints(async () => {
-      for (const table of await this.tables()) {
+      for (const table of dropped) {
         await schema.dropIfExists(table)
       }
     })
 
-    this.note('Dropped all tables.')
+    this.note(`Dropped ${dropped.length} table(s).`)
 
-    return this.run()
+    return dropped
   }
 
   /** Table names in the current database, used only by `fresh`. */

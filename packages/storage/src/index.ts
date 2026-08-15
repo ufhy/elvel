@@ -1,4 +1,5 @@
 export { StorageLinkCommand } from './console/storage-link.ts'
+export { StorageUnlinkCommand } from './console/storage-unlink.ts'
 export {
   type CloudDisk,
   type Disk,

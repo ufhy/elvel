@@ -30,6 +30,16 @@ export type WorkerOptions = {
    * one, and a worker without a cache simply never sees a restart.
    */
   restartSignal?: () => Promise<number | undefined>
+
+  /**
+   * Whether the queue is paused — `queue:pause` writes it, `queue:resume` clears it.
+   *
+   * A paused worker stays alive and reserves nothing. That is the difference
+   * from `queue:restart`: a restart is for a deploy, a pause is for the twenty
+   * minutes while a downstream service is broken and every job would fail and
+   * burn its attempts. Nothing is lost either way — the jobs simply wait.
+   */
+  pausedSignal?: (queue: string) => Promise<boolean>
 }
 
 export type WorkerEvents = { dispatch(event: string, payload?: unknown): unknown }
@@ -133,6 +143,18 @@ export class Worker {
     this.events?.dispatch('queue.worker.starting', { queues })
 
     while (!this.stopping) {
+      /**
+       * Checked before reserving, not after.
+       *
+       * Reserving first and then noticing the pause would leave a job held by a
+       * worker that will not run it, invisible to every other worker until its
+       * reservation expires.
+       */
+      if (await this.isPaused(options, queues)) {
+        await Bun.sleep(sleep * 1000)
+        continue
+      }
+
       const job = await this.reserve(queues)
 
       if (!job) {
@@ -417,6 +439,17 @@ export class Worker {
     if (!options.restartSignal) return false
 
     return (await options.restartSignal()) !== startedWith
+  }
+
+  /** True when any queue this worker serves has been paused. */
+  private async isPaused(options: WorkerOptions, queues: string[]): Promise<boolean> {
+    if (!options.pausedSignal) return false
+
+    for (const queue of queues) {
+      if (await options.pausedSignal(queue)) return true
+    }
+
+    return false
   }
 
   private exceededTime(startedAt: number, options: WorkerOptions): boolean {

@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 2.**
+**Open: 1.**
 
 ---
 
@@ -69,7 +69,6 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **~44 commands of 111** | Counted from `ArtisanServiceProvider`. | Notable: `make:test`, `make:rule`, `make:cast`, `make:observer`, `make:enum`, `make:exception`, `optimize`, `optimize:clear`, `route:cache`/`route:clear`, `view:cache`, `event:cache`, `config:show`, `env:encrypt`/`env:decrypt`, `db:wipe`, `db:monitor`, `model:show`, `model:prune`, `queue:listen`, `queue:monitor`, `queue:pause`/`resume`, `schedule:interrupt`, `vendor:publish`, `lang:publish`. |
 
 ### The scaffolded application
 

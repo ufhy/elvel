@@ -7,9 +7,13 @@ import { QueueClearCommand } from './console/queue-clear.ts'
 import { QueueFailedCommand } from './console/queue-failed.ts'
 import { QueueFlushCommand } from './console/queue-flush.ts'
 import { QueueForgetCommand } from './console/queue-forget.ts'
+import { QueueListenCommand } from './console/queue-listen.ts'
+import { QueueMonitorCommand } from './console/queue-monitor.ts'
+import { QueuePauseCommand, QueueResumeCommand } from './console/queue-pause.ts'
 import { QueuePruneBatchesCommand } from './console/queue-prune-batches.ts'
 import { QueueRestartCommand } from './console/queue-restart.ts'
 import { QueueRetryCommand } from './console/queue-retry.ts'
+import { QueueRetryBatchCommand } from './console/queue-retry-batch.ts'
 import { QueueSizeCommand } from './console/queue-size.ts'
 import {
   QueueBatchesTableCommand,
@@ -58,6 +62,11 @@ export class QueueServiceProvider extends ServiceProvider {
           QueueTableCommand,
           QueueFailedTableCommand,
           QueueBatchesTableCommand,
+          QueueListenCommand,
+          QueueMonitorCommand,
+          QueuePauseCommand,
+          QueueResumeCommand,
+          QueueRetryBatchCommand,
           MakeJobCommand,
           MakeJobMiddlewareCommand
         )

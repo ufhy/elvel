@@ -1431,6 +1431,63 @@ describe('restarting workers on signal', () => {
     expect<number>(await driver.size()).toBe(2)
   })
 
+  /**
+   * A paused worker reserves nothing and stays alive.
+   *
+   * The distinction from a restart is the whole feature: a restart is for a
+   * deploy, a pause is for the twenty minutes a downstream service is broken and
+   * every job would fail and burn its attempts on something unrelated to it.
+   *
+   * Counted rather than timed. A wall-clock version of this passes on a quiet
+   * machine and fails under load, which is the worst kind of test: it reports a
+   * problem with the code when the problem is with the clock.
+   */
+  test('a paused queue leaves the jobs where they are', async () => {
+    Slow.ran = []
+
+    const driver = memoryQueue()
+    await driver.push(payloadFor('Slow', { label: 'a' }))
+
+    const worker = new Worker(driver, runner())
+    let asked = 0
+
+    const result = await worker.work(undefined, {
+      sleep: 0,
+      pausedSignal: async () => {
+        // Three turns of the loop are enough to prove it is looping and not
+        // working; then stop it, since a paused worker never stops by itself.
+        if (++asked >= 3) worker.stop()
+
+        return true
+      }
+    })
+
+    expect<number>(Slow.ran.length).toBe(0)
+    // Still waiting, not reserved: a worker that reserved and then noticed the
+    // pause would hold the job invisibly until its reservation expired.
+    expect<number>(await driver.size()).toBe(1)
+    expect<string>(result.reason).toBe('stopped')
+  })
+
+  test('and resuming lets the same worker pick them up', async () => {
+    Slow.ran = []
+
+    const driver = memoryQueue()
+    await driver.push(payloadFor('Slow', { label: 'a' }))
+
+    let asked = 0
+
+    const result = await new Worker(driver, runner()).work(undefined, {
+      sleep: 0,
+      stopWhenEmpty: true,
+      // Paused for two turns, then let go — no clock involved.
+      pausedSignal: async () => ++asked <= 2
+    })
+
+    expect<number>(Slow.ran.length).toBe(1)
+    expect<string>(result.reason).toBe('empty')
+  })
+
   test('an unchanged signal is not a restart', async () => {
     Slow.ran = []
 

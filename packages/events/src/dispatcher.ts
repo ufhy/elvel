@@ -204,6 +204,21 @@ export class Dispatcher implements EventDispatcher {
     this.wildcardsCache = new Map()
   }
 
+  /**
+   * What is listening to what — the data behind `event:list`.
+   *
+   * Wildcards are reported separately rather than expanded against the exact
+   * names: a pattern matches events that do not exist yet, and folding it into
+   * the list of known names would hide exactly the listener that is hard to find
+   * when an event fires and nothing happens.
+   */
+  registered(): { exact: Array<[string, number]>; wildcards: Array<[string, number]> } {
+    return {
+      exact: [...this.listeners].map(([name, stored]) => [name, stored.length]),
+      wildcards: [...this.wildcards].map(([pattern, stored]) => [pattern, stored.length])
+    }
+  }
+
   hasListeners(event: EventKey): boolean {
     const name = eventName(event)
 

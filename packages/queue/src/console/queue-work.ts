@@ -1,4 +1,5 @@
 import { Command } from '@elysian/console'
+import { pauseKey } from './queue-pause.ts'
 import { RESTART_KEY } from './queue-restart.ts'
 
 /**
@@ -37,6 +38,13 @@ export class QueueWorkCommand extends Command {
        */
       restartSignal: this.app.bound('cache')
         ? async () => (await this.app.make('cache').store().get<number>(RESTART_KEY)) ?? undefined
+        : undefined,
+
+      // Same store, same reason: without a cache there is nowhere to write a
+      // pause, and `queue:pause` says so rather than pretending it took.
+      pausedSignal: this.app.bound('cache')
+        ? async (name: string) =>
+            (await this.app.make('cache').store().get<boolean>(pauseKey(name))) === true
         : undefined
     }
 

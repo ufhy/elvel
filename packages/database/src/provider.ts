@@ -1,8 +1,11 @@
 import { ServiceProvider } from '@elysian/core'
 import { ConnectionManager } from './connection/manager.ts'
+import { DbCommand } from './console/db.ts'
+import { DbMonitorCommand } from './console/db-monitor.ts'
 import { DbSeedCommand } from './console/db-seed.ts'
 import { DbShowCommand } from './console/db-show.ts'
 import { DbTableCommand } from './console/db-table.ts'
+import { DbWipeCommand } from './console/db-wipe.ts'
 import { MakeCastCommand } from './console/make-cast.ts'
 import { MakeFactoryCommand } from './console/make-factory.ts'
 import { MakeMigrationCommand } from './console/make-migration.ts'
@@ -17,6 +20,8 @@ import { MigrateRefreshCommand } from './console/migrate-refresh.ts'
 import { MigrateResetCommand } from './console/migrate-reset.ts'
 import { MigrateRollbackCommand } from './console/migrate-rollback.ts'
 import { MigrateStatusCommand } from './console/migrate-status.ts'
+import { ModelPruneCommand } from './console/model-prune.ts'
+import { ModelShowCommand } from './console/model-show.ts'
 import { SchemaDumpCommand } from './console/schema-dump.ts'
 import { Model } from './model/model.ts'
 
@@ -64,6 +69,11 @@ export class DatabaseServiceProvider extends ServiceProvider {
         MakeCastCommand,
         MakeObserverCommand,
         MakeScopeCommand,
+        DbCommand,
+        DbWipeCommand,
+        DbMonitorCommand,
+        ModelShowCommand,
+        ModelPruneCommand,
         DbSeedCommand,
         DbShowCommand,
         DbTableCommand

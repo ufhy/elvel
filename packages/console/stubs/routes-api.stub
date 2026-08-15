@@ -1,0 +1,14 @@
+import { Elysia } from 'elysia'
+
+/**
+ * API routes.
+ *
+ * Mounted under `/api` and separate from `routes/web.ts` for one reason that
+ * matters: these answer JSON and never redirect. A browser form and an API
+ * client want opposite things from the same failure — a 302 to a sign-in page is
+ * useless to a client that cannot render it — and keeping them apart is what
+ * lets each side be right.
+ */
+export default new Elysia({ name: 'routes:api', prefix: '/api' }).get('/health', () => ({
+  ok: true
+}))

@@ -1,4 +1,8 @@
 export { EncryptionRotateCommand } from './console/encryption-rotate.ts'
+export {
+  EnvironmentDecryptCommand,
+  EnvironmentEncryptCommand
+} from './console/env-encrypt.ts'
 export { KeyGenerateCommand } from './console/key-generate.ts'
 export {
   DecryptError,

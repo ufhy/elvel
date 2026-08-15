@@ -2,6 +2,8 @@ import { ServiceProvider } from '@elysian/core'
 import { Elysia } from 'elysia'
 import { Broadcaster, type Subscriber } from './broadcaster.ts'
 import { ChannelRegistry } from './channels.ts'
+import { ChannelListCommand } from './console/channel-list.ts'
+import { MakeChannelCommand } from './console/make-channel.ts'
 
 declare module '@elysian/contracts' {
   interface ContainerBindings {
@@ -28,6 +30,10 @@ export class BroadcastServiceProvider extends ServiceProvider {
   }
 
   override boot(): void {
+    if (this.app.bound('artisan')) {
+      this.app.make('artisan').register(ChannelListCommand, MakeChannelCommand)
+    }
+
     const path = this.config<string>('broadcasting.path', '/broadcast')
     const broadcaster = this.app.make('broadcaster')
 

@@ -75,6 +75,11 @@ export class Batch {
     return this.record.failedJobs
   }
 
+  /** Which of them failed, which is what `queue:retry-batch` re-queues. */
+  get failedJobIds(): string[] {
+    return [...this.record.failedJobIds]
+  }
+
   /** 0–100, rounded down. A batch of nothing is complete by definition. */
   get progress(): number {
     if (this.record.totalJobs === 0) return 100

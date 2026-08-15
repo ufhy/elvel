@@ -471,6 +471,40 @@ Five things worth knowing:
   that succeeds silently every night would otherwise send an empty mail every
   night, and mail nobody reads is mail nobody notices when it matters.
 
+## Artisan — the Laravel commands that have no counterpart
+
+Measured against `ArtisanServiceProvider` in Laravel 13.25.0. What is left after
+building everything that applies is not a backlog; each of these is absent
+because the thing it operates on does not exist here.
+
+**Caches with nothing to cache.** `route:cache`/`route:clear` — routes are Elysia
+instances holding closures, and there is no serialisable form of a route table
+whose handlers are functions. `view:cache`/`view:clear` — views are TypeScript
+modules; Bun's module cache *is* the compile cache and there is no template
+language to compile ahead of time. `event:cache`/`event:clear` — Laravel's exists
+to skip reflection when mapping events to listeners, and there is no reflection
+here. `clear-compiled` — no compiled container file. `optimize` therefore runs
+`config:cache` alone rather than printing four lines of which three are theatre.
+
+**PHP and Composer.** `package:discover` (Composer package auto-discovery),
+`vendor:publish`, `config:publish` and `lang:publish` (publishing assets out of a
+vendor directory — `stub:publish` is the equivalent for the one thing our
+packages actually ship), `invoke-serialized-closure` (Opis closures over the
+wire, a Vapor internal), `make:trait` (no TypeScript equivalent), `docs`.
+
+**Owned by something else.** `clear-resets` — better-auth owns the password reset
+table and expires its own tokens. `cache:prune-stale-tags` — tags here are a
+namespace built from per-tag ids, so flushing a tag is giving it a new id and the
+orphaned entries expire on their own TTL; there is no tag index to go stale.
+`schedule:finish` — Laravel's callback for a background task reporting
+completion, not a command anybody runs.
+
+**The same thing under one name.** `queue:prune-failed` is `queue:flush --hours`.
+`make:console` is `make:command`. `model:prune` is Laravel's `db:prune` class.
+`event:generate` generates from an event-to-listener map that does not exist
+here; listeners are discovered from `app/Listeners`.
+
+
 ## @elysian/mail
 
 Three behaviours worth knowing:

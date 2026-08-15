@@ -1,0 +1,12 @@
+import { env } from '@elysian/core'
+
+/**
+ * Broadcasting.
+ *
+ * `path` is the WebSocket endpoint the client connects to. Channels themselves
+ * are declared in code rather than here — an authorizer is a function, and a
+ * config file cannot hold one. See `artisan make:channel`.
+ */
+export default {
+  path: env('BROADCAST_PATH', '/broadcast')
+}

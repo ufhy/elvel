@@ -1,5 +1,6 @@
 import { ServiceProvider } from '@elysian/core'
 import { StorageLinkCommand } from './console/storage-link.ts'
+import { StorageUnlinkCommand } from './console/storage-unlink.ts'
 import { StorageManager } from './manager.ts'
 
 declare module '@elysian/contracts' {
@@ -21,7 +22,7 @@ export class StorageServiceProvider extends ServiceProvider {
 
   override boot(): void {
     if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(StorageLinkCommand)
+      this.app.make('artisan').register(StorageLinkCommand, StorageUnlinkCommand)
     }
   }
 }

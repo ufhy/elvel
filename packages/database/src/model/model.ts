@@ -125,6 +125,21 @@ export class Model {
 
   static softDeletes = false
 
+  /**
+   * Rows this model considers expired — `model:prune` deletes what it returns.
+   *
+   * ```ts
+   * static override prunable() {
+   *   return this.query().where('created_at', '<', monthsAgo(1))
+   * }
+   * ```
+   *
+   * Left undefined a model is never pruned, which is the right default: a
+   * command that guessed what "no longer needed" meant would eventually be wrong
+   * about somebody's audit table.
+   */
+  static prunable?: () => ModelBuilder<Model>
+
   static CREATED_AT = 'created_at'
   static UPDATED_AT = 'updated_at'
   static DELETED_AT = 'deleted_at'

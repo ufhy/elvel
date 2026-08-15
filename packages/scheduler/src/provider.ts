@@ -1,4 +1,10 @@
 import { ServiceProvider } from '@elysian/core'
+import {
+  ScheduleClearCacheCommand,
+  ScheduleInterruptCommand,
+  SchedulePauseCommand,
+  ScheduleResumeCommand
+} from './console/schedule-interrupt.ts'
 import { ScheduleListCommand } from './console/schedule-list.ts'
 import { ScheduleRunCommand } from './console/schedule-run.ts'
 import { ScheduleTestCommand } from './console/schedule-test.ts'
@@ -40,7 +46,16 @@ export class ScheduleServiceProvider extends ServiceProvider {
     if (this.app.bound('artisan')) {
       this.app
         .make('artisan')
-        .register(ScheduleRunCommand, ScheduleListCommand, ScheduleWorkCommand, ScheduleTestCommand)
+        .register(
+          ScheduleRunCommand,
+          ScheduleListCommand,
+          ScheduleWorkCommand,
+          ScheduleTestCommand,
+          ScheduleInterruptCommand,
+          SchedulePauseCommand,
+          ScheduleResumeCommand,
+          ScheduleClearCacheCommand
+        )
     }
   }
 }
