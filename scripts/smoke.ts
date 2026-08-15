@@ -2546,6 +2546,48 @@ try {
   // leave somebody wondering where their sign-in page went.
   check('an unknown kit is refused', unknownKit.exitCode === 1)
 
+  /**
+   * Scaffolded with nothing left to do — the row this closes.
+   *
+   * The installer used to print `bun install`, `auth:schema` and `migrate` and
+   * leave them to the reader, which meant a new application answered 500 on its
+   * first sign-up until three commands had been run in the right directory. This
+   * scaffolds with `--install` and then asks the database what is in it: the
+   * better-auth tables being there is the proof, since nothing else created them.
+   */
+  const setupTarget = join(app.basePath(), '..', '.smoke-setup')
+  await rm(setupTarget, { recursive: true, force: true })
+
+  const setUp = Bun.spawnSync({
+    cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-setup', '--kit=auth', '--install'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('--install scaffolds and sets up in one go', setUp.exitCode === 0, `exit ${setUp.exitCode}`)
+
+  const setUpTables = Bun.spawnSync({
+    cmd: ['bun', 'artisan.ts', 'db:show'],
+    cwd: setupTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  const shown = plain(setUpTables.stdout.toString())
+
+  check(
+    'and the auth tables exist without a command being run by hand',
+    ['user', 'session', 'account', 'verification'].every((table) => shown.includes(table)),
+    shown.slice(-300)
+  )
+
+  // The migration ran, which is the step people forget and the one that turns a
+  // first sign-up into a 500.
+  check('and the migration is recorded', shown.includes('migrations'), shown.slice(-300))
+
+  await rm(setupTarget, { recursive: true, force: true })
+
   await proveTheKitWorks(kitTarget)
 
   // --------------------------------------------------------------- route names

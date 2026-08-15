@@ -56,6 +56,20 @@ async function main(): Promise<number> {
   const requestedKit = argv.find((token) => token.startsWith('--kit='))?.slice('--kit='.length)
   const minimal = argv.includes('--minimal')
 
+  /**
+   * Whether to install and set up the database, rather than print the steps.
+   *
+   * Explicit flags win; otherwise it is asked, and the answer defaults to yes.
+   * A script that passes `--kit=` and no answer gets the printed steps, because
+   * running `bun install` in somebody's CI without being asked is not a default
+   * a scaffolder gets to choose.
+   */
+  const setUp = argv.includes('--install')
+    ? true
+    : argv.includes('--no-install')
+      ? false
+      : undefined
+
   prompts.intro(pc.bgCyan(pc.black(' create-elysian ')))
 
   let name = positional[0]
@@ -159,11 +173,32 @@ async function main(): Promise<number> {
    * asks for and the generator has to read it. Without the migration the first
    * sign-up answers 500, which is a poor way to learn about it.
    */
-  const start = ['bun artisan auth:schema', 'bun artisan migrate', 'bun run dev']
+  // Workspace members must be installed from the repository root; a standalone
+  // app installs in its own directory.
+  const installRoot = workspaceMode ? (monorepoRoot as string) : target
+
+  const wanted =
+    setUp ?? (requestedKit === undefined && positional.length === 0 ? await confirmSetUp() : false)
+
+  if (wanted && (await setUpProject(installRoot, target, kit as string))) {
+    if (workspaceMode) {
+      prompts.log.info('Created as a workspace member — framework packages link by symlink.')
+    }
+
+    prompts.note('bun run dev', 'Next step')
+    prompts.outro(`Then open ${pc.underline('http://localhost:3000')}`)
+
+    return 0
+  }
+
+  const start = [
+    ...(kit === 'auth' ? ['bun artisan auth:schema'] : []),
+    'bun artisan migrate',
+    'bun run dev'
+  ]
 
   const steps = workspaceMode
     ? [
-        // Workspace members must be installed from the repository root.
         `cd ${relative(process.cwd(), monorepoRoot as string) || '.'} && bun install`,
         `cd ${relative(monorepoRoot as string, target)}`,
         ...start
@@ -178,6 +213,61 @@ async function main(): Promise<number> {
 
   prompts.outro(`Then open ${pc.underline('http://localhost:3000')}`)
   return 0
+}
+
+/** Ask, defaulting to yes. A cancel is a no rather than an abort. */
+async function confirmSetUp(): Promise<boolean> {
+  const answer = await prompts.confirm({
+    message: 'Install dependencies and set up the database?',
+    initialValue: true
+  })
+
+  return !prompts.isCancel(answer) && answer
+}
+
+/**
+ * Run the steps this used to print — install, auth tables, migrate.
+ *
+ * Returns false rather than throwing when anything fails, so the caller falls
+ * back to printing the steps. A scaffolder that leaves somebody with a
+ * half-installed directory and a stack trace is worse than one that hands over a
+ * list of three commands.
+ *
+ * `auth:schema` only for the auth kit: without better-auth in the application it
+ * is not registered, and running it would report an unknown command as though
+ * something had gone wrong.
+ */
+async function setUpProject(installRoot: string, target: string, kit: string): Promise<boolean> {
+  const spinner = prompts.spinner()
+
+  const run = async (label: string, cwd: string, argv: string[]): Promise<boolean> => {
+    spinner.start(label)
+
+    const child = Bun.spawn(argv, { cwd, stdout: 'pipe', stderr: 'pipe' })
+    const code = await child.exited
+
+    if (code !== 0) {
+      spinner.stop(`${label} failed`)
+      // The tail only: a full install log buries the one line that matters.
+      prompts.log.error((await new Response(child.stderr).text()).trim().slice(-500))
+
+      return false
+    }
+
+    spinner.stop(label)
+
+    return true
+  }
+
+  if (!(await run('Installing dependencies', installRoot, ['bun', 'install']))) return false
+
+  if (kit === 'auth') {
+    if (!(await run('Writing the auth tables', target, ['bun', 'artisan.ts', 'auth:schema']))) {
+      return false
+    }
+  }
+
+  return await run('Migrating', target, ['bun', 'artisan.ts', 'migrate', '--force'])
 }
 
 /**

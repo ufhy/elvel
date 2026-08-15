@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 1.**
+**Open: 0.**
 
 ---
 
@@ -45,43 +45,25 @@ checked item by item.
 
 ## Missing
 
-### HTTP
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-
-### Support
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-
-### Database
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-
-### Framework services
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-
-### Artisan
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-
-### The scaffolded application
-
-Found by scaffolding one and following the printed instructions.
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-| **Two manual steps before the kit works** | The installer prompts for a database and offers to migrate. | `auth:schema` and `migrate`, by hand. Down from three now the secrets are generated, and the remaining two cannot be run by the scaffolder in workspace mode: the framework packages are not linked until `bun install` runs at the repository root, so artisan cannot start. Laravel's installer runs `composer install` itself, which is what closing this would take. |
+Nothing. Every gap this sweep measured has been built; the rules above stay so
+the next sweep has them.
 
 ## Not yet measured
 
-Named so the list is not mistaken for complete: events beyond the dispatcher,
-queue job internals (the raw diff there is mostly PHP-isms and needs reading, not
-counting), notifications channels, translation, broadcasting, encryption, the
-scheduler's expression surface, and Blade's directive set as a whole rather than
-the six helpers named above.
+**This is the only reason the file is still here.** Every row that was measured
+has been built; what follows has never been swept at method level, and naming it
+is what stops the empty table above being read as "there is nothing left".
+
+- Events beyond the dispatcher
+- Queue job internals — the raw diff is mostly PHP-isms and needs reading, not
+  counting
+- Notification channels
+- Translation
+- Broadcasting
+- Encryption
+- The scheduler's expression surface
+- Blade's directive set as a whole, rather than the six helpers that were named
+
+Sweeping any of these means the `gh api` recipe above, normalising the names, and
+adding rows for what is genuinely absent. When one is swept, take it off this
+list — the same rule as the table.
