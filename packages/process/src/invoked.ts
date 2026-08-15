@@ -23,6 +23,10 @@ const FLUSH_GRACE_MS = 250
 export class InvokedProcess {
   private out = ''
   private err = ''
+
+  /** Raw chunks, kept only when the command asked for `binary()`. */
+  private readonly outBytes: Uint8Array[] = []
+  private readonly errBytes: Uint8Array[] = []
   private finished: Promise<ProcessResult>
   private listeners: Array<(result: ProcessResult) => void> = []
   private child?: Bun.Subprocess<'pipe' | 'ignore', 'pipe', 'pipe'>
@@ -133,6 +137,14 @@ export class InvokedProcess {
           const { done, value } = await reader.read()
           if (done) break
 
+          // Kept before decoding, not recovered after it: a string cannot hold
+          // arbitrary bytes, so anything invalid is already lost by the line
+          // below.
+          if (options.binary && value) {
+            if (which === 'stdout') this.outBytes.push(value)
+            else this.errBytes.push(value)
+          }
+
           const text = decoder.decode(value, { stream: true })
           if (text === '') continue
 
@@ -179,7 +191,9 @@ export class InvokedProcess {
       this.err,
       child.signalCode ?? undefined,
       timedOut,
-      this.idled ? options.idleTimeout : options.timeout
+      this.idled ? options.idleTimeout : options.timeout,
+      concat(this.outBytes),
+      concat(this.errBytes)
     )
 
     for (const listener of this.listeners) listener(result)
@@ -294,4 +308,21 @@ export class InvokedProcess {
 
     return this
   }
+}
+
+/** One buffer from many chunks, without a copy when there is nothing to join. */
+function concat(chunks: Uint8Array[]): Uint8Array {
+  if (chunks.length === 0) return new Uint8Array()
+  if (chunks.length === 1) return chunks[0] as Uint8Array
+
+  const total = chunks.reduce((size, chunk) => size + chunk.length, 0)
+  const joined = new Uint8Array(total)
+  let offset = 0
+
+  for (const chunk of chunks) {
+    joined.set(chunk, offset)
+    offset += chunk.length
+  }
+
+  return joined
 }

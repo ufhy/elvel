@@ -329,3 +329,52 @@ describe('faking', () => {
     expect<string[]>(chunks).toEqual(['stdout:compiling', 'stderr:warning'])
   })
 })
+
+describe('binary output', () => {
+  /**
+   * Output that is not text, which a string cannot hold.
+   *
+   * `output` is a JavaScript string — UTF-16 — so every invalid sequence in a
+   * PNG or a tarball becomes U+FFFD on the way in, and the bytes are gone before
+   * anybody can ask for them. PHP has no such problem, which is why Laravel needs
+   * no equivalent: its strings are byte arrays.
+   */
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])
+
+  test('the bytes survive exactly, where the string does not', async () => {
+    const file = join(await mkdtemp(join(tmpdir(), 'elysian-binary-')), 'probe.png')
+    await Bun.write(file, png)
+
+    const result = await run().binary().run(['cat', file])
+
+    expect<number[]>([...result.bytes]).toEqual([...png])
+
+    // The same run's text is mangled, which is the point of the option: the two
+    // are different questions and only one of them has an answer here.
+    expect(new TextEncoder().encode(result.output).length).not.toBe(png.length)
+  })
+
+  test('stderr is kept as bytes too', async () => {
+    const result = await run().binary().run(['sh', '-c', 'printf "\\377\\376" >&2'])
+
+    expect<number[]>([...result.errorBytes]).toEqual([0xff, 0xfe])
+  })
+
+  test('without binary() nothing is kept, rather than a re-encoded guess', async () => {
+    const result = await run().run(['echo', 'plain'])
+
+    // Empty on purpose. Re-encoding the decoded string is the round trip that
+    // destroyed the data, so answering with it would be answering with a lie.
+    expect<number>(result.bytes.length).toBe(0)
+    expect<string>(result.output).toBe('plain\n')
+  })
+
+  test('a chunked stream is joined in order', async () => {
+    // Larger than a pipe buffer, so it arrives in several chunks and the joining
+    // is what is under test rather than a single read.
+    const result = await run().binary().run(['sh', '-c', 'head -c 200000 /dev/zero'])
+
+    expect<number>(result.bytes.length).toBe(200_000)
+    expect<boolean>(result.bytes.every((byte) => byte === 0)).toBe(true)
+  })
+})

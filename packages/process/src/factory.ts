@@ -92,6 +92,11 @@ export class ProcessManager {
     return this.base().inherit()
   }
 
+  /** Keep the raw bytes as well as the text — see `PendingProcess.binary`. */
+  binary(): PendingProcess {
+    return this.base().binary()
+  }
+
   input(input: string | Uint8Array): PendingProcess {
     return this.base().input(input)
   }

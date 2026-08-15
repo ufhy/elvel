@@ -450,6 +450,23 @@ characters and leaves the rest of the card number in the log, which looks
 plausible enough to ship.
 
 
+## @elysian/process
+
+- **Output is text unless you ask for bytes.** `output` is a JavaScript string,
+  and a string here is UTF-16: a PNG or a tarball on stdout becomes replacement
+  characters on the way in, and the bytes are gone before anybody can ask. PHP
+  has no such problem — its strings are byte arrays — which is why Laravel needs
+  no equivalent of `binary()`. Ours keeps the raw chunks when asked and answers
+  with an empty buffer when not, rather than re-encoding the decoded string,
+  which is the round trip that destroyed the data.
+- **A command written as a string runs under `sh -c`, on every platform.**
+  Symfony picks the operating system's shell — `sh` on Unix, `cmd.exe` on
+  Windows — so the same string means different things in different places. This
+  picks one, which makes a command string portable and requires a `sh` on the
+  PATH under Windows (Git Bash provides one). An array (`run(['git', 'status'])`)
+  needs no shell anywhere, and is the form to use for anything built from input.
+
+
 ## @elysian/http-client
 
 **Bun's `fetch` accepts `timeout` and `retry` and silently ignores both.**
@@ -843,12 +860,6 @@ to `0o000` stays readable. The disk does not pretend otherwise and the tests for
 it skip rather than assert something weaker. The S3 disk carries visibility in the
 object's ACL and is unaffected; so is everything else the local disk does.
 
-**A command written as a string needs a POSIX shell.** `run('a | b')` executes
-`sh -c`, which is what makes pipes, `&&` and `$VAR` work at all. On Windows that
-means a `sh` on the PATH — Git Bash provides one, and CI runs there. Passing an
-array (`run(['git', 'status'])`) needs no shell on any platform, and is the form
-to use for anything built from input regardless.
-
 **MySQL is unusable from Bun on Windows.** Not slow — it stops. The dialect suite
 reaches the MySQL block and produces nothing further; the process never prints a
 summary and never exits. The same file, the same servers, the same Bun 1.3.14,
@@ -917,13 +928,6 @@ installed it, ImageMagick if the machine has it, `sips` on macOS — and a drive
 that cannot perform a queued step raises an error rather than skipping it. Only
 ImageMagick and `sharp` can blur, sharpen or greyscale; `sips` cannot, and says
 so through `supports()`.
-
-**`@elysian/process` hands back output as text, so it cannot carry binary.**
-`ProcessResult.output` is a decoded string, which turns a PNG on stdout into
-replacement characters. Both image CLI drivers therefore work through temporary
-files instead of pipes — two writes and a read per image, and correct. Worth
-revisiting only if something needs a binary pipe badly enough to widen the
-process contract.
 
 **A function cannot be sent to a worker, and the reason is worse than "closures
 do not travel".** `Function.prototype.toString()` gives the body without the

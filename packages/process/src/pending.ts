@@ -15,6 +15,8 @@ export type ProcessOptions = {
   idleTimeout?: number
   quiet?: boolean
   inherit?: boolean
+  /** Keep the bytes as they arrived, for output that is not text. */
+  binary?: boolean
   onOutput?: OutputHandler
 }
 
@@ -101,6 +103,26 @@ export class PendingProcess {
    */
   inherit(): PendingProcess {
     return this.derive({ inherit: true })
+  }
+
+  /**
+   * Keep the raw bytes as well as the text — for output that is not text.
+   *
+   * `output` is a string, and a string in JavaScript is UTF-16: decoding a PNG
+   * or a tarball through it replaces every invalid sequence with U+FFFD, and the
+   * bytes are gone by the time anybody notices. PHP has no such problem, which is
+   * why Laravel needs no equivalent of this — its strings are byte arrays.
+   *
+   * Off by default because it costs a second copy of the output in memory, and
+   * almost everything a process prints is text.
+   *
+   * ```ts
+   * const result = await process().binary().run(['git', 'cat-file', 'blob', sha])
+   * await Bun.write('blob.bin', result.bytes)
+   * ```
+   */
+  binary(): PendingProcess {
+    return this.derive({ binary: true })
   }
 
   /** Collect output but do not stream it anywhere. The default. */

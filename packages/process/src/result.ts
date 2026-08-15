@@ -34,7 +34,15 @@ export class ProcessResult {
     readonly errorOutput: string,
     readonly signal?: string,
     readonly timedOut = false,
-    readonly timeout?: number
+    readonly timeout?: number,
+    /**
+     * The bytes exactly as they arrived, when the command asked for `binary()`.
+     *
+     * Empty otherwise, which is the honest answer rather than a decoded string
+     * re-encoded: that round trip is what destroys the data in the first place.
+     */
+    readonly bytes: Uint8Array = new Uint8Array(),
+    readonly errorBytes: Uint8Array = new Uint8Array()
   ) {}
 
   successful(): boolean {
