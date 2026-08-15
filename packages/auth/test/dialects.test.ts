@@ -199,12 +199,21 @@ for (const { name, config } of available) {
         const verified = await auth.api.getSession({ headers: new Headers({ cookie }) })
         expect(verified?.user.emailVerified).toBe(false)
 
-        // The unique index the schema builder wrote is enforced by the server.
-        await expect(
-          auth.api.signUpEmail({
+        /**
+         * The unique index the schema builder wrote is enforced by the server.
+         *
+         * Caught rather than asserted with `.rejects`, which never settles on
+         * Windows when the promise came from a networked driver — and this one
+         * runs against Postgres and MySQL. See BEHAVIOURS.
+         */
+        const duplicate = await auth.api
+          .signUpEmail({
             body: { name: 'Ada again', email: 'ada@example.com', password: 'secret123' }
           })
-        ).rejects.toThrow()
+          .then(() => null)
+          .catch((error: unknown) => error)
+
+        expect<boolean>(duplicate !== null).toBe(true)
 
         // Signing out deletes exactly one row — its own — through the singular
         // `delete` path, which resolves the key first for that reason. Signing up

@@ -10,3 +10,10 @@ storage/framework/cache/
 public/storage
 storage/app/private/
 storage/app/public/
+
+# …except this one. The playground is a fixture in this repository, not
+# somebody's application: its APP_KEY and AUTH_SECRET are placeholders, and
+# `bun test` cannot pass without it — a fresh clone runs against an empty
+# database and fails eight tests with no hint as to why. A scaffolded app keeps
+# ignoring its own `.env`, which is why the template still does.
+!.env

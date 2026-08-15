@@ -80,12 +80,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      # The playground reads `.env`; without one it falls back to an empty
-      # `database/database.sqlite` instead of the seeded `playground.sqlite`, and
-      # its tests assert against rows that are not there.
-      - name: Give the playground its environment
-        run: cp playground/.env.example playground/.env
-
       # A dialect whose server is unreachable is *skipped* with a note, which is
       # right on a laptop and wrong here: a container that failed to start would
       # let this job go green without testing Postgres, MySQL or Redis at all.
@@ -133,9 +127,6 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - run: bun install --frozen-lockfile
-
-      - name: Give the playground its environment
-        run: cp playground/.env.example playground/.env
 
       - run: bun run lint
       - run: bun run typecheck
