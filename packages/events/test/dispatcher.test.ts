@@ -556,6 +556,7 @@ describe('EventRegistry', () => {
   })
 
   test('a static eventName is the key', () => {
+    // biome-ignore lint/complexity/noStaticOnlyClass: an event class with nothing but a name is what is under test.
     class Named {
       static readonly eventName = 'order.shipped'
     }

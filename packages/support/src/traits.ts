@@ -27,6 +27,11 @@ export class Conditionable {
  */
 export type Macro = (...args: any[]) => unknown
 
+/**
+ * biome-ignore lint/complexity/noStaticOnlyClass: the statics are the point — a
+ * class other classes extend to gain `macro()`, which is what makes the registry
+ * shared and the type merging work.
+ */
 export class Macroable {
   private static macros = new Map<string, Macro>()
 

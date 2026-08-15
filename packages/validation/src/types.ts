@@ -189,9 +189,15 @@ export const Rule = {
  * })
  * ```
  */
+// A rule that passes returns nothing, and a function body that returns nothing has
+// the type `void` — which is not assignable to `undefined`. Requiring that here
+// would mean every passing rule had to write `return undefined`.
+//
+// biome-ignore-start lint/suspicious/noConfusingVoidType: see above.
 export type ClosureRule = (
   context: RuleContext
 ) => string | true | void | Promise<string | true | void>
+// biome-ignore-end lint/suspicious/noConfusingVoidType: see above.
 
 /** `Rule.when(...)` — rules chosen from the data, at validation time. */
 export class ConditionalRules {

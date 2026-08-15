@@ -141,7 +141,11 @@ describe('the template ships no secrets of its own', () => {
     const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
 
     // One value used for both would make a leak of either a leak of both.
+    //
+    // biome-ignore-start lint/suspicious/noTemplateCurlyInString: the `${…}` is
+    // what is being asserted — it is the scaffolder's source, read as text.
     expect(source).toContain('APP_KEY=${key}')
     expect(source).toContain('AUTH_SECRET=${secret}')
+    // biome-ignore-end lint/suspicious/noTemplateCurlyInString: as above.
   })
 })

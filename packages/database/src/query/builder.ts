@@ -247,6 +247,9 @@ export class QueryBuilder<T extends Row = Row> {
   ): this {
     if (typeof column === 'function') return this.whereNested(column, 'and')
 
+    // `where('total', undefined)` and `where('total', '=', undefined)` differ only
+    // in how many arguments arrived; inspecting the values cannot tell them apart.
+    // biome-ignore lint/complexity/noArguments: the arity is the information.
     const [operator, resolved] = this.normaliseOperator(operatorOrValue, value, arguments.length)
 
     if (resolved === null) return this.whereNull(column, 'and', operator === '!=')
@@ -265,6 +268,9 @@ export class QueryBuilder<T extends Row = Row> {
   ): this {
     if (typeof column === 'function') return this.whereNested(column, 'or')
 
+    // `where('total', undefined)` and `where('total', '=', undefined)` differ only
+    // in how many arguments arrived; inspecting the values cannot tell them apart.
+    // biome-ignore lint/complexity/noArguments: the arity is the information.
     const [operator, resolved] = this.normaliseOperator(operatorOrValue, value, arguments.length)
 
     if (resolved === null) return this.whereNull(column, 'or', operator === '!=')

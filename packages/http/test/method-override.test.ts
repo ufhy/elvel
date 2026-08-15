@@ -9,7 +9,7 @@ import { methodField, methodOverridePlugin } from '../src/method-override.ts'
  * own verb and the assertions read like the router's decision.
  */
 function application(options: Parameters<typeof methodOverridePlugin>[1] = {}) {
-  // biome-ignore lint/suspicious/noExplicitAny: the plugin re-enters this instance
+  // `any` on purpose: the plugin re-enters this instance.
   const app: any = new Elysia()
     .use(methodOverridePlugin((request) => app.handle(request), options))
     .get('/thing', () => 'GET')

@@ -64,6 +64,13 @@ export abstract class Command implements CommandContract {
     return this.definition.name
   }
 
+  /**
+   * biome-ignore lint/suspicious/noConfusingVoidType: `undefined` here would be a
+   * breaking change for anybody writing a command. This is the signature they
+   * implement, and `async handle(): Promise<void>` — the obvious way to write one
+   * that has no exit code to report — is assignable to `void` and not to
+   * `undefined`, because TypeScript allows assignment *to* void and not from it.
+   */
   abstract handle(): Promise<number | void> | number | void
 
   /** Called by the kernel before `handle()`. */

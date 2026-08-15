@@ -45,6 +45,12 @@ export function parseEnvFile(contents: string): Record<string, string> {
   return result
 }
 
+/**
+ * biome-ignore lint/complexity/noStaticOnlyClass: `Env.get('APP_KEY')` is the name
+ * this reads under in Laravel, and the class is the namespace that gives it. Loose
+ * functions would put `get` and `bool` into every importing module's scope, where
+ * they say nothing about what they read.
+ */
 export class Env {
   /**
    * Merge `.env` (and `.env.<environment>` when present) into `process.env`.

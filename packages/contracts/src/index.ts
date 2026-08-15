@@ -220,6 +220,11 @@ export interface LogDriver {
 export interface CommandContract {
   readonly signature: string
   readonly description: string
+  /**
+   * biome-ignore lint/suspicious/noConfusingVoidType: the contract has to accept
+   * what `Command` declares, and that keeps `void` so a command with no exit code
+   * can be written `async handle(): Promise<void>`.
+   */
   handle(): Promise<number | void> | number | void
 }
 

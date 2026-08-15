@@ -241,7 +241,7 @@ export const Str = {
   },
 
   isAscii(value: string): boolean {
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: the range is the definition
+    // The control range is the definition of ASCII, so it belongs in the pattern.
     return new RegExp(`^[${String.fromCharCode(0)}-${String.fromCharCode(127)}]*$`).test(value)
   },
 

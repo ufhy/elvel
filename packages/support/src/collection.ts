@@ -602,11 +602,19 @@ export class Collection<T> implements Iterable<T> {
 
   // ---------------------------------------------------------------- flow
 
-  /** Run the callback only when the condition holds. */
+  /**
+   * Run the callback only when the condition holds.
+   *
+   * biome-ignore lint/suspicious/noConfusingVoidType: this is a callback's return
+   * type, where `void` is what lets `when(x, (c) => { c.push(1) })` compile at
+   * all — a function whose body returns nothing has the type `void`, and `void`
+   * is not assignable to `undefined`.
+   */
   when(condition: boolean, callback: (collection: this) => Collection<T> | void): Collection<T> {
     return condition ? (callback(this) ?? this) : this
   }
 
+  // biome-ignore lint/suspicious/noConfusingVoidType: as `when`, whose signature this mirrors.
   unless(condition: boolean, callback: (collection: this) => Collection<T> | void): Collection<T> {
     return this.when(!condition, callback)
   }
