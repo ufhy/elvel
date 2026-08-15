@@ -217,6 +217,17 @@ Four things to know about the middleware:
 ## @elysian/auth
 
 Two things to know when using it:
+- **`{ user }` cannot be destructured from a controller's context and typed.**
+  The derive that puts it there is registered globally by the provider, and
+  Elysia types a context from the plugins *that instance itself* uses — so a
+  controller written as its own `Elysia` instance has the property at runtime and
+  not in the type. Use `userOf(context)` (or `maybeUserOf`), the same shape as
+  `sessionOf`. Every handler in the auth kit had this, and a freshly scaffolded
+  application failed `bun run typecheck` out of the box.
+- **`AuthUser` is `{ id } & Record<string, unknown>`.** better-auth's user table
+  is whatever the application's plugins make it, so the framework cannot promise
+  a `name`. Narrow once, where the schema is known, rather than casting at every
+  call site.
 
 - The auth endpoints are registered per HTTP verb rather than through `all()`,
   and the provider must boot *before* the view provider: Elysia treats an `ALL`

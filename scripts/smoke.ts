@@ -2588,6 +2588,50 @@ try {
 
   await rm(setupTarget, { recursive: true, force: true })
 
+  /**
+   * A scaffolded application passes its own checks.
+   *
+   * This is the gap that let a broken kit ship: the kit's sources are not in
+   * this repository's `tsconfig.json` — and cannot be, since its views import a
+   * layout that only exists once the kit is copied over the template — so
+   * `bun run typecheck` here never saw them. A freshly scaffolded application
+   * had **eleven** type errors and six lint errors on the day it was generated,
+   * in a file nobody using it had written.
+   *
+   * The check has to run in the scaffold, which is why it lives here.
+   */
+  for (const target of [scaffoldTarget, kitTarget]) {
+    const label = target.endsWith('.smoke-kit') ? 'the kit' : 'the template'
+
+    const typed = Bun.spawnSync({
+      cmd: ['bun', 'run', 'typecheck'],
+      cwd: target,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    check(
+      `${label} scaffolds an application that typechecks`,
+      typed.exitCode === 0,
+      plain(typed.stdout.toString() + typed.stderr.toString()).slice(-700)
+    )
+
+    const linted = Bun.spawnSync({
+      cmd: ['bunx', 'biome', 'check', '.'],
+      cwd: target,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    // A new project's very first `bun run lint` must not report a problem the
+    // developer did not create and cannot explain.
+    check(
+      `and one the formatter is happy with`,
+      linted.exitCode === 0,
+      plain(linted.stdout.toString() + linted.stderr.toString()).slice(-700)
+    )
+  }
+
   await proveTheKitWorks(kitTarget)
 
   // --------------------------------------------------------------- route names

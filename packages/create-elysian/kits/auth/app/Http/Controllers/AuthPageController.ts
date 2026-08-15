@@ -1,4 +1,4 @@
-import { auth, confirmPassword } from '@elysian/auth'
+import { type AuthUser, auth, confirmPassword, userOf } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, intended, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
@@ -41,6 +41,29 @@ type ServerApi = {
 const api = () => auth().instance.api as unknown as ServerApi
 
 /**
+ * The signed-in user, with the three fields these pages render.
+ *
+ * `AuthUser` is `{ id } & Record<string, unknown>` on purpose — better-auth's
+ * user table is whatever the application's plugins make it, and the framework
+ * cannot promise a `name` that a schema may not have. So the narrowing happens
+ * here, once, where this kit's own schema is known, rather than with a cast at
+ * every call site.
+ */
+function account(context: unknown): { name: string; email: string; emailVerified: boolean } {
+  const user = userOf(context) as AuthUser & {
+    name?: unknown
+    email?: unknown
+    emailVerified?: unknown
+  }
+
+  return {
+    name: typeof user.name === 'string' ? user.name : '',
+    email: typeof user.email === 'string' ? user.email : '',
+    emailVerified: user.emailVerified === true
+  }
+}
+
+/**
  * Sign in, sign up, sign out — server-rendered, no client JavaScript.
  *
  * The forms post here rather than to better-auth's own endpoints, and the
@@ -69,7 +92,11 @@ export default controller('auth-pages')
     '/dashboard',
     // `auth` has already sent a guest to sign in, remembering where they were
     // going — so `user` is present here by the time this runs.
-    ({ user }) => view(Dashboard, { title: 'Dashboard', name: user?.name ?? user?.email }),
+    (context) => {
+      const person = account(context)
+
+      return view(Dashboard, { title: 'Dashboard', name: person.name || person.email })
+    },
     middleware('auth')
   )
 
@@ -225,10 +252,12 @@ export default controller('auth-pages')
 
   .get(
     '/verify-email',
-    ({ user, query }) => {
+    (context) => {
+      const { query } = context
+
       return view(VerifyEmail, {
         title: 'Confirm your address',
-        email: user.email,
+        email: account(context).email,
         sent: query.sent === '1',
         error: errors().first('email')
       })
@@ -238,9 +267,9 @@ export default controller('auth-pages')
 
   .post(
     '/verify-email/resend',
-    async ({ user }) => {
+    async (context) => {
       await api().sendVerificationEmail({
-        body: { email: user.email, callbackURL: '/dashboard' },
+        body: { email: account(context).email, callbackURL: '/dashboard' },
         asResponse: true
       })
 
@@ -253,12 +282,15 @@ export default controller('auth-pages')
 
   .get(
     '/settings/profile',
-    ({ user, query }) => {
+    (context) => {
+      const person = account(context)
+      const { query } = context
+
       return view(Profile, {
         title: 'Profile',
-        name: user.name ?? '',
-        email: user.email,
-        emailVerified: user.emailVerified === true,
+        name: person.name,
+        email: person.email,
+        emailVerified: person.emailVerified,
         pending: query.pending === '1',
         saved: query.saved === '1',
         error: errors().first('name') ?? errors().first('email')
@@ -269,7 +301,10 @@ export default controller('auth-pages')
 
   .patch(
     '/settings/profile',
-    async ({ body, request, user }) => {
+    async (context) => {
+      const { body, request } = context
+      const person = account(context)
+
       /**
        * Two endpoints, because better-auth refuses to do it in one.
        *
@@ -292,7 +327,7 @@ export default controller('auth-pages')
           .toResponse()
       }
 
-      if (body.email !== user.email) {
+      if (body.email !== person.email) {
         const moved = await api().changeEmail({
           body: { newEmail: body.email, callbackURL: '/settings/profile' },
           headers: request.headers,
@@ -315,7 +350,7 @@ export default controller('auth-pages')
          * somebody to wait for a link that changes nothing would be a lie the next
          * page load exposes.
          */
-        const where = user.emailVerified === true ? 'pending=1' : 'saved=1'
+        const where = person.emailVerified ? 'pending=1' : 'saved=1'
 
         return withSession(
           named,
@@ -333,7 +368,7 @@ export default controller('auth-pages')
 
   .delete(
     '/settings/profile',
-    async ({ body, request, user }) => {
+    async ({ body, request }) => {
       const answer = await api().deleteUser({
         body: { password: body.password },
         headers: request.headers,
@@ -358,7 +393,7 @@ export default controller('auth-pages')
 
   .get(
     '/settings/password',
-    ({ user, query }) => {
+    ({ query }) => {
       return view(Password, {
         title: 'Password',
         saved: query.saved === '1',
@@ -370,7 +405,7 @@ export default controller('auth-pages')
 
   .put(
     '/settings/password',
-    async ({ body, request, user }) => {
+    async ({ body, request }) => {
       if (body.password !== body.password_confirmation) {
         return redirect('/settings/password')
           .withErrors({ password: 'The two passwords do not match.' })
@@ -416,7 +451,7 @@ export default controller('auth-pages')
 
   .get(
     '/settings/security',
-    async ({ request, user, query }) => {
+    async ({ request, query }) => {
       const listed = (await api().listSessions({ headers: request.headers })) as unknown
 
       return view(Security, {
@@ -433,7 +468,7 @@ export default controller('auth-pages')
 
   .post(
     '/settings/security/revoke',
-    async ({ body, request, user }) => {
+    async ({ body, request }) => {
       await api().revokeSession({
         body: { token: body.id },
         headers: request.headers,
@@ -450,7 +485,7 @@ export default controller('auth-pages')
 
   .post(
     '/settings/security/revoke-others',
-    async ({ request, user }) => {
+    async ({ request }) => {
       const answer = await api().revokeOtherSessions({
         headers: request.headers,
         asResponse: true

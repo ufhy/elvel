@@ -100,3 +100,43 @@ export async function whenCannot(
 ): Promise<string> {
   return (await cannot(ability, args)) ? render() : ''
 }
+
+/**
+ * The signed-in user from a handler's context — the counterpart of `sessionOf`.
+ *
+ * `{ user }` cannot be destructured from a controller's context and typed. The
+ * derive that puts it there is registered globally by the provider, and Elysia
+ * types a context from the plugins **that instance itself** uses — so a
+ * controller written as its own `Elysia` instance has no idea the property is
+ * coming. It is there at runtime and absent from the type, which is the worst of
+ * both: the code works and `bun run typecheck` fails.
+ *
+ * That is not hypothetical. Every handler in the auth starter kit destructured
+ * `{ user }`, and a freshly scaffolded application failed to typecheck out of
+ * the box — invisible here because the kit's sources were not in this
+ * repository's `tsconfig.json`.
+ *
+ * ```ts
+ * .get('/dashboard', (context) => view(Dashboard, { name: userOf(context).name }))
+ * ```
+ *
+ * Throws rather than answering null: this is for routes behind `auth`, where a
+ * missing user means the middleware did not run, and rendering a page for
+ * nobody is worse than saying so.
+ */
+export function userOf(context: unknown): AuthUser {
+  const found = (context as { user?: AuthUser | null }).user ?? user()
+
+  if (!found) {
+    throw new Error(
+      'No user on this request. Put the route behind the `auth` middleware, or use `user()` and handle null.'
+    )
+  }
+
+  return found
+}
+
+/** The same, for a route that may be reached by a guest. */
+export function maybeUserOf(context: unknown): AuthUser | null {
+  return (context as { user?: AuthUser | null }).user ?? user()
+}

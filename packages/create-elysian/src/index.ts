@@ -423,24 +423,44 @@ async function registerKitRoutes(target: string, routes: string[]): Promise<void
   const path = join(target, 'routes', 'web.ts')
   const source = await Bun.file(path).text()
 
-  const imports = routes
-    .map((line) =>
-      line
-        .trim()
-        .replace(/^\.use\(/, '')
-        .replace(/\)$/, '')
-    )
+  const names = routes.map((line) =>
+    line
+      .trim()
+      .replace(/^\.use\(/, '')
+      .replace(/\)$/, '')
+  )
+
+  /**
+   * Inserted in sorted order, not appended.
+   *
+   * The scaffolded application runs the same linter this repository does, and its
+   * import-sorting rule failed on a file the scaffolder itself wrote — so a new
+   * project's very first `bun run lint` reported a problem the developer did not
+   * create and cannot explain.
+   */
+  const anchor = "import PageController from '../app/Http/Controllers/PageController.ts'"
+  const sorted = [...names, 'PageController'].sort()
+
+  const imports = sorted
     .map((name) => `import ${name} from '../app/Http/Controllers/${name}.ts'`)
     .join('\n')
 
   const mounted = source
-    .replace(
-      "import PageController from '../app/Http/Controllers/PageController.ts'",
-      `import PageController from '../app/Http/Controllers/PageController.ts'\n${imports}`
-    )
+    .replace(anchor, imports)
+    /**
+     * One line, because that is the shape the formatter wants.
+     *
+     * A scaffolded application ships the same formatter this repository uses,
+     * and it collapses a chain that fits — so writing it broken across lines
+     * made a new project fail its own `bun run lint` on a file nobody had
+     * touched. Kits declare few controllers; if one ever declares enough to
+     * exceed the line length, this is the line to revisit.
+     */
     .replace(
       "export default new Elysia({ name: 'routes:web' }).use(PageController)",
-      `export default new Elysia({ name: 'routes:web' })\n  .use(PageController)\n${routes.join('\n')}`
+      `export default new Elysia({ name: 'routes:web' }).use(PageController)${routes
+        .map((line) => line.trim())
+        .join('')}`
     )
 
   await Bun.write(path, `${mounted.trimEnd()}\n`)
