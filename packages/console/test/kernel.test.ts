@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Application } from '@elysian/core'
 import { Command } from '../src/command.ts'
 import { Kernel } from '../src/kernel.ts'
@@ -210,7 +211,9 @@ describe('discovery', () => {
   test('loads command classes from a directory', async () => {
     await Bun.write(
       join(root, 'app/Console/Commands/Probe.ts'),
-      `import { Command } from '${join(import.meta.dir, '..', 'src', 'command.ts')}'
+      // A `file://` URL, because a Windows path written into a quoted string
+      // turns `\s` and `\c` into escape sequences and loses every separator.
+      `import { Command } from '${pathToFileURL(join(import.meta.dir, '..', 'src', 'command.ts')).href}'
        export class Probe extends Command {
          static override signature = 'probe:me'
          static override description = 'Discovered'

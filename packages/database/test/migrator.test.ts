@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { BunSqlConnection } from '../src/connection/bun-sql.ts'
 import { Migrator } from '../src/migrations/migrator.ts'
 import { MigrationRepository } from '../src/migrations/repository.ts'
@@ -13,13 +14,21 @@ let repository: MigrationRepository
 let directory: string
 let notes: string[]
 
-const MIGRATION_ROOT = join(import.meta.dir, '..', 'src')
+/**
+ * A `file://` URL, not a path — these are written into generated source.
+ *
+ * A Windows path is `E:\SourceCode\...`, and interpolating it into a quoted
+ * string makes `\S` and `\e` escape sequences that collapse to bare letters. The
+ * import specifier arrived as `E:SourceCodeelyvel…` and every migration test
+ * failed with "cannot find package", on Windows only.
+ */
+const MIGRATION_ROOT = pathToFileURL(join(import.meta.dir, '..', 'src')).href
 
 /** Write a migration file that creates `table` with a single id column. */
 async function writeMigration(name: string, table: string): Promise<void> {
   await Bun.write(
     join(directory, `${name}.ts`),
-    `import { Migration } from '${join(MIGRATION_ROOT, 'migrations/migration.ts')}'
+    `import { Migration } from '${MIGRATION_ROOT}/migrations/migration.ts'
 
      export default class extends Migration {
        async up({ schema }) {
@@ -134,7 +143,7 @@ describe('running migrations', () => {
   test('shouldRun false skips the migration without recording it', async () => {
     await Bun.write(
       join(directory, '2026_01_01_000000_skipped.ts'),
-      `import { Migration } from '${join(MIGRATION_ROOT, 'migrations/migration.ts')}'
+      `import { Migration } from '${MIGRATION_ROOT}/migrations/migration.ts'
        export default class extends Migration {
          shouldRun() { return false }
          async up({ schema }) { await schema.create('never', (t) => t.id()) }
@@ -157,7 +166,7 @@ describe('running migrations', () => {
   test('a failing migration leaves the table absent thanks to the transaction', async () => {
     await Bun.write(
       join(directory, '2026_01_01_000000_explodes.ts'),
-      `import { Migration } from '${join(MIGRATION_ROOT, 'migrations/migration.ts')}'
+      `import { Migration } from '${MIGRATION_ROOT}/migrations/migration.ts'
        export default class extends Migration {
          async up({ schema }) {
            await schema.create('half_done', (t) => t.id())

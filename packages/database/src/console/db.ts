@@ -1,5 +1,4 @@
 import { Command } from '@elysian/console'
-import type { ConnectionManager } from '../connection/manager.ts'
 
 /**
  * Hand the connection over to the database's own client — Laravel's `db`.
@@ -16,7 +15,9 @@ export class DbCommand extends Command {
   static override description = 'Open a database CLI session'
 
   async handle(): Promise<number> {
-    const manager = this.app.make('db') as ConnectionManager
+    // The config is read rather than a connection opened: this hands over to an
+    // external client, and opening a connection here would only prove the
+    // database is reachable from a process that is about to exit.
     const requested = this.argument('connection')
     const name = requested === '' ? undefined : requested
 

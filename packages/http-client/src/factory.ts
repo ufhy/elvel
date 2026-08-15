@@ -1,4 +1,4 @@
-import { type Attempt, type Method, PendingRequest, type Responder } from './pending.ts'
+import { type Attempt, type Method, PendingRequest } from './pending.ts'
 import { HttpResponse } from './response.ts'
 
 /** What a fake answers with. */

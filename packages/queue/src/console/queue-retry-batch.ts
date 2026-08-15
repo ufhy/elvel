@@ -38,7 +38,8 @@ export class QueueRetryBatchCommand extends Command {
     for (const jobId of ids) {
       // A failed record can have been flushed since; naming it beats a silent
       // count that is lower than the batch says it should be.
-      ;(await manager.retry(jobId)) ? (requeued += 1) : missing.push(jobId)
+      if (await manager.retry(jobId)) requeued += 1
+      else missing.push(jobId)
     }
 
     this.output.tag('INFO', `Re-queued ${requeued} of ${ids.length} failed job(s).`)

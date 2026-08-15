@@ -166,15 +166,19 @@ export class MessageAssertions {
   // -------------------------------------------------------------- the bodies
 
   /**
-   * `escape` defaults on, and that is the setting that makes this useful.
+   * `escaped` defaults on, and that is the setting that makes this useful.
    *
    * A name with an apostrophe in it renders as `O&#39;Brien`, so a raw search for
    * `O'Brien` fails on a page that is perfectly correct. The needle is escaped the
    * same way the view escaped the value, which is what makes the two comparable.
+   *
+   * Named `escaped` rather than `escape` because `escape` is a global function:
+   * a parameter of that name shadows it, which the linter refuses and which
+   * would silently break any code in scope that expected the global.
    */
-  assertSeeInHtml(needle: string, escape = true): this {
+  assertSeeInHtml(needle: string, escaped = true): this {
     const html = this.message.html ?? ''
-    const wanted = escape ? escapeHtml(needle) : needle
+    const wanted = escaped ? escapeHtml(needle) : needle
 
     if (!html.includes(wanted)) {
       this.fail(`Did not see [${wanted}] in the HTML body.`)
@@ -183,9 +187,9 @@ export class MessageAssertions {
     return this
   }
 
-  assertDontSeeInHtml(needle: string, escape = true): this {
+  assertDontSeeInHtml(needle: string, escaped = true): this {
     const html = this.message.html ?? ''
-    const wanted = escape ? escapeHtml(needle) : needle
+    const wanted = escaped ? escapeHtml(needle) : needle
 
     if (html.includes(wanted)) {
       this.fail(`Saw [${wanted}] in the HTML body, and should not have.`)
@@ -200,8 +204,8 @@ export class MessageAssertions {
    * "Total" appearing before every line item is a different page from the one
    * where it appears after, and `assertSeeInHtml` twice cannot tell them apart.
    */
-  assertSeeInOrderInHtml(needles: string[], escape = true): this {
-    return this.assertInOrder(this.message.html ?? '', needles, escape, 'HTML')
+  assertSeeInOrderInHtml(needles: string[], escaped = true): this {
+    return this.assertInOrder(this.message.html ?? '', needles, escaped, 'HTML')
   }
 
   assertSeeInText(needle: string): this {
@@ -224,11 +228,11 @@ export class MessageAssertions {
     return this.assertInOrder(this.message.text ?? '', needles, false, 'text')
   }
 
-  private assertInOrder(body: string, needles: string[], escape: boolean, which: string): this {
+  private assertInOrder(body: string, needles: string[], escaped: boolean, which: string): this {
     let cursor = 0
 
     for (const needle of needles) {
-      const wanted = escape ? escapeHtml(needle) : needle
+      const wanted = escaped ? escapeHtml(needle) : needle
       const at = body.indexOf(wanted, cursor)
 
       if (at === -1) {

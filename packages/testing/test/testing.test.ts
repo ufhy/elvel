@@ -330,10 +330,10 @@ describe('artisan commands', () => {
   })
 
   it('strips colour before matching', async () => {
-    const escape = String.fromCharCode(27)
+    const esc = String.fromCharCode(27)
     const kernel = {
       run: async () => {
-        console.log(`${escape}[32mdone${escape}[39m`)
+        console.log(`${esc}[32mdone${esc}[39m`)
 
         return 0
       }

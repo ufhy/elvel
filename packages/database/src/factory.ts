@@ -2,7 +2,15 @@ import { Collection } from '@elysian/support'
 import type { Row } from './connection/connection.ts'
 import type { Model, ModelClass } from './model/model.ts'
 
-export type FactoryState<M extends Model> = (attributes: Row, index: number) => Row | Promise<Row>
+/**
+ * A state callback: the attributes so far, and which of the batch this is.
+ *
+ * No model type parameter, because it never had one to use — a state receives
+ * and returns a plain attribute row, and the model is only involved once the row
+ * is written. Carrying an unused `M` made every call site name a type for
+ * nothing.
+ */
+export type FactoryState = (attributes: Row, index: number) => Row | Promise<Row>
 
 /**
  * Model factory.
@@ -27,7 +35,7 @@ export abstract class Factory<M extends Model> {
   abstract readonly model: ModelClass<M>
 
   private times = 1
-  private readonly states: Array<FactoryState<M>> = []
+  private readonly states: Array<FactoryState> = []
   private overrides: Row = {}
 
   /** The attributes a fresh model starts from. `index` is 0-based. */
@@ -39,7 +47,7 @@ export abstract class Factory<M extends Model> {
   }
 
   /** Layer extra attributes on, as Laravel's states do. */
-  state(state: Row | FactoryState<M>): this {
+  state(state: Row | FactoryState): this {
     this.states.push(typeof state === 'function' ? state : () => state)
     return this
   }

@@ -107,9 +107,9 @@ describe('stacks', () => {
 
 describe('once', () => {
   test('renders the first time and nothing after', async () => {
-    const widget = () => once('widget', '<style></style>') + '<div></div>'
+    const widget = () => `${once('widget', '<style></style>')}<div></div>`
 
-    expect(await factory.render(() => widget() + widget() + widget(), {})).toBe(
+    expect(await factory.render(() => `${widget()}${widget()}${widget()}`, {})).toBe(
       '<style></style><div></div><div></div><div></div>'
     )
   })

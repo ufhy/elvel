@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Application } from '@elysian/core'
 import { BunSqlConnection, type ConnectionConfig } from '../src/connection/bun-sql.ts'
 import { ConnectionManager } from '../src/connection/manager.ts'
@@ -848,12 +849,18 @@ for (const { name, config } of available) {
           .update({ 'meta->theme': 'light', 'meta->tags': ['x', 'y'] })
 
         const fresh = await User.find(ada.id)
+        // Asserted before it is read into, so a row that vanished fails here and
+        // names itself rather than throwing "cannot read property of undefined"
+        // three lines further down.
+        expect(fresh).toBeDefined()
+
+        const meta = (fresh as User).meta as Record<string, unknown>
 
         // The keys that were written, and — the whole point — the ones that were
         // not. Writing the column would have replaced the document.
-        expect((fresh?.meta as Record<string, unknown>).theme).toBe('light')
-        expect((fresh?.meta as Record<string, unknown>).tags).toEqual(['x', 'y'])
-        expect((fresh?.meta as Record<string, unknown>).nested).toEqual({ keep: true })
+        expect(meta.theme).toBe('light')
+        expect(meta.tags).toEqual(['x', 'y'])
+        expect(meta.nested).toEqual({ keep: true })
       })
 
       test('two writes to one document both survive', async () => {
@@ -877,9 +884,12 @@ for (const { name, config } of available) {
 
         await User.query().where('id', ada.id).update({ 'meta->nested->deep': 'new' })
 
-        expect(
-          ((await User.find(ada.id))?.meta as never as { nested: { deep: string } }).nested.deep
-        ).toBe('new')
+        const fresh = await User.find(ada.id)
+        expect(fresh).toBeDefined()
+
+        const meta = (fresh as User).meta as never as { nested: { deep: string } }
+
+        expect(meta.nested.deep).toBe('new')
       })
 
       test('an encrypted column is searchable through its blind index', async () => {
@@ -1137,7 +1147,9 @@ for (const { name, config } of available) {
 
         await Bun.write(
           join(directory, '2026_01_01_000000_create_widgets_table.ts'),
-          `import { Migration } from '${join(import.meta.dir, '..', 'src', 'migrations/migration.ts')}'
+          // A `file://` URL, because a Windows path written into a quoted string
+          // turns `\S` and `\e` into escape sequences and loses every separator.
+          `import { Migration } from '${pathToFileURL(join(import.meta.dir, '..', 'src', 'migrations/migration.ts')).href}'
 
            export default class extends Migration {
              async up({ schema }) {

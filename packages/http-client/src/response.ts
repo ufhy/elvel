@@ -24,7 +24,7 @@ export class RequestError extends Error {
     const body = response.body.trim()
     const excerpt = body.length > 120 ? `${body.slice(0, 120)}…` : body
 
-    super(`${response.status} from ${response.url}` + (excerpt === '' ? '' : `\n\n${excerpt}`))
+    super(`${response.status} from ${response.url}${excerpt === '' ? '' : `\n\n${excerpt}`}`)
     this.name = 'RequestError'
   }
 

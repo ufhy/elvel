@@ -69,7 +69,13 @@ export class Funnel {
    * Returns `false` when every slot is taken — distinguishable from a callback
    * that returned nothing, because the callback's result is only ever returned
    * when it actually ran.
+   *
+   * **Never `await` a funnel itself.** A `then` member makes this object
+   * thenable, so `await funnel` would call this with the promise machinery's
+   * `resolve` as the callback and hand it a slot. It is named `then` because
+   * Laravel names it that; always call it, never await the object.
    */
+  // biome-ignore lint/suspicious/noThenProperty: Laravel's `Funnel::then()` — the name is the documented API. The thenable hazard is real and named above.
   async then<T>(callback: () => T | Promise<T>): Promise<T | false> {
     const slot = await this.acquire()
     if (!slot) return false

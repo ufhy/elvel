@@ -11,5 +11,9 @@
     "playground/**/*.ts",
     "playground/**/*.tsx"
   ],
-  "exclude": ["**/node_modules", "packages/create-elysian/template/**", "packages/create-elysian/kits/**"]
+  "exclude": [
+    "**/node_modules",
+    "packages/create-elysian/template/**",
+    "packages/create-elysian/kits/**"
+  ]
 }

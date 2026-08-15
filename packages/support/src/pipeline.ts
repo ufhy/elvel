@@ -90,7 +90,15 @@ export class Pipeline<T, R = T> {
     return this
   }
 
-  /** Run it, ending at `destination`. */
+  /**
+   * Run it, ending at `destination`.
+   *
+   * **Never `await` a pipeline itself.** A `then` member makes this object
+   * thenable, so `await pipeline` would call this with the promise machinery's
+   * `resolve` as the destination and run every stage for nothing. It is named
+   * `then` because Laravel names it that; always call it, never await the object.
+   */
+  // biome-ignore lint/suspicious/noThenProperty: Laravel's `Pipeline::then()` — the name is the documented API. The thenable hazard is real and named above.
   async then(destination: (passable: T) => R | Promise<R>): Promise<R> {
     /**
      * Built from the inside out, so the first stage ends up outermost.

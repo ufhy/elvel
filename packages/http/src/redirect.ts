@@ -1,7 +1,6 @@
 import { app } from '@elysian/core'
 import { BAGGED, DEFAULT_BAG, ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
 import { currentScope } from './scope.ts'
-import type { Session } from './session.ts'
 
 /** Session key holding where a guest was going before being sent to sign in. */
 export const INTENDED_URL_KEY = 'url.intended'

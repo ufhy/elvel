@@ -6,8 +6,7 @@ import type {
   Boolean_,
   JoinClause,
   QueryComponents,
-  VectorMetric,
-  WhereClause
+  VectorMetric
 } from './types.ts'
 import { cloneQuery, emptyQuery } from './types.ts'
 

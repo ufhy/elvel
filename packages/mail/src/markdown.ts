@@ -27,7 +27,7 @@ export function markdownToHtml(source: string): string {
     if (block.startsWith('```')) {
       const body = block.replace(/^```[^\n]*\n?/, '').replace(/```$/, '')
 
-      html.push(`<pre style="${STYLES.pre}"><code>${escape(body.trimEnd())}</code></pre>`)
+      html.push(`<pre style="${STYLES.pre}"><code>${escapeHtml(body.trimEnd())}</code></pre>`)
 
       continue
     }
@@ -140,7 +140,7 @@ function list(tag: 'ul' | 'ol', items: string[]): string {
  * reader.
  */
 function inline(text: string): string {
-  return escape(text)
+  return escapeHtml(text)
     .replace(
       /`([^`]+)`/g,
       '<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px">$1</code>'
@@ -151,7 +151,7 @@ function inline(text: string): string {
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, `<a href="$2" style="${STYLES.link}">$1</a>`)
 }
 
-function escape(text: string): string {
+function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

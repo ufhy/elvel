@@ -357,7 +357,9 @@ export class Collection<T> implements Iterable<T> {
     const pass: T[] = []
     const fail: T[] = []
 
-    this.items.forEach((item, index) => (predicate(item, index) ? pass : fail).push(item))
+    for (const [index, item] of this.items.entries()) {
+      ;(predicate(item, index) ? pass : fail).push(item)
+    }
 
     return [new Collection(pass), new Collection(fail)]
   }

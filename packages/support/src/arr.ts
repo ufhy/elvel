@@ -218,7 +218,9 @@ export const Arr = {
     const pass: T[] = []
     const fail: T[] = []
 
-    items.forEach((item, index) => (predicate(item, index) ? pass : fail).push(item))
+    for (const [index, item] of items.entries()) {
+      ;(predicate(item, index) ? pass : fail).push(item)
+    }
 
     return [pass, fail]
   },

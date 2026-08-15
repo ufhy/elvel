@@ -873,6 +873,7 @@ describe('Rule.forEach', () => {
       { items: [{ kind: 'gift', to: '' }, { kind: 'plain' }] },
       {
         // Rules per element, chosen from the element itself.
+        // biome-ignore lint/suspicious/useIterableCallbackReturn: `Rule.forEach` is this framework's own API, not `Array.prototype.forEach` — its callback returns the rules for that element, which is the entire point.
         'items.*.to': Rule.forEach((_value, attribute, data) => {
           const index = attribute.split('.')[1] as string
           const kind = (data.items as Array<{ kind: string }>)[Number(index)]?.kind
