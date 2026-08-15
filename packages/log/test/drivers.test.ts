@@ -220,7 +220,18 @@ describe('the errorlog and slack drivers', () => {
 
       // A channel that receives every info is a channel everybody mutes.
       expect<number>(posts.length).toBe(2)
-      expect<boolean>(posts[0]?.text.includes('*ERROR* [app] noticed') === true).toBe(true)
+
+      /**
+       * By content, not by position.
+       *
+       * The writes are fire-and-forget, so the two posts that survive the level
+       * filter race each other to the server and arrive in either order. Reading
+       * `posts[0]` passed on three machines and failed on the fourth.
+       */
+      const texts = posts.map((post) => post.text)
+
+      expect<boolean>(texts.some((text) => text.includes('*ERROR* [app] noticed'))).toBe(true)
+      expect<boolean>(texts.some((text) => text.includes('*CRITICAL* [app] worse'))).toBe(true)
     } finally {
       server.stop(true)
     }

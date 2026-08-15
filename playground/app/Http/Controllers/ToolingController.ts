@@ -1,7 +1,7 @@
 import { concurrency } from '@elysian/concurrency'
 import { controller } from '@elysian/core'
 import { hash } from '@elysian/hashing'
-import { image } from '@elysian/image'
+import { image, probe } from '@elysian/image'
 import { process } from '@elysian/process'
 
 /**
@@ -63,17 +63,35 @@ export default controller('tooling', '/check/tooling')
   })
 
   /**
-   * Whether an image driver is actually available.
+   * The two halves of the image package, which fail differently.
    *
-   * Bun has no image API, so this package shells out to `sharp`, ImageMagick or
-   * macOS `sips`, and which of them exists depends on the machine. The honest
-   * answer is which driver resolved — a route that transformed an image would
-   * fail on a box with none of the three, and that is not a framework fault.
+   * `probe()` reads format and dimensions out of the bytes in pure TypeScript,
+   * so it works everywhere and is what most applications actually want — a file
+   * extension and a client's `content-type` are claims, the header is the file.
+   *
+   * Transforming needs a backend that is looked for rather than assumed: sharp
+   * if the application installed it, ImageMagick if the machine has it, `sips`
+   * on macOS. A machine with none of the three is a normal machine — this Linux
+   * box is one — so that is reported rather than raised. Asking the route to
+   * throw would make "no image tool installed" indistinguishable from a bug.
    */
   .get('/image', () => {
-    // Resolving the driver is the check. Which one it is depends on the machine,
-    // and asserting on a name would fail on a box with a different tool.
-    const driver = image().driver()
+    // A one-pixel PNG, by its bytes: enough for the header reader to work on.
+    const png = Uint8Array.from(
+      atob(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+      ),
+      (character) => character.charCodeAt(0)
+    )
 
-    return { available: driver !== undefined, driver: driver.constructor.name }
+    let driver: string | null = null
+    let reason: string | null = null
+
+    try {
+      driver = image().driver().constructor.name
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error)
+    }
+
+    return { probed: probe(png), available: driver !== null, driver, reason }
   })

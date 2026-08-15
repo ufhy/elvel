@@ -60,18 +60,32 @@ describe('process', () => {
 
 describe('image', () => {
   /**
-   * Which driver resolved, not which one it should be.
+   * Reading the header always works; transforming depends on the machine.
    *
-   * Bun has no image API, so this package shells out to sharp, ImageMagick or
-   * macOS `sips` — and asserting on a name would fail on a machine with a
-   * different one installed. That a driver resolves at all is the framework's
-   * part; which one is the machine's.
+   * `probe()` is pure TypeScript, so it is asserted outright. A driver is not:
+   * sharp, ImageMagick and `sips` are three things a machine may or may not
+   * have, and this Linux box has none of them. An earlier version of this test
+   * demanded one and failed here — asserting a fact about the machine as though
+   * it were a fact about the framework.
    */
-  it('resolves a driver on this machine', async () => {
+  it('reads an image header, and says whether a driver is available', async () => {
     const response = await test(app).getJson('/check/tooling/image')
 
-    response.assertOk().assertJsonPath('available', true)
+    response
+      .assertOk()
+      // A one-pixel PNG, read out of its bytes with nothing installed.
+      .assertJsonPath('probed.format', 'png')
+      .assertJsonPath('probed.width', 1)
+      .assertJsonPath('probed.height', 1)
 
-    expect(((await response.json()) as { driver: string }).driver).toMatch(/Driver$/)
+    const body = (await response.json()) as {
+      available: boolean
+      driver: string | null
+      reason: string | null
+    }
+
+    // Whichever way it went, the answer has to be a real one rather than silence.
+    if (body.available) expect(body.driver).toMatch(/Driver$/)
+    else expect(body.reason ?? '').not.toBe('')
   })
 })
