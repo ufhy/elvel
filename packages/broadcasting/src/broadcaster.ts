@@ -13,18 +13,29 @@ export type BroadcastMessage = {
   payload: unknown
 }
 
-/** One broadcast as it travels between processes. */
-export type PublishedMessage = {
-  message: BroadcastMessage
+/** What travels between processes. */
+export type PublishedMessage =
+  | {
+      kind: 'broadcast'
+      message: BroadcastMessage
+      /**
+       * The socket that caused it, if any.
+       *
+       * Travels with the message rather than being resolved by the publisher:
+       * the socket belongs to exactly one process, and every *other* process
+       * simply finds no socket with that id — which is the correct answer there.
+       */
+      except?: string | undefined
+    }
   /**
-   * The socket that caused it, if any.
+   * "Who is on this channel?", asked of every process.
    *
-   * Travels with the message rather than being resolved by the publisher: the
-   * socket belongs to exactly one process, and every *other* process simply
-   * finds no socket with that id — which is the correct answer there.
+   * Membership is per process — each one knows only the sockets it holds — so a
+   * question about all of them has to be a question, not a lookup. This is
+   * Reverb's `gather`: publish the request, count the replies, merge them.
    */
-  except?: string | undefined
-}
+  | { kind: 'presence-request'; id: string; channel: string }
+  | { kind: 'presence-reply'; id: string; members: Member[] }
 
 /**
  * A bus that carries broadcasts between processes.
@@ -34,11 +45,31 @@ export type PublishedMessage = {
  * double that is an array — satisfies it.
  */
 export type PubSub = {
-  publish(message: PublishedMessage): void
+  /**
+   * Send, answering with how many subscribers received it.
+   *
+   * The count is what makes a gather terminate on the first round trip instead
+   * of on a timeout: a process that knows three others heard the question knows
+   * when it has all three answers. Redis's `PUBLISH` returns exactly this, which
+   * is why Reverb's metrics gather is built on it.
+   */
+  publish(message: PublishedMessage): Promise<number>
   /** Called for every message on the bus, including this process's own. */
   onMessage(handler: (message: PublishedMessage) => void): void
   close(): void
 }
+
+/**
+ * How long a presence gather waits for the last reply.
+ *
+ * A ceiling, not a delay: the usual case ends as soon as every process that
+ * received the question has answered. It only matters when one of them has died
+ * without Redis noticing yet, and then the choice is between a short wait and a
+ * socket that never receives its member list. Reverb allows ten seconds for the
+ * same gather over its HTTP API; this one is in the path of a subscribe, where a
+ * person is waiting.
+ */
+const GATHER_TIMEOUT = 500
 
 /**
  * Fans an event out to the sockets listening on a channel.
@@ -67,13 +98,100 @@ export class Broadcaster {
    */
   private readonly members = new Map<string, Map<Subscriber, Member>>()
 
+  /** Presence questions this process has asked and is still collecting. */
+  private readonly gathers = new Map<
+    string,
+    { members: Member[]; replies: number; expected: number; finish: () => void }
+  >()
+
   constructor(
     private readonly channels: ChannelRegistry,
     /** The bus, when this process is one of several. */
     private readonly bus?: PubSub
   ) {
     // Everything published — by this process or any other — arrives here.
-    this.bus?.onMessage((message) => this.deliver(message.message, message.except))
+    this.bus?.onMessage((published) => this.receive(published))
+  }
+
+  /** One message off the bus, from any process including this one. */
+  private receive(published: PublishedMessage): void {
+    if (published.kind === 'broadcast') {
+      this.deliver(published.message, published.except)
+
+      return
+    }
+
+    if (published.kind === 'presence-request') {
+      // Answered by every process, this one included: the asker counts replies
+      // against the number of subscribers that received the question, and its
+      // own membership is part of the answer.
+      void this.bus?.publish({
+        kind: 'presence-reply',
+        id: published.id,
+        members: this.presence(published.channel)
+      })
+
+      return
+    }
+
+    const gather = this.gathers.get(published.id)
+
+    if (!gather) return
+
+    gather.members.push(...published.members)
+    gather.replies += 1
+
+    if (gather.replies >= gather.expected) gather.finish()
+  }
+
+  /**
+   * Who is on a presence channel, across every process.
+   *
+   * The local `presence()` answers for the sockets this process holds, which is
+   * the whole answer on one process and half of it on two. This asks all of
+   * them: publish the question, learn from the publish how many heard it, and
+   * merge the replies — Reverb's `gatherMetricsFromSubscribers`, in miniature.
+   *
+   * Falls back to what is local when there is no bus at all, so a caller does
+   * not have to know which arrangement it is running under.
+   */
+  async presenceAcross(channel: string): Promise<Member[]> {
+    if (!this.bus) return this.presence(channel)
+
+    const id = crypto.randomUUID()
+
+    let finish: () => void = () => undefined
+    const collected = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+
+    const gather = {
+      members: [] as Member[],
+      replies: 0,
+      // Not known until the publish answers; until then no reply count can
+      // complete it.
+      expected: Number.POSITIVE_INFINITY,
+      finish: () => finish()
+    }
+
+    this.gathers.set(id, gather)
+
+    const timer = setTimeout(() => gather.finish(), GATHER_TIMEOUT)
+
+    try {
+      gather.expected = await this.bus.publish({ kind: 'presence-request', id, channel })
+
+      // Replies can arrive before the publish resolves, so the count is checked
+      // again here rather than only as each one lands.
+      if (gather.replies >= gather.expected) gather.finish()
+
+      await collected
+    } finally {
+      clearTimeout(timer)
+      this.gathers.delete(id)
+    }
+
+    return distinct(gather.members)
   }
 
   /**
@@ -118,11 +236,13 @@ export class Broadcaster {
     this.members.set(channel, present)
 
     // `here` is for the socket that just joined, so it is written directly
-    // rather than broadcast.
+    // rather than broadcast. Asked of every process: a member list holding only
+    // the people who happen to share a process with you is worse than none,
+    // because it looks like an answer.
     this.send(subscriber, {
       channel,
       event: 'presence.here',
-      payload: { members: distinctMembers(present) }
+      payload: { members: await this.presenceAcross(channel) }
     })
 
     // A second tab is not a second arrival.
@@ -195,7 +315,7 @@ export class Broadcaster {
        * knowable from here. A caller that needs to know something was received
        * needs a different mechanism anyway; that was true before the bus existed.
        */
-      this.bus.publish({ message, except })
+      void this.bus.publish({ kind: 'broadcast', message, except })
 
       return 0
     }
@@ -246,9 +366,14 @@ export class Broadcaster {
 
 /** One entry per person, however many sockets they hold. */
 function distinctMembers(present: Map<Subscriber, Member>): Member[] {
+  return distinct([...present.values()])
+}
+
+/** One entry per id, whichever process reported it. */
+function distinct(members: Member[]): Member[] {
   const byId = new Map<unknown, Member>()
 
-  for (const member of present.values()) {
+  for (const member of members) {
     if (!byId.has(member.id)) byId.set(member.id, member)
   }
 

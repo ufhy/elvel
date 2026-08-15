@@ -169,9 +169,14 @@ export default controller('signal', '/signal')
     return { room: params.room, listeners: broadcaster().count(`room.${params.room}`) }
   })
 
-  /** Who is on a presence channel right now. */
-  .get('/presence/:room', ({ params }) => ({
-    members: broadcaster().presence(`room.${params.room}`)
+  /**
+   * Who is on a presence channel right now.
+   *
+   * `presenceAcross` rather than `presence`: on one process they are the same
+   * answer, and behind a load balancer only the first one is right.
+   */
+  .get('/presence/:room', async ({ params }) => ({
+    members: await broadcaster().presenceAcross(`room.${params.room}`)
   }))
 
   /** Level thresholds, placeholder interpolation, sticky context, extend(). */

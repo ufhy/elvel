@@ -750,11 +750,18 @@ Decisions worth knowing rather than discovering:
   and a Redis that is down must not take down the request that caused the event.
   What is lost is the other processes hearing it, which is the same outcome as
   having no bus at all.
-- **Presence lists are per process.** A member list is built from the sockets a
-  process holds, so behind a load balancer each half sees its own half. The join
-  and leave events cross — they are broadcasts — but `here` does not. Reverb has
-  the same shape and solves it with a shared channel manager; this does not solve
-  it yet.
+- **A member list is gathered, not stored.** Membership lives in each process's
+  memory — there is no shared registry, and Reverb has none either — so "who is
+  on this channel" is a question put to every process rather than a lookup:
+  publish the request, learn from the publish how many heard it, merge the
+  replies. `presenceAcross()` is that; `presence()` still answers for this
+  process alone, which is what the join and leave events need.
+- **A gather ends on the last reply, or on half a second.** The count Redis
+  returns from `PUBLISH` is how it knows when every process has answered, so the
+  usual case costs one round trip. The timeout only matters when a process has
+  died without Redis noticing, and then a partial list beats a socket that never
+  receives one. Reverb allows ten seconds for the same gather over its HTTP API;
+  this one runs inside a subscribe, where somebody is waiting.
 - **An event broadcasts itself by having `broadcastOn()`.** There is no interface
   to implement, because TypeScript erases interfaces and a marker nothing can
   check at runtime is not a marker. `broadcastAs()` and `broadcastWith()` are

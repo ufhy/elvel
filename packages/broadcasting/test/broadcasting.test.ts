@@ -320,6 +320,9 @@ describe.if(redisAvailable)('across processes, over Redis', () => {
   /** Subscriptions are asynchronous; this is what waits for the round trip. */
   const settle = () => Bun.sleep(80)
 
+  /** Members come back in whatever order the processes answered. */
+  const byId = (one: { id: unknown }, two: { id: unknown }) => Number(one.id) - Number(two.id)
+
   test('an event reaches sockets held by another process', async () => {
     const first = node()
     const second = node()
@@ -419,6 +422,92 @@ describe.if(redisAvailable)('across processes, over Redis', () => {
     } finally {
       mine.bus.close()
       theirs.bus.close()
+    }
+  })
+
+  test('the member list is gathered from every process', async () => {
+    const presenceRegistry = () =>
+      new ChannelRegistry().presence('room.{id}', (user) => (user ? { id: user.id } : null))
+
+    const first = { bus: new RedisPubSub({ url: REDIS_URL, prefix }) }
+    const one = new Broadcaster(presenceRegistry(), first.bus)
+    const second = { bus: new RedisPubSub({ url: REDIS_URL, prefix }) }
+    const two = new Broadcaster(presenceRegistry(), second.bus)
+    await settle()
+
+    const ada = socket('a', { id: 1 })
+    const linus = socket('b', { id: 2 })
+
+    await one.subscribe(ada.subscriber, 'room.7')
+    await two.subscribe(linus.subscriber, 'room.7')
+    await settle()
+
+    try {
+      // Each process holds one socket and knows only its own.
+      expect<unknown>(one.presence('room.7')).toEqual([{ id: 1 }])
+      expect<unknown>(two.presence('room.7')).toEqual([{ id: 2 }])
+
+      // Asked of all of them, the answer is the room.
+      expect<unknown>((await one.presenceAcross('room.7')).sort(byId)).toEqual([
+        { id: 1 },
+        { id: 2 }
+      ])
+      expect<unknown>((await two.presenceAcross('room.7')).sort(byId)).toEqual([
+        { id: 1 },
+        { id: 2 }
+      ])
+
+      /**
+       * And that is what a joiner is told.
+       *
+       * A list holding only the people who happen to share a process with you is
+       * worse than no list, because it looks like an answer: the page renders
+       * two of the five who are in the room and nothing says so.
+       */
+      const late = socket('c', { id: 3 })
+      await two.subscribe(late.subscriber, 'room.7')
+
+      const here = JSON.parse(late.received[0] as string) as {
+        event: string
+        payload: { members: Array<{ id: number }> }
+      }
+
+      expect<string>(here.event).toBe('presence.here')
+      expect<unknown>(here.payload.members.sort(byId)).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+    } finally {
+      first.bus.close()
+      second.bus.close()
+    }
+  })
+
+  test('a gather answers with what it has when a process does not reply', async () => {
+    // The bus reports two subscribers and only one answers — a process that died
+    // without Redis noticing. The socket still gets a list rather than hanging.
+    const registry = new ChannelRegistry().presence('room.{id}', (user) =>
+      user ? { id: user.id } : null
+    )
+
+    const bus = new RedisPubSub({ url: REDIS_URL, prefix })
+    const alive = new Broadcaster(registry, bus)
+
+    // A second subscriber that receives the question and never answers.
+    const mute = new RedisClient(REDIS_URL)
+    await mute.subscribe(`${prefix}broadcast`, () => {})
+
+    const ada = socket('a', { id: 1 })
+    await alive.subscribe(ada.subscriber, 'room.7')
+    await settle()
+
+    try {
+      const started = Date.now()
+      const members = await alive.presenceAcross('room.7')
+
+      expect<unknown>(members).toEqual([{ id: 1 }])
+      // Bounded: it waited for the timeout, not for ever.
+      expect(Date.now() - started).toBeLessThan(2000)
+    } finally {
+      mute.close()
+      bus.close()
     }
   })
 

@@ -40,16 +40,20 @@ export class RedisPubSub implements PubSub {
     this.channel = `${options.prefix ?? ''}broadcast`
   }
 
-  publish(message: PublishedMessage): void {
-    /**
-     * Fire and forget, with the failure reported and swallowed.
-     *
-     * A broadcast is not a delivery guarantee — nothing about it ever was — and
-     * throwing here would take down the request that happened to cause the
-     * event. A Redis that is down means the other processes miss it, which is
-     * the same outcome as having no bus at all.
-     */
-    void this.publisher.publish(this.channel, JSON.stringify(message)).catch(() => undefined)
+  /**
+   * Send, answering with how many subscribers received it.
+   *
+   * A failure answers `0` rather than throwing. A broadcast is not a delivery
+   * guarantee — nothing about it ever was — and taking down the request that
+   * caused the event would be a worse trade than the other processes missing it,
+   * which is the same outcome as having no bus at all. A gather waiting on that
+   * count then falls through to its timeout with whatever it has.
+   */
+  publish(message: PublishedMessage): Promise<number> {
+    return this.publisher
+      .publish(this.channel, JSON.stringify(message))
+      .then((received) => Number(received) || 0)
+      .catch(() => 0)
   }
 
   onMessage(handler: (message: PublishedMessage) => void): void {
