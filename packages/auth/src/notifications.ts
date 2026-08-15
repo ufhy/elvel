@@ -119,3 +119,35 @@ export class PasswordChangedNotification extends Notification<{
     return { kind: 'password-changed' }
   }
 }
+
+/**
+ * "Confirm your new email address" — sent to the address on file, not the new one.
+ *
+ * The direction is the whole security property. A stolen session that changes the
+ * address would otherwise lock the owner out silently; sending the confirmation to
+ * the address already on record means the change needs the old inbox too, and the
+ * owner hears about an attempt they did not make.
+ *
+ * better-auth only asks for this when the current address is already verified. An
+ * unverified one is replaced outright, because there is nothing yet to protect.
+ */
+export class ChangeEmailNotification extends Notification<AuthMailData & { newEmail: string }> {
+  via(): string[] {
+    return ['mail']
+  }
+
+  override toMail(): MailMessage {
+    return new MailMessage()
+      .subject(`Confirm your new ${this.data.appName ?? 'account'} email address`)
+      .greeting(greet(this.data.name))
+      .line(`Somebody asked to move this account to ${this.data.newEmail}.`)
+      .action('Confirm the change', this.data.url)
+      .line('Until you confirm, this address stays in place.')
+      .line('If this was not you, ignore this email and change your password.')
+  }
+
+  override toArray(): Record<string, unknown> {
+    // The new address is kept: it is what makes a stored copy worth reading back.
+    return { url: '[redacted]', newEmail: this.data.newEmail, kind: 'change-email' }
+  }
+}

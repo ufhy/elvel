@@ -101,6 +101,31 @@ describe('the hooks better-auth is given', () => {
       'PasswordChangedNotification'
     )
   })
+  /**
+   * The direction is the security property, so it is what the test asserts.
+   *
+   * The confirmation goes to the address already on file, not to the one being
+   * asked for. Swapped, the mail that guards the change would go to whoever is
+   * trying to make it — and the check would still pass on "a mail was sent".
+   */
+  test('a change of address is confirmed at the old one', async () => {
+    const mail = notifier()
+
+    await authMailHooks({ notifier: mail }).sendChangeEmailConfirmation({
+      user: ada,
+      newEmail: 'somebody-else@example.com',
+      url: 'https://example.test/confirm',
+      token: 'tok'
+    })
+
+    expect<string | undefined>(mail.sent[0]?.notification.constructor.name).toBe(
+      'ChangeEmailNotification'
+    )
+    expect<unknown>((mail.sent[0] as Sent).to).toEqual({
+      channel: 'mail',
+      destination: ada.email
+    })
+  })
 })
 
 describe('merging into better-auth options', () => {
@@ -115,6 +140,27 @@ describe('merging into better-auth options', () => {
     expect<string>(typeof merged.emailAndPassword.sendResetPassword).toBe('function')
     expect<string>(typeof merged.emailAndPassword.onPasswordReset).toBe('function')
     expect<string>(typeof merged.emailVerification.sendVerificationEmail).toBe('function')
+  })
+
+  test('the change-of-address mailer is filled in when that flow is on', () => {
+    const merged = withAuthMail({ user: { changeEmail: { enabled: true } } }, hooks) as {
+      user: { changeEmail: Record<string, unknown> }
+    }
+
+    expect<string>(typeof merged.user.changeEmail.sendChangeEmailConfirmation).toBe('function')
+  })
+
+  test('and left off when it is not', () => {
+    // `/change-email` does not exist with `enabled` off; a mailer on it would be
+    // attached to a 404.
+    expect<unknown>((withAuthMail({}, hooks) as { user?: unknown }).user).toBeUndefined()
+    expect<unknown>(
+      (
+        withAuthMail({ user: { changeEmail: { enabled: false } } }, hooks) as {
+          user: { changeEmail: Record<string, unknown> }
+        }
+      ).user.changeEmail.sendChangeEmailConfirmation
+    ).toBeUndefined()
   })
 
   test("an application's own callback is left alone", () => {

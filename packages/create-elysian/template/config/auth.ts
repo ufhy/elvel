@@ -34,6 +34,23 @@ export default {
     minPasswordLength: 8
   },
 
+  user: {
+    /**
+     * Changing an address, which better-auth keeps behind its own endpoint.
+     *
+     * `POST /change-email` — `updateUser` refuses an `email` outright. With a
+     * verified address on file the change waits for a link sent to the *old*
+     * inbox; an unverified one is replaced at once, since there is nothing to
+     * protect yet and a typo at sign-up would otherwise be unfixable.
+     */
+    changeEmail: {
+      enabled: true,
+      updateEmailWithoutVerification: true
+      // `sendChangeEmailConfirmation` is filled in by the provider, the same way
+      // `sendVerificationEmail` is. Write one here to take it over.
+    }
+  },
+
   /** Trusted origins for better-auth's own CSRF checks. */
   trustedOrigins: [env('APP_URL', 'http://localhost:3000')],
 

@@ -8,10 +8,20 @@ export type ProfileProps = {
   email: string
   emailVerified: boolean
   saved?: boolean | undefined
+  /** A new address was accepted and is waiting to be confirmed. */
+  pending?: boolean | undefined
   error?: string | undefined
 }
 
-export function Profile({ title, name, email, emailVerified, saved, error }: ProfileProps) {
+export function Profile({
+  title,
+  name,
+  email,
+  emailVerified,
+  saved,
+  pending,
+  error
+}: ProfileProps) {
   return (
     <Layout title={title}>
       <section class="panel">
@@ -24,6 +34,13 @@ export function Profile({ title, name, email, emailVerified, saved, error }: Pro
           </p>
         ) : null}
         {saved ? <p class="notice">Saved.</p> : null}
+        {pending ? (
+          /* The old address stays until the new one is confirmed, so saying
+             "saved" here would be a lie the next sign-in would expose. */
+          <p class="notice">
+            Saved. Confirm the new address from the link we sent before it takes effect.
+          </p>
+        ) : null}
 
         {/* A browser form can only POST; `_method` is what reaches the PATCH
             route the framework registered. */}

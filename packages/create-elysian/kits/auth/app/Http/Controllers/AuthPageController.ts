@@ -1,8 +1,9 @@
-import { auth } from '@elysian/auth'
+import { auth, confirmPassword } from '@elysian/auth'
 import { controller } from '@elysian/core'
-import { errors, middleware, redirect } from '@elysian/http'
+import { errors, intended, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
+import { ConfirmPassword } from '../../../resources/views/pages/confirm-password.tsx'
 import { Dashboard } from '../../../resources/views/pages/dashboard.tsx'
 import { ForgotPassword } from '../../../resources/views/pages/forgot-password.tsx'
 import { ResetPassword } from '../../../resources/views/pages/reset-password.tsx'
@@ -28,6 +29,8 @@ type ServerApi = {
   resetPassword(args: { body: unknown; asResponse: true }): Promise<Response>
   changePassword(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
   updateUser(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
+  changeEmail(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
+  verifyPassword(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
   deleteUser(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
   sendVerificationEmail(args: { body: unknown; asResponse: true }): Promise<Response>
   listSessions(args: { headers: Headers }): Promise<unknown>
@@ -256,6 +259,7 @@ export default controller('auth-pages')
         name: user.name ?? '',
         email: user.email,
         emailVerified: user.emailVerified === true,
+        pending: query.pending === '1',
         saved: query.saved === '1',
         error: errors().first('name') ?? errors().first('email')
       })
@@ -266,27 +270,60 @@ export default controller('auth-pages')
   .patch(
     '/settings/profile',
     async ({ body, request, user }) => {
-      const answer = await api().updateUser({
-        // `email` is sent only when it changed: better-auth restarts
-        // verification for a new address, and resending the same one would
-        // unverify an account that was already confirmed.
-        body:
-          body.email === user.email ? { name: body.name } : { name: body.name, email: body.email },
+      /**
+       * Two endpoints, because better-auth refuses to do it in one.
+       *
+       * `updateUser` throws `EMAIL_CAN_NOT_BE_UPDATED` the moment an `email`
+       * appears in its body — changing an address goes through `changeEmail`,
+       * which knows to re-verify. The first version of this sent both to
+       * `updateUser` and answered 400 for anybody who edited their address, while
+       * carrying a comment claiming better-auth handled it.
+       */
+      const named = await api().updateUser({
+        body: { name: body.name },
         headers: request.headers,
         asResponse: true
       })
 
-      if (!answer.ok) {
+      if (!named.ok) {
         return redirect('/settings/profile')
-          .withErrors({ email: await messageFrom(answer, 'That could not be saved.') })
+          .withErrors({ name: await messageFrom(named, 'That could not be saved.') })
           .withInput({ name: body.name, email: body.email })
           .toResponse()
       }
 
-      return withSession(
-        answer,
-        await redirect('/settings/profile?saved=1').seeOther().toResponse()
-      )
+      if (body.email !== user.email) {
+        const moved = await api().changeEmail({
+          body: { newEmail: body.email, callbackURL: '/settings/profile' },
+          headers: request.headers,
+          asResponse: true
+        })
+
+        if (!moved.ok) {
+          return redirect('/settings/profile')
+            .withErrors({ email: await messageFrom(moved, 'That address could not be used.') })
+            .withInput({ name: body.name, email: body.email })
+            .toResponse()
+        }
+
+        /**
+         * Which of the two things just happened depends on the old address.
+         *
+         * A confirmed one is only replaced once the new one is confirmed as well,
+         * and the confirmation goes to the address on file — so the page says a
+         * link is on its way. An unconfirmed one is replaced outright, and telling
+         * somebody to wait for a link that changes nothing would be a lie the next
+         * page load exposes.
+         */
+        const where = user.emailVerified === true ? 'pending=1' : 'saved=1'
+
+        return withSession(
+          named,
+          await redirect(`/settings/profile?${where}`).seeOther().toResponse()
+        )
+      }
+
+      return withSession(named, await redirect('/settings/profile?saved=1').seeOther().toResponse())
     },
     {
       ...middleware('auth'),
@@ -389,7 +426,9 @@ export default controller('auth-pages')
         error: errors().first('session')
       })
     },
-    middleware('auth')
+    // Reading which devices are signed in, and cutting any of them off, is the
+    // one place a borrowed unlocked browser does real damage — so it asks.
+    middleware('auth', 'password.confirm')
   )
 
   .post(
@@ -404,7 +443,7 @@ export default controller('auth-pages')
       return redirect('/settings/security?revoked=1').seeOther().toResponse()
     },
     {
-      ...middleware('auth'),
+      ...middleware('auth', 'password.confirm'),
       body: t.Object({ id: t.String() })
     }
   )
@@ -422,7 +461,56 @@ export default controller('auth-pages')
         await redirect('/settings/security?revoked=1').seeOther().toResponse()
       )
     },
+    middleware('auth', 'password.confirm')
+  )
+
+  // --------------------------------------------------- password confirmation
+
+  .get(
+    '/confirm-password',
+    () => view(ConfirmPassword, { title: 'Confirm password', error: errors().first('password') }),
     middleware('auth')
+  )
+
+  .post(
+    '/confirm-password',
+    async (context) => {
+      const { body, request } = context
+
+      /**
+       * `verifyPassword` rather than a sign-in.
+       *
+       * Signing in again would mint a second session and rotate the cookie, which
+       * turns "prove you are there" into "start over" — and on a wrong answer it
+       * would count against the sign-in throttle instead of this one.
+       */
+      const answer = await api().verifyPassword({
+        body: { password: body.password },
+        // `asResponse`, because a wrong password is an APIError thrown rather than
+        // a `{ status: false }` returned — unhandled, the form answers 500 and the
+        // person who mistyped is told the server broke.
+        headers: request.headers,
+        asResponse: true
+      })
+
+      if (!answer.ok) {
+        return redirect('/confirm-password')
+          .withErrors({ password: await messageFrom(answer, 'That password was wrong.') })
+          .toResponse()
+      }
+
+      confirmPassword(context)
+
+      // Back where they were headed when the wall came up; `guest()` put it in the
+      // session and this pulls it out, so a second visit falls back to settings.
+      return intended('/settings/security', 303).toResponse()
+    },
+    {
+      // The same six a minute the sign-in form gets: this form takes a password
+      // and answers whether it was right, which is a guessing oracle without it.
+      ...middleware('auth', 'throttle:6,1'),
+      body: t.Object({ password: t.String() })
+    }
   )
 
   .post('/sign-out', async ({ request }) => {

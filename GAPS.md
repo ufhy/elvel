@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 7.**
+**Open: 5.**
 
 ---
 
@@ -81,13 +81,6 @@ Found by scaffolding one and following the printed instructions.
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
 | **Two manual steps before the kit works** | The installer prompts for a database and offers to migrate. | `auth:schema` and `migrate`, by hand. Down from three now the secrets are generated, and the remaining two cannot be run by the scaffolder in workspace mode: the framework packages are not linked until `bun install` runs at the repository root, so artisan cannot start. Laravel's installer runs `composer install` itself, which is what closing this would take. |
-
-### The auth kit
-
-| Gap | What Laravel has | Why it matters here |
-| --- | --- | --- |
-| **Email re-verification on change** | `ProfileController::update` clears `email_verified_at` when the address is dirty. | The kit sends the new address to better-auth and does not check what it does with verification state. |
-| **Password confirmation window** | `RequirePassword` middleware guards the security page; `password.confirm` re-asks within a window. | Absent. The kit asks for a password on account deletion only, which was my judgement rather than Laravel's design. |
 
 ## Not yet measured
 

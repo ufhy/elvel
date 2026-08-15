@@ -1,4 +1,5 @@
 import {
+  ChangeEmailNotification,
   PasswordChangedNotification,
   ResetPasswordNotification,
   VerifyEmailNotification
@@ -62,6 +63,25 @@ export function authMailHooks(options: MailHookOptions) {
     },
 
     /**
+     * The confirmation for a change of address, delivered to the old one.
+     *
+     * `user` here is the account as it stands and `newEmail` is where it is being
+     * asked to go — the two must not be swapped, or the mail that guards the change
+     * goes to whoever is trying to make it.
+     */
+    async sendChangeEmailConfirmation({
+      user,
+      newEmail,
+      url,
+      token
+    }: MailHookArgs & { newEmail: string }): Promise<void> {
+      await notifier.send(
+        to(user),
+        new ChangeEmailNotification({ ...data(user, url, token), newEmail })
+      )
+    },
+
+    /**
      * After a reset succeeds — not part of the flow, and the point of it.
      *
      * A reset the account's owner did not perform is exactly when they need to
@@ -108,6 +128,22 @@ export function withAuthMail(
   emailVerification.sendVerificationEmail ??= hooks.sendVerificationEmail
 
   const merged: Record<string, unknown> = { ...options, emailVerification }
+
+  /**
+   * Only when the application turned changing an address on.
+   *
+   * better-auth reads `user.changeEmail.enabled` to decide whether `/change-email`
+   * exists at all; writing the callback into an absent block would leave a mailer
+   * attached to an endpoint that answers 404.
+   */
+  const user = { ...((options.user as Record<string, unknown>) ?? {}) }
+  const changeEmail = { ...((user.changeEmail as Record<string, unknown>) ?? {}) }
+
+  if (changeEmail.enabled === true) {
+    changeEmail.sendChangeEmailConfirmation ??= hooks.sendChangeEmailConfirmation
+    user.changeEmail = changeEmail
+    merged.user = user
+  }
 
   // An empty `emailAndPassword` is left off entirely rather than added as `{}`:
   // better-auth reads the key's presence in places, and an application that never

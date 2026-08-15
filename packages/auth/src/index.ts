@@ -28,8 +28,25 @@ export {
 } from './helpers.ts'
 export { authMailHooks, type MailHookOptions, type Notifier, withAuthMail } from './mail-hooks.ts'
 export { type AuthInstance, AuthManager, type AuthSession } from './manager.ts'
+/**
+ * The middleware are registered as aliases by the provider, so a route names them
+ * as strings and rarely imports one. `confirmPassword` is the exception: it is
+ * what *opens* the window `password.confirm` guards, and without it the alias is a
+ * door that only locks.
+ */
+export {
+  authenticate,
+  canAccess,
+  confirmPassword,
+  ensureVerified,
+  guestOnly,
+  PASSWORD_CONFIRMED_AT,
+  type RedirectTarget,
+  requirePassword
+} from './middleware.ts'
 export {
   type AuthMailData,
+  ChangeEmailNotification,
   PasswordChangedNotification,
   ResetPasswordNotification,
   VerifyEmailNotification

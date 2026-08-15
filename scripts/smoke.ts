@@ -3623,6 +3623,117 @@ async function proveTheKitWorks(target: string): Promise<void> {
       (protectedPage.headers.get('location') ?? '').includes('/sign-in'),
       protectedPage.headers.get('location') ?? `status ${protectedPage.status}`
     )
+
+    // --------------------------------------------------- changing the address
+
+    /**
+     * The bug this pair of checks exists for.
+     *
+     * The kit sent the new address to `updateUser`, which answers 400 with
+     * `EMAIL_CAN_NOT_BE_UPDATED` for any body containing an `email` — so every
+     * person who edited their address on the profile form got "that could not be
+     * saved" and no explanation. Nothing caught it because nothing had ever
+     * changed an address over HTTP; the earlier check reposted the same one.
+     */
+    const moved = `moved-${stamp}@example.com`
+    const changed = await fetch(`${origin}/settings/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
+      body: new URLSearchParams({
+        _method: 'PATCH',
+        name: 'Renamed By Spoof',
+        email: moved
+      }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'changing the address is accepted rather than refused',
+      (changed.headers.get('location') ?? '').includes('/settings/profile?'),
+      changed.headers.get('location') ?? `status ${changed.status}`
+    )
+
+    const profile = await fetch(`${origin}/settings/profile`, { headers: { cookie: live } })
+    const profileBody = await profile.text()
+
+    // Unverified here, so better-auth replaces it outright — and the page must
+    // say "saved" rather than promise a link that changes nothing.
+    check('and the new address is what the page shows', profileBody.includes(moved), moved)
+
+    // ------------------------------------------------ confirming the password
+
+    /**
+     * `password.confirm`, which existed and guarded nothing.
+     *
+     * `middleware:list` reported it at 0 routes: the middleware was built and unit
+     * tested, the config named a route and a window, and no page in the kit was
+     * behind it. Session revocation is the page that needs it — a borrowed unlocked
+     * browser can otherwise cut every other device off.
+     */
+    const walled = await fetch(`${origin}/settings/security`, {
+      headers: { cookie: live },
+      redirect: 'manual'
+    })
+
+    check(
+      'the security page asks for the password again',
+      (walled.headers.get('location') ?? '') === '/confirm-password',
+      walled.headers.get('location') ?? `status ${walled.status}`
+    )
+
+    const wall = await fetch(`${origin}/confirm-password`, { headers: { cookie: live } })
+
+    check('the confirm page renders', wall.status === 200, `status ${wall.status}`)
+
+    const refusedConfirm = await fetch(`${origin}/confirm-password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
+      body: new URLSearchParams({ password: 'not-the-password' }).toString(),
+      redirect: 'manual'
+    })
+
+    check(
+      'a wrong password does not open the window',
+      (refusedConfirm.headers.get('location') ?? '').includes('/confirm-password'),
+      refusedConfirm.headers.get('location') ?? `status ${refusedConfirm.status}`
+    )
+
+    const stillWalled = await fetch(`${origin}/settings/security`, {
+      headers: { cookie: live },
+      redirect: 'manual'
+    })
+
+    check(
+      'and the page is still behind the wall',
+      (stillWalled.headers.get('location') ?? '') === '/confirm-password',
+      stillWalled.headers.get('location') ?? `status ${stillWalled.status}`
+    )
+
+    const confirmed = await fetch(`${origin}/confirm-password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
+      body: new URLSearchParams({ password: 'longenough1' }).toString(),
+      redirect: 'manual'
+    })
+
+    // `redirect().guest()` put the page they were heading for in the session, and
+    // `intended()` takes it back out — so the right answer lands where they aimed.
+    check(
+      'the right password sends them where they were going',
+      (confirmed.headers.get('location') ?? '') === '/settings/security',
+      confirmed.headers.get('location') ?? `status ${confirmed.status}`
+    )
+
+    const opened = await fetch(`${origin}/settings/security`, {
+      headers: { cookie: live },
+      redirect: 'manual'
+    })
+
+    check(
+      'and the security page opens for the rest of the window',
+      opened.status === 200,
+      `status ${opened.status}`
+    )
   } finally {
     await server.stop(2000)
   }

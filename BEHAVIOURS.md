@@ -216,6 +216,19 @@ Two things to know when using it:
   the scope inside an async `derive` is lost by the time the handler runs. There
   is a test for this arrangement, because it depends on Elysia not emitting an
   `await` for a synchronous hook.
+- **Changing an email address is a different endpoint.** `updateUser` throws
+  `EMAIL_CAN_NOT_BE_UPDATED` for any body containing an `email`; the change goes
+  through `POST /change-email`, which exists only when
+  `user.changeEmail.enabled` is on and otherwise answers 400 with "Verification
+  email isn't enabled". With a *verified* address on file the change waits for a
+  link sent to the **old** inbox — the direction being the point, since it is
+  what stops a stolen session moving the account away. An unverified address is
+  replaced outright when `updateEmailWithoutVerification` is on, so a typo at
+  sign-up is fixable.
+- **`verifyPassword` throws rather than answering false.** A wrong password is an
+  `APIError`, not `{ status: false }`, so it has to be called with
+  `asResponse: true` — unhandled, a confirm-password form answers 500 to somebody
+  who merely mistyped.
 
 
 ## @elysian/cache
