@@ -674,6 +674,28 @@ One thing worth knowing, and two worth remembering:
 Not gaps — nothing here is waiting to be built. These are the places the
 framework stops, and the reasons are the useful part.
 
+**MySQL is unusable from Bun on Windows.** Not slow — it stops. The dialect suite
+reaches the MySQL block and produces nothing further; the process never prints a
+summary and never exits. The same file, the same servers, the same Bun 1.3.14,
+run from WSL Linux: **121 tests in 6 seconds**.
+
+It took a day to establish that, so here is what was ruled out, each measured
+rather than assumed. MySQL **8.4** and **9.7.1** both hang. Bun **1.3.3** and
+**1.3.14** both hang. Pool size **10** and **1** both hang. The DDL the grammar
+emits is valid. Both query paths — `statement()` through Bun's prepared path and
+`unprepared()` through the simple one — are fast. Connecting, creating, dropping,
+reading, writing and disconnecting are all milliseconds in isolation; sixty
+connect/disconnect cycles and fifteen create/drop cycles pass without
+degradation. Postgres, SQLite and Redis are fine on Windows.
+
+Bun's own tracker carries a family of MySQL-only hangs — #26030, #26235, #26237,
+#26048, #29271, #22695 — closed, reopened, closed again, and one still open on
+Windows (#24130). Postgres appears in none of them.
+
+**So: develop on Linux, WSL, or macOS if the application uses MySQL.** WSL with
+mirrored networking reaches a MySQL running on the Windows host at `127.0.0.1`
+unchanged, which is the cheapest way out — no config edit, no second server.
+
 **`expect(promise).rejects` never settles on Windows when the promise came from a
 networked driver.** A rejection produced after a Postgres, MySQL or Redis round
 trip — `await expect(cache.integer('name')).rejects.toThrow(...)` — hangs for
@@ -697,6 +719,17 @@ The symptom is the expensive part: no output at all, because Bun buffers a file'
 results until the file finishes and writes the per-test `✓` lines only to a
 terminal. A run that looks frozen may be one hung assertion, or may simply be
 slow — `bun test <file> > out.txt` shows nothing either way.
+
+**A Bun SQL connection is a pool, not a socket.** `new SQL(...)` opens ten by
+default — measured at eleven including the one asking. Anything that counts
+server-side connections has to allow for that, or it reports its own pool as
+somebody else's leak; `scripts/flush-connections.ts` passes `max: 1` for exactly
+that reason. `sql.close()` does close the whole pool, on both platforms.
+
+**Connections carry a 30-second timeout by default.** Bun sets none, and a
+connection that never completes then produces no error at all — the query waits,
+the process will not exit, and nothing says why. `DB_CONNECT_TIMEOUT` changes it
+per application.
 
 **Bun has no image API at all.** No `createImageBitmap`, no `OffscreenCanvas`,
 nothing native — checked directly on 1.3.12. So `@elysian/image` is two halves.

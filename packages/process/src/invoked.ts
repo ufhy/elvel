@@ -114,18 +114,36 @@ export class InvokedProcess {
     options: ProcessOptions,
     onOutput?: OutputHandler
   ): Promise<ProcessResult> {
+    /**
+     * A reader rather than `for await`, which does not typecheck everywhere.
+     *
+     * Bun iterates a `ReadableStream` at runtime, but the DOM lib does not
+     * declare `[Symbol.asyncIterator]` on it — so `for await` compiles on one
+     * machine and fails on the next with "must have a '[Symbol.asyncIterator]()'
+     * method". A scaffolded application inherits that, and it is not something
+     * its author can fix. `getReader()` is the same loop and is typed on every
+     * platform.
+     */
     const drain = async (stream: ReadableStream<Uint8Array>, which: 'stdout' | 'stderr') => {
       const decoder = new TextDecoder()
+      const reader = stream.getReader()
 
-      for await (const chunk of stream) {
-        const text = decoder.decode(chunk, { stream: true })
-        if (text === '') continue
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
 
-        if (which === 'stdout') this.out += text
-        else this.err += text
+          const text = decoder.decode(value, { stream: true })
+          if (text === '') continue
 
-        this.touch(options)
-        if (!options.quiet) onOutput?.(text, which)
+          if (which === 'stdout') this.out += text
+          else this.err += text
+
+          this.touch(options)
+          if (!options.quiet) onOutput?.(text, which)
+        }
+      } finally {
+        reader.releaseLock()
       }
     }
 

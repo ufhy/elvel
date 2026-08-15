@@ -23,7 +23,10 @@ export default {
       username: env('DB_USERNAME', 'postgres'),
       password: env('DB_PASSWORD', ''),
       database: env('DB_DATABASE', 'elysian'),
-      max: Number(env('DB_POOL_MAX', 10))
+      max: Number(env('DB_POOL_MAX', 10)),
+      // Seconds before a connection attempt gives up. Without one a server that
+      // never answers produces no error at all — the query simply waits.
+      connectionTimeout: Number(env('DB_CONNECT_TIMEOUT', 30))
     },
 
     /**
@@ -44,7 +47,10 @@ export default {
       username: env('DB_USERNAME', 'postgres'),
       password: env('DB_PASSWORD', ''),
       database: env('DB_DATABASE', 'elysian'),
-      max: Number(env('DB_POOL_MAX', 10))
+      max: Number(env('DB_POOL_MAX', 10)),
+      // Seconds before a connection attempt gives up. Without one a server that
+      // never answers produces no error at all — the query simply waits.
+      connectionTimeout: Number(env('DB_CONNECT_TIMEOUT', 30))
     },
 
     mysql: {

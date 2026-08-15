@@ -373,12 +373,22 @@ for (const { name, config } of available) {
       test('a throw rolls every statement back', async () => {
         await truncate()
 
-        await expect(
-          connection.transaction(async (tx) => {
+        /**
+         * Caught rather than asserted with `.rejects`.
+         *
+         * `expect(promise).rejects` never settles on Windows when the promise
+         * came from a networked driver — the run hangs with no output and Bun
+         * blames a hook whose measured time is 0 ms. Catching asserts the same
+         * thing and cannot hang. See BEHAVIOURS.
+         */
+        const refused = await connection
+          .transaction(async (tx) => {
             await new QueryBuilder(tx, users).insert({ name: 'Ada' })
             throw new Error('nope')
           })
-        ).rejects.toThrow('nope')
+          .catch((error: unknown) => error)
+
+        expect<string>(String((refused as Error).message)).toBe('nope')
 
         expect(await table().count()).toBe(0)
       })
@@ -451,7 +461,11 @@ for (const { name, config } of available) {
       test('an orphan row is rejected', async () => {
         await truncate()
 
-        await expect(table(posts).insert({ user_id: 99_999, title: 'Orphan' })).rejects.toThrow()
+        const refused = await table(posts)
+          .insert({ user_id: 99_999, title: 'Orphan' })
+          .catch((error: unknown) => error)
+
+        expect<boolean>(refused instanceof Error).toBe(true)
       })
 
       test('cascade on delete removes the children', async () => {
@@ -677,14 +691,16 @@ for (const { name, config } of available) {
 
         // A failure after both have written rolls both back — the window this
         // exists to close.
-        await expect(
-          manager.transactionAcross(['two-phase-a', 'two-phase-b'], async (connections) => {
+        const refused = await manager
+          .transactionAcross(['two-phase-a', 'two-phase-b'], async (connections) => {
             await new QueryBuilder(connections['two-phase-a'] as never, left).insert({ v: 'no' })
             await new QueryBuilder(connections['two-phase-b'] as never, right).insert({ v: 'no' })
 
             throw new Error('the caller changed its mind')
           })
-        ).rejects.toThrow('changed its mind')
+          .catch((error: unknown) => error)
+
+        expect<boolean>(String((refused as Error).message).includes('changed its mind')).toBe(true)
 
         expect(await count(left)).toBe(1)
         expect(await count(right)).toBe(1)
@@ -771,9 +787,11 @@ for (const { name, config } of available) {
         expect(String(rows[0]?.label)).toBe('before')
 
         // The new definition is in force: not-null is refused.
-        await expect(
-          new QueryBuilder(connection, table).insert({ label: null, score: 1 })
-        ).rejects.toThrow()
+        const refused = await new QueryBuilder(connection, table)
+          .insert({ label: null, score: 1 })
+          .catch((error: unknown) => error)
+
+        expect<boolean>(refused instanceof Error).toBe(true)
 
         // And the other columns, and the index, are still there — the part a
         // rebuild is most likely to lose.

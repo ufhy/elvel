@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { createHmac } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elysian/database'
 import { middlewareNamesOf, middlewares } from '@elysian/http'
@@ -1429,6 +1429,35 @@ await app.handle(new Request('http://localhost/check/notifications', { method: '
 
 section('Storage')
 
+/**
+ * Does this filesystem remember permission bits?
+ *
+ * A Windows drive mounted in WSL does not: `/mnt/e` is 9p/drvfs without the
+ * `metadata` option, so `chmod 600` is accepted and the file still reads 777.
+ * The visibility check below is meaningless there — not failing, meaningless —
+ * and a red check people learn to ignore is worse than one that says why.
+ */
+const permissionsAreKept = await (async () => {
+  const probe = join(app.basePath(), 'storage', `.permissions-probe-${Date.now()}`)
+
+  try {
+    await writeFile(probe, 'x')
+    await chmod(probe, 0o600)
+
+    return ((await stat(probe)).mode & 0o777) === 0o600
+  } catch {
+    return false
+  } finally {
+    await rm(probe, { force: true })
+  }
+})()
+
+if (!permissionsAreKept) {
+  console.log(
+    '  note: this filesystem does not keep permission bits, so disk visibility is not checked'
+  )
+}
+
 /** A multipart request, as a browser would send one. */
 async function upload(path: string, contents: string, filename = 'notes.txt') {
   const form = new FormData()
@@ -1459,10 +1488,14 @@ for (const diskName of ['memory', 'local', 'public']) {
     `${diskName}: its size and type are read back`,
     stored.size === 19 && stored.mimeType.includes('text/plain')
   )
-  check(
-    `${diskName}: visibility follows the disk`,
-    stored.visibility === (diskName === 'public' ? 'public' : 'private')
-  )
+  // The memory disk keeps visibility as a field, so it is always checkable; the
+  // two local ones read it back off the file mode.
+  if (diskName === 'memory' || permissionsAreKept) {
+    check(
+      `${diskName}: visibility follows the disk`,
+      stored.visibility === (diskName === 'public' ? 'public' : 'private')
+    )
+  }
 
   const fetched = await app.handle(
     new Request(`http://localhost/check/files/${stored.path}?disk=${diskName}`)

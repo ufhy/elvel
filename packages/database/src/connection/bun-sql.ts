@@ -116,11 +116,26 @@ export class BunSqlConnection implements Connection {
     return connection
   }
 
+  /**
+   * Seconds to wait for a server to answer before giving up.
+   *
+   * A default, because the alternative is silence. Without one, a connection
+   * that never completes never fails either: the query waits, the process will
+   * not exit, and nothing anywhere says why. That is not hypothetical — a whole
+   * test suite hung on it, and the absence of a message is what made it take a
+   * day to find rather than a minute.
+   *
+   * Thirty seconds is long enough for a cold container and short enough that a
+   * person notices. An application that wants to wait longer, or not at all,
+   * sets `connectionTimeout` in `config/database.ts`.
+   */
+  static readonly DEFAULT_CONNECTION_TIMEOUT = 30
+
   private static optionsFor(config: ConnectionConfig): Record<string, unknown> {
     const shared = {
       max: config.max,
       idleTimeout: config.idleTimeout,
-      connectionTimeout: config.connectionTimeout
+      connectionTimeout: config.connectionTimeout ?? BunSqlConnection.DEFAULT_CONNECTION_TIMEOUT
     }
 
     if (config.driver === 'sqlite') {
