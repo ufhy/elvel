@@ -74,6 +74,24 @@ export type AggregateClause = {
  */
 export type QueryComponents = {
   from: string
+  /**
+   * `from (subquery) as alias`, kept apart from `from`.
+   *
+   * A separate field rather than widening `from`, because every write path —
+   * insert, update, delete — needs a real table name and a subquery there is
+   * meaningless. It is also why it is an `Expression`: a plain string would be
+   * quoted as one very long identifier, which is what the first version did.
+   */
+  fromRaw?: Expression
+  /**
+   * Bindings belonging to a subquery in `from`.
+   *
+   * Kept apart from the wheres' because SQL reads `from` first: a placeholder in
+   * the subquery is filled before any in the `where` that follows it, and one
+   * flat list appended in the wrong order silently pairs values with the wrong
+   * question marks.
+   */
+  fromBindings?: unknown[]
   columns: Array<string | Expression>
   distinct: boolean
   aggregate?: AggregateClause
@@ -98,6 +116,8 @@ export type QueryComponents = {
 export function cloneQuery(query: QueryComponents): QueryComponents {
   return {
     from: query.from,
+    fromRaw: query.fromRaw,
+    fromBindings: query.fromBindings ? [...query.fromBindings] : undefined,
     columns: [...query.columns],
     distinct: query.distinct,
     aggregate: query.aggregate ? { ...query.aggregate } : undefined,

@@ -580,6 +580,132 @@ export class QueryBuilder<T extends Row = Row> {
     return value === null || value === undefined ? null : Number(value)
   }
 
+  /** Laravel's spelling of the same aggregate. */
+  average(column: string): Promise<number | null> {
+    return this.avg(column)
+  }
+
+  /**
+   * Every value joined into one string.
+   *
+   * The join happens here rather than in SQL: `group_concat` is SQLite's,
+   * `GROUP_CONCAT` MySQL's and `string_agg` Postgres's, with three different
+   * separator syntaxes, and none of them is worth a grammar branch for something
+   * a caller does once at the end.
+   */
+  async implode(column: string, separator = ''): Promise<string> {
+    return (await this.pluck(column)).map((value) => String(value)).join(separator)
+  }
+
+  // -------------------------------------------------------------- ordering
+
+  /**
+   * Shuffle the rows — `RANDOM()`, or `RAND()` on MySQL.
+   *
+   * The function name is the only difference, and getting it wrong is a syntax
+   * error rather than a wrong answer, so it is asked of the dialect rather than
+   * assumed.
+   */
+  inRandomOrder(): this {
+    const dialect = this.connection.grammar.dialect
+    const fn = dialect === 'mysql' ? 'RAND()' : 'RANDOM()'
+
+    this.query.orders.push({ column: raw(fn) })
+
+    return this
+  }
+
+  /**
+   * Order by a list of values, in the order they were given.
+   *
+   * For "show these ids, in this sequence" — a search engine's ranking, or a
+   * hand-curated list. Compiled as a `case` rather than sorted afterwards,
+   * because the ordering has to survive `limit`.
+   */
+  inOrderOf(column: string, values: Value[]): this {
+    if (values.length === 0) return this
+
+    const wrapped = this.connection.grammar.wrap(column)
+    const cases = values
+      .map((value, index) => `when ${wrapped} = ${literal(value)} then ${index}`)
+      .join(' ')
+
+    this.query.orders.push({ column: raw(`case ${cases} else ${values.length} end`) })
+
+    return this
+  }
+
+  groupByRaw(sql: string): this {
+    this.query.groups.push(raw(sql))
+
+    return this
+  }
+
+  // --------------------------------------------------------------- having
+
+  havingBetween(column: string, values: [Value, Value]): this {
+    this.query.havings.push({ type: 'between', column, values, not: false, boolean: 'and' })
+
+    return this
+  }
+
+  havingNull(column: string): this {
+    this.query.havings.push({ type: 'null', column, not: false, boolean: 'and' })
+
+    return this
+  }
+
+  havingNotNull(column: string): this {
+    this.query.havings.push({ type: 'null', column, not: true, boolean: 'and' })
+
+    return this
+  }
+
+  // ------------------------------------------------------------ paginating
+
+  /**
+   * The page after a known id — Laravel's `forPageAfterId`.
+   *
+   * Cheaper and steadier than `offset`: the database seeks the index rather than
+   * counting past rows it will discard, and a row inserted mid-walk cannot shift
+   * the window. Any existing order on the column is dropped, because two orders
+   * on one column is not a thing.
+   */
+  forPageAfterId(perPage = 15, lastId: Value = 0, column = 'id'): this {
+    this.query.orders = this.query.orders.filter(
+      (order) => isExpression(order.column) || order.column !== column
+    )
+
+    if (lastId === null) this.whereNotNull(column)
+    else this.where(column, '>', lastId)
+
+    return this.orderBy(column).limit(perPage)
+  }
+
+  /**
+   * Walk the whole result without holding it in memory.
+   *
+   * Pages by key rather than offset, for the reason `chunkById` exists: an offset
+   * walk silently skips rows when anything is deleted while it runs.
+   */
+  async *cursor(column = 'id', size = 500): AsyncGenerator<Row> {
+    let last: Value = null
+    let first = true
+
+    while (true) {
+      const page = this.clone()
+      if (!first) page.where(column, '>', last)
+
+      const rows = await page.orderBy(column).limit(size).get()
+      if (rows.count() === 0) return
+
+      for (const row of rows) yield row
+
+      last = (rows.last() as Row)[column] as Value
+      first = false
+    }
+  }
+
   private async aggregate(fn: AggregateClause['fn'], column: string): Promise<unknown> {
     const query = this.clone()
     query.query.aggregate = { fn, column }
@@ -689,6 +815,94 @@ export class QueryBuilder<T extends Row = Row> {
     return this.update({ ...extra, [column]: new Expression(`${wrapped} + ${Number(amount)}`) })
   }
 
+  /**
+   * Several counters in one statement — Laravel's `incrementEach`.
+   *
+   * One `update` rather than one per column: two updates to the same row race
+   * each other, and the second overwrites what the first read.
+   */
+  async incrementEach(
+    columns: Record<string, number>,
+    extra: Record<string, unknown> = {}
+  ): Promise<number> {
+    const changes: Record<string, unknown> = { ...extra }
+
+    for (const [column, amount] of Object.entries(columns)) {
+      if (!Number.isFinite(amount)) {
+        throw new Error(`incrementEach() needs a number for [${column}], saw ${String(amount)}.`)
+      }
+
+      changes[column] = new Expression(
+        `${this.connection.grammar.wrap(column)} + ${Number(amount)}`
+      )
+    }
+
+    return this.update(changes)
+  }
+
+  async decrementEach(
+    columns: Record<string, number>,
+    extra: Record<string, unknown> = {}
+  ): Promise<number> {
+    return this.incrementEach(
+      Object.fromEntries(Object.entries(columns).map(([column, amount]) => [column, -amount])),
+      extra
+    )
+  }
+
+  /**
+   * Insert the rows another query selects — `insert into … select …`.
+   *
+   * The rows never leave the database, which is the point: copying a million rows
+   * through this process to write them back is a round trip per batch and a lot
+   * of memory for data that was already where it needed to be.
+   */
+  async insertUsing(
+    columns: string[],
+    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] }
+  ): Promise<number> {
+    const table = this.connection.grammar.wrapTable(this.query.from)
+    const wrapped = columns.map((column) => this.connection.grammar.wrap(column)).join(', ')
+
+    // `affectingStatement`, not `statement`: the latter is for DDL and reports
+    // nothing, so this used to answer 0 while inserting the rows perfectly well.
+    return this.connection.affectingStatement(
+      `insert into ${table} (${wrapped}) ${query.toSql()}`,
+      query.getBindings()
+    )
+  }
+
+  /**
+   * Select from a subquery — `from (select …) as alias`.
+   *
+   * For anything that has to aggregate and then filter on the aggregate, which a
+   * `having` cannot always express.
+   */
+  fromSub(
+    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
+    alias: string
+  ): this {
+    this.query.fromRaw = raw(`(${query.toSql()}) as ${this.connection.grammar.wrapTable(alias)}`)
+    this.query.fromBindings = [...query.getBindings()]
+
+    return this
+  }
+
+  /** A cartesian join against a subquery. */
+  crossJoinSub(
+    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
+    alias: string
+  ): this {
+    this.query.joins.push({
+      type: 'cross',
+      table: raw(`(${query.toSql()}) as ${this.connection.grammar.wrapTable(alias)}`),
+      wheres: [],
+      bindings: query.getBindings()
+    })
+
+    return this
+  }
+
   async decrement(
     column: string,
     amount = 1,
@@ -714,3 +928,18 @@ export class QueryBuilder<T extends Row = Row> {
 }
 
 export { isExpression }
+
+/**
+ * A value inlined into SQL, for the `case` that `inOrderOf` builds.
+ *
+ * Ordinarily everything is bound, and this is the exception: an `order by` cannot
+ * carry bindings in every dialect, and the values here are ids the caller already
+ * had. Numbers pass through; anything else is quoted with its own quotes doubled,
+ * which is the escaping every one of these dialects agrees on.
+ */
+function literal(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (value === null || value === undefined) return 'null'
+
+  return `'${String(value).replace(/'/g, "''")}'`
+}

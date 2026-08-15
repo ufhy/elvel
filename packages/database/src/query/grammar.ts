@@ -163,7 +163,10 @@ export abstract class Grammar {
       parts.push(`select ${query.distinct ? 'distinct ' : ''}${columns}`)
     }
 
-    parts.push(`from ${this.wrapTable(query.from)}`)
+    parts.push(`from ${query.fromRaw ? query.fromRaw.value : this.wrapTable(query.from)}`)
+
+    // Before the joins, because the subquery is written before them.
+    if (query.fromBindings) bindings.push(...query.fromBindings)
 
     for (const join of query.joins) {
       // The joined table's own bindings come first: a subquery is written before

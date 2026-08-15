@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 11.**
+**Open: 10.**
 
 ---
 
@@ -60,7 +60,6 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Query builder methods** | 226 public methods. | 121 here. Missing and genuinely used: `cursor`, `average`, `inRandomOrder`, `groupByRaw`, `havingBetween`, `havingNull`/`havingNotNull`, `joinLateral`, `fromSub`, `crossJoinSub`, `insertUsing`, `incrementEach`/`decrementEach`, `forPageAfterId`, `implode`, `inOrderOf`. |
 | **Model methods** | `destroy`, `deleteOrFail`, `saveOrFail`, named scopes via `callNamedScope`, `getRouteKey`, `broadcastChannel`, `automaticallyEagerLoadRelationships`. | The named-scope surface and `destroy` are the ones an application reaches for daily. |
 
 ### Framework services

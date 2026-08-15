@@ -23,7 +23,14 @@ at the bottom of this file.
 
 Two things to know about walking a table:
 
-- **`chunk()` pages by offset and `chunkById` pages by key**, and the difference
+- **Bun's SQLite driver reports no affected rows for `insert … select`.** An
+`update` answers with its count and an `insert … select` answers 0 while
+inserting the rows perfectly well, so `insertUsing()` returns 0 there. Reported
+as it comes back rather than counted separately: a second `select count(*)` to
+make the number look right would cost a round trip and still be a guess about
+what the first statement did.
+
+**`chunk()` pages by offset and `chunkById` pages by key**, and the difference
   shows the moment rows are deleted while walking — which is the commonest reason
   to chunk at all. Every delete shifts the offset window back by one, so an offset
   walk silently skips rows it never handed over. There is a test that deletes as it
