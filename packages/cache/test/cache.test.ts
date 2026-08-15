@@ -391,7 +391,10 @@ for (const candidate of candidates) {
        * Bun reports it as a hook timeout, which sends you looking in the wrong
        * place. Catching the rejection asserts exactly the same thing.
        */
-      await expect(cache.integer('name')).rejects.toThrow(/not a number/)
+      const refused = await cache.integer('name').catch((error: unknown) => error)
+
+      expect(refused).toBeInstanceOf(TypeError)
+      expect(String((refused as Error).message)).toMatch(/not a number/)
     })
 
     test('a lock is held by one owner at a time', async () => {
