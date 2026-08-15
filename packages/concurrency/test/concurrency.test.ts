@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Application } from '@elysian/core'
 import {
   ConcurrencyManager,
@@ -299,8 +299,9 @@ describe('both drivers resolve a module the same way', () => {
 
     expect(specifier.startsWith('file://')).toBe(true)
     expect(specifier).toBe(pathToFileURL(fixtures).href)
-    // A drive letter never arrives with a slash in front of it.
-    expect(specifier).not.toMatch(/file:\/\/\/?\/[A-Za-z]:/)
+    // And it round-trips back to the native path, which is what the broken
+    // version could not do: `/D:/app/x.ts` is not a path on any platform.
+    expect(fileURLToPath(specifier)).toBe(fixtures)
 
     // An absolute module is taken as it is, not re-resolved against the base.
     expect(specifierFor(fixtures, '/somewhere/else')).toBe(pathToFileURL(fixtures).href)

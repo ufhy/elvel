@@ -109,6 +109,47 @@ export default controller('signal', '/signal')
     return { order, responses, until: await dispatcher.until('until.probe') }
   })
 
+  /**
+   * Events held until the work finishes — and dropped when it does not.
+   *
+   * Two requests through one process is the case a flag on the dispatcher gets
+   * wrong, so the route runs a deferral and an ordinary dispatch at the same
+   * time and reports what each heard.
+   */
+  .get('/deferred', async () => {
+    const dispatcher = events()
+    const heard: string[] = []
+
+    dispatcher.forget('defer.probe')
+    dispatcher.listen('defer.probe', (payload: { step: string }) => {
+      heard.push(payload.step)
+    })
+
+    const held = dispatcher.defer(async () => {
+      await dispatch('defer.probe', { step: 'committed' })
+      await Bun.sleep(10)
+
+      return heard.length
+    })
+
+    // Nothing from the deferral yet, and this one is not caught by it.
+    await dispatch('defer.probe', { step: 'unrelated' })
+    const duringDeferral = [...heard]
+
+    const insideCount = await held
+
+    const abandoned = await dispatcher
+      .defer(async () => {
+        await dispatch('defer.probe', { step: 'rolled back' })
+
+        throw new Error('deliberate failure')
+      })
+      .then(() => 'no error')
+      .catch((error: Error) => error.message)
+
+    return { duringDeferral, insideCount, abandoned, heard }
+  })
+
   /** Level thresholds, placeholder interpolation, sticky context, extend(). */
   .get('/log', () => {
     const memory = new MemoryDriver()

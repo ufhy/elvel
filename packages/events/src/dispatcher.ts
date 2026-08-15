@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type {
   EventConstructor,
   EventDispatcher,
@@ -14,6 +15,13 @@ import {
 } from './listener.ts'
 
 type StoredListener = (event: string, payload: unknown) => unknown | Promise<unknown>
+
+/** One `defer()` in progress: what it is holding, and what it holds back. */
+type Deferral = {
+  /** The names being deferred, or everything when absent. */
+  only: Set<string> | undefined
+  held: Array<[object | string, unknown]>
+}
 
 /** How a queued listener reaches the queue. Installed by the queue's provider. */
 export type QueuedListenerPusher = (
@@ -83,6 +91,17 @@ export class Dispatcher implements EventDispatcher {
   readonly queuedListeners = new ListenerRegistry()
 
   private pusher: QueuedListenerPusher | undefined
+
+  /**
+   * The `defer()` in progress, if any — per async context, not per dispatcher.
+   *
+   * A flag on the object would be wrong here in a way it is not in Laravel. One
+   * dispatcher serves every request in the process, so a deferral held on the
+   * instance would swallow the events of every other request that happened to
+   * overlap with it. The store follows the callback's async context and nothing
+   * else.
+   */
+  private readonly deferrals = new AsyncLocalStorage<Deferral>()
 
   /**
    * Teach the dispatcher how to queue — called by the queue's provider.
@@ -266,7 +285,51 @@ export class Dispatcher implements EventDispatcher {
   async dispatch<E extends object>(event: E): Promise<unknown[] | null>
   async dispatch(event: string, payload?: unknown): Promise<unknown[] | null>
   async dispatch(event: object | string, payload?: unknown): Promise<unknown[] | null> {
+    const deferral = this.deferrals.getStore()
+
+    if (deferral && (!deferral.only || deferral.only.has(eventName(event)))) {
+      deferral.held.push([event, payload])
+
+      return null
+    }
+
     return this.invokeListeners(event, payload, false)
+  }
+
+  /**
+   * Run `body` with dispatches held back, then dispatch them in order.
+   *
+   * Laravel's `Event::defer`. What it is for is the half-finished write: an
+   * order is created, a payment is taken, an invoice is written, and the third
+   * step fails. Without this, two listeners have already emailed the customer
+   * about an order that no longer exists. With it, a throw means nothing was
+   * ever announced — the events are dropped, not dispatched and not retried.
+   *
+   * Naming events narrows it: `defer(body, ['order.paid'])` holds that one and
+   * lets everything else through.
+   *
+   * **`until()` is never deferred**, which is a departure. A halting dispatch is
+   * a question — the caller wants the answer — and deferring one would answer
+   * `null` before any listener had run, which reads as "nobody objected". It
+   * runs at once, inside the deferral, as it would outside it.
+   */
+  async defer<T>(body: () => T | Promise<T>, events?: EventKey[]): Promise<T> {
+    const deferral: Deferral = {
+      only: events ? new Set(events.map((event) => eventName(event))) : undefined,
+      held: []
+    }
+
+    // Awaited inside `run`, so everything the callback starts is in the context.
+    const result = await this.deferrals.run(deferral, async () => body())
+
+    // Through `invokeListeners` rather than `dispatch`: an enclosing `defer` is
+    // not entitled to hold these a second time, having already waited for the
+    // callback that produced them.
+    for (const [event, payload] of deferral.held) {
+      await this.invokeListeners(event, payload, false)
+    }
+
+    return result
   }
 
   async until<E extends object>(event: E): Promise<unknown>

@@ -156,6 +156,15 @@ export interface EventDispatcher {
   until<E extends object>(event: E): Promise<unknown>
   until(event: string, payload?: unknown): Promise<unknown>
 
+  /**
+   * Run `body` with dispatches held back, then dispatch them once it returns.
+   *
+   * If `body` throws, nothing is dispatched at all — which is the point: the
+   * work either finishes and is announced, or it does not and nothing heard
+   * about it.
+   */
+  defer<T>(body: () => T | Promise<T>, events?: EventKey[]): Promise<T>
+
   push(event: string, payload?: unknown): void
   flush(event: string): Promise<void>
   forget(event: EventKey): void

@@ -54,7 +54,6 @@ the next sweep has them.
 has been built; what follows has never been swept at method level, and naming it
 is what stops the empty table above being read as "there is nothing left".
 
-- Events beyond the dispatcher
 - Queue job internals — the raw diff is mostly PHP-isms and needs reading, not
   counting
 - Notification channels

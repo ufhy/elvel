@@ -102,6 +102,19 @@ Four things to know about a queued listener:
   the job first and find none of the rows the event is about. Outside a transaction
   there is nothing to wait for, so it pushes at once.
 
+Two things to know about `defer()`:
+
+- **It is per async context, not per dispatcher.** Laravel can hold the deferral
+  on the instance because one request is one process; here a single dispatcher
+  serves every request at once, and a flag on it would swallow the events of
+  whatever else happened to be in flight. The deferral follows the callback's
+  async context through `AsyncLocalStorage`, so an overlapping request neither
+  loses its events nor inherits somebody else's rollback.
+- **`until()` is never deferred.** A halting dispatch is a question, and holding
+  one would answer `null` before a single listener had run — which reads as
+  "nobody objected". Laravel defers it because `until` is `dispatch(…, halt:
+  true)` there; here it runs at once, inside a deferral as it would outside one.
+
 The dispatcher itself knows nothing about queues: the push arrives as a hook that
 `QueueServiceProvider` installs. A queued listener with no queue registered throws
 and names the provider — running it in the request would look like it worked.

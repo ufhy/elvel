@@ -663,3 +663,118 @@ describe('listening on a base class', () => {
     expect<string[]>(heard).toEqual(['named'])
   })
 })
+
+describe('defer', () => {
+  const heard: string[] = []
+
+  const dispatcher = () => {
+    const events = new Dispatcher()
+
+    events.listen('order.paid', () => {
+      heard.push('paid')
+    })
+    events.listen('order.shipped', () => {
+      heard.push('shipped')
+    })
+
+    return events
+  }
+
+  beforeEach(() => {
+    heard.length = 0
+  })
+
+  test('nothing is heard until the callback returns', async () => {
+    const events = dispatcher()
+
+    const result = await events.defer(async () => {
+      await events.dispatch('order.paid')
+      await events.dispatch('order.shipped')
+
+      // Still inside: the work is not finished, so nobody has been told.
+      expect<string[]>(heard).toEqual([])
+
+      return 'done'
+    })
+
+    expect(result).toBe('done')
+    expect<string[]>(heard).toEqual(['paid', 'shipped'])
+  })
+
+  test('a throw means nothing was announced at all', async () => {
+    const events = dispatcher()
+
+    await expect(
+      events.defer(async () => {
+        await events.dispatch('order.paid')
+
+        throw new Error('the invoice failed')
+      })
+    ).rejects.toThrow('the invoice failed')
+
+    // The whole reason to reach for this: half the work leaves no trace of
+    // having happened, rather than an email about an order that was rolled back.
+    expect<string[]>(heard).toEqual([])
+  })
+
+  test('naming events defers those and lets the rest through', async () => {
+    const events = dispatcher()
+
+    await events.defer(async () => {
+      await events.dispatch('order.paid')
+      await events.dispatch('order.shipped')
+
+      expect<string[]>(heard).toEqual(['shipped'])
+    }, ['order.paid'])
+
+    expect<string[]>(heard).toEqual(['shipped', 'paid'])
+  })
+
+  test('a dispatch outside the callback is untouched', async () => {
+    const events = dispatcher()
+
+    // Two overlapping pieces of work in one process: the deferral belongs to the
+    // callback's async context, not to the dispatcher, so the other one is not
+    // silently held — or worse, dropped when this one throws.
+    const deferred = events.defer(async () => {
+      await events.dispatch('order.paid')
+      await Bun.sleep(20)
+    })
+
+    await events.dispatch('order.shipped')
+    expect<string[]>(heard).toEqual(['shipped'])
+
+    await deferred
+    expect<string[]>(heard).toEqual(['shipped', 'paid'])
+  })
+
+  test('until() answers from the listeners, deferral or not', async () => {
+    const events = new Dispatcher()
+    events.listen('is.allowed', () => 'yes')
+
+    await events.defer(async () => {
+      // A halting dispatch is a question; deferring it would answer null before
+      // anybody had been asked.
+      expect(await events.until('is.allowed')).toBe('yes')
+    })
+  })
+
+  test('a fake records the deferred events, and not the abandoned ones', async () => {
+    const fake = new EventFake()
+
+    await fake.defer(async () => {
+      await fake.dispatch('order.paid')
+    })
+
+    await fake
+      .defer(async () => {
+        await fake.dispatch('order.shipped')
+
+        throw new Error('no')
+      })
+      .catch(() => undefined)
+
+    fake.assertDispatched('order.paid')
+    fake.assertNotDispatched('order.shipped')
+  })
+})

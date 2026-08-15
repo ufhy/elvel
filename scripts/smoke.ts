@@ -190,6 +190,21 @@ check(
 )
 check('until() returns the first non-null response', halting.until === 'answer')
 
+const deferredEvents = (await (
+  await app.handle(new Request('http://localhost/signal/deferred'))
+).json()) as { duringDeferral: string[]; insideCount: number; abandoned: string; heard: string[] }
+
+check('a deferred event is not heard while the work is running', deferredEvents.insideCount === 1)
+check(
+  'and an unrelated dispatch is not swallowed by somebody else’s deferral',
+  deferredEvents.duringDeferral.length === 1 && deferredEvents.duringDeferral[0] === 'unrelated'
+)
+check('a deferred event arrives once the work finishes', deferredEvents.heard.includes('committed'))
+check(
+  'work that throws announces nothing',
+  deferredEvents.abandoned === 'deliberate failure' && !deferredEvents.heard.includes('rolled back')
+)
+
 /**
  * A listener that runs in a worker rather than in the request.
  *
