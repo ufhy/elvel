@@ -2,6 +2,9 @@
   "name": "create-elysian",
   "version": "0.0.1",
   "type": "module",
+  "sideEffects": [
+    "./src/index.ts"
+  ],
   "bin": {
     "create-elysian": "./src/index.ts"
   },

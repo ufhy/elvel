@@ -2,6 +2,9 @@
   "name": "@elysian/concurrency",
   "version": "0.1.0",
   "type": "module",
+  "sideEffects": [
+    "./src/worker-entry.ts"
+  ],
   "private": true,
   "exports": {
     ".": "./src/index.ts"

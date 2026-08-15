@@ -450,6 +450,35 @@ characters and leaves the rest of the card number in the log, which looks
 plausible enough to ship.
 
 
+## Packaging — what `sideEffects` buys
+
+Every package declares `"sideEffects": false`, which is a claim about its
+modules and not a setting: nothing in `src/` does anything at import time beyond
+declaring. It was checked file by file rather than assumed — the only two
+modules that *do* act on import are named instead of hidden by the blanket
+claim: `@elysian/concurrency`'s `worker-entry.ts`, which installs
+`self.onmessage` and is loaded as a worker, and `create-elysian`'s `index.ts`,
+which is a CLI and ends in `process.exit`.
+
+Without the claim a bundler must assume the worst. Measured on Bun 1.3.14,
+importing one function — `csrfField` from `@elysian/http` — pulled **498 modules
+and 1.1 MB**, because the barrel re-exports the provider and the console
+commands, and those reach the console, database, cache and validation packages.
+With the claim, the same import is **5 modules**. The playground application
+bundles to 509 modules where it was 1355.
+
+None of this changes how the framework runs: a server executes the source, and
+every module is loaded anyway. What it changes is the cost to anyone who bundles
+— and the cost of importing one helper into something small.
+
+**A bundled application does not boot yet**, and that is older than this. `config/`
+is read with `readdir` and imported at runtime, so a bundle loads a second copy
+of the framework through those imports and the two copies do not share a
+container: `bun build` then `bun bundle.js list` fails with `Target [middleware]
+is not bound`. The same failure happens with a bundle built before any of this,
+so it is the configuration loader's shape, not the packaging.
+
+
 ## @elysian/process
 
 - **Output is text unless you ask for bytes.** `output` is a JavaScript string,

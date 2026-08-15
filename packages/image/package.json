@@ -2,6 +2,7 @@
   "name": "@elysian/image",
   "version": "0.1.0",
   "type": "module",
+  "sideEffects": false,
   "private": true,
   "exports": {
     ".": "./src/index.ts"
