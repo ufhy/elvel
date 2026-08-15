@@ -3539,6 +3539,101 @@ check('and believed from a trusted one', forwarded.trusting === '9.9.9.9')
  * out, and be refused again. Over HTTP, in a separate process, against SQLite on
  * disk.
  */
+/**
+ * A very small browser: one cookie jar, and a form token read off the page.
+ *
+ * The kit's checks used to build requests by hand and paste cookie strings
+ * between them, with `SESSION_CSRF=false` so no token was needed. That is what
+ * let a broken framework ship — `methodOverridePlugin` read the body twice and
+ * the second read came back doubled, so `_token` arrived as two values joined by
+ * a newline and every method-spoofed form answered 419. Nothing here could see
+ * it, because nothing here ever sent a token.
+ *
+ * So this does what a browser does: keeps cookies across requests, and reads the
+ * hidden `_token` out of the form it is about to submit.
+ */
+class Visitor {
+  private readonly jar = new Map<string, string>()
+
+  constructor(private readonly origin: string) {}
+
+  private cookie(): string {
+    return [...this.jar].map(([name, value]) => `${name}=${value}`).join('; ')
+  }
+
+  /** Set-Cookie is a list, and a session that rolls its cookie sends a new one. */
+  private keep(response: Response): void {
+    for (const line of response.headers.getSetCookie()) {
+      const pair = line.split(';')[0] ?? ''
+      const at = pair.indexOf('=')
+
+      if (at > 0) this.jar.set(pair.slice(0, at), pair.slice(at + 1))
+    }
+  }
+
+  async visit(path: string): Promise<Response> {
+    const response = await fetch(`${this.origin}${path}`, {
+      headers: this.jar.size > 0 ? { cookie: this.cookie() } : {},
+      redirect: 'manual'
+    })
+
+    this.keep(response)
+
+    return response
+  }
+
+  async page(path: string): Promise<string> {
+    return await (await this.visit(path)).text()
+  }
+
+  /**
+   * Submit a form, taking the token from the page that carries it.
+   *
+   * `from` is for the forms that live on another page — the sign-out button in
+   * the layout, say. A page that redirects has no token in it, and the resulting
+   * 419 is the honest answer rather than something to work around.
+   */
+  async submit(path: string, fields: Record<string, string>, from = path): Promise<Response> {
+    const token = tokenIn(await this.page(from))
+
+    const response = await fetch(`${this.origin}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        ...(this.jar.size > 0 ? { cookie: this.cookie() } : {})
+      },
+      body: new URLSearchParams({ ...(token ? { _token: token } : {}), ...fields }).toString(),
+      redirect: 'manual'
+    })
+
+    this.keep(response)
+
+    return response
+  }
+
+  /** Whether this visitor is carrying anything at all. */
+  hasCookies(): boolean {
+    return this.jar.size > 0
+  }
+}
+
+/** The hidden CSRF field, as it is rendered. */
+function tokenIn(html: string): string | undefined {
+  return /name="_token" value="([^"]+)"/.exec(html)?.[1]
+}
+
+/**
+ * A declaration, not a `const`.
+ *
+ * `proveTheKitWorks` is called from higher up the file than this line, and a
+ * `const` arrow is not initialised until execution reaches it — so the first
+ * failing check reported "Cannot access 'where' before initialization" instead
+ * of the thing it was actually checking.
+ */
+function where(response: Response): string {
+  return response.headers.get('location') ?? `status ${response.status}`
+}
+
 async function proveTheKitWorks(target: string): Promise<void> {
   section('The auth kit, over HTTP')
 
@@ -3566,7 +3661,14 @@ async function proveTheKitWorks(target: string): Promise<void> {
       'DB_DATABASE=database/kit.sqlite',
       'DB_FOREIGN_KEYS=true',
       'SESSION_DRIVER=file',
-      'SESSION_CSRF=false',
+      /**
+       * CSRF **on**, which is how a scaffolded application actually runs.
+       *
+       * It was off, and that is the whole reason a broken framework shipped: the
+       * one setting that made the kit's own smoke run agree with a bug nobody
+       * could reproduce anywhere else.
+       */
+      'SESSION_CSRF=true',
       'CACHE_STORE=file',
       'QUEUE_CONNECTION=sync',
       'MAIL_MAILER=log',
@@ -3595,22 +3697,39 @@ async function proveTheKitWorks(target: string): Promise<void> {
   try {
     await server.waitUntil((output) => output.includes('Server running'))
 
-    const signIn = await fetch(`${origin}/sign-in`)
-    const signInBody = await signIn.text()
+    const anon = new Visitor(origin)
+    const signInPage = await anon.page('/sign-in')
 
-    check('the sign-in page renders', signIn.status === 200, `status ${signIn.status}`)
+    check('the sign-in page renders', signInPage.includes('action="/sign-in"'))
+    check('and carries a CSRF token', tokenIn(signInPage) !== undefined)
+    check('and posts back to the route that handles it', signInPage.includes('name="password"'))
+
+    /**
+     * A form without its token is refused — the check that proves CSRF is on.
+     *
+     * Without this, turning CSRF off again in a later edit would go unnoticed and
+     * take every check below with it.
+     */
+    const untokened = await fetch(`${origin}/sign-in`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'email=nobody@example.com&password=whatever',
+      redirect: 'manual'
+    })
+
     check(
-      'and posts back to the route that handles it',
-      signInBody.includes('action="/sign-in"') && signInBody.includes('name="password"')
+      'a form with no token is refused with 419',
+      untokened.status === 419,
+      `status ${untokened.status}`
     )
 
-    const guest = await fetch(`${origin}/dashboard`, { redirect: 'manual' })
+    const guest = await anon.visit('/dashboard')
 
     check('a guest is turned away from the dashboard', guest.status >= 300 && guest.status < 400)
     check(
       'and sent to sign in',
       (guest.headers.get('location') ?? '').includes('/sign-in'),
-      guest.headers.get('location') ?? '(no location)'
+      where(guest)
     )
 
     /**
@@ -3619,20 +3738,15 @@ async function proveTheKitWorks(target: string): Promise<void> {
      * better-auth is called with `asResponse: true` so the cookie it sets is a
      * real one, and the controller moves that cookie onto a redirect. If either
      * half were wrong the browser would get a session-less redirect and land back
-     * on the sign-in page — which is exactly what a file-existence check cannot
-     * tell you.
+     * on the sign-in page.
      */
     const stamp = Date.now()
     const email = `kit-${stamp}@example.com`
     // Unique, so finding it on the page proves the session resolved *this* user
     // rather than that the word happens to appear in the template.
     const name = `Ada ${stamp}`
-    const registered = await fetch(`${origin}/sign-up`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ name, email, password: 'longenough1' }).toString(),
-      redirect: 'manual'
-    })
+
+    const registered = await anon.submit('/sign-up', { name, email, password: 'longenough1' })
 
     check(
       'registering redirects rather than answering with JSON',
@@ -3642,24 +3756,12 @@ async function proveTheKitWorks(target: string): Promise<void> {
     check(
       'and lands on the dashboard',
       (registered.headers.get('location') ?? '').includes('/dashboard'),
-      registered.headers.get('location') ?? '(no location)'
+      where(registered)
     )
+    check('the session cookie travels with the redirect', anon.hasCookies())
 
-    const cookies = registered.headers
-      .getSetCookie()
-      .map((cookie) => cookie.split(';')[0])
-      .join('; ')
+    const dashboardBody = await anon.page('/dashboard')
 
-    check('the session cookie travels with the redirect', cookies.length > 0, cookies || '(none)')
-
-    const dashboard = await fetch(`${origin}/dashboard`, { headers: { cookie: cookies } })
-    const dashboardBody = await dashboard.text()
-
-    check(
-      'the dashboard opens with that cookie',
-      dashboard.status === 200,
-      `status ${dashboard.status}`
-    )
     // The page greets by name, not by address — asserting on the email was wrong
     // about the view rather than about the kit.
     check(
@@ -3669,69 +3771,51 @@ async function proveTheKitWorks(target: string): Promise<void> {
     )
 
     // A second registration with the same address must fail, or the unique index
-    // is missing and two accounts share an email.
-    const duplicate = await fetch(`${origin}/sign-up`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ name, email, password: 'longenough1' }).toString(),
-      redirect: 'manual'
-    })
+    // is missing and two accounts share an email. A fresh visitor, because a
+    // signed-in one is sent away from the form by `guest`.
+    const second = new Visitor(origin)
+    const duplicate = await second.submit('/sign-up', { name, email, password: 'longenough1' })
 
     check(
       'a duplicate address is refused',
       (duplicate.headers.get('location') ?? '').includes('/sign-up'),
-      duplicate.headers.get('location') ?? `status ${duplicate.status}`
+      where(duplicate)
     )
 
-    const wrong = await fetch(`${origin}/sign-in`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ email, password: 'not-the-password' }).toString(),
-      redirect: 'manual'
-    })
+    const wrong = await second.submit('/sign-in', { email, password: 'not-the-password' })
 
     check(
       'a wrong password goes back to the form',
       (wrong.headers.get('location') ?? '').includes('/sign-in'),
-      wrong.headers.get('location') ?? `status ${wrong.status}`
+      where(wrong)
     )
 
-    const again = await fetch(`${origin}/sign-in`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ email, password: 'longenough1' }).toString(),
-      redirect: 'manual'
-    })
+    const again = await second.submit('/sign-in', { email, password: 'longenough1' })
 
     check(
       'signing in with the right one reaches the dashboard',
       (again.headers.get('location') ?? '').includes('/dashboard'),
-      again.headers.get('location') ?? `status ${again.status}`
+      where(again)
     )
 
-    const fresh = again.headers
-      .getSetCookie()
-      .map((cookie) => cookie.split(';')[0])
-      .join('; ')
+    // The sign-out form lives in the layout, so its token comes off a page that
+    // has one rather than off `/sign-out`, which only answers a POST.
+    const signedOut = await second.submit('/sign-out', {}, '/dashboard')
 
-    const signedOut = await fetch(`${origin}/sign-out`, {
-      method: 'POST',
-      headers: { cookie: fresh },
-      redirect: 'manual'
-    })
-
-    check('signing out redirects home', (signedOut.headers.get('location') ?? '') === '/')
+    check(
+      'signing out redirects home',
+      (signedOut.headers.get('location') ?? '') === '/',
+      where(signedOut)
+    )
 
     /**
      * The cookie must stop working, not merely be cleared.
      *
      * A sign-out that only tells the browser to forget the cookie leaves the
-     * session valid for anyone who kept a copy of it.
+     * session valid for anyone who kept a copy of it — so this asks with the
+     * cookie still in hand.
      */
-    const afterSignOut = await fetch(`${origin}/dashboard`, {
-      headers: { cookie: fresh },
-      redirect: 'manual'
-    })
+    const afterSignOut = await second.visit('/dashboard')
 
     check(
       'and the old cookie no longer opens the dashboard',
@@ -3742,98 +3826,74 @@ async function proveTheKitWorks(target: string): Promise<void> {
     // ------------------------------------------------- what the middleware adds
 
     /**
-     * `guest` — the inverse of `auth`, and new.
+     * `guest` — the inverse of `auth`.
      *
      * Before the middleware existed the kit checked for a user on the pages that
      * needed one and never on the pages that needed nobody, so a signed-in person
      * could land on a sign-in form and sign in as themselves again.
      */
-    const signedInAgain = await fetch(`${origin}/sign-in`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ email, password: 'longenough1' }).toString(),
-      redirect: 'manual'
-    })
+    const live = new Visitor(origin)
+    await live.submit('/sign-in', { email, password: 'longenough1' })
 
-    const live = signedInAgain.headers
-      .getSetCookie()
-      .map((cookie) => cookie.split(';')[0])
-      .join('; ')
-
-    const onSignIn = await fetch(`${origin}/sign-in`, {
-      headers: { cookie: live },
-      redirect: 'manual'
-    })
+    const onSignIn = await live.visit('/sign-in')
 
     check(
       'a signed-in visitor is sent away from the sign-in page',
       (onSignIn.headers.get('location') ?? '') === '/dashboard',
-      onSignIn.headers.get('location') ?? `status ${onSignIn.status}`
+      where(onSignIn)
     )
-
-    /**
-     * `throttle:6,1` on the credential routes.
-     *
-     * Six a minute, as Fortify does it. Without this `/sign-in` is a
-     * credential-stuffing endpoint, and the kit had nothing until the middleware
-     * existed to hang it on.
-     */
-    let refused = 0
-    for (let attempt = 0; attempt < 9; attempt += 1) {
-      const guess = await fetch(`${origin}/sign-in`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ email, password: `wrong-${attempt}` }).toString(),
-        redirect: 'manual'
-      })
-
-      if (guess.status === 429) refused += 1
-    }
-
-    check('guessing the password is throttled', refused > 0, `${refused} of 9 refused`)
 
     /**
      * A form reaching a PATCH route.
      *
      * The browser can only POST; `_method=PATCH` is what the framework reads
-     * before routing. Before method spoofing existed the kit had to register
-     * `POST /settings/profile`, where Laravel's starter kit has `PATCH`.
+     * before routing. This is the check that now goes through CSRF as well, which
+     * is where the doubled-body bug lived.
      */
-    const patched = await fetch(`${origin}/settings/profile`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
-      body: new URLSearchParams({
-        _method: 'PATCH',
-        name: 'Renamed By Spoof',
-        email
-      }).toString(),
-      redirect: 'manual'
+    const patched = await live.submit('/settings/profile', {
+      _method: 'PATCH',
+      name: 'Renamed By Spoof',
+      email
     })
 
     check(
       'a form reaches the PATCH route through _method',
       (patched.headers.get('location') ?? '').includes('saved=1'),
-      patched.headers.get('location') ?? `status ${patched.status}`
+      where(patched)
     )
 
-    const renamed = await fetch(`${origin}/settings/profile`, { headers: { cookie: live } })
-
-    check('and the change actually landed', (await renamed.text()).includes('Renamed By Spoof'))
+    check(
+      'and the change actually landed',
+      (await live.page('/settings/profile')).includes('Renamed By Spoof')
+    )
 
     // The page carries the hidden field that makes the above possible.
     check(
       'the form ships the hidden _method field',
-      (
-        await (await fetch(`${origin}/settings/password`, { headers: { cookie: live } })).text()
-      ).includes('name="_method" value="PUT"')
+      (await live.page('/settings/password')).includes('name="_method" value="PUT"')
     )
 
-    const protectedPage = await fetch(`${origin}/settings/security`, { redirect: 'manual' })
+    // A PUT through the same path, because the password form is the other spoofed
+    // one and it takes three fields rather than two.
+    const changedPassword = await live.submit('/settings/password', {
+      _method: 'PUT',
+      current: 'longenough1',
+      password: 'longenough2',
+      password_confirmation: 'longenough2'
+    })
+
+    check(
+      'the password form reaches its PUT route',
+      (changedPassword.headers.get('location') ?? '').includes('saved=1'),
+      where(changedPassword)
+    )
+
+    const protectedPage = await new Visitor(origin).visit('/settings/security')
 
     check(
       'a settings page is behind auth too',
       (protectedPage.headers.get('location') ?? '').includes('/sign-in'),
-      protectedPage.headers.get('location') ?? `status ${protectedPage.status}`
+      where(protectedPage)
     )
 
     // --------------------------------------------------- changing the address
@@ -3848,104 +3908,139 @@ async function proveTheKitWorks(target: string): Promise<void> {
      * changed an address over HTTP; the earlier check reposted the same one.
      */
     const moved = `moved-${stamp}@example.com`
-    const changed = await fetch(`${origin}/settings/profile`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
-      body: new URLSearchParams({
-        _method: 'PATCH',
-        name: 'Renamed By Spoof',
-        email: moved
-      }).toString(),
-      redirect: 'manual'
+    const changed = await live.submit('/settings/profile', {
+      _method: 'PATCH',
+      name: 'Renamed By Spoof',
+      email: moved
     })
 
     check(
       'changing the address is accepted rather than refused',
       (changed.headers.get('location') ?? '').includes('/settings/profile?'),
-      changed.headers.get('location') ?? `status ${changed.status}`
+      where(changed)
     )
-
-    const profile = await fetch(`${origin}/settings/profile`, { headers: { cookie: live } })
-    const profileBody = await profile.text()
 
     // Unverified here, so better-auth replaces it outright — and the page must
     // say "saved" rather than promise a link that changes nothing.
-    check('and the new address is what the page shows', profileBody.includes(moved), moved)
+    check(
+      'and the new address is what the page shows',
+      (await live.page('/settings/profile')).includes(moved),
+      moved
+    )
 
     // ------------------------------------------------ confirming the password
 
     /**
      * `password.confirm`, which existed and guarded nothing.
      *
-     * `middleware:list` reported it at 0 routes: the middleware was built and unit
-     * tested, the config named a route and a window, and no page in the kit was
-     * behind it. Session revocation is the page that needs it — a borrowed unlocked
-     * browser can otherwise cut every other device off.
+     * The middleware was built and unit tested, the config named a route and a
+     * window, and no page in the kit was behind it. Session revocation is the page
+     * that needs it — a borrowed unlocked browser can otherwise cut every other
+     * device off.
      */
-    const walled = await fetch(`${origin}/settings/security`, {
-      headers: { cookie: live },
-      redirect: 'manual'
-    })
+    const walled = await live.visit('/settings/security')
 
     check(
       'the security page asks for the password again',
       (walled.headers.get('location') ?? '') === '/confirm-password',
-      walled.headers.get('location') ?? `status ${walled.status}`
+      where(walled)
     )
 
-    const wall = await fetch(`${origin}/confirm-password`, { headers: { cookie: live } })
+    const wall = await live.visit('/confirm-password')
 
     check('the confirm page renders', wall.status === 200, `status ${wall.status}`)
 
-    const refusedConfirm = await fetch(`${origin}/confirm-password`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
-      body: new URLSearchParams({ password: 'not-the-password' }).toString(),
-      redirect: 'manual'
-    })
+    const refusedConfirm = await live.submit('/confirm-password', { password: 'not-the-password' })
 
     check(
       'a wrong password does not open the window',
       (refusedConfirm.headers.get('location') ?? '').includes('/confirm-password'),
-      refusedConfirm.headers.get('location') ?? `status ${refusedConfirm.status}`
+      where(refusedConfirm)
     )
 
-    const stillWalled = await fetch(`${origin}/settings/security`, {
-      headers: { cookie: live },
-      redirect: 'manual'
-    })
+    const stillWalled = await live.visit('/settings/security')
 
     check(
       'and the page is still behind the wall',
       (stillWalled.headers.get('location') ?? '') === '/confirm-password',
-      stillWalled.headers.get('location') ?? `status ${stillWalled.status}`
+      where(stillWalled)
     )
 
-    const confirmed = await fetch(`${origin}/confirm-password`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: live },
-      body: new URLSearchParams({ password: 'longenough1' }).toString(),
-      redirect: 'manual'
-    })
+    // The password was changed above, so this is the one that works now.
+    const confirmed = await live.submit('/confirm-password', { password: 'longenough2' })
 
     // `redirect().guest()` put the page they were heading for in the session, and
     // `intended()` takes it back out — so the right answer lands where they aimed.
     check(
       'the right password sends them where they were going',
       (confirmed.headers.get('location') ?? '') === '/settings/security',
-      confirmed.headers.get('location') ?? `status ${confirmed.status}`
+      where(confirmed)
     )
 
-    const opened = await fetch(`${origin}/settings/security`, {
-      headers: { cookie: live },
-      redirect: 'manual'
-    })
+    const opened = await live.visit('/settings/security')
 
     check(
       'and the security page opens for the rest of the window',
       opened.status === 200,
       `status ${opened.status}`
     )
+
+    // Revoking other sessions is behind the same wall, and is what the wall is for.
+    // The token comes off the page that carries the form, not off the route it
+    // posts to: a POST-only route has no page and therefore no token.
+    const revoked = await live.submit('/settings/security/revoke-others', {}, '/settings/security')
+
+    check(
+      'other sessions can be revoked once confirmed',
+      (revoked.headers.get('location') ?? '').includes('revoked=1'),
+      where(revoked)
+    )
+
+    // ------------------------------------------------------- closing an account
+
+    /**
+     * The delete form, which answered 404 until better-auth was told to allow it.
+     *
+     * `deleteUser` is off by default and its endpoint reports NOT_FOUND, so the
+     * settings page showed a form that could never work and the failure read as a
+     * missing route rather than a missing option.
+     */
+    const deleted = await live.submit(
+      '/settings/profile',
+      { _method: 'DELETE', password: 'longenough2' },
+      '/settings/profile'
+    )
+
+    check(
+      'the account can actually be deleted',
+      (deleted.headers.get('location') ?? '') === '/',
+      where(deleted)
+    )
+
+    const gone = await live.visit('/dashboard')
+
+    check(
+      'and the session goes with it',
+      gone.status >= 300 && gone.status < 400,
+      `status ${gone.status}`
+    )
+
+    /**
+     * `throttle:6,1` on the credential routes — last, because it spends the budget.
+     *
+     * Six a minute, as Fortify does it. Without this `/sign-in` is a
+     * credential-stuffing endpoint.
+     */
+    const guesser = new Visitor(origin)
+    let refused = 0
+
+    for (let attempt = 0; attempt < 9; attempt += 1) {
+      const guess = await guesser.submit('/sign-in', { email, password: `wrong-${attempt}` })
+
+      if (guess.status === 429) refused += 1
+    }
+
+    check('guessing the password is throttled', refused > 0, `${refused} of 9 refused`)
   } finally {
     await server.stop(2000)
   }

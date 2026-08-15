@@ -142,6 +142,13 @@ Three things to know about wildcard rules:
 
 ## @elysian/http
 
+- **A request body can be read once, and `clone()` is not a licence to read it
+  twice.** `methodOverridePlugin` cloned the request once to find `_method` and
+  again to build the request it passed on; the second clone came back with the
+  body **repeated**. Elysia then parsed `_token` as two values joined by a
+  newline, so every method-spoofed form failed CSRF with an 81-character token
+  against a 40-character one. Read the body once into bytes and reuse them.
+
 Three things to know about maintenance mode:
 
 - **The payload is a file, not the cache.** The likeliest moment to need
@@ -225,6 +232,11 @@ Two things to know when using it:
   what stops a stolen session moving the account away. An unverified address is
   replaced outright when `updateEmailWithoutVerification` is on, so a typo at
   sign-up is fixable.
+- **Every endpoint better-auth ships is off until the options say otherwise.**
+  `changeEmail` needs `user.changeEmail.enabled`; `deleteUser` needs
+  `user.deleteUser.enabled` and answers **404** without it, so a delete form
+  reads as a missing route rather than a missing option. Both are on in the
+  template's `config/auth.ts` because the kit ships forms for them.
 - **`verifyPassword` throws rather than answering false.** A wrong password is an
   `APIError`, not `{ status: false }`, so it has to be called with
   `asResponse: true` — unhandled, a confirm-password form answers 500 to somebody

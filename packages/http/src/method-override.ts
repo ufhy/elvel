@@ -52,44 +52,85 @@ export function methodOverridePlugin(
   return new Elysia({ name: 'elysian:method-override' }).onRequest(async ({ request }) => {
     if (request.method !== 'POST' || request.headers.get(APPLIED)) return undefined
 
-    const spoofed = await readOverride(request, options.fromQuery ?? false)
+    /**
+     * The body is read **once**, here, and that is not a tidiness point.
+     *
+     * The first version cloned twice — once to find `_method`, once to build the
+     * request that goes on — and the second clone came back with **the body
+     * repeated**. Elysia then parsed `_token` as two values joined by a newline,
+     * the CSRF check compared an 81-character string against a 40-character one,
+     * and every method-spoofed form in the auth kit answered 419.
+     *
+     * Two things hid it. The kit's smoke run set `SESSION_CSRF=false`, and the
+     * unit tests for this file build requests by hand rather than through a
+     * booted application, so neither ever put a real token through a real
+     * spoofed form.
+     */
+    const type = request.headers.get('content-type') ?? ''
+    const carriesFields =
+      type.includes('application/x-www-form-urlencoded') || type.includes('multipart/form-data')
+
+    /**
+     * One clone, read once into bytes, used for both purposes.
+     *
+     * Bytes rather than text or `FormData`, because both jobs need the body and
+     * only one form survives the round trip: re-encoding a `FormData` produces a
+     * new multipart boundary while the copied `content-type` header still names
+     * the old one, and the router then parses nothing.
+     *
+     * The original is deliberately left unread. A request with nothing to spoof —
+     * which is most of them — passes straight through and Elysia parses it as it
+     * did before this plugin existed.
+     */
+    const bytes = carriesFields ? await request.clone().arrayBuffer() : undefined
+    const spoofed = await readOverride(request, bytes, type, options.fromQuery ?? false)
+
     if (!spoofed || !allowed.has(spoofed)) return undefined
 
     const headers = new Headers(request.headers)
     headers.set(APPLIED, '1')
 
-    /**
-     * The body is read from a clone and passed on as text.
-     *
-     * A `Request` body is a stream that can be consumed once, so reading
-     * `_method` would otherwise leave the handler with nothing to parse.
-     */
     return handler(
       new Request(request.url, {
         method: spoofed,
         headers,
-        body: await request.clone().text()
+        ...(bytes === undefined ? {} : { body: bytes })
       })
     )
   })
 }
 
-/** The method a request is asking to be, if any. */
-async function readOverride(request: Request, fromQuery: boolean): Promise<string | undefined> {
+/**
+ * The method a request is asking to be, if any.
+ *
+ * Takes the bytes it was already handed rather than reading the request again —
+ * reading it twice is the bug described above.
+ */
+async function readOverride(
+  request: Request,
+  bytes: ArrayBuffer | undefined,
+  type: string,
+  fromQuery: boolean
+): Promise<string | undefined> {
   // The header wins, as in Symfony: it is the form the API clients use, and it
   // needs no body to be read at all.
   const header = request.headers.get(METHOD_HEADER)
   if (header) return header.toUpperCase()
 
-  const type = request.headers.get('content-type') ?? ''
-
-  if (type.includes('application/x-www-form-urlencoded')) {
-    const field = new URLSearchParams(await request.clone().text()).get(METHOD_FIELD)
+  if (bytes !== undefined && type.includes('application/x-www-form-urlencoded')) {
+    const field = new URLSearchParams(new TextDecoder().decode(bytes)).get(METHOD_FIELD)
     if (field) return field.toUpperCase()
   }
 
-  if (type.includes('multipart/form-data')) {
-    const form = await request.clone().formData()
+  if (bytes !== undefined && type.includes('multipart/form-data')) {
+    // Parsed from a throwaway request built on the same bytes, which is the only
+    // way to get a multipart parser without touching the original again.
+    const form = await new Request('http://x', {
+      method: 'POST',
+      headers: { 'content-type': type },
+      body: bytes
+    }).formData()
+
     const field = form.get(METHOD_FIELD)
     if (typeof field === 'string' && field !== '') return field.toUpperCase()
   }

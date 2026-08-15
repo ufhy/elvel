@@ -48,6 +48,22 @@ export default {
       updateEmailWithoutVerification: true
       // `sendChangeEmailConfirmation` is filled in by the provider, the same way
       // `sendVerificationEmail` is. Write one here to take it over.
+    },
+
+    /**
+     * Closing an account, which better-auth also keeps behind a switch.
+     *
+     * Off, `POST /delete-user` answers **404** — so the settings page shows a
+     * delete form that can never work and the failure reads as a missing route
+     * rather than a missing option. Turned on here because the kit ships that
+     * form; an application without one can turn it off again.
+     *
+     * The current password is asked for at the form, which is what makes this
+     * safe to leave enabled: a borrowed unlocked browser cannot close the
+     * account.
+     */
+    deleteUser: {
+      enabled: true
     }
   },
 
