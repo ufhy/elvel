@@ -1,3 +1,4 @@
+import { MessageAssertions } from './assertions.ts'
 import type { Mailer } from './mailer.ts'
 import type { SentMessage } from './message.ts'
 import type { ArrayTransport } from './transports/array.ts'
@@ -37,14 +38,30 @@ export class MailFake {
     this.queuedMail.push(message)
   }
 
-  assertSent(mailable: string, matching?: (message: SentMessage) => boolean): void {
+  /**
+   * Returns the first match, so the check can carry on into what was in it.
+   *
+   * ```ts
+   * mail.assertSent('OrderShipped')
+   *   .assertHasTo('ada@example.com')
+   *   .assertHasSubject('Your order shipped')
+   *   .assertSeeInHtml('Track it')
+   * ```
+   *
+   * Without the chain a test asserts on a class name and passes while the
+   * subject is empty and the invoice went to the wrong customer.
+   */
+  assertSent(mailable: string, matching?: (message: SentMessage) => boolean): MessageAssertions {
     const matches = this.sent(mailable).filter((message) => matching?.(message) ?? true)
+    const first = matches[0]
 
-    if (matches.length === 0) {
+    if (first === undefined) {
       throw new Error(
         `Expected [${mailable}] to have been sent${matching ? ' matching the callback' : ''}, but it was not. Sent: ${this.summary()}`
       )
     }
+
+    return new MessageAssertions(first)
   }
 
   assertNotSent(mailable: string): void {
@@ -53,14 +70,17 @@ export class MailFake {
     }
   }
 
-  assertQueued(mailable: string, matching?: (message: SentMessage) => boolean): void {
+  assertQueued(mailable: string, matching?: (message: SentMessage) => boolean): MessageAssertions {
     const matches = this.queued(mailable).filter((message) => matching?.(message) ?? true)
+    const first = matches[0]
 
-    if (matches.length === 0) {
+    if (first === undefined) {
       throw new Error(
         `Expected [${mailable}] to have been queued, but it was not. Queued: ${this.summary()}`
       )
     }
+
+    return new MessageAssertions(first)
   }
 
   assertNothingSent(): void {

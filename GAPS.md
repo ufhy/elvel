@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 3.**
+**Open: 2.**
 
 ---
 
@@ -64,7 +64,6 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Mailable assertions** | 30-odd `assertHasTo`, `assertHasSubject`, `assertSeeInHtml`, `assertHasAttachment`, … | The mail fake records sends; nothing asserts what was in one. |
 
 ### Artisan
 

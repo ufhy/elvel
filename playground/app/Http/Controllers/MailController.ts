@@ -1,5 +1,5 @@
 import { controller, NotFoundException } from '@elysian/core'
-import { attachFromDisk, mail, mailer, mailTo } from '@elysian/mail'
+import { attachFromDisk, expectMessage, mail, mailer, mailTo } from '@elysian/mail'
 import { queue } from '@elysian/queue'
 import { disk } from '@elysian/storage'
 import { t } from 'elysia'
@@ -92,6 +92,53 @@ export default controller('mail')
     transport.flush?.()
 
     return { cleared: true }
+  })
+
+  /**
+   * The message assertions, run against a message this application really built.
+   *
+   * A test double can be made to pass by an assertion that reads the double
+   * rather than the message; this builds an `ArticlePublished` through the same
+   * mailer a request would, then asserts on it — including one assertion written
+   * to fail, because an assertion library that cannot fail proves nothing.
+   */
+  .get('/check/mail/assertions/:id', async ({ params }) => {
+    const article = await Article.query().find(Number(params.id))
+    if (!article) throw new NotFoundException('No such article.')
+
+    const built = await mailer('array').build(
+      new ArticlePublished({
+        title: article.title,
+        excerpt: article.body.slice(0, 80),
+        articleId: article.id
+      }),
+      // `to` is not on this mailable's envelope — a request supplies it through
+      // `mailTo()`, and `build` takes the same override.
+      { to: [{ address: 'ada@example.com' }] }
+    )
+    const passed: string[] = []
+
+    expectMessage(built)
+      .assertHasTo('ada@example.com')
+      .assertHasReplyTo('editors@example.com')
+      .assertHasSubject(`Published: ${article.title}`)
+      .assertHasTag('article')
+      .assertHasMetadata('articleId', String(article.id))
+      .assertSeeInHtml(article.title)
+      .assertSeeInText(article.title)
+      .assertHasNoAttachments()
+
+    passed.push('to', 'replyTo', 'subject', 'tag', 'metadata', 'html', 'text', 'noAttachments')
+
+    let failure: string | undefined
+
+    try {
+      expectMessage(built).assertHasTo('nobody@example.com')
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error)
+    }
+
+    return { passed, failure }
   })
 
   /** The rendered HTML, without sending anything — a preview route. */

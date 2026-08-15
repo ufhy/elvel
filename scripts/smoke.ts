@@ -1644,6 +1644,33 @@ check('and a text part was included', message?.hasText === true)
 const viaLog = (await (await postJson('/check/mail/send/2', {})).json()) as { sent: string }
 check('the default mailer writes to the log instead of sending', viaLog.sent === 'log')
 
+/**
+ * The message assertions, against a message this application really built.
+ *
+ * Reading the outbox as JSON above proves the mail went out; this proves the
+ * assertions read the same thing a transport would — and that they fail when
+ * they should, which is the half an assertion library most often gets wrong.
+ */
+const asserted = (await (
+  await app.handle(new Request('http://localhost/check/mail/assertions/1'))
+).json()) as { passed: string[]; failure?: string }
+
+check(
+  'the message assertions pass on a real built message',
+  asserted.passed.length === 8,
+  asserted.passed.join(',')
+)
+check(
+  'and a wrong recipient fails rather than passing quietly',
+  asserted.failure !== undefined,
+  asserted.failure ?? '(no failure)'
+)
+check(
+  'with the address that did receive it in the message',
+  (asserted.failure ?? '').includes('ada@example.com'),
+  asserted.failure ?? ''
+)
+
 // Rendering without sending, for a preview.
 const preview = await app.handle(new Request('http://localhost/check/mail/preview/1'))
 const previewHtml = await preview.text()

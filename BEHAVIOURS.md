@@ -487,6 +487,20 @@ Three behaviours worth knowing:
   readable in transit.
 
 
+## @elysian/mail
+
+- **A built message does not remember which disk an attachment came from.**
+  `attachFromDisk` resolves the file to bytes while the message is built, on
+  purpose: a queued message must not depend on the disk still holding the file an
+  hour later. So Laravel's `assertHasAttachmentFromStorageDisk` has no equivalent
+  — `assertHasAttachment(filename)` and `assertHasAttachedData` are what is left,
+  and they check what actually travels.
+- **`assertSeeInHtml` escapes its needle by default.** The view wrote
+  `O&#39;Brien`, so a raw search for `O'Brien` finds nothing in a message that is
+  perfectly correct. Pass `false` as the second argument to search the markup
+  itself.
+
+
 ## @elysian/storage
 
 Four behaviours worth knowing:
