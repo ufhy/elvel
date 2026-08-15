@@ -1,0 +1,19 @@
+# LF everywhere, including on a Windows checkout.
+#
+# Git rewrites line endings to CRLF on Windows by default. The formatter expects
+# LF, so it reported every file in the repository as needing a rewrite and the
+# first CI run failed on `tsconfig.json` — a file nobody had touched. The diff it
+# printed was invisible: only the line endings differed.
+* text=auto eol=lf
+
+# Binaries git must not touch. `playground.sqlite` is committed on purpose: it
+# carries the seed rows the playground's tests read.
+*.sqlite binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary

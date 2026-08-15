@@ -117,10 +117,24 @@ describe('the worker driver only', () => {
    * score like the serial run — it interleaves waiting, and there is no waiting
    * here to interleave.
    *
-   * The threshold is half, which the measurement clears by a wide margin and a
-   * loaded machine will still meet.
+   * The threshold is a fifth off, not a half.
+   *
+   * Half was the first attempt and it assumed the machine. Four tasks on a
+   * two-core runner can be at most twice as fast before worker start-up is paid
+   * for, so demanding a halving asked for the theoretical best and CI failed on
+   * hardware rather than on code. A fifth still fails loudly if the driver ever
+   * serialises — that would land at parity or worse, since spawning workers is
+   * not free — which is the thing this test is actually for.
    */
   test('genuinely uses more than one core', async () => {
+    const cores = navigator.hardwareConcurrency ?? 1
+
+    if (cores < 2) {
+      console.log(`  skipping: ${cores} core, nothing to run in parallel on`)
+
+      return
+    }
+
     const task = { module: fixtures, export: 'spin', args: [40_000_000] }
     const four = [task, task, task, task]
 
@@ -132,7 +146,7 @@ describe('the worker driver only', () => {
     await new WorkerDriver(import.meta.dir).run(four)
     const parallel = Date.now() - parallelStarted
 
-    expect(parallel).toBeLessThan(serial / 2)
+    expect(parallel).toBeLessThan(serial * 0.8)
   })
 
   test('refuses a function, and says what to use instead', async () => {
