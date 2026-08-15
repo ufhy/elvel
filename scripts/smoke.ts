@@ -1467,6 +1467,42 @@ check(
   (await inbox('1')).notifications.length === draft.notifications.length
 )
 
+/**
+ * A queued notification, rendered in the recipient's language by the worker.
+ *
+ * The worker never saw the request and never gets the recipient's model, so the
+ * language has to have been resolved before the job was queued. Without that the
+ * stored row comes out in the process default while the same notification sent
+ * in the request comes out in the recipient's.
+ */
+await postJson('/check/notifications/queued/1', { locale: 'id' })
+await captureOutput(() =>
+  app.make('artisan').run(['queue:work', '--queue=notifications', '--stop-when-empty'])
+)
+
+const queuedInbox = await inbox('9')
+
+check(
+  'a queued notification reaches the worker and is stored',
+  queuedInbox.notifications.length === 1
+)
+check(
+  'and the worker rendered it in the recipient’s language',
+  queuedInbox.notifications[0]?.data.heading === 'Pesanan'
+)
+
+await postJson('/check/notifications/queued/1', { locale: 'en' })
+await captureOutput(() =>
+  app.make('artisan').run(['queue:work', '--queue=notifications', '--stop-when-empty'])
+)
+
+const englishInbox = await inbox('9')
+
+check(
+  'a different recipient language changes what is stored',
+  englishInbox.notifications.some((entry) => entry.data.heading === 'Orders')
+)
+
 await app.handle(new Request('http://localhost/check/notifications', { method: 'DELETE' }))
 
 // ------------------------------------------------------------------ storage

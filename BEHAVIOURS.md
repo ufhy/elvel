@@ -618,7 +618,20 @@ Four behaviours worth knowing:
 
 ## @elysian/notifications
 
-Three behaviours worth knowing:
+Two things to know about language:
+
+- **A queued notification resolves its language before it is queued.** The
+  worker gets a rebuilt stand-in for the recipient, not the model — there is no
+  `preferredLocale()` left to ask — so the locale travels in the payload and the
+  job switches the translator around the delivery. Without that, the same
+  notification came out in the recipient's language when sent in the request and
+  in the process default when sent by a worker.
+- **`inLocale()` outranks the recipient's preference.** The preference is the
+  right default and not always right: an alert an operations team reads in one
+  language, or a receipt copied to an accounts mailbox, is about the
+  notification rather than about the person.
+
+And three more:
 
 - **The id belongs to the delivery, not to the notification object.** Each recipient
   gets its own uuid, shared by every channel it is sent through — that is what lets

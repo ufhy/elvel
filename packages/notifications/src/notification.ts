@@ -50,6 +50,27 @@ export abstract class Notification<TData = Record<string, never>> {
   /** Called once a channel has delivered. */
   afterSending?(notifiable: Notifiable, channel: string, response: unknown): void | Promise<void>
 
+  /**
+   * Render this notification in a language of its own.
+   *
+   * Overrides the recipient's `preferredLocale()`, which is the right default
+   * and not always right: a receipt copied to an accounts mailbox, or an alert
+   * an operations team reads in one language whatever each member prefers, is
+   * about the *notification* rather than about the person.
+   *
+   * ```ts
+   * await notify(user, new InvoicePaid({ total }).inLocale('id'))
+   * ```
+   */
+  inLocale(locale: string): this {
+    this.locale = locale
+
+    return this
+  }
+
+  /** Set by `inLocale`. Read by the sender, ahead of the recipient's own. */
+  locale: string | undefined
+
   /** Stored as the notification's `type`, so a client can switch on it. */
   databaseType(): string {
     return this.constructor.name

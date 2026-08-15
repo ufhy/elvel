@@ -17,8 +17,14 @@ import { ArticlePublished } from '../../Notifications/ArticlePublished.ts'
 class Recipient {
   constructor(
     readonly id: number,
-    readonly email?: string
+    readonly email?: string,
+    private readonly locale?: string
   ) {}
+
+  /** The language this person reads, whatever language the request was in. */
+  preferredLocale(): string | undefined {
+    return this.locale
+  }
 
   getKey(): unknown {
     return this.id
@@ -80,6 +86,34 @@ export default controller('notification')
     await notify(recipient, new ArticlePublished({ title: article.title, articleId: article.id }))
 
     return { routed: recipient.channels() }
+  })
+
+  /**
+   * A queued notification for someone who reads another language.
+   *
+   * The two halves that matter: the send happens in a worker, in a process that
+   * never saw the request, and the recipient's model does not travel — so the
+   * language has to have been resolved before the job was queued. Work the queue
+   * and read the stored row to see which one it came out in.
+   */
+  .post('/check/notifications/queued/:id', async ({ params, body }) => {
+    const article = await Article.find(Number(params.id))
+    if (!article) throw new NotFoundException(`No article [${params.id}].`)
+
+    const locale =
+      typeof (body as { locale?: string })?.locale === 'string'
+        ? (body as { locale: string }).locale
+        : 'id'
+
+    const notification = new ArticlePublished({ title: article.title, articleId: article.id })
+
+    // Queued explicitly rather than through `shouldQueue`, so the same
+    // notification class can be sent both ways from one playground.
+    await notifications()
+      .sender()
+      .queue(new Recipient(9, undefined, locale), notification)
+
+    return { id: notification.id, queued: true }
   })
 
   /** The inbox: what is stored for a recipient, unread first. */

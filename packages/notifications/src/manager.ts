@@ -4,7 +4,13 @@ import { DatabaseNotificationChannel } from './channels/database.ts'
 import { LogNotificationChannel } from './channels/log.ts'
 import { MailNotificationChannel } from './channels/mail.ts'
 import { NotificationFake } from './fake.ts'
-import { AnonymousNotifiable, identify, type Notifiable, routeFor } from './notifiable.ts'
+import {
+  AnonymousNotifiable,
+  identify,
+  localeFor,
+  type Notifiable,
+  routeFor
+} from './notifiable.ts'
 import {
   type AnyNotification,
   type NotificationClass,
@@ -136,7 +142,8 @@ export class NotificationManager {
                 // Resolved now: a worker cannot ask a model it does not have.
                 route: routeFor(notifiable, channel),
                 notifiableType: type,
-                notifiableId: id
+                notifiableId: id,
+                locale: notification.locale ?? localeFor(notifiable)
               }),
               { queue: notificationClass.queue, connection: notificationClass.connection }
             )

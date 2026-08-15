@@ -754,6 +754,48 @@ describe('the recipient’s own language', () => {
     expect<string>(current).toBe('en')
   })
 
+  test('inLocale overrides what the recipient prefers', async () => {
+    const locales: string[] = []
+    let current = 'en'
+
+    const sender = new NotificationSender(
+      () => ({
+        name: 'probe',
+        send: async () => {
+          locales.push(current)
+        }
+      }),
+      {
+        translator: {
+          getLocale: () => current,
+          setLocale: (locale: string) => {
+            current = locale
+          }
+        }
+      }
+    )
+
+    class Probe extends Notification<Record<string, never>> {
+      via(): string[] {
+        return ['probe']
+      }
+    }
+
+    // Two recipients who prefer different languages, one notification that is
+    // about itself rather than about them — an alert an operations team reads,
+    // a receipt copied to accounts.
+    await sender.sendNow(
+      [
+        { email: 'ada@example.com', preferredLocale: () => 'id' },
+        { email: 'linus@example.com', preferredLocale: () => 'fr' }
+      ],
+      new Probe({}).inLocale('en-GB')
+    )
+
+    expect<string[]>(locales).toEqual(['en-GB', 'en-GB'])
+    expect<string>(current).toBe('en')
+  })
+
   test('a channel that throws still restores the locale', async () => {
     let current = 'en'
 

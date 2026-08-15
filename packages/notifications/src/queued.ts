@@ -14,6 +14,16 @@ export type QueuedNotificationData = {
   /** Type and key of the recipient, for the database channel. */
   notifiableType?: string
   notifiableId?: unknown
+  /**
+   * The language to render in, resolved before queueing.
+   *
+   * Resolved there because that is the last place the recipient's model exists:
+   * a worker gets a rebuilt stand-in with no `preferredLocale()` to ask. Without
+   * this the queued copy of a notification came out in the worker's default
+   * language while the same notification sent in the request came out in the
+   * recipient's — the kind of difference nobody notices until a customer does.
+   */
+  locale?: string
 }
 
 /**
@@ -59,6 +69,7 @@ export class SendQueuedNotification extends Job<QueuedNotificationData> {
       send(notifiable: Notifiable, notification: AnyNotification): Promise<unknown>
     }
     notifications: NotificationRegistry
+    translator?: { getLocale(): string; setLocale(locale: string): unknown }
   } | null = null
 
   async handle(): Promise<void> {
@@ -87,7 +98,30 @@ export class SendQueuedNotification extends Job<QueuedNotificationData> {
     // The id was assigned before queueing, so a stored row and the mail about it
     // still correlate after a retry.
     notification.id = this.data.id
+    notification.locale = this.data.locale
 
-    await resolver.channel(this.data.channel).send(new QueuedNotifiable(this.data), notification)
+    const deliver = () =>
+      resolver.channel(this.data.channel).send(new QueuedNotifiable(this.data), notification)
+
+    const translator = resolver.translator
+
+    if (!this.data.locale || !translator) {
+      await deliver()
+
+      return
+    }
+
+    const previous = translator.getLocale()
+
+    translator.setLocale(this.data.locale)
+
+    try {
+      await deliver()
+    } finally {
+      // In a `finally`: a worker runs job after job in one process, so a throw
+      // here would leave every later notification speaking this recipient's
+      // language.
+      translator.setLocale(previous)
+    }
   }
 }

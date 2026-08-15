@@ -1,5 +1,6 @@
 import type { Notifiable } from '@elysian/notifications'
 import { MailMessage, Notification } from '@elysian/notifications'
+import { __ } from '@elysian/translation'
 
 /**
  * Generated with `bun run playground make:notification ArticlePublished`, then
@@ -46,7 +47,15 @@ export class ArticlePublished extends Notification<{
     return {
       title: this.data.title,
       articleId: this.data.articleId,
-      url: `/check/articles/${this.data.articleId}`
+      url: `/check/articles/${this.data.articleId}`,
+      /**
+       * Rendered here rather than at read time, and that is the point.
+       *
+       * A stored notification is written once and read much later, so the
+       * language has to be the recipient's at the moment it was sent — including
+       * when a worker sends it, in a process that never saw the request.
+       */
+      heading: __('orders.title')
     }
   }
 

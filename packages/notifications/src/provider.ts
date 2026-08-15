@@ -37,7 +37,13 @@ export class NotificationServiceProvider extends ServiceProvider {
 
     SendQueuedNotification.resolver = {
       channel: (name: string) => manager.channel(name),
-      notifications: manager.notifications
+      notifications: manager.notifications,
+      translator: this.app.bound('translator')
+        ? (this.app.make('translator' as never) as {
+            getLocale(): string
+            setLocale(locale: string): unknown
+          })
+        : undefined
     }
 
     this.app.make('queue').jobs.register(SendQueuedNotification)

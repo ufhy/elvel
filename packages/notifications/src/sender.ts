@@ -95,7 +95,9 @@ export class NotificationSender {
        * be the wrong answer anyway: the language belongs to the person, not to
        * whoever triggered the notification.
        */
-      await this.inLocale(localeFor(notifiable), async () => {
+      // The notification's own language wins: `inLocale()` is an explicit
+      // instruction, and the recipient's preference is a default.
+      await this.inLocale(notification.locale ?? localeFor(notifiable), async () => {
         for (const channel of via) {
           if (channel === 'database' && isAnonymous(notifiable)) continue
 
