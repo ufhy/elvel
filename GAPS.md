@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 5.**
+**Open: 3.**
 
 ---
 
@@ -49,7 +49,6 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **View helpers Blade has** | `@error`, `@auth`, `@guest`, `@can`, `@stack`/`@push`, `@once`. | Only `csrfField()` exists. `@stack`/`@push` is the one with no JSX workaround — a page cannot contribute to the layout's `<head>`. |
 
 ### Support
 
@@ -72,7 +71,6 @@ checked item by item.
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
 | **~44 commands of 111** | Counted from `ArtisanServiceProvider`. | Notable: `make:test`, `make:rule`, `make:cast`, `make:observer`, `make:enum`, `make:exception`, `optimize`, `optimize:clear`, `route:cache`/`route:clear`, `view:cache`, `event:cache`, `config:show`, `env:encrypt`/`env:decrypt`, `db:wipe`, `db:monitor`, `model:show`, `model:prune`, `queue:listen`, `queue:monitor`, `queue:pause`/`resume`, `schedule:interrupt`, `vendor:publish`, `lang:publish`. |
-| **Validation rules — 18 of 110** | Verified one by one after normalising. | `active_url`, `ascii`, `doesnt_contain`, `doesnt_end_with`, `doesnt_start_with`, `hex_color`, `mac_address`, `max_digits`, `min_digits`, `multiple_of`, `timezone`, `ulid`, `ipv4`, `encoding`, `array_keys`, `in_array_keys`, `prohibited_if_accepted`, `prohibited_if_declined`. |
 
 ### The scaffolded application
 

@@ -2460,6 +2460,86 @@ try {
 
   // --------------------------------------------------------------- route names
 
+  // --------------------------------------------------------- view helpers
+
+  section('View helpers')
+
+  {
+    const page = await (await app.handle(new Request('http://localhost/check/view-helpers'))).text()
+
+    const head = page.slice(page.indexOf('<head>'), page.indexOf('</head>'))
+
+    /**
+     * The check the feature exists for.
+     *
+     * `<head>` is a finished string before the page body runs, so a page cannot
+     * write into it by rendering. The markers are substituted after the whole
+     * tree resolves, and this is what proves it — a `push` from the body landing
+     * in an element that rendered first.
+     */
+    check('a page reaches the head that rendered before it', head.includes('pushed-by'), head)
+
+    // Prepends come out reversed and ahead of pushes, which is Blade's order and
+    // the only one where "prepend" means anything.
+    check(
+      'and a prepend lands ahead of a push',
+      head.indexOf('prepended') < head.indexOf('pushed-by'),
+      head
+    )
+
+    check(
+      'a second stack collects separately',
+      page.includes('<script id="tail">') && !head.includes('<script id="tail">')
+    )
+
+    // Three widgets, one style and one note: `once` and `pushOnce` deduplicate
+    // per render rather than per component.
+    check('once renders one copy however many ask', page.split('widget-style').length - 1 === 1)
+    check('and the widgets themselves all render', page.split('class="widget"').length - 1 === 3)
+
+    // A marker left behind would be an unsubstituted stack, which is worse than
+    // an empty one: it ships an HTML comment naming the internals.
+    check('no marker survives into the page', !page.includes('elysian:stack'), page.slice(0, 200))
+
+    check('whenGuest renders for a visitor', page.includes('Nobody is signed in.'))
+    check('whenAuth does not', !page.includes('Signed in as'))
+    // `view-status-page` allows guests, so this is the Gate answering rather than
+    // the absence of a user.
+    check('whenCan asks the Gate', page.includes('id="allowed"'))
+    check('whenError is quiet when nothing failed', page.includes('No error flashed.'))
+
+    /**
+     * `whenError` needs a failure from the *previous* request.
+     *
+     * Errors are flashed into the session and read on the next one, so nothing
+     * short of two round trips with a cookie between them exercises it.
+     */
+    const failed = await app.handle(
+      new Request('http://localhost/check/view-helpers/fail', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'email=nope'
+      })
+    )
+
+    const jar = failed.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(';')[0])
+      .join('; ')
+
+    const afterFailure = await (
+      await app.handle(
+        new Request('http://localhost/check/view-helpers', { headers: { cookie: jar } })
+      )
+    ).text()
+
+    check(
+      'and prints the flashed message on the next request',
+      afterFailure.includes('That address was not accepted.'),
+      afterFailure.slice(afterFailure.indexOf('id="error"'), afterFailure.indexOf('id="auth"'))
+    )
+  }
+
   // ------------------------------------------------------- route middleware
 
   section('Route middleware')

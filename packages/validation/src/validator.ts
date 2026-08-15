@@ -465,7 +465,8 @@ export class Validator {
       digits: String(first ?? ''),
       decimal: String(first ?? ''),
       date: String(first ?? ''),
-      format: rule.params.join(',')
+      format: rule.params.join(','),
+      encoding: String(first ?? '')
     }
   }
 }

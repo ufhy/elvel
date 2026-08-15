@@ -1,4 +1,5 @@
 import type { ViewComponent, ViewFactory } from '@elysian/contracts'
+import { resolveStacks, withStacks } from './stacks.ts'
 
 const DOCTYPE = '<!DOCTYPE html>'
 
@@ -22,10 +23,14 @@ export class JsxViewFactory implements ViewFactory {
   constructor(private readonly options: ViewFactoryOptions = {}) {}
 
   async render<Props>(component: ViewComponent<Props>, props: Props): Promise<string> {
-    const markup = await component(props)
+    return withStacks(async () => {
+      // Substituted after the whole tree has rendered, which is the only moment
+      // a `<head>` can hold something a page body pushed to it.
+      const markup = resolveStacks(await component(props))
 
-    if (this.options.doctype === false) return markup
+      if (this.options.doctype === false) return markup
 
-    return markup.trimStart().toLowerCase().startsWith('<html') ? `${DOCTYPE}${markup}` : markup
+      return markup.trimStart().toLowerCase().startsWith('<html') ? `${DOCTYPE}${markup}` : markup
+    })
   }
 }

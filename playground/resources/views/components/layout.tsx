@@ -1,4 +1,5 @@
 import { config } from '@elysian/core'
+import { stack } from '@elysian/view'
 import type { Children } from '@kitajs/html'
 
 export type LayoutProps = {
@@ -29,6 +30,10 @@ export function Layout({ title, children }: LayoutProps) {
           {title} — {name}
         </title>
         <link rel="stylesheet" href="/css/app.css" />
+
+        {/* Anything a page pushed to `head` lands here, even though this element
+            rendered before that page's body ran. */}
+        {stack('head')}
       </head>
       <body>
         <main class="shell">{children}</main>
@@ -38,6 +43,8 @@ export function Layout({ title, children }: LayoutProps) {
           <span class="dot">·</span>
           <span safe>{environment}</span>
         </footer>
+
+        {stack('scripts')}
       </body>
     </html>
   )

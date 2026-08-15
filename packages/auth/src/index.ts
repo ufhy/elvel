@@ -24,7 +24,11 @@ export {
   gate,
   requireUser,
   session,
-  user
+  user,
+  whenAuth,
+  whenCan,
+  whenCannot,
+  whenGuest
 } from './helpers.ts'
 export { authMailHooks, type MailHookOptions, type Notifier, withAuthMail } from './mail-hooks.ts'
 export { type AuthInstance, AuthManager, type AuthSession } from './manager.ts'

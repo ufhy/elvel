@@ -164,3 +164,39 @@ function readPath(source: Record<string, unknown>, path: string): unknown {
 
   return current
 }
+
+/**
+ * Render something only when a field failed — Blade's `@error`.
+ *
+ * ```tsx
+ * {whenError('email', (message) => <p class="error" safe>{message}</p>)}
+ * ```
+ *
+ * The message is passed in rather than read again inside the callback, so the
+ * check and the thing being shown cannot drift apart — the shape that reads
+ * `errors().first('email')` twice will one day check one field and print another.
+ *
+ * **The callback output is not escaped.** JSX with `safe` on the element that
+ * holds the message is the way to write this; interpolating the message into a
+ * template string puts whatever was in the failing field into the page.
+ */
+export function whenError(
+  field: string,
+  render: (message: string) => string,
+  bag: string = DEFAULT_BAG
+): string {
+  const message = errors(bag).first(field)
+
+  return message === undefined ? '' : render(message)
+}
+
+/** Every message for a field, for a form that lists them all rather than the first. */
+export function whenErrors(
+  field: string,
+  render: (messages: string[]) => string,
+  bag: string = DEFAULT_BAG
+): string {
+  const messages = errors(bag).get(field)
+
+  return messages.length === 0 ? '' : render(messages)
+}

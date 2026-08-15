@@ -16,6 +16,7 @@ import QueueController from '../app/Http/Controllers/QueueController.ts'
 import SecretController from '../app/Http/Controllers/SecretController.ts'
 import SignalController from '../app/Http/Controllers/SignalController.ts'
 import SubscribeController from '../app/Http/Controllers/SubscribeController.ts'
+import ViewHelpersController from '../app/Http/Controllers/ViewHelpersController.ts'
 
 /**
  * Web routes. Mount controllers here — this file is the equivalent of
@@ -39,3 +40,4 @@ export default new Elysia({ name: 'routes:web' })
   .use(LimitController)
   .use(MiddlewareController)
   .use(SubscribeController)
+  .use(ViewHelpersController)

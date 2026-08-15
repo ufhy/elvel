@@ -54,3 +54,49 @@ export function cannot(ability: string, args: unknown | unknown[] = []): Promise
 export async function authorize(ability: string, args: unknown | unknown[] = []): Promise<void> {
   await gate().authorize(ability, args)
 }
+
+/**
+ * Render something only for a signed-in visitor — Blade's `@auth`.
+ *
+ * ```tsx
+ * {whenAuth((user) => <a href="/dashboard" safe>{user.name}</a>)}
+ * {whenGuest(() => <a href="/sign-in">Sign in</a>)}
+ * ```
+ *
+ * The user is handed to the callback rather than read again inside it, so the
+ * branch and the thing it prints cannot disagree about who is signed in.
+ */
+export function whenAuth(render: (signedIn: AuthUser) => string): string {
+  const signedIn = user()
+
+  return signedIn === null ? '' : render(signedIn)
+}
+
+/** The other half — for a visitor who is not signed in. */
+export function whenGuest(render: () => string): string {
+  return user() === null ? render() : ''
+}
+
+/**
+ * Render something only when the Gate allows it — Blade's `@can`.
+ *
+ * Awaited, because a policy may read the database. `{await whenCan(...)}` inside
+ * JSX is the shape; a version that answered synchronously could only ever consult
+ * abilities that need nothing, which is not what a policy is for.
+ */
+export async function whenCan(
+  ability: string,
+  args: unknown | unknown[],
+  render: () => string
+): Promise<string> {
+  return (await can(ability, args)) ? render() : ''
+}
+
+/** The negative, for the "you cannot do this" half of a page. */
+export async function whenCannot(
+  ability: string,
+  args: unknown | unknown[],
+  render: () => string
+): Promise<string> {
+  return (await cannot(ability, args)) ? render() : ''
+}

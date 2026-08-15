@@ -56,7 +56,9 @@ export {
   hasOld,
   MessageBag,
   OLD_INPUT_KEY,
-  old
+  old,
+  whenError,
+  whenErrors
 } from './errors.ts'
 export {
   FormRequest,

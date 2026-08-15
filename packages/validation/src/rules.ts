@@ -1,4 +1,4 @@
-import { Arr } from '@elysian/support'
+import { Arr, Str } from '@elysian/support'
 import { extensionOf, isFile, kilobytes, looksExecutable, mediaTypesFor, sniff } from './files.ts'
 import type { Data, RuleContext, RuleHandler } from './types.ts'
 import { ExistsRule, UniqueRule } from './types.ts'
@@ -69,6 +69,8 @@ export const DEPENDENT_RULES = new Set([
   'present_with_all',
   'prohibited',
   'prohibited_if',
+  'prohibited_if_accepted',
+  'prohibited_if_declined',
   'prohibited_unless',
   'prohibits',
   'missing_if',
@@ -724,6 +726,243 @@ export const RULES: Record<string, RuleHandler> = {
     if (values.length === 0) return true
 
     return (await verifier.countIn(table, column, values, extra)) >= values.length
+  },
+
+  // ------------------------------------------------------------ shape of a string
+
+  ascii: ({ value }) => typeof value === 'string' && /^[\x20-\x7e\t\n\r]*$/.test(value),
+
+  hex_color: ({ value }) =>
+    // Three, four, six or eight digits: `#abc`, `#abcd`, `#aabbcc`, `#aabbccdd`.
+    // The four- and eight-digit forms carry alpha, and Laravel accepts both.
+    typeof value === 'string' && /^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i.test(value),
+
+  ulid: ({ value }) => typeof value === 'string' && Str.isUlid(value),
+
+  ipv4: ({ value }) =>
+    typeof value === 'string' &&
+    /^(\d{1,3}\.){3}\d{1,3}$/.test(value) &&
+    value.split('.').every((part) => part === String(Number(part)) && Number(part) <= 255),
+
+  /**
+   * The three spellings PHP's `FILTER_VALIDATE_MAC` takes.
+   *
+   * Colons and hyphens are the familiar pair; `0011.2233.4455` is Cisco's, and
+   * leaving it out would reject addresses copied straight off a switch.
+   */
+  mac_address: ({ value }) =>
+    typeof value === 'string' &&
+    (/^[0-9a-f]{2}([:-])(?:[0-9a-f]{2}\1){4}[0-9a-f]{2}$/i.test(value) ||
+      /^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$/i.test(value)),
+
+  /**
+   * `Intl` rather than a list shipped in the repository.
+   *
+   * A hard-coded set of zone names is wrong the next time a country moves its
+   * clocks, and the runtime already carries the current one.
+   */
+  timezone: ({ value, params }) => {
+    if (typeof value !== 'string') return false
+
+    const group = (params[0] ?? 'ALL').toUpperCase()
+
+    // Only ALL is answerable here: `Intl` exposes no continent or per-country
+    // grouping, so narrowing would silently accept zones the rule excluded.
+    if (group !== 'ALL') {
+      throw new Error(
+        `Validation rule timezone only supports the ALL group; [${group}] needs a zone list this runtime does not carry.`
+      )
+    }
+
+    return Intl.supportedValuesOf('timeZone').includes(value)
+  },
+
+  /**
+   * Whether the bytes actually decode as the named encoding.
+   *
+   * `fatal` is what makes this a check rather than a formality: without it a
+   * decoder answers with replacement characters instead of failing, and every
+   * input would pass.
+   *
+   * ASCII is checked by hand because the web's encoding standard does not have
+   * one. `new TextDecoder('ascii')` is an alias for windows-1252, which maps all
+   * 256 byte values and therefore never fails — `encoding:ascii` would have
+   * passed for every input, which is worse than not having the rule. The same is
+   * true of any single-byte encoding: this rule can only fail for the multi-byte
+   * ones, and that is a property of the runtime rather than a choice.
+   */
+  encoding: ({ value, params }) => {
+    const label = params[0]
+
+    if (label === undefined) throw new Error('Validation rule encoding requires an encoding name.')
+
+    let decoder: TextDecoder
+
+    try {
+      decoder = new TextDecoder(label, { fatal: true })
+    } catch {
+      throw new Error(`Validation rule encoding parameter [${label}] is not a valid encoding.`)
+    }
+
+    const ASCII = new Set(['ascii', 'us-ascii', 'ansi_x3.4-1968'])
+
+    const bytes =
+      value instanceof Uint8Array
+        ? value
+        : typeof value === 'string'
+          ? new TextEncoder().encode(value)
+          : undefined
+
+    if (bytes === undefined) return false
+
+    if (ASCII.has(label.toLowerCase())) return bytes.every((byte) => byte <= 0x7f)
+
+    try {
+      decoder.decode(bytes)
+
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  // ---------------------------------------------------------------- digit counts
+
+  max_digits: ({ value, params }) => {
+    const limit = Number(params[0])
+
+    if (params[0] === undefined) throw new Error('Validation rule max_digits requires a length.')
+    if (typeof value !== 'string' && typeof value !== 'number') return false
+
+    const digits = String(value)
+
+    return /^[0-9]+$/.test(digits) && digits.length <= limit
+  },
+
+  min_digits: ({ value, params }) => {
+    const limit = Number(params[0])
+
+    if (params[0] === undefined) throw new Error('Validation rule min_digits requires a length.')
+    if (typeof value !== 'string' && typeof value !== 'number') return false
+
+    const digits = String(value)
+
+    return /^[0-9]+$/.test(digits) && digits.length >= limit
+  },
+
+  /**
+   * Scaled to integers before dividing.
+   *
+   * `0.3 % 0.1` is `0.09999999999999998` in binary floating point, so the obvious
+   * spelling reports that 0.3 is not a multiple of 0.1. Laravel reaches for a
+   * decimal library for the same reason.
+   */
+  multiple_of: ({ value, params }) => {
+    const numerator = Number(value)
+    const denominator = Number(params[0])
+
+    if (params[0] === undefined) throw new Error('Validation rule multiple_of requires a number.')
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator)) return false
+    if (numerator === 0 && denominator === 0) return false
+    if (denominator === 0) return false
+
+    const decimals = (input: number) => (String(input).split('.')[1] ?? '').length
+    const scale = 10 ** Math.max(decimals(numerator), decimals(denominator))
+
+    return Math.round(numerator * scale) % Math.round(denominator * scale) === 0
+  },
+
+  // -------------------------------------------------------------------- on arrays
+
+  /**
+   * The negative of `contains`, and on arrays rather than strings.
+   *
+   * `doesnt_start_with` and `doesnt_end_with` below are the string ones. The
+   * naming is Laravel's and it is worth knowing which is which before writing a
+   * rule that silently passes on the wrong type.
+   */
+  doesnt_contain: ({ value, params }) => {
+    if (!Array.isArray(value)) return false
+
+    const present = value.map((entry) => String(entry))
+
+    return params.every((param) => !present.includes(param))
+  },
+
+  doesnt_start_with: ({ value, params }) =>
+    (typeof value === 'string' || typeof value === 'number') &&
+    !params.some((prefix) => String(value).startsWith(prefix)),
+
+  doesnt_end_with: ({ value, params }) =>
+    (typeof value === 'string' || typeof value === 'number') &&
+    !params.some((suffix) => String(value).endsWith(suffix)),
+
+  /** Every key present must be one of the named ones — extras fail. */
+  array_keys: ({ value, params }) => {
+    if (params.length === 0) throw new Error('Validation rule array_keys requires a key.')
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+
+    return Object.keys(value).every((key) => params.includes(key))
+  },
+
+  /** At least one of the named keys is present — the mirror of `array_keys`. */
+  in_array_keys: ({ value, params }) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+    if (params.length === 0) return false
+
+    return params.some((key) => Object.hasOwn(value, key))
+  },
+
+  // ------------------------------------------------------------ prohibited when
+
+  prohibited_if_accepted: (context) => {
+    const [field] = context.params
+
+    if (field === undefined) {
+      throw new Error('Validation rule prohibited_if_accepted requires a field.')
+    }
+
+    return TRUTHY.has(otherValue(context, field) as never) ? !isFilled(context.value) : true
+  },
+
+  prohibited_if_declined: (context) => {
+    const [field] = context.params
+
+    if (field === undefined) {
+      throw new Error('Validation rule prohibited_if_declined requires a field.')
+    }
+
+    return FALSY.has(otherValue(context, field) as never) ? !isFilled(context.value) : true
+  },
+
+  /**
+   * A DNS lookup, which is what makes this different from `url`.
+   *
+   * `url` says the string is shaped like an address; this says something answers
+   * to the host. It is a network call inside a validator — slow, and it fails
+   * closed when the resolver is unreachable, which is the honest reading of "no
+   * record found".
+   */
+  active_url: async ({ value }) => {
+    if (typeof value !== 'string') return false
+
+    let host: string
+
+    try {
+      host = new URL(value).hostname
+    } catch {
+      return false
+    }
+
+    if (host === '') return false
+
+    try {
+      const { lookup } = await import('node:dns/promises')
+
+      return (await lookup(host, { all: true })).length > 0
+    } catch {
+      return false
+    }
   }
 }
 
