@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 15.**
+**Open: 14.**
 
 ---
 
@@ -49,7 +49,6 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Route model binding** | `{post}` resolved to a model, `getRouteKey`, `getRouteKeyName`, `resolveRouteBinding`. | Zero hits. Every handler loads its own row by id. |
 | **View helpers Blade has** | `@error`, `@auth`, `@guest`, `@can`, `@stack`/`@push`, `@once`. | Only `csrfField()` exists. `@stack`/`@push` is the one with no JSX workaround — a page cannot contribute to the layout's `<head>`. |
 
 ### Support

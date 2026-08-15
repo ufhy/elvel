@@ -296,6 +296,27 @@ the smoke test presses the routes sequentially because that is what a client doe
 It matters for a limit meant to stop a burst rather than a rate — an atomic
 increment-and-compare in the store is what would fix it.
 
+**Route bindings are declared, not inferred, and that is forced.** Laravel reads
+the handler's type hints and needs no registration; TypeScript erases them and
+Bun emits no decorator metadata to put them back — the measurement is in the
+Limits section below. So `bindings().model('article', Article)` is how a
+parameter gets a meaning, which is what Laravel's own `Route::model()` is for
+anyway.
+
+Resolution is a middleware rather than automatic, as `SubstituteBindings` is in
+Laravel: a route that takes an id and never loads the row should not pay for a
+query. It runs after `auth` and `verified` and before `can` — loading a row for
+somebody about to be turned away is work for nothing, and `can:update,article`
+needs the article already there.
+
+**A scoped binding is resolved through the parent's relation, not the child's
+table.** `/articles/{article}/comments/{comment}` finds the comment among *that
+article's* comments. Resolved independently, a caller who guessed an id would be
+handed somebody else's row by a route that looks like it works. The relation is
+named rather than guessed from the parameter — a convention mapping `comment` to
+`comments()` breaks on the first irregular plural, and guessing wrong here fails
+open.
+
 **Method spoofing happens before routing, and it has to.** Elysia picks a handler
 from the method, and a `beforeHandle` hook runs after that choice is already made
 — too late to change it. `Request.method` is read-only, so nothing can be edited

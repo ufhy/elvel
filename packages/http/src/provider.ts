@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { flushDeferred, ServiceProvider } from '@elysian/core'
 import { Elysia } from 'elysia'
+import { BindingRegistry, resolveBindings } from './bindings.ts'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
 import { MiddlewareListCommand } from './console/middleware-list.ts'
@@ -56,6 +57,8 @@ export class HttpServiceProvider extends ServiceProvider {
    * `password.confirm`, whatever order a route lists them in.
    */
   private registerMiddleware(): void {
+    this.app.singleton('bindings', () => new BindingRegistry())
+
     this.app.singleton('middleware', () => {
       const registry = new MiddlewareRegistry()
 
@@ -83,6 +86,24 @@ export class HttpServiceProvider extends ServiceProvider {
 
           throw new InvalidSignatureError()
         })
+        /**
+         * `bindings` — turn route parameters into models.
+         *
+         * A middleware rather than something automatic, as Laravel's
+         * `SubstituteBindings` is: a route that takes an id and does not want it
+         * loaded should not pay for a query, and an API that answers from a cache
+         * may never touch the row at all.
+         */
+        .alias('bindings', () => async (context) => {
+          const { request, params } = context as unknown as {
+            request: Request
+            params: Record<string, string>
+          }
+
+          await resolveBindings(this.app.make('bindings'), params ?? {}, request)
+
+          return undefined
+        })
         .alias('cache.headers', (...parts: string[]) => (context) => {
           // `cache.headers:public;max_age=120` — Laravel's own separator is `;`.
           const value = parts.join(',').replace(/;/g, ', ').replace(/_/g, '-')
@@ -91,7 +112,13 @@ export class HttpServiceProvider extends ServiceProvider {
 
           return undefined
         })
-        .priority(['throttle', 'signed', 'auth', 'verified', 'password.confirm', 'can'])
+        /**
+         * `bindings` runs after the guards and before `can`.
+         *
+         * Loading a row for somebody who is about to be turned away is work for
+         * nothing, and `can:update,article` needs the article already resolved.
+         */
+        .priority(['throttle', 'signed', 'auth', 'verified', 'password.confirm', 'bindings', 'can'])
 
       return registry
     })

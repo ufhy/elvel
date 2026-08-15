@@ -1,6 +1,6 @@
 import { user } from '@elysian/auth'
 import { controller } from '@elysian/core'
-import { middleware, routes, signedRoute, signedUrl } from '@elysian/http'
+import { bound, middleware, routes, signedRoute, signedUrl } from '@elysian/http'
 import { view } from '@elysian/view'
 import { Middleware } from '../../../resources/views/pages/middleware.tsx'
 
@@ -121,6 +121,40 @@ export default controller('middleware-demo')
 
   /** No middleware at all, for comparison. */
   .get('/check/middleware/open', () => ({ open: true }))
+
+  /**
+   * `:article` arrives as an Article, not a string.
+   *
+   * The route says `middleware('bindings')` and the handler reads the row. No
+   * `Article.find(params.id)` at the top of every handler, and a missing row is a
+   * 404 before the handler runs rather than a null nobody checked.
+   */
+  .get(
+    '/check/bound/articles/:article',
+    ({ request }) => {
+      const article = bound<{ id: number; title: string }>('article', request)
+
+      return { id: article.id, title: article.title }
+    },
+    middleware('bindings')
+  )
+
+  /**
+   * A child scoped to its parent.
+   *
+   * `/articles/1/comments/9` finds comment 9 **among article 1's comments**. Ask
+   * for it under the wrong article and it is a 404, which is the difference
+   * between a route that works and one that hands a caller somebody else's row.
+   */
+  .get(
+    '/check/bound/articles/:article/comments/:comment',
+    ({ request }) => {
+      const comment = bound<{ id: number; body: string }>('comment', request)
+
+      return { comment: comment.id, body: comment.body }
+    },
+    middleware('bindings')
+  )
 
   /**
    * The application's own middleware, by name.

@@ -1,10 +1,11 @@
 import { channels } from '@elysian/broadcasting'
 import { Limit } from '@elysian/cache'
 import { ServiceProvider } from '@elysian/core'
-import { middlewares } from '@elysian/http'
+import { bindings, middlewares } from '@elysian/http'
 import { ensureTokenIsValid } from '../Http/Middleware/EnsureTokenIsValid.ts'
 import { SendArticleDigest } from '../Jobs/SendArticleDigest.ts'
 import { Article } from '../Models/Article.ts'
+import { Comment } from '../Models/Comment.ts'
 import { ArticlePolicy } from '../Policies/ArticlePolicy.ts'
 
 export class AppServiceProvider extends ServiceProvider {
@@ -29,6 +30,22 @@ export class AppServiceProvider extends ServiceProvider {
       .alias('token', (expected = 'let-me-in') => ensureTokenIsValid(expected))
       // A group, so a route can say one word and mean three.
       .group('locked-down', ['auth', 'verified', 'token'])
+
+    /**
+     * What `:article` and `:comment` mean in a path.
+     *
+     * Declared rather than inferred: Laravel reads the handler's type hints, and
+     * TypeScript erases them. `Route::model()` is Laravel's own name for doing it
+     * this way.
+     *
+     * The comment is **scoped** to the article, so `/check/bound/articles/1/comments/9`
+     * finds the comment among that article's comments and 404s otherwise. Without
+     * the scope it would hand back somebody else's comment to anyone who guessed
+     * an id.
+     */
+    bindings()
+      .model('article', Article)
+      .model('comment', Comment, { parent: 'article', relation: 'comments' })
   }
 
   /**

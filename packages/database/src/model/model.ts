@@ -438,6 +438,83 @@ export class Model {
     return `${base}s`
   }
 
+  /**
+   * The column a route parameter matches — Laravel's `getRouteKeyName`.
+   *
+   * The primary key unless a model says otherwise. Override it to put slugs in
+   * URLs without writing the column at every call site:
+   *
+   * ```ts
+   * class Article extends Model {
+   *   static override routeKey = 'slug'
+   * }
+   * ```
+   */
+  static routeKey: string | undefined
+
+  static routeKeyName<T extends typeof Model>(this: T): string {
+    return this.routeKey ?? this.primaryKey
+  }
+
+  /**
+   * Find the row a route parameter names — Laravel's `resolveRouteBinding`.
+   *
+   * `field` is the per-route override, as in `{article:slug}`, and beats the
+   * model's own default. Answers `undefined` rather than throwing: what a missing
+   * binding means — a 404, a redirect, a fallback — belongs to the caller, and the
+   * middleware turns it into a 404.
+   */
+  static async resolveRouteBinding<T extends typeof Model>(
+    this: T,
+    value: string,
+    field?: string
+  ): Promise<InstanceType<T> | undefined> {
+    const column = field ?? this.routeKeyName()
+
+    return (await this.query().where(column, value).first()) ?? undefined
+  }
+
+  /**
+   * The same, scoped to a parent — Laravel's `resolveChildRouteBinding`.
+   *
+   * `/users/{user}/posts/{post}` must find the post **among that user's posts**.
+   * Resolving the child on its own would answer with somebody else's post for a
+   * caller who guessed an id, which reads as a working route and is a
+   * authorization hole.
+   *
+   * The relationship is named rather than guessed: a convention mapping `post` to
+   * `posts()` breaks on the first irregular plural, and guessing wrong here fails
+   * open.
+   */
+  static async resolveChildRouteBinding<T extends typeof Model>(
+    this: T,
+    parent: Model,
+    relation: string,
+    value: string,
+    field?: string
+  ): Promise<InstanceType<T> | undefined> {
+    const accessor = (parent as unknown as Record<string, unknown>)[relation]
+
+    if (typeof accessor !== 'function') {
+      throw new Error(
+        `[${parent.constructor.name}] has no relation [${relation}] to scope a route binding through.`
+      )
+    }
+
+    /**
+     * Through the relation's own query, which is what constrains it.
+     *
+     * A relation is not a builder — `hasMany()` returns a `HasMany`, and `.query()`
+     * is the builder it has already narrowed to this parent's rows. Querying the
+     * child model directly would find the row and lose the scope, which is the
+     * bug this method exists to prevent.
+     */
+    const relationship = (accessor as () => { query(): ModelBuilder<InstanceType<T>> }).call(parent)
+    const column = field ?? this.routeKeyName()
+
+    return (await relationship.query().where(column, value).first()) ?? undefined
+  }
+
   static query<T extends typeof Model>(this: T): ModelBuilder<InstanceType<T>> {
     return new ModelBuilder<InstanceType<T>>(this as unknown as ModelClass<InstanceType<T>>)
   }

@@ -1,3 +1,12 @@
+export {
+  BindingRegistry,
+  type BindingResolver,
+  bindings,
+  bound,
+  boundOrNothing,
+  type RouteBindable,
+  resolveBindings
+} from './bindings.ts'
 export { MakeRequestCommand } from './console/make-request.ts'
 export { MakeResourceCommand } from './console/make-resource.ts'
 export { MiddlewareListCommand } from './console/middleware-list.ts'

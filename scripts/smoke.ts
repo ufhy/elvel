@@ -2638,6 +2638,36 @@ try {
       middlewareNamesOf(guarded).join(',')
     )
 
+    // ------------------------------------------------------ route bindings
+
+    const boundArticle = await at('/check/bound/articles/1')
+    const missingArticle = await at('/check/bound/articles/999')
+
+    check(
+      'a parameter arrives as a model',
+      boundArticle.status === 200 &&
+        ((await boundArticle.clone().json()) as { id: number }).id === 1,
+      `status ${boundArticle.status}`
+    )
+    check('and a row that is not there is a 404', missingArticle.status === 404)
+
+    /**
+     * The check scoping exists for.
+     *
+     * Comment 1 belongs to article 1. Asked for under article 2 it must not be
+     * found — resolved independently it would be, and the route would hand one
+     * article's comment to somebody reading another.
+     */
+    const own = await at('/check/bound/articles/1/comments/1')
+    const someoneElses = await at('/check/bound/articles/2/comments/1')
+
+    check('a scoped child resolves under its own parent', own.status === 200)
+    check(
+      'and is not found under another',
+      someoneElses.status === 404,
+      `status ${someoneElses.status}`
+    )
+
     const page = await at('/middleware')
     const pageBody = await page.text()
 
