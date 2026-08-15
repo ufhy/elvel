@@ -206,5 +206,220 @@ export const Str = {
     if (reference === reference.toUpperCase()) return value.toUpperCase()
     if (reference.charAt(0) === reference.charAt(0).toUpperCase()) return Str.ucfirst(value)
     return value
+  },
+
+  // ----------------------------------------------------------- inspecting
+
+  /** Does it match a pattern with `*` wildcards? Laravel's `Str::is`. */
+  is(pattern: string | string[], value: string): boolean {
+    return (Array.isArray(pattern) ? pattern : [pattern]).some((one) => {
+      if (one === value) return true
+
+      const escaped = one.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+
+      return new RegExp(`^${escaped}$`).test(value)
+    })
+  },
+
+  isJson(value: string): boolean {
+    try {
+      JSON.parse(value)
+
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  },
+
+  isUlid(value: string): boolean {
+    // Crockford base32, 26 characters, and never I, L, O or U.
+    return /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/i.test(value)
+  },
+
+  isAscii(value: string): boolean {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: the range is the definition
+    return new RegExp(`^[${String.fromCharCode(0)}-${String.fromCharCode(127)}]*$`).test(value)
+  },
+
+  isEmpty(value: string): boolean {
+    return value === ''
+  },
+
+  wordCount(value: string): number {
+    const words = value.trim().split(/\s+/).filter(Boolean)
+
+    return words.length
+  },
+
+  // ------------------------------------------------------------- slicing
+
+  /** Everything before the last occurrence. */
+  beforeLast(value: string, search: string): string {
+    const at = value.lastIndexOf(search)
+
+    return at === -1 ? value : value.slice(0, at)
+  },
+
+  /** What sits between the first `from` and the last `to`. */
+  between(value: string, from: string, to: string): string {
+    if (from === '' || to === '') return value
+
+    return Str.beforeLast(Str.after(value, from), to)
+  },
+
+  /** The same, but stopping at the *first* `to`. */
+  betweenFirst(value: string, from: string, to: string): string {
+    if (from === '' || to === '') return value
+
+    return Str.before(Str.after(value, from), to)
+  },
+
+  charAt(value: string, index: number): string | undefined {
+    return [...value].at(index)
+  },
+
+  /** The first `length` characters, counted by code point. */
+  take(value: string, length: number): string {
+    const characters = [...value]
+
+    return length < 0 ? characters.slice(length).join('') : characters.slice(0, length).join('')
+  },
+
+  /** A window around the first match — Laravel's `excerpt`. */
+  excerpt(value: string, phrase: string, radius = 100, omission = '...'): string | undefined {
+    const at = value.indexOf(phrase)
+    if (at === -1) return undefined
+
+    const start = Math.max(0, at - radius)
+    const end = Math.min(value.length, at + phrase.length + radius)
+
+    return (
+      (start > 0 ? omission : '') + value.slice(start, end) + (end < value.length ? omission : '')
+    )
+  },
+
+  // ------------------------------------------------------------ changing
+
+  /** Collapse runs of whitespace, and trim. */
+  squish(value: string): string {
+    return value.trim().replace(/\s+/g, ' ')
+  },
+
+  /** Collapse repeats of one character: `a--b---c` becomes `a-b-c`. */
+  deduplicate(value: string, character = ' '): string {
+    const escaped = character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+    return value.replace(new RegExp(`${escaped}+`, 'g'), character)
+  },
+
+  remove(search: string | string[], value: string): string {
+    return (Array.isArray(search) ? search : [search]).reduce(
+      (carry, one) => carry.split(one).join(''),
+      value
+    )
+  },
+
+  /** Swap several pairs at once, left to right. */
+  swap(replacements: Record<string, string>, value: string): string {
+    return Object.entries(replacements).reduce(
+      (carry, [from, to]) => carry.split(from).join(to),
+      value
+    )
+  },
+
+  /** Replace each `?` with the next value — Laravel's `replaceArray`. */
+  replaceArray(search: string, values: string[], value: string): string {
+    let index = 0
+
+    return value.split(search).reduce((carry, part, position) => {
+      if (position === 0) return part
+
+      const replacement = values[index] ?? search
+      index += 1
+
+      return `${carry}${replacement}${part}`
+    }, '')
+  },
+
+  /** Wrap in a prefix and suffix; one argument wraps on both sides. */
+  wrap(value: string, before: string, after = before): string {
+    return `${before}${value}${after}`
+  },
+
+  /**
+   * Hide all but the ends — `mask('4111111111111111', '*', 4, -4)`.
+   *
+   * For a card number or an address in a log, where the shape has to survive and
+   * the value must not.
+   */
+  mask(value: string, character = '*', start = 0, length?: number): string {
+    const characters = [...value]
+    const from = start < 0 ? Math.max(0, characters.length + start) : start
+
+    /**
+     * A negative length stops that many characters from the end.
+     *
+     * PHP's `substr` semantics, which Laravel relies on: `mask(card, '*', 4, -4)`
+     * hides everything between the first four and the last four. Reading it as
+     * `Math.abs(length)` masks four characters and leaves the rest of the number
+     * in the log — which is the opposite of what the caller asked for, and looks
+     * plausible enough to ship.
+     */
+    const to =
+      length === undefined
+        ? characters.length
+        : length < 0
+          ? Math.max(from, characters.length + length)
+          : Math.min(characters.length, from + length)
+
+    return [
+      ...characters.slice(0, from),
+      ...Array.from({ length: to - from }, () => character),
+      ...characters.slice(to)
+    ].join('')
+  },
+
+  /** Initials from the words: `Ada Lovelace` becomes `AL`. */
+  initials(value: string, separator = ''): string {
+    return Str.squish(value)
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => [...word][0]?.toUpperCase() ?? '')
+      .join(separator)
+  },
+
+  /** A ULID: 48 bits of time, then randomness, sortable by creation. */
+  ulid(at: number = Date.now()): string {
+    const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+    let time = ''
+    let remaining = at
+
+    for (let index = 0; index < 10; index += 1) {
+      time = (alphabet[remaining % 32] as string) + time
+      remaining = Math.floor(remaining / 32)
+    }
+
+    const random = Array.from(
+      crypto.getRandomValues(new Uint8Array(16)),
+      (byte) => alphabet[byte % 32] as string
+    ).join('')
+
+    return time + random
+  },
+
+  doesntContain(value: string, needles: string | string[]): boolean {
+    return !Str.contains(value, needles)
+  },
+
+  doesntStartWith(value: string, needles: string | string[]): boolean {
+    return !Str.startsWith(value, needles)
+  },
+
+  doesntEndWith(value: string, needles: string | string[]): boolean {
+    return !Str.endsWith(value, needles)
   }
 }

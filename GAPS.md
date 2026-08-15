@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 14.**
+**Open: 11.**
 
 ---
 
@@ -55,9 +55,6 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Collection** | 110 methods. | 25 here. Missing and wanted: `chunk`, `chunkWhile`, `collapse`, `combine`, `concat`, `countBy`, `crossJoin`, `diff`, `diffKeys`, `dot`, `duplicates`, `except`, `flatten`, `flip`, `groupBy`, `keyBy`, `mapWithKeys`, `partition`, `pluck`, `random`, `skipWhile`, `sliding`, `sole`, `takeWhile`, `zip`. |
-| **Str** | 110 methods. | 29 here. Missing and wanted: `ascii`, `beforeLast`, `between`, `charAt`, `deduplicate`, `excerpt`, `initials`, `is`, `isJson`, `isUlid`, `isUuid`, `mask`, `password`, `plural`/`singular`, `remove`, `replaceArray`, `squish`, `swap`, `take`, `ulid`, `wordCount`, `wrap`. |
-| **Arr** | 59 methods. | 16 here. Missing and wanted: `collapse`, `crossJoin`, `divide`, `every`, `hasAny`, `isAssoc`, `isList`, `keyBy`, `mapWithKeys`, `mapSpread`, `partition`, `pluck`, `prepend`, `pull`, `push`, `query`, `random`, `reject`, `sole`, `undot`. |
 
 ### Database
 

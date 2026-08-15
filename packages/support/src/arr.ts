@@ -154,5 +154,140 @@ export const Arr = {
       if (left > right) return 1
       return 0
     })
+  },
+
+  // ------------------------------------------------------------ reading
+
+  hasAny(target: unknown, paths: string[]): boolean {
+    return paths.some((path) => Arr.has(target as Record<string, unknown>, path))
+  },
+
+  /** Is it a plain list — `[1, 2]` rather than `{ a: 1 }`? */
+  isList(value: unknown): boolean {
+    return Array.isArray(value)
+  },
+
+  isAssoc(value: unknown): boolean {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+  },
+
+  // --------------------------------------------------------- transforming
+
+  /** The reverse of `dot`: `{'a.b': 1}` becomes `{a: {b: 1}}`. */
+  undot(flat: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+
+    for (const [path, value] of Object.entries(flat)) Arr.set(out, path, value)
+
+    return out
+  },
+
+  /** One level down. */
+  collapse<T>(rows: Array<T[] | T>): T[] {
+    return rows.flatMap((row) => (Array.isArray(row) ? row : [row]))
+  },
+
+  /** Keys and values as two lists. */
+  divide<T>(target: Record<string, T>): [string[], T[]] {
+    return [Object.keys(target), Object.values(target)]
+  },
+
+  /** One column out of a list of rows, optionally keyed by another. */
+  pluck<T extends Record<string, unknown>>(rows: T[], value: string, key?: string): unknown {
+    if (key === undefined) return rows.map((row) => Arr.get(row, value))
+
+    return Object.fromEntries(rows.map((row) => [String(Arr.get(row, key)), Arr.get(row, value)]))
+  },
+
+  /** Rows keyed by one of their own columns; a later duplicate wins. */
+  keyBy<T extends Record<string, unknown>>(rows: T[], key: string): Record<string, T> {
+    return Object.fromEntries(rows.map((row) => [String(Arr.get(row, key)), row]))
+  },
+
+  mapWithKeys<T, K extends string, V>(items: T[], callback: (item: T) => [K, V]): Record<K, V> {
+    return Object.fromEntries(items.map(callback)) as Record<K, V>
+  },
+
+  /** Call the callback with each row spread as arguments. */
+  mapSpread<T extends unknown[], U>(rows: T[], callback: (...args: T) => U): U[] {
+    return rows.map((row) => callback(...row))
+  },
+
+  /** Those that pass, and those that do not. */
+  partition<T>(items: T[], predicate: (item: T, index: number) => boolean): [T[], T[]] {
+    const pass: T[] = []
+    const fail: T[] = []
+
+    items.forEach((item, index) => (predicate(item, index) ? pass : fail).push(item))
+
+    return [pass, fail]
+  },
+
+  reject<T>(items: T[], predicate: (item: T, index: number) => boolean): T[] {
+    return items.filter((item, index) => !predicate(item, index))
+  },
+
+  /** Every combination, one item from each list. */
+  crossJoin<T>(...lists: T[][]): T[][] {
+    return lists.reduce<T[][]>(
+      (rows, list) => rows.flatMap((row) => list.map((value) => [...row, value])),
+      [[]]
+    )
+  },
+
+  /** Add to the front. */
+  prepend<T>(items: T[], value: T): T[] {
+    return [value, ...items]
+  },
+
+  /** Read a key out and remove it, in one step. */
+  pull<T extends Record<string, unknown>>(target: T, path: string): unknown {
+    const value = Arr.get(target, path)
+    Arr.forget(target, path)
+
+    return value
+  },
+
+  /** A query string from a nested object. */
+  query(target: Record<string, unknown>): string {
+    const parameters = new URLSearchParams()
+
+    for (const [key, value] of Object.entries(Arr.dot(target))) {
+      if (value === undefined || value === null) continue
+      parameters.set(key, String(value))
+    }
+
+    return parameters.toString()
+  },
+
+  /** One at random, or `count` of them. */
+  random<T>(items: T[], count?: number): T | T[] | undefined {
+    if (items.length === 0) return count === undefined ? undefined : []
+
+    const shuffled = Arr.shuffle(items)
+
+    return count === undefined ? shuffled[0] : shuffled.slice(0, count)
+  },
+
+  /** Fisher–Yates, not `sort(() => Math.random() - 0.5)`, which is not a shuffle. */
+  shuffle<T>(items: T[]): T[] {
+    const out = [...items]
+
+    for (let index = out.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(Math.random() * (index + 1))
+      ;[out[index], out[swap]] = [out[swap] as T, out[index] as T]
+    }
+
+    return out
+  },
+
+  /** Exactly one, or an error. */
+  sole<T>(items: T[], predicate?: (item: T, index: number) => boolean): T {
+    const matched = predicate ? items.filter(predicate) : items
+
+    if (matched.length === 0) throw new Error('No matching item.')
+    if (matched.length > 1) throw new Error(`Expected one matching item, found ${matched.length}.`)
+
+    return matched[0] as T
   }
 }

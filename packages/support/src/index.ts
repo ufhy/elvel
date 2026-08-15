@@ -1,5 +1,10 @@
 export { Arr } from './arr.ts'
-export { Collection, collect } from './collection.ts'
+export {
+  Collection,
+  collect,
+  ItemNotFoundError,
+  MultipleItemsFoundError
+} from './collection.ts'
 export {
   type Next,
   type Pipe,

@@ -354,6 +354,25 @@ application by hand does not, and `Retry-After` goes missing for that reason alo
 rather than because the limiter forgot it.
 
 
+## @elysian/support
+
+**A union of a value and a callback makes a generic class invariant, and the
+blast radius is not local.** `search(needle: T | ((item: T) => boolean))` looked
+harmless and put `T` in a parameter position the compiler cannot treat
+bivariantly, so `Collection<T>` stopped being covariant — and `ModelBuilder<Post>`
+stopped being usable as `ModelBuilder<Model>`, which produced **771 type errors
+across the model layer and the playground** from one line. Overloads keep the
+callback's parameter typed without doing that. The same shape bit `assertJsonPath`
+earlier, where `unknown | Fn` silently collapsed to `unknown`; here it is worse,
+because it compiles locally and breaks somewhere else.
+
+**`Str.mask` reads a negative length as PHP's `substr` does**, stopping that many
+characters from the end rather than masking that many. `mask(card, '*', 4, -4)`
+must leave the last four digits — reading it as `Math.abs(length)` masks four
+characters and leaves the rest of the card number in the log, which looks
+plausible enough to ship.
+
+
 ## @elysian/http-client
 
 **Bun's `fetch` accepts `timeout` and `retry` and silently ignores both.**
