@@ -220,6 +220,44 @@ describe('key rotation', () => {
 
     expect(() => rotated.decryptString(stranger)).toThrow(DecryptError)
   })
+
+  test('usesCurrentKey separates what still needs rotating from what does not', () => {
+    const old = 'the-previous-application-key-32-ch!'
+    const rotated = new Encrypter(SECRET, { previousKeys: [old] })
+
+    const before = new Encrypter(old).encryptString('written before the rotation')
+    const after = rotated.encryptString('written after the rotation')
+
+    // Both are readable — that is what previousKeys is for — but only one of
+    // them is work for `encryption:rotate`.
+    expect(rotated.decryptString(before)).toBe('written before the rotation')
+    expect(rotated.usesCurrentKey(before)).toBe(false)
+    expect(rotated.usesCurrentKey(after)).toBe(true)
+  })
+
+  test('usesCurrentKey respects the context, as decryption does', () => {
+    const rotated = new Encrypter(SECRET)
+    const payload = rotated.encryptString('value', 'users.ssn')
+
+    expect(rotated.usesCurrentKey(payload, 'users.ssn')).toBe(true)
+    // Right key, wrong column: the tag does not authenticate, so this is not a
+    // row the rotation command may quietly skip.
+    expect(rotated.usesCurrentKey(payload, 'users.other')).toBe(false)
+    expect(rotated.usesCurrentKey(payload)).toBe(false)
+  })
+
+  test('usesCurrentKey is false for anything that is not a readable payload', () => {
+    const rotated = new Encrypter(SECRET, { previousKeys: ['another-old-key-of-32-characters!!'] })
+
+    // An unreadable row is not "already current" — it is the one thing the
+    // operator has to be told about, so it must not be skipped.
+    const stranger = new Encrypter('never-configured-key-of-32-chars!!!').encryptString('x')
+
+    expect(rotated.usesCurrentKey(stranger)).toBe(false)
+    expect(rotated.usesCurrentKey('plain text that was never encrypted')).toBe(false)
+    expect(rotated.usesCurrentKey('')).toBe(false)
+    expect(rotated.usesCurrentKey('v9.abc.def')).toBe(false)
+  })
 })
 
 describe('appearsEncrypted', () => {

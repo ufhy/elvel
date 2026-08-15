@@ -32,6 +32,9 @@ const TAG_BYTES = 16
 
 const VERSION = 'v1'
 
+/** A payload split into its parts, before any key has been tried against it. */
+type Parsed = { iv: Buffer; ciphertext: Buffer; tag: Buffer }
+
 export type EncrypterOptions = {
   /**
    * Keys this encrypter will still *read*, for rotation.
@@ -155,38 +158,89 @@ export class Encrypter {
     }
   }
 
+  /**
+   * Is this payload readable by the **current** key alone?
+   *
+   * The question `encryption:rotate` needs and could not ask. A payload written
+   * under a previous key has to be re-encrypted; one already on the current key
+   * does not, and re-writing it costs a decrypt, an encrypt and an UPDATE for no
+   * change. On a table that has been rotated once already that is the difference
+   * between a minute and an hour.
+   *
+   * Laravel answers this by handing out `getKey()` and `getAllKeys()` and
+   * leaving the comparison to the caller. This does not: key material on a
+   * service that every part of an application can reach is one stray log line
+   * away from being published, and an application that needs its own key can
+   * derive a purpose-bound one from `APP_KEY` with `deriveKey`, which is safer
+   * than sharing this one.
+   *
+   * `false` for anything that does not decrypt at all — an unreadable payload is
+   * not "already current".
+   */
+  usesCurrentKey(payload: string, context?: string): boolean {
+    const parsed = Encrypter.parse(payload)
+
+    if (!parsed) return false
+
+    const [current] = this.keys
+
+    return current !== undefined && this.open(current, parsed, context) !== undefined
+  }
+
   /** Decrypt a string written by `encryptString`. */
   decryptString(payload: string, context?: string): string {
-    if (typeof payload !== 'string') throw new DecryptError()
+    const parsed = Encrypter.parse(payload)
 
-    const parts = payload.split('.')
-
-    if (parts.length !== 3 || parts[0] !== VERSION) throw new DecryptError()
-
-    const iv = fromBase64url(parts[1] as string)
-    const body = fromBase64url(parts[2] as string)
-
-    if (iv.length !== IV_BYTES || body.length < TAG_BYTES) throw new DecryptError()
-
-    const ciphertext = body.subarray(0, body.length - TAG_BYTES)
-    const tag = body.subarray(body.length - TAG_BYTES)
+    if (!parsed) throw new DecryptError()
 
     // Every key is tried, so rotating `APP_KEY` does not invalidate what is
     // already stored. The tag is what decides; a wrong key simply fails to
     // authenticate.
     for (const key of this.keys) {
-      try {
-        const decipher = createDecipheriv('aes-256-gcm', key, iv)
-        if (context !== undefined) decipher.setAAD(new TextEncoder().encode(context))
-        decipher.setAuthTag(tag)
+      const opened = this.open(key, parsed, context)
 
-        return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
-      } catch {
-        // Try the next key. The reason is deliberately not reported.
-      }
+      if (opened !== undefined) return opened
     }
 
     throw new DecryptError()
+  }
+
+  /** Split a payload into its parts, or nothing when it is not one of ours. */
+  private static parse(payload: string): Parsed | undefined {
+    if (typeof payload !== 'string') return undefined
+
+    const parts = payload.split('.')
+
+    if (parts.length !== 3 || parts[0] !== VERSION) return undefined
+
+    const iv = fromBase64url(parts[1] as string)
+    const body = fromBase64url(parts[2] as string)
+
+    if (iv.length !== IV_BYTES || body.length < TAG_BYTES) return undefined
+
+    return {
+      iv,
+      ciphertext: body.subarray(0, body.length - TAG_BYTES),
+      tag: body.subarray(body.length - TAG_BYTES)
+    }
+  }
+
+  /** One key, one attempt. `undefined` means the tag did not authenticate. */
+  private open(key: Buffer, parsed: Parsed, context?: string): string | undefined {
+    const { iv, ciphertext, tag } = parsed
+
+    try {
+      const decipher = createDecipheriv('aes-256-gcm', key, iv)
+      if (context !== undefined) decipher.setAAD(new TextEncoder().encode(context))
+      decipher.setAuthTag(tag)
+
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
+    } catch {
+      // This key is not the one. The reason is deliberately not reported: which
+      // step failed is information about the key, and the caller gets a single
+      // opaque failure either way.
+      return undefined
+    }
   }
 
   /**

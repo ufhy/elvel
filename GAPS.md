@@ -60,7 +60,6 @@ is what stops the empty table above being read as "there is nothing left".
 - Notification channels
 - Translation
 - Broadcasting
-- Encryption
 - The scheduler's expression surface
 - Blade's directive set as a whole, rather than the six helpers that were named
 

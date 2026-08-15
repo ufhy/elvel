@@ -610,7 +610,7 @@ Three behaviours worth knowing:
 
 ## @elysian/encryption
 
-Five decisions worth knowing rather than discovering:
+Decisions worth knowing rather than discovering:
 
 - **One AEAD does both jobs.** GCM encrypts and authenticates in one pass, so
   there is no separate MAC to compare and no order-of-operations mistake to make.
@@ -630,6 +630,25 @@ Five decisions worth knowing rather than discovering:
 - **`session.encrypt` without the provider warns.** The cookie falls back to being
   signed rather than failing the boot, but it says so through the log: silently
   degrading would leave somebody believing a cookie is encrypted when it is not.
+- **No key accessors, on purpose.** Laravel's encrypter hands out `getKey()`,
+  `getAllKeys()` and `getPreviousKeys()`; this one exposes only `keyCount`. Key
+  material on a service that every controller, job and model can reach is one
+  `dd($crypt)` or one serialised exception away from being written somewhere it
+  is read later, and the two things applications actually want it for both have
+  better answers: `deriveKey(APP_KEY, purpose)` for an application's own key, and
+  `usesCurrentKey()` for the rotation question. `supported()` is absent for a
+  different reason — it asks whether a key is the right length for a cipher, and
+  ours is derived to the right length from any secret, so the answer is always
+  yes.
+- **`encryption:rotate` skips what is already current.** Re-encrypting a row that
+  the current key can already read costs a decrypt, an encrypt and an UPDATE to
+  arrive at the same value under a different nonce. On a table rotated once
+  before — the normal case, since rotation happens more than once — that is most
+  of the table, which is the difference between a minute and an hour. `--force`
+  rewrites regardless, for the day the payload *format* changes rather than the
+  key. Rows that no configured key can read are never touched and always
+  reported: overwriting one would destroy data, and it is the operator who knows
+  whether it is a lost key or a column that was never encrypted.
 - **Encrypting a column costs you querying it.** `where('editor_note', …)` cannot
   match a ciphertext, and no amount of care changes that — a fresh nonce per write
   means the same plaintext never produces the same bytes twice. Encrypt what you

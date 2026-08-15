@@ -18,7 +18,7 @@ import { Command } from '@elysian/console'
  */
 export class EncryptionRotateCommand extends Command {
   static override signature =
-    'encryption:rotate {table : The table to walk} {column : The encrypted column} {--key=id : Primary key column} {--chunk=200 : Rows per batch} {--connection= : Database connection} {--pretend : Report what would change, without writing}'
+    'encryption:rotate {table : The table to walk} {column : The encrypted column} {--key=id : Primary key column} {--chunk=200 : Rows per batch} {--connection= : Database connection} {--force : Rewrite even rows already on the current key} {--pretend : Report what would change, without writing}'
 
   static override description = 'Re-encrypt a column onto the current application key'
 
@@ -45,6 +45,7 @@ export class EncryptionRotateCommand extends Command {
     let rewritten = 0
     let skipped = 0
     let unreadable = 0
+    let alreadyCurrent = 0
 
     for (;;) {
       const rows = (await (
@@ -64,6 +65,21 @@ export class EncryptionRotateCommand extends Command {
 
         if (typeof payload !== 'string' || payload === '') {
           skipped += 1
+
+          continue
+        }
+
+        /**
+         * A row already on the current key is left alone.
+         *
+         * Re-encrypting it costs a decrypt, an encrypt and an UPDATE to arrive
+         * at exactly what is already there. On a table rotated once before —
+         * the normal case, since rotation is something you do more than once —
+         * that is most of the table. `--force` rewrites regardless, for the day
+         * the payload format changes rather than the key.
+         */
+        if (!this.flag('force') && encrypter.usesCurrentKey(payload, `${table}.${column}`)) {
+          alreadyCurrent += 1
 
           continue
         }
@@ -103,6 +119,10 @@ export class EncryptionRotateCommand extends Command {
     const verb = this.flag('pretend') ? 'would be re-encrypted' : 're-encrypted'
 
     this.output.tag('INFO', `${rewritten} row(s) ${verb} in ${table}.${column}.`)
+
+    if (alreadyCurrent > 0) {
+      this.comment(`${alreadyCurrent} row(s) were already on the current key, and were left alone.`)
+    }
 
     if (skipped > 0) this.comment(`${skipped} row(s) had nothing in that column.`)
 
