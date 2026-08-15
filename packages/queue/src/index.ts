@@ -35,6 +35,7 @@ export {
   type DatabaseFailedJobStoreOptions,
   describeError
 } from './failed.ts'
+export { FakeQueue, type PushedJob, QueueFake } from './fake.ts'
 export { chain, dispatch, dispatchSync, queue } from './helpers.ts'
 export { type AnyJob, Job, type JobClass, type JobMiddleware, JobRegistry } from './job.ts'
 export {

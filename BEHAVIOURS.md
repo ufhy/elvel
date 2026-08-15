@@ -142,6 +142,11 @@ Three things to know about wildcard rules:
 
 ## @elysian/http
 
+- **`app.handle()` needs a URL at least 12 characters long before the path.**
+  Elysia slices the path out of `request.url` at a fixed offset, so
+  `new Request('http://x/thing')` routes to nothing and answers 404 while
+  `http://localhost/thing` works. `@elysian/testing` uses `http://localhost` and
+  is unaffected; a handwritten `app.handle()` in a test is where this bites.
 - **A request body can be read once, and `clone()` is not a licence to read it
   twice.** `methodOverridePlugin` cloned the request once to find `_method` and
   again to build the request it passed on; the second clone came back with the

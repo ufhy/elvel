@@ -7,6 +7,7 @@ import { RedisQueue } from './drivers/redis.ts'
 import { SqsQueue } from './drivers/sqs.ts'
 import { SyncQueue } from './drivers/sync.ts'
 import { ArrayFailedJobStore, DatabaseFailedJobStore } from './failed.ts'
+import { FakeQueue, QueueFake } from './fake.ts'
 import { type AnyJob, type JobClass, JobRegistry } from './job.ts'
 import { JobRunner } from './runner.ts'
 import { ModelRegistry, serializeData } from './serializer.ts'
@@ -47,6 +48,7 @@ export class QueueManager {
   private batchRepository?: BatchRepository
   private readonly customDrivers = new Map<string, DriverFactory>()
   private failedStore?: FailedJobStore
+  private faked?: FakeQueue
 
   constructor(private readonly app: ApplicationContract) {}
 
@@ -98,7 +100,48 @@ export class QueueManager {
     return this
   }
 
+  /**
+   * Record every push instead of queueing it — `Queue::fake()`.
+   *
+   * `sync` is not a substitute: running the job inline proves the job works,
+   * which is a different question from "did this controller dispatch it", and a
+   * job that sends mail or charges a card runs for real. Faked, every connection
+   * resolves to the same recorder, so a job dispatched onto `redis` is caught by
+   * a test that never had Redis.
+   *
+   * ```ts
+   * const fake = queue().fake()
+   * await test(app).postJson('/articles/1/publish', {})
+   * fake.assertPushed('SendArticleDigest')
+   * ```
+   */
+  fake(): QueueFake {
+    const driver = new FakeQueue(
+      this.defaultConnection(),
+      this.app.config.get<string>(`queue.connections.${this.defaultConnection()}.queue`, 'default')
+    )
+
+    this.faked = driver
+    // Anything already resolved would still be the real driver.
+    this.connections.clear()
+
+    return new QueueFake(driver)
+  }
+
+  /** Stop faking and queue for real again. */
+  restore(): void {
+    this.faked = undefined
+    this.connections.clear()
+  }
+
+  get isFaking(): boolean {
+    return this.faked !== undefined
+  }
+
   connection(name?: string): QueueDriver {
+    // Every connection while faking, so a job pinned to another one is still seen.
+    if (this.faked) return this.faked
+
     const resolved = name ?? this.defaultConnection()
     const cached = this.connections.get(resolved)
     if (cached) return cached

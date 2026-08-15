@@ -110,9 +110,25 @@ export class AuthManager {
     }
   }
 
-  /** The current user, or null for a guest. */
+  /**
+   * The current user, or null for a guest.
+   *
+   * The request scope first, then an impersonation. The order matters: inside a
+   * request the scope holds the session that request resolved, which is already
+   * the impersonated one when there is one.
+   *
+   * The fallback is what makes `actingAs` usable outside a handler. Without it
+   * `auth().user()` and every helper built on it — `can()`, `cannot()`, a policy
+   * — answered "guest" when called directly in a test that had just said who was
+   * acting, while the same call *inside* a pressed request answered correctly.
+   * That split is invisible until somebody writes the first application test.
+   */
   user(): AuthUser | null {
-    return this.storage.getStore()?.session?.user ?? null
+    const scoped = this.storage.getStore()?.session
+
+    if (scoped !== undefined) return scoped?.user ?? null
+
+    return this.impersonated?.user ?? null
   }
 
   /**
@@ -192,7 +208,14 @@ export class AuthManager {
 
   /** The session record itself — token, expiry, ip. */
   session(): AuthSession['session'] | null {
-    return this.storage.getStore()?.session?.session ?? null
+    const scoped = this.storage.getStore()?.session
+
+    // The same fallback as `user()`, and for the same reason: the two must agree
+    // about who is acting, or a check reads the user from one and the session id
+    // from the other.
+    if (scoped !== undefined) return scoped?.session ?? null
+
+    return this.impersonated?.session ?? null
   }
 
   /** Replace the session in the current scope, e.g. after signing in. */

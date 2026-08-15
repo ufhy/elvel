@@ -1,16 +1,20 @@
 import { AuthServiceProvider } from '@elysian/auth'
 import { BroadcastServiceProvider } from '@elysian/broadcasting'
 import { CacheServiceProvider } from '@elysian/cache'
+import { ConcurrencyServiceProvider } from '@elysian/concurrency'
 import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
 import { DatabaseServiceProvider } from '@elysian/database'
 import { EncryptionServiceProvider } from '@elysian/encryption'
 import { EventServiceProvider } from '@elysian/events'
+import { HashServiceProvider } from '@elysian/hashing'
 import { HttpServiceProvider } from '@elysian/http'
 import { HttpClientServiceProvider } from '@elysian/http-client'
+import { ImageServiceProvider } from '@elysian/image'
 import { LogServiceProvider } from '@elysian/log'
 import { MailServiceProvider } from '@elysian/mail'
 import { NotificationServiceProvider } from '@elysian/notifications'
+import { ProcessServiceProvider } from '@elysian/process'
 import { QueueServiceProvider } from '@elysian/queue'
 import { ScheduleServiceProvider } from '@elysian/scheduler'
 import { StorageServiceProvider } from '@elysian/storage'
@@ -68,9 +72,13 @@ export default {
     EventServiceProvider,
     LogServiceProvider,
     EncryptionServiceProvider,
+    HashServiceProvider,
     ConsoleServiceProvider,
+    ConcurrencyServiceProvider,
+    ProcessServiceProvider,
     DatabaseServiceProvider,
     StorageServiceProvider,
+    ImageServiceProvider,
     CacheServiceProvider,
     QueueServiceProvider,
     MailServiceProvider,
