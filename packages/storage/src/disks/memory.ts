@@ -217,6 +217,21 @@ export class MemoryDisk implements Disk {
     return contents
   }
 
+  async directoryExists(path: string): Promise<boolean> {
+    const key = normalisePath(path)
+
+    // A directory exists if it was made, or if anything lives under it: a store
+    // with no directory entries still has directories in every sense that matters
+    // to a caller listing them.
+    return this.madeDirectories.has(key) || this.isDirectory(key)
+  }
+
+  async checksum(path: string, algorithm = 'md5'): Promise<string> {
+    const bytes = await this.bytesOrFail(path)
+
+    return new Bun.CryptoHasher(algorithm as never).update(bytes).digest('hex')
+  }
+
   async makeDirectory(path: string, _visibility?: Visibility): Promise<boolean> {
     // A memory disk has no directories of its own — a path exists because a file
     // under it does — so there is nothing to create and nothing to chmod.
@@ -282,4 +297,78 @@ export class MemoryDisk implements Disk {
   private relative(key: string, base: string): string {
     return base === '' ? key : key.slice(base.length + 1)
   }
+  // ----------------------------------------------------------- assertions
+
+  /**
+   * What a fake disk is for — Laravel's `Storage::fake()` assertions.
+   *
+   * They live on the memory disk rather than in the testing package because they
+   * need the store, and because a fake nobody can assert against is only half a
+   * fake: a test that stores a file and never checks it passes whether the code
+   * stored anything or not.
+   *
+   * Thrown rather than returned, so a failing assertion reads as a failing test
+   * in any runner.
+   */
+  assertExists(paths: string | string[]): this {
+    for (const path of Array.isArray(paths) ? paths : [paths]) {
+      if (!this.entries.has(normalisePath(path))) {
+        throw new Error(`Expected [${path}] on the disk. Present: ${this.listing()}`)
+      }
+    }
+
+    return this
+  }
+
+  assertMissing(paths: string | string[]): this {
+    for (const path of Array.isArray(paths) ? paths : [paths]) {
+      if (this.entries.has(normalisePath(path))) {
+        throw new Error(`Expected [${path}] not to be on the disk, but it is.`)
+      }
+    }
+
+    return this
+  }
+
+  /** The file is there *and* holds these bytes. */
+  assertContents(path: string, expected: string | Uint8Array): this {
+    this.assertExists(path)
+
+    const entry = this.entries.get(normalisePath(path)) as Entry
+    const actual = new TextDecoder().decode(entry.bytes)
+    const wanted = typeof expected === 'string' ? expected : new TextDecoder().decode(expected)
+
+    if (actual !== wanted) {
+      throw new Error(`Expected [${path}] to contain ${JSON.stringify(wanted)}, saw ${JSON.stringify(actual)}`)
+    }
+
+    return this
+  }
+
+  /** How many files are under a directory — not how many the caller wrote. */
+  assertCount(directory: string, count: number): this {
+    const prefix = normalisePath(directory)
+    const found = [...this.entries.keys()].filter(
+      (key) => prefix === '' || key.startsWith(`${prefix}/`)
+    )
+
+    if (found.length !== count) {
+      throw new Error(
+        `Expected ${count} file(s) under [${directory}], saw ${found.length}: ${found.join(', ') || '(none)'}`
+      )
+    }
+
+    return this
+  }
+
+  assertDirectoryEmpty(directory: string): this {
+    return this.assertCount(directory, 0)
+  }
+
+  private listing(): string {
+    const keys = [...this.entries.keys()]
+
+    return keys.length === 0 ? '(nothing)' : keys.join(', ')
+  }
+
 }

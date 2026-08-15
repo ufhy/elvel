@@ -334,6 +334,61 @@ export class Repository {
   // --------------------------------------------------------------------- tags
 
   /** A view of this store limited to a set of tags. */
+  /**
+   * Forget several keys at once — PSR-16's `deleteMultiple`.
+   *
+   * Answers false if any one of them failed, and still attempts the rest: a
+   * partial flush that stops at the first miss leaves stale entries behind, which
+   * is the failure this is usually called to prevent.
+   */
+  async deleteMultiple(keys: string[]): Promise<boolean> {
+    let all = true
+
+    for (const key of keys) {
+      if (!(await this.forget(key))) all = false
+    }
+
+    return all
+  }
+
+  /** PSR-16 spellings of `many` and `putMany`, for a caller expecting them. */
+  getMultiple<T = unknown>(keys: string[]): Promise<Record<string, T | null>> {
+    return this.many<T>(keys)
+  }
+
+  setMultiple(values: Record<string, unknown>, seconds?: number): Promise<boolean> {
+    return this.putMany(values, seconds)
+  }
+
+  /**
+   * Extend a key's life without touching its value.
+   *
+   * Read, then written back with a fresh TTL, because no store here exposes a
+   * bare expiry update. That means it is not atomic: a write between the read and
+   * the put is overwritten. Worth knowing before using it on anything contended,
+   * and harmless for what it is usually for — keeping a session or a lock alive
+   * while work continues.
+   */
+  async touch(key: string, seconds?: number): Promise<boolean> {
+    const value = await this.get(key)
+    if (value === null || value === undefined) return false
+
+    return this.put(key, value, seconds)
+  }
+
+  /**
+   * Does this store carry tags?
+   *
+   * `tags()` builds a `TaggedCache` whatever the store is, and the tag set needs
+   * somewhere to keep its own bookkeeping — asking first is how a caller avoids
+   * finding out through a flush that quietly clears nothing.
+   */
+  supportsTags(): boolean {
+    return typeof (this.store as { tagsSupported?: boolean }).tagsSupported === 'boolean'
+      ? ((this.store as { tagsSupported?: boolean }).tagsSupported as boolean)
+      : true
+  }
+
   tags(...names: Array<string | string[]>): TaggedCache {
     return new TaggedCache(this.store, new TagSet(this.store, names.flat()), this.options)
   }

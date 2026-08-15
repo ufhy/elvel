@@ -13,7 +13,7 @@ next time there is real debt to count.
 Behaviour that exists and is merely surprising belongs in `BEHAVIOURS.md`, as do
 the limits that are permanent.
 
-**Open: 10.**
+**Open: 7.**
 
 ---
 
@@ -60,14 +60,11 @@ checked item by item.
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Model methods** | `destroy`, `deleteOrFail`, `saveOrFail`, named scopes via `callNamedScope`, `getRouteKey`, `broadcastChannel`, `automaticallyEagerLoadRelationships`. | The named-scope surface and `destroy` are the ones an application reaches for daily. |
 
 ### Framework services
 
 | Gap | What Laravel has | Why it matters here |
 | --- | --- | --- |
-| **Cache** | `getMultiple`, `setMultiple`, `deleteMultiple`, `touch`, `supportsTags`, `rememberWithWarmth`. | The PSR-16 multi-key methods are the gap that shows: fetching fifty keys is fifty round trips today. |
-| **Storage** | `assertExists`, `assertMissing`, `assertCount`, `assertDirectoryEmpty`; `temporaryUrl`, `temporaryUploadUrl`, `checksum`, `download`, `response`, `serve`, `directoryExists`. | The assertions belong with the testing work; `temporaryUrl` is what a private S3 file needs to reach a browser at all. |
 | **Mailable assertions** | 30-odd `assertHasTo`, `assertHasSubject`, `assertSeeInHtml`, `assertHasAttachment`, … | The mail fake records sends; nothing asserts what was in one. |
 
 ### Artisan

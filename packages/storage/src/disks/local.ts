@@ -239,6 +239,20 @@ export class LocalDisk implements Disk {
     return this.directories(directory, true)
   }
 
+  async directoryExists(path: string): Promise<boolean> {
+    try {
+      return (await stat(this.path(path))).isDirectory()
+    } catch {
+      return false
+    }
+  }
+
+  async checksum(path: string, algorithm = 'md5'): Promise<string> {
+    const bytes = await this.bytesOrFail(path)
+
+    return new Bun.CryptoHasher(algorithm as never).update(bytes).digest('hex')
+  }
+
   async makeDirectory(path: string, visibility?: Visibility): Promise<boolean> {
     const target = this.path(path)
 

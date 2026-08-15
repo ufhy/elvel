@@ -515,6 +515,32 @@ export class Model {
     return (await relationship.query().where(column, value).first()) ?? undefined
   }
 
+  /**
+   * Delete rows by key — Laravel's `destroy()`.
+   *
+   * Each row is loaded and deleted individually, which looks wasteful next to one
+   * `delete where id in (…)` and is the point: the model events fire, and
+   * anything listening for a deletion — a cache flush, an audit line, a cascade
+   * written in the application rather than the schema — actually runs.
+   *
+   * Returns how many were deleted, which is not always how many were asked for.
+   */
+  static async destroy<T extends typeof Model>(this: T, ids: unknown[] | unknown): Promise<number> {
+    const keys = Array.isArray(ids) ? ids : [ids]
+    if (keys.length === 0) return 0
+
+    const rows = await this.query()
+      .whereIn(this.primaryKey, keys as never[])
+      .get()
+    let deleted = 0
+
+    for (const row of rows) {
+      if (await (row as Model).delete()) deleted += 1
+    }
+
+    return deleted
+  }
+
   static query<T extends typeof Model>(this: T): ModelBuilder<InstanceType<T>> {
     return new ModelBuilder<InstanceType<T>>(this as unknown as ModelClass<InstanceType<T>>)
   }
@@ -1002,6 +1028,29 @@ export class Model {
     for (const key of keys.flat()) delete object[key]
 
     return object
+  }
+
+  /**
+   * Save, or throw — Laravel's `saveOrFail()`.
+   *
+   * `save()` answers false when nothing was written, and a caller who forgets to
+   * check carries on as though it worked. This is for the paths where carrying on
+   * is worse than stopping.
+   */
+  async saveOrFail(): Promise<this> {
+    if (!(await this.save())) {
+      throw new Error(`Could not save [${this.constructor.name}].`)
+    }
+
+    return this
+  }
+
+  async deleteOrFail(): Promise<this> {
+    if (!(await this.delete())) {
+      throw new Error(`Could not delete [${this.constructor.name}].`)
+    }
+
+    return this
   }
 
   async delete(): Promise<boolean> {

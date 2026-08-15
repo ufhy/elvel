@@ -230,6 +230,23 @@ export class S3Disk implements CloudDisk {
     return contents
   }
 
+  /**
+   * S3 has no directories, so this asks whether anything lives under the prefix.
+   *
+   * The honest answer for object storage: `photos/` exists exactly when an object
+   * whose key starts with it does. Reporting false because no directory *object*
+   * exists would be true to S3 and useless to a caller.
+   */
+  async directoryExists(path: string): Promise<boolean> {
+    return (await this.files(path)).length > 0 || (await this.directories(path)).length > 0
+  }
+
+  async checksum(path: string, algorithm = 'md5'): Promise<string> {
+    const bytes = await this.bytesOrFail(path)
+
+    return new Bun.CryptoHasher(algorithm as never).update(bytes).digest('hex')
+  }
+
   async makeDirectory(): Promise<boolean> {
     return true
   }

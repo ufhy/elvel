@@ -108,6 +108,18 @@ export interface Disk {
    * that can read the directory, so the two settings are separate questions and
    * this is where the second one is answered.
    */
+  /** Does this directory exist? Not the same question as a file existing. */
+  directoryExists(path: string): Promise<boolean>
+
+  /**
+   * A hash of the file's bytes — Laravel's `checksum`.
+   *
+   * For telling whether an upload is the same file as one already stored, or
+   * whether a transfer arrived intact. `md5` by default because that is what S3
+   * puts in its `ETag`; anything Bun's hasher knows may be named instead.
+   */
+  checksum(path: string, algorithm?: string): Promise<string>
+
   makeDirectory(path: string, visibility?: Visibility): Promise<boolean>
 
   deleteDirectory(path: string): Promise<boolean>
