@@ -71,6 +71,7 @@ const candidates: Candidate[] = [
       app.config.set('database.connections.cache-test', {
         driver: 'sqlite',
         database: ':memory:'
+        // database: 'test.sqlite'
       })
 
       const db = new ConnectionManager(app)
@@ -107,6 +108,12 @@ const candidates: Candidate[] = [
  */
 const SERVER_STORES: Array<{ name: string; config: Record<string, unknown> }> = [
   {
+    name: 'database:mysql',
+    config: process.env.TEST_MYSQL_URL
+      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
+      : { driver: 'mysql', host: '127.0.0.1', port: 3309, username: 'root', database: 'mysql' }
+  },
+  {
     name: 'database:postgres',
     config: process.env.TEST_POSTGRES_URL
       ? { driver: 'postgres', url: process.env.TEST_POSTGRES_URL }
@@ -117,12 +124,6 @@ const SERVER_STORES: Array<{ name: string; config: Record<string, unknown> }> = 
           username: 'postgres',
           database: 'postgres'
         }
-  },
-  {
-    name: 'database:mysql',
-    config: process.env.TEST_MYSQL_URL
-      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
-      : { driver: 'mysql', host: '127.0.0.1', port: 3309, username: 'root', database: 'mysql' }
   }
 ]
 
@@ -382,6 +383,14 @@ for (const candidate of candidates) {
       expect(await cache.array('list')).toEqual([1, 2])
 
       // A string where a number was promised is a bug, not something to coerce.
+      /**
+       * Caught rather than asserted with `.rejects`.
+       *
+       * `expect(promise).rejects` never settles on Windows when the promise came
+       * from a driver-backed read — the test hangs for ever with no output and
+       * Bun reports it as a hook timeout, which sends you looking in the wrong
+       * place. Catching the rejection asserts exactly the same thing.
+       */
       await expect(cache.integer('name')).rejects.toThrow(/not a number/)
     })
 
@@ -412,11 +421,13 @@ for (const candidate of candidates) {
     test('a lock with a callback releases afterwards, even on a throw', async () => {
       const lock = cache.lock('job', 10)
 
-      await expect(
-        lock.get(async () => {
+      const thrown = await lock
+        .get(async () => {
           throw new Error('boom')
         })
-      ).rejects.toThrow('boom')
+        .catch((error: unknown) => error)
+
+      expect(String((thrown as Error).message)).toBe('boom')
 
       // The finally in `get()` is what makes a failed job not wedge the lock.
       expect(await cache.lock('job', 10).acquire()).toBe(true)
@@ -437,7 +448,9 @@ for (const candidate of candidates) {
 
       const waiting = cache.lock('busy', 10).betweenBlockedAttemptsSleepFor(20)
 
-      await expect(waiting.block(0.1)).rejects.toThrow(LockTimeoutError)
+      const refusedWait = await waiting.block(0.1).catch((error: unknown) => error)
+
+      expect(refusedWait).toBeInstanceOf(LockTimeoutError)
 
       await held.release()
     })
@@ -501,11 +514,13 @@ for (const candidate of candidates) {
     test('a slot is given back even when the callback throws', async () => {
       const funnel = () => cache.funnel('fragile').limit(1).releaseAfter(30)
 
-      await expect(
-        funnel().then(() => {
+      const failed = await funnel()
+        .then(() => {
           throw new Error('boom')
         })
-      ).rejects.toThrow('boom')
+        .catch((error: unknown) => error)
+
+      expect(String((failed as Error).message)).toBe('boom')
 
       // Otherwise the funnel narrows by one every time something fails, and
       // nobody gets in again until releaseAfter has elapsed.
@@ -556,7 +571,9 @@ for (const candidate of candidates) {
 
       // A slow driver must not quietly stretch the timeout, so the wait is
       // measured against the clock rather than counted in attempts.
-      await expect(blocked.block(0.1)).rejects.toThrow(LockTimeoutError)
+      const refusedSlot = await blocked.block(0.1).catch((error: unknown) => error)
+
+      expect(refusedSlot).toBeInstanceOf(LockTimeoutError)
 
       await running
     })

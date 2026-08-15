@@ -674,6 +674,30 @@ One thing worth knowing, and two worth remembering:
 Not gaps — nothing here is waiting to be built. These are the places the
 framework stops, and the reasons are the useful part.
 
+**`expect(promise).rejects` never settles on Windows when the promise came from a
+networked driver.** A rejection produced after a Postgres, MySQL or Redis round
+trip — `await expect(cache.integer('name')).rejects.toThrow(...)` — hangs for
+ever. Bun then reports "a beforeEach/afterEach hook timed out for this test",
+which sends you to the hooks; those measure 0–1 ms.
+
+Reproduced on Bun 1.3.3 and 1.3.14, so it is not a version regression, and the
+same file passes on macOS. **SQLite is unaffected** — `migrator.test.ts` uses
+`.rejects` throughout and passes — as is a plain
+`expect(Promise.reject(...)).rejects`. The socket is what makes the difference.
+
+Catch the rejection instead, which asserts the same thing and cannot hang:
+
+```ts
+const refused = await cache.integer('name').catch((error: unknown) => error)
+
+expect(refused).toBeInstanceOf(TypeError)
+```
+
+The symptom is the expensive part: no output at all, because Bun buffers a file's
+results until the file finishes and writes the per-test `✓` lines only to a
+terminal. A run that looks frozen may be one hung assertion, or may simply be
+slow — `bun test <file> > out.txt` shows nothing either way.
+
 **Bun has no image API at all.** No `createImageBitmap`, no `OffscreenCanvas`,
 nothing native — checked directly on 1.3.12. So `@elysian/image` is two halves.
 `probe()` reads format and dimensions out of the bytes in pure TypeScript for
