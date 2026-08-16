@@ -33,7 +33,21 @@ const KITS: Record<string, { label: string; describe: string; routes: string[] }
   auth: {
     label: 'Auth — sign in, sign up, a dashboard',
     describe: 'server-rendered auth pages over better-auth',
-    routes: ['  .use(AuthPageController)']
+    /**
+     * Five controllers rather than one, split by what a page is *for*.
+     *
+     * They were one file of 619 lines and nineteen routes — everything from the
+     * sign-in form to closing an account. Laravel's own kit has no such file:
+     * Fortify holds the auth logic, each page is its own component, and the
+     * settings routes live apart in `routes/settings.php`.
+     */
+    routes: [
+      '  .use(AuthPageController)',
+      '  .use(ConfirmPasswordController)',
+      '  .use(DashboardController)',
+      '  .use(SettingsController)',
+      '  .use(VerifyEmailController)'
+    ]
   },
   api: {
     label: 'API — token auth, JSON, no views',
@@ -474,20 +488,23 @@ async function registerKitRoutes(target: string, routes: string[]): Promise<void
   const mounted = source
     .replace(anchor, imports)
     /**
-     * One line, because that is the shape the formatter wants.
+     * One line while it fits, broken across lines when it does not.
      *
      * A scaffolded application ships the same formatter this repository uses,
-     * and it collapses a chain that fits — so writing it broken across lines
-     * made a new project fail its own `bun run lint` on a file nobody had
-     * touched. Kits declare few controllers; if one ever declares enough to
-     * exceed the line length, this is the line to revisit.
+     * and that formatter collapses a chain that fits and breaks one that does
+     * not — so either shape is wrong for the other case, and a new project then
+     * fails its own `bun run lint` on a file nobody has touched. It has happened
+     * both ways round: once with one controller written across lines, and again
+     * the day the auth kit went from one controller to five.
      */
-    .replace(
-      "export default new Elysia({ name: 'routes:web' }).use(PageController)",
-      `export default new Elysia({ name: 'routes:web' }).use(PageController)${routes
-        .map((line) => line.trim())
-        .join('')}`
-    )
+    .replace("export default new Elysia({ name: 'routes:web' }).use(PageController)", () => {
+      const mounts = ['.use(PageController)', ...routes.map((line) => line.trim())]
+      const oneLine = `export default new Elysia({ name: 'routes:web' })${mounts.join('')}`
+
+      return oneLine.length <= 100
+        ? oneLine
+        : `export default new Elysia({ name: 'routes:web' })\n${mounts.map((mount) => `  ${mount}`).join('\n')}`
+    })
 
   await Bun.write(path, `${mounted.trimEnd()}\n`)
 }

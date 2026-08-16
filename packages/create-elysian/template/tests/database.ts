@@ -31,9 +31,21 @@ const schema = await app.make('db').schema()
  * `migrations` rather than a table of your own: it is the one table that exists
  * in every application, and its absence is what "this database is empty" means.
  */
-if (!(await schema.hasTable('migrations'))) {
-  const artisan = app.make('artisan')
+/**
+ * Migrations run every time; seeders only on a database that was empty.
+ *
+ * Migrating unconditionally is what keeps this database in step: it applies
+ * whatever is pending and says "nothing to migrate" otherwise. Running it only
+ * when the database looked new left it stranded the first time somebody ran the
+ * tests before generating a migration — the schema was recorded as up to date
+ * and the new table never arrived.
+ *
+ * Seeding is the opposite: it is not idempotent, and running it on every test
+ * run would pile up rows until a unique index complained.
+ */
+const fresh = !(await schema.hasTable('migrations'))
+const artisan = app.make('artisan')
 
-  await artisan.run(['migrate', '--force'])
-  await artisan.run(['db:seed'])
-}
+await artisan.run(['migrate', '--force'])
+
+if (fresh) await artisan.run(['db:seed'])
