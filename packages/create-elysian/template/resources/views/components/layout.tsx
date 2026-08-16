@@ -26,6 +26,7 @@ export function Layout({ title, children }: LayoutProps) {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <title safe>
           {title} — {name}
         </title>

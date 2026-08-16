@@ -911,9 +911,26 @@ deliberate.
 - **Storage directories exist**, each with the `.gitignore` that keeps its
   contents out and itself in.
 
-What is still deliberately absent: **migrations**. Laravel ships three; better-
-auth's tables depend on the options and plugins in `config/auth.ts`, so
-`auth:schema` generates them and the kits' next steps say so.
+**Tests are split as Laravel splits them** — `tests/Feature` for the ones that
+boot the application, `tests/Unit` for the ones that do not. The two have very
+different costs, and being able to run the fast half alone is the difference
+between a suite you run on every save and one you run before pushing.
+
+What is still deliberately different, and why:
+
+- **No migrations.** Laravel ships three because its defaults put session, cache
+  and the queue in the database. Ours default to `file`, `file` and `sync`, so a
+  new application needs no table at all on day one; `cache:table`, `queue:table`
+  and `session:table` write them when you move. The users table is better-auth's
+  and depends on `config/auth.ts`, so `auth:schema` generates it.
+- **No `app/Models/User` in the base template.** The table does not exist until
+  an auth kit has been chosen and `auth:schema` has run, and a model pointing at
+  a table that is not there is a lie the first time anybody queries it. Both auth
+  kits ship one.
+- **Providers are listed in `config/app.ts`**, where Laravel 11 moved them out to
+  `bootstrap/providers.php`; and a controller is `controller('name')` rather than
+  a class extending a base `Controller`.
+- **No `phpunit.xml` equivalent.** `bun test` needs no configuration file.
 
 
 ## The starter kits

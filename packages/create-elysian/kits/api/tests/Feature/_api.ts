@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { test as press } from '@elysian/testing'
-import { User } from '../app/Models/User.ts'
-import app from '../bootstrap/app.ts'
-import { UserFactory } from '../database/factories/UserFactory.ts'
-import './database.ts'
+import { User } from '../../app/Models/User.ts'
+import app from '../../bootstrap/app.ts'
+import { UserFactory } from '../../database/factories/UserFactory.ts'
+import '../database.ts'
 
 /**
  * The kit's endpoints, as tests you own.
