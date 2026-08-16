@@ -195,3 +195,41 @@ describe('every kit is a folder the installer knows about', () => {
     expect<string[]>(missing).toEqual([])
   })
 })
+
+describe('the template ships nothing a test run left behind', () => {
+  /**
+   * A scaffolded application is whatever this directory contains, so anything
+   * that lands here by accident lands in everybody's new project.
+   *
+   * It has happened: a `bun test` at the repository root found the template's
+   * own example test, booted an application with the template as its base path,
+   * and left `database/playground.sqlite` — plus, once WAL was on, two more
+   * files beside it. All three were committed and would have been copied into
+   * every scaffold.
+   */
+  test('no databases, no environment, no logs', async () => {
+    const strays: string[] = []
+
+    const walk = async (directory: string): Promise<void> => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const path = resolve(directory, entry.name)
+
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules') strays.push(path)
+          else await walk(path)
+
+          continue
+        }
+
+        // `.env.example` is shipped on purpose; a real `.env` never is.
+        if (/\.sqlite(-shm|-wal)?$/.test(entry.name)) strays.push(path)
+        if (entry.name === '.env') strays.push(path)
+        if (entry.name.endsWith('.log')) strays.push(path)
+      }
+    }
+
+    await walk(templateDir)
+
+    expect<string[]>(strays.map((path) => path.slice(templateDir.length + 1))).toEqual([])
+  })
+})

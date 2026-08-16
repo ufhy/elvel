@@ -13,3 +13,9 @@ apps/
 .env.local
 
 # bun.lock is committed on purpose so `bun run verify` is reproducible in CI.
+
+# A scaffolded application's database is built, never shipped — and the template
+# is somewhere a stray `bun test` can boot an application and leave one behind.
+**/database/*.sqlite
+**/database/*.sqlite-shm
+**/database/*.sqlite-wal
