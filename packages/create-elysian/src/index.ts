@@ -42,11 +42,15 @@ const KITS: Record<string, { label: string; describe: string; routes: string[] }
      * settings routes live apart in `routes/settings.php`.
      */
     routes: [
-      '  .use(AuthPageController)',
-      '  .use(ConfirmPasswordController)',
+      '  .use(Auth/ConfirmPasswordController)',
+      '  .use(Auth/PasswordResetController)',
+      '  .use(Auth/RegisterController)',
+      '  .use(Auth/SignInController)',
+      '  .use(Auth/VerifyEmailController)',
       '  .use(DashboardController)',
-      '  .use(SettingsController)',
-      '  .use(VerifyEmailController)'
+      '  .use(Settings/PasswordController)',
+      '  .use(Settings/ProfileController)',
+      '  .use(Settings/SecurityController)'
     ]
   },
   api: {
@@ -73,8 +77,10 @@ const RENAMES: Record<string, string> = {
   _editorconfig: '.editorconfig',
   _gitattributes: '.gitattributes',
   '_example.ts': 'example.test.ts',
-  '_auth.ts': 'auth.test.ts',
-  '_api.ts': 'api.test.ts'
+  '_api.ts': 'api.test.ts',
+  '_authentication.ts': 'authentication.test.ts',
+  '_registration.ts': 'registration.test.ts',
+  '_profile.ts': 'profile.test.ts'
 }
 
 /** Substitution runs on these extensions only, never on binaries or CSS. */
@@ -463,12 +469,22 @@ async function registerKitRoutes(target: string, routes: string[]): Promise<void
   const path = join(target, 'routes', 'web.ts')
   const source = await Bun.file(path).text()
 
-  const names = routes.map((line) =>
-    line
+  /**
+   * A kit names a controller by its path under `app/Http/Controllers`.
+   *
+   * `Auth/SignInController` rather than `SignInController`, because the auth kit
+   * groups its controllers the way Laravel's does — `Auth/` and `Settings/` —
+   * and a flat list of nine files in one directory is what that grouping exists
+   * to avoid. The import name is the last segment; the path is the whole thing.
+   */
+  const declared = routes.map((line) => {
+    const path = line
       .trim()
       .replace(/^\.use\(/, '')
       .replace(/\)$/, '')
-  )
+
+    return { path, name: path.split('/').at(-1) as string }
+  })
 
   /**
    * Inserted in sorted order, not appended.
@@ -479,10 +495,20 @@ async function registerKitRoutes(target: string, routes: string[]): Promise<void
    * create and cannot explain.
    */
   const anchor = "import PageController from '../app/Http/Controllers/PageController.ts'"
-  const sorted = [...names, 'PageController'].sort()
+  const sorted = [...declared, { path: 'PageController', name: 'PageController' }].sort(
+    /**
+     * By *path*, which is what the formatter sorts by.
+     *
+     * Sorting by the imported name looks equivalent and is not: with the
+     * controllers grouped into `Auth/` and `Settings/` the two orders differ,
+     * and a new project then failed its own `bun run lint` on the very file the
+     * scaffolder had written.
+     */
+    (one, two) => one.path.localeCompare(two.path)
+  )
 
   const imports = sorted
-    .map((name) => `import ${name} from '../app/Http/Controllers/${name}.ts'`)
+    .map(({ name, path }) => `import ${name} from '../app/Http/Controllers/${path}.ts'`)
     .join('\n')
 
   const mounted = source
@@ -498,7 +524,7 @@ async function registerKitRoutes(target: string, routes: string[]): Promise<void
      * the day the auth kit went from one controller to five.
      */
     .replace("export default new Elysia({ name: 'routes:web' }).use(PageController)", () => {
-      const mounts = ['.use(PageController)', ...routes.map((line) => line.trim())]
+      const mounts = ['.use(PageController)', ...declared.map(({ name }) => `.use(${name})`)]
       const oneLine = `export default new Elysia({ name: 'routes:web' })${mounts.join('')}`
 
       return oneLine.length <= 100

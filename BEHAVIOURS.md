@@ -938,13 +938,20 @@ What is still deliberately different, and why:
 Two, and they are different *shapes* of application rather than two takes on the
 same one — which is the only reason a second kit is worth its weight.
 
-- **`auth`** is server-rendered: sessions, cookies, CSRF, and pages. Five
-  controllers, split by what a page is for — getting in and out, the dashboard,
-  confirming an address, the password-confirmation window, and settings — over a
-  shared `app/Support/auth.ts`. It was one controller of 619 lines and nineteen
-  routes, which is not a file anybody reads on their first day; Laravel's kit has
-  no such file either, because Fortify holds the auth logic and each page is its
-  own component. Its flows are
+- **`auth`** is server-rendered: sessions, cookies, CSRF, and pages. Nine
+  controllers under `Auth/` and `Settings/`, none over 130 lines, over a shared
+  `app/Support/auth.ts`; the pages are grouped the same way, `views/pages/auth/`
+  and `views/pages/settings/`, and the tests are `tests/Feature/Auth/` and
+  `tests/Feature/Settings/`. It began as one controller of 619 lines and nineteen
+  routes.
+
+  The arrangement is Laravel's, checked against the React starter kit rather than
+  guessed: it keeps `Settings/ProfileController` and `Settings/SecurityController`
+  in a directory of their own, groups its auth pages under `pages/auth/`, and
+  splits its tests into `Feature/Auth` and `Feature/Settings`. What it does *not*
+  have is our auth controllers at all — Fortify owns those routes there. This
+  framework has no Fortify, so the kit owns them, grouped the way Laravel groups
+  what it does own. Its flows are
   driven over HTTP in the smoke run, inbox included: a reset link is read out of
   the log the `log` mailer writes to, followed to the form, used once, and refused
   the second time.

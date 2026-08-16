@@ -2690,12 +2690,24 @@ try {
   check('the auth kit scaffolds', kitResult.exitCode === 0, `exit ${kitResult.exitCode}`)
   check(
     'its pages are written',
-    await Bun.file(join(kitTarget, 'resources/views/pages/sign-in.tsx')).exists()
+    await Bun.file(join(kitTarget, 'resources/views/pages/auth/sign-in.tsx')).exists()
   )
 
   const kitRoutes = await Bun.file(join(kitTarget, 'routes/web.ts')).text()
 
-  check('the kit mounts its controller', kitRoutes.includes('.use(AuthPageController)'))
+  /**
+   * Nine controllers, grouped as Laravel groups them.
+   *
+   * The kit was one controller of 619 lines; it is now `Auth/` and `Settings/`
+   * directories, which is the shape Laravel's own starter kits have. Two are
+   * checked rather than one, so the grouping itself stays covered.
+   */
+  check(
+    'the kit mounts its controllers, from their directories',
+    kitRoutes.includes('.use(SignInController)') &&
+      kitRoutes.includes("Controllers/Auth/SignInController.ts'") &&
+      kitRoutes.includes("Controllers/Settings/ProfileController.ts'")
+  )
   check('and leaves the base template mounted', kitRoutes.includes('.use(PageController)'))
 
   /**

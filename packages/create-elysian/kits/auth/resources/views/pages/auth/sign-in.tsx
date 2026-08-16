@@ -1,5 +1,5 @@
 import { csrfField, old } from '@elysian/http'
-import { Layout } from '../components/layout.tsx'
+import { Layout } from '../../components/layout.tsx'
 
 export type SignInProps = {
   title: string

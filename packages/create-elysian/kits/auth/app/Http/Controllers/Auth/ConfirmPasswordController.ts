@@ -3,8 +3,8 @@ import { controller } from '@elysian/core'
 import { errors, intended, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
-import { ConfirmPassword } from '../../../resources/views/pages/confirm-password.tsx'
-import { api, messageFrom } from '../../Support/auth.ts'
+import { ConfirmPassword } from '../../../../resources/views/pages/auth/confirm-password.tsx'
+import { api, messageFrom } from '../../../Support/auth.ts'
 
 /**
  * The window that guards the dangerous pages.

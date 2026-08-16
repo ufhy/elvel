@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { test as press, type TestResponse } from '@elysian/testing'
-import { User } from '../../app/Models/User.ts'
-import app from '../../bootstrap/app.ts'
-import { UserFactory } from '../../database/factories/UserFactory.ts'
-import '../database.ts'
+import { User } from '../../../app/Models/User.ts'
+import app from '../../../bootstrap/app.ts'
+import { UserFactory } from '../../../database/factories/UserFactory.ts'
+import '../../../tests/database.ts'
 
 /**
  * The kit's own flows, as tests you own.
@@ -65,82 +65,6 @@ async function register(email: string, password = 'longenough1'): Promise<TestRe
       password
     })
 }
-
-describe('registration', () => {
-  test('creates an account and signs it in', async () => {
-    const registered = await register(address())
-
-    registered.assertRedirect('/dashboard')
-
-    const dashboard = await press(app).withCookiesFrom(registered).get('/dashboard')
-
-    dashboard.assertOk().assertSee('Test Person')
-  })
-
-  test('refuses an address that is already taken', async () => {
-    const email = address()
-    await register(email)
-
-    const again = await register(email)
-
-    // Back to the form with an error, not a 500 and not a second account.
-    again.assertRedirect('/sign-up')
-  })
-})
-
-describe('signing in', () => {
-  test('the right password reaches the dashboard', async () => {
-    const email = address()
-    await register(email)
-
-    const page = await press(app).get('/sign-in')
-    const signedIn = await press(app)
-      .withCookiesFrom(page)
-      .form('POST', '/sign-in', { _token: tokenIn(page.body), email, password: 'longenough1' })
-
-    signedIn.assertRedirect('/dashboard')
-  })
-
-  test('a wrong one goes back to the form', async () => {
-    const email = address()
-    await register(email)
-
-    const page = await press(app).get('/sign-in')
-    const refused = await press(app)
-      .withCookiesFrom(page)
-      .form('POST', '/sign-in', { _token: tokenIn(page.body), email, password: 'not-the-password' })
-
-    refused.assertRedirect('/sign-in')
-  })
-})
-
-describe('the pages behind auth', () => {
-  test('a guest is sent to sign in', async () => {
-    const response = await press(app).get('/dashboard')
-
-    response.assertRedirect('/sign-in')
-  })
-
-  test('and a signed-in visitor is sent away from the sign-in page', async () => {
-    const registered = await register(address())
-    const response = await press(app).withCookiesFrom(registered).get('/sign-in')
-
-    response.assertRedirect('/dashboard')
-  })
-})
-
-describe('CSRF', () => {
-  test('a form posted without its token is refused', async () => {
-    const response = await press(app).form('POST', '/sign-in', {
-      email: 'nobody@example.com',
-      password: 'whatever'
-    })
-
-    // 419, not 500 and not a sign-in attempt: the token is what proves the form
-    // came from a page this application served.
-    expect(response.status).toBe(419)
-  })
-})
 
 describe('the User model', () => {
   test('reads the accounts better-auth wrote', async () => {

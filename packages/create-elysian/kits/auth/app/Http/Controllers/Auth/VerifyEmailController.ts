@@ -1,8 +1,8 @@
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
-import { VerifyEmail } from '../../../resources/views/pages/verify-email.tsx'
-import { account, api } from '../../Support/auth.ts'
+import { VerifyEmail } from '../../../../resources/views/pages/auth/verify-email.tsx'
+import { account, api } from '../../../Support/auth.ts'
 
 /**
  * Confirming an address.
