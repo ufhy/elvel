@@ -1,31 +1,7 @@
-import { type AuthUser, authApi, userOf } from '@elysian/auth'
+import { api, userOf } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { middleware } from '@elysian/http'
-import type { Auth } from 'better-auth'
 import { t } from 'elysia'
-import type authConfig from '../../../config/auth.ts'
-
-/**
- * better-auth's server API, typed from this application's own config.
- *
- * `betterAuth<Options>(options) => Auth<Options>` infers the endpoints from the
- * options object, plugins included — so reading `typeof authConfig` back out of
- * `config/auth.ts` recovers exactly what this application has, `bearer` and all.
- * A hand-written list of signatures would typecheck and still accept a call that
- * fails at runtime.
- */
-const api = () => authApi<Auth<typeof authConfig>['api']>()
-
-/** The fields this kit's schema actually has, narrowed once. */
-function account(context: unknown): { id: string; name: string; email: string } {
-  const user = userOf(context) as AuthUser & { name?: unknown; email?: unknown }
-
-  return {
-    id: String(user.id),
-    name: typeof user.name === 'string' ? user.name : '',
-    email: typeof user.email === 'string' ? user.email : ''
-  }
-}
 
 /**
  * What better-auth says when it refuses, as JSON rather than as a page.
@@ -120,7 +96,7 @@ export default controller('api-auth')
   )
 
   /** Who the token belongs to — the endpoint every client calls first. */
-  .get('/api/user', (context) => Response.json({ user: account(context) }), middleware('auth'))
+  .get('/api/user', (context) => Response.json({ user: userOf(context) }), middleware('auth'))
 
   .post(
     '/api/logout',

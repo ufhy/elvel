@@ -1,6 +1,5 @@
 import { env } from '@elysian/core'
 import type { Auth } from 'better-auth'
-import { bearer } from 'better-auth/plugins'
 
 /**
  * better-auth's options, plus the few keys the framework reads itself.
@@ -14,13 +13,6 @@ import { bearer } from 'better-auth/plugins'
  * ```
  * artisan auth:schema && artisan migrate
  * ```
- *
- * This is the API kit's copy. It differs from the base template in one line —
- * the `bearer` plugin — and that line is what makes an API possible: sign-in
- * answers with a `set-auth-token` header, and a client that sends it back as
- * `Authorization: Bearer …` is recognised on every route. Nothing else changes,
- * because nothing else needs to: `auth()` hands better-auth the request's
- * headers either way, so a token is read exactly where a cookie would be.
  */
 const config = {
   // ------------------------------------------------------------- framework
@@ -42,16 +34,6 @@ const config = {
     enabled: true,
     minPasswordLength: 8
   },
-
-  /**
-   * Turns a bearer token into the session better-auth already models.
-   *
-   * There is no second notion of identity here and no second table: the token
-   * *is* the session token, handed out on sign-in and revoked on sign-out. A
-   * separate personal-access-token store — Sanctum's shape — is a different
-   * feature, and one this kit deliberately does not invent.
-   */
-  plugins: [bearer()],
 
   user: {
     /**

@@ -1,8 +1,8 @@
+import { api, userOf } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { VerifyEmail } from '../../../../resources/views/pages/auth/verify-email.tsx'
-import { account, api } from '../../../Support/auth.ts'
 
 /**
  * Confirming an address.
@@ -19,7 +19,7 @@ export default controller('verify-email')
 
       return view(VerifyEmail, {
         title: 'Confirm your address',
-        email: account(context).email,
+        email: userOf(context).email,
         sent: query.sent === '1',
         error: errors().first('email')
       })
@@ -31,7 +31,7 @@ export default controller('verify-email')
     '/verify-email/resend',
     async (context) => {
       await api().sendVerificationEmail({
-        body: { email: account(context).email, callbackURL: '/dashboard' },
+        body: { email: userOf(context).email, callbackURL: '/dashboard' },
         asResponse: true
       })
 

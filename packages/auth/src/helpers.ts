@@ -1,6 +1,7 @@
 import { app, UnauthorizedException } from '@elysian/core'
 import type { AuthUser, Gate } from './gate.ts'
 import type { AuthManager, AuthSession } from './manager.ts'
+import type { CurrentUser } from './types.ts'
 
 /** The auth manager. Works anywhere inside a request, and in commands. */
 export function auth(): AuthManager {
@@ -124,7 +125,7 @@ export async function whenCannot(
  * missing user means the middleware did not run, and rendering a page for
  * nobody is worse than saying so.
  */
-export function userOf(context: unknown): AuthUser {
+export function userOf(context: unknown): CurrentUser {
   const found = (context as { user?: AuthUser | null }).user ?? user()
 
   if (!found) {
@@ -133,10 +134,10 @@ export function userOf(context: unknown): AuthUser {
     )
   }
 
-  return found
+  return found as CurrentUser
 }
 
 /** The same, for a route that may be reached by a guest. */
-export function maybeUserOf(context: unknown): AuthUser | null {
-  return (context as { user?: AuthUser | null }).user ?? user()
+export function maybeUserOf(context: unknown): CurrentUser | null {
+  return ((context as { user?: AuthUser | null }).user ?? user()) as CurrentUser | null
 }

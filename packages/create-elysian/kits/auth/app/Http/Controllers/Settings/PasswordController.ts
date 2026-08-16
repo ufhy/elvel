@@ -1,10 +1,9 @@
-import { messageFrom, withSession } from '@elysian/auth'
+import { api, messageFrom, withSession } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { Password } from '../../../../resources/views/pages/settings/password.tsx'
-import { api } from '../../../Support/auth.ts'
 
 /**
  * Changing the password.

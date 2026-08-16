@@ -1,10 +1,9 @@
-import { confirmPassword, messageFrom } from '@elysian/auth'
+import { api, confirmPassword, messageFrom } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, intended, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { ConfirmPassword } from '../../../../resources/views/pages/auth/confirm-password.tsx'
-import { api } from '../../../Support/auth.ts'
 
 /**
  * The window that guards the dangerous pages.

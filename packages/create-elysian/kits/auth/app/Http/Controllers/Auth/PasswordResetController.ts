@@ -1,11 +1,10 @@
-import { messageFrom } from '@elysian/auth'
+import { api, messageFrom } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { ForgotPassword } from '../../../../resources/views/pages/auth/forgot-password.tsx'
 import { ResetPassword } from '../../../../resources/views/pages/auth/reset-password.tsx'
-import { api } from '../../../Support/auth.ts'
 
 /**
  * The forgotten-password round trip: ask for a link, then use it.

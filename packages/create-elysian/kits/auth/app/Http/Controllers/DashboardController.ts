@@ -1,8 +1,8 @@
+import { userOf } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { middleware } from '@elysian/http'
 import { view } from '@elysian/view'
 import { Dashboard } from '../../../resources/views/pages/dashboard.tsx'
-import { account } from '../../Support/auth.ts'
 
 /**
  * The page behind the wall — and the one to replace first.
@@ -15,7 +15,7 @@ export default controller('dashboard').get(
   // `auth` has already sent a guest to sign in, remembering where they were
   // going — so `user` is present here by the time this runs.
   (context) => {
-    const person = account(context)
+    const person = userOf(context)
 
     return view(Dashboard, { title: 'Dashboard', name: person.name || person.email })
   },

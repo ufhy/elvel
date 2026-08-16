@@ -1,10 +1,9 @@
-import { messageFrom, withSession } from '@elysian/auth'
+import { api, messageFrom, userOf, withSession } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { Profile } from '../../../../resources/views/pages/settings/profile.tsx'
-import { account, api } from '../../../Support/auth.ts'
 
 /**
  * The name and address on the account, and closing it.
@@ -21,7 +20,7 @@ export default controller('settings-profile')
   .get(
     '/settings/profile',
     (context) => {
-      const person = account(context)
+      const person = userOf(context)
       const { query } = context
 
       return view(Profile, {
@@ -41,7 +40,7 @@ export default controller('settings-profile')
     '/settings/profile',
     async (context) => {
       const { body, request } = context
-      const person = account(context)
+      const person = userOf(context)
 
       /**
        * Two endpoints, because better-auth refuses to do it in one.

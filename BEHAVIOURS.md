@@ -933,6 +933,36 @@ What is still deliberately different, and why:
 - **No `phpunit.xml` equivalent.** `bun test` needs no configuration file.
 
 
+## @elysian/auth — what an application declares about itself
+
+Two things the framework cannot know: which endpoints better-auth exposes, and
+what a user row holds. Both depend on `config/auth.ts` — its plugins and the
+schema `auth:schema` generated from them — so an application says them once, by
+declaration merging, beside the config they come from:
+
+```ts
+declare module '@elysian/auth' {
+  interface AuthTypes {
+    api: Auth<typeof config>['api']
+    user: { id: string; name: string; email: string; emailVerified: boolean }
+  }
+}
+```
+
+`api()` and `userOf()` are typed from that everywhere else, with no cast at any
+call site and no helper file in the application.
+
+- **`AuthTypes` is empty on purpose.** An interface with members cannot have them
+  replaced by merging — TypeScript refuses a second declaration with a different
+  type — so the defaults are conditional (`AuthTypes extends { api: infer A } ? A
+  : …`) rather than declared. Without the declaration, `api()` is `getSession`
+  and nothing else, which is all the framework itself uses.
+- **`Auth<typeof config>` is better-auth's own inference**, not a claim: it
+  returns `Auth<Options>` from `betterAuth(options)`. The kits used to carry a
+  hand-written list of endpoint signatures, which typechecked and still accepted
+  calls to endpoints whose plugin was not enabled.
+
+
 ## The starter kits
 
 Two, and they are different *shapes* of application rather than two takes on the

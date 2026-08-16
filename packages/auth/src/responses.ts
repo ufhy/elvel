@@ -1,4 +1,5 @@
 import { auth } from './helpers.ts'
+import type { AuthApi } from './types.ts'
 
 /**
  * Carry better-auth's cookies onto the response you are actually sending.
@@ -42,20 +43,27 @@ export async function messageFrom(response: Response, fallback: string): Promise
 }
 
 /**
- * better-auth's server API, typed as the application knows it.
+ * better-auth's server API, typed as this application declared it.
  *
- * The framework cannot type this: which endpoints exist depends on the plugins
- * in `config/auth.ts`, so a type listing them would be wrong for every
- * application but one. What it can do is take the cast out of every call site.
+ * The framework cannot type this on its own: which endpoints exist depends on
+ * the plugins in `config/auth.ts`, so a type listing them would be wrong for
+ * every application but one. What an application *can* do is say so once, by
+ * filling in `AuthTypes` — and better-auth already computes the answer, since
+ * `betterAuth<Options>(options)` returns `Auth<Options>`:
  *
  * ```ts
- * type ServerApi = { signInEmail(args: …): Promise<Response> }
- *
- * const api = () => authApi<ServerApi>()
+ * declare module '@elysian/auth' {
+ *   interface AuthTypes {
+ *     api: Auth<typeof config>['api']
+ *   }
+ * }
  * ```
+ *
+ * Without that declaration this is `getSession` and nothing else, which is all
+ * the framework itself uses.
  */
-export function authApi<T>(): T {
-  return auth().instance.api as T
+export function api(): AuthApi {
+  return auth().instance.api as AuthApi
 }
 
 /** One row of `listSessions`, as a page renders it. */
