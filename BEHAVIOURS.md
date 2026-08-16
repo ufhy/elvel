@@ -876,6 +876,33 @@ this is a helper rather than an instruction to remember.
 each one expression. Blade needs `$loop` because its `foreach` hands over neither.
 
 
+## The starter kits
+
+Two, and they are different *shapes* of application rather than two takes on the
+same one — which is the only reason a second kit is worth its weight.
+
+- **`auth`** is server-rendered: sessions, cookies, CSRF, and pages. Its flows are
+  driven over HTTP in the smoke run, inbox included: a reset link is read out of
+  the log the `log` mailer writes to, followed to the form, used once, and refused
+  the second time.
+- **`api`** has no views at all. Identity is better-auth's session token, handed
+  out through the `bearer` plugin's `set-auth-token` header and sent back as
+  `Authorization: Bearer …`. There is no second identity table and no second
+  notion of a session; a personal-access-token store — Sanctum's shape — is a
+  different feature this kit deliberately does not invent.
+
+Two things the API kit proves about the framework rather than about itself:
+**a guest gets 401 and not a redirect**, because the exception handler reads
+`Accept` and the kit has no sign-in page to be sent to; and **`/api/*` is outside
+CSRF**, which the base template already configured — that check exists for a
+browser sending cookies unasked, and a bearer token is never sent that way.
+
+A kit is a folder copied over the template rather than a fork of it, so anything
+a kit does not mention it inherits and the two cannot drift. The API kit mentions
+exactly two files: its controller, and a `config/auth.ts` that differs from the
+template's by one line.
+
+
 ## create-elysian
 
 **The kit is now proven, not merely scaffolded.** Every earlier check on the auth

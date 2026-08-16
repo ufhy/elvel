@@ -34,6 +34,11 @@ const KITS: Record<string, { label: string; describe: string; routes: string[] }
     label: 'Auth — sign in, sign up, a dashboard',
     describe: 'server-rendered auth pages over better-auth',
     routes: ['  .use(AuthPageController)']
+  },
+  api: {
+    label: 'API — token auth, JSON, no views',
+    describe: 'bearer-token auth over better-auth, answering JSON',
+    routes: ['  .use(ApiAuthController)']
   }
 }
 

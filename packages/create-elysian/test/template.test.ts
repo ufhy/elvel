@@ -149,3 +149,49 @@ describe('the template ships no secrets of its own', () => {
     // biome-ignore-end lint/suspicious/noTemplateCurlyInString: as above.
   })
 })
+
+describe('every kit is a folder the installer knows about', () => {
+  /**
+   * A kit that exists on disk and not in `KITS` is invisible; one that is in
+   * `KITS` and not on disk scaffolds the base template and says nothing. Both
+   * failures are silent, which is why they are worth a test.
+   */
+  test('the two lists agree', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+    const declared = [...source.matchAll(/^ {2}(\w[\w-]*): \{$/gm)].map(
+      (match) => match[1] as string
+    )
+
+    const folders = (await readdir(resolve(import.meta.dir, '..', 'kits'), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+
+    // `none` is a kit with no folder: it is the base template, named.
+    expect<string[]>(declared.filter((name) => name !== 'none').sort()).toEqual(folders)
+  })
+
+  test('each kit mounts a controller it actually ships', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+    const missing: string[] = []
+
+    // `[^}]` keeps the match inside one kit's own object: `[\s\S]` ran on past the
+    // closing brace and paired `none` with the next kit's controller.
+    for (const [, kit, controller] of source.matchAll(
+      /^ {2}(\w[\w-]*): \{[^}]*?routes: \['\s*\.use\((\w+)\)'\]/gm
+    )) {
+      const path = resolve(
+        import.meta.dir,
+        '..',
+        'kits',
+        kit as string,
+        'app/Http/Controllers',
+        `${controller}.ts`
+      )
+
+      if (!(await Bun.file(path).exists())) missing.push(`${kit} mounts a missing ${controller}`)
+    }
+
+    expect<string[]>(missing).toEqual([])
+  })
+})

@@ -2698,6 +2698,34 @@ try {
   check('the kit mounts its controller', kitRoutes.includes('.use(AuthPageController)'))
   check('and leaves the base template mounted', kitRoutes.includes('.use(PageController)'))
 
+  /**
+   * The API kit, which is the other shape an application comes in.
+   *
+   * No views, no session, no CSRF — identity arrives as a bearer token and every
+   * answer is JSON. It is worth scaffolding here rather than only unit-testing
+   * because the interesting part is what the *framework* does for it: a guest
+   * gets 401 rather than a redirect to a sign-in page that does not exist.
+   */
+  const apiTarget = join(app.basePath(), '..', '.smoke-api-kit')
+  await rm(apiTarget, { recursive: true, force: true })
+
+  const apiResult = Bun.spawnSync({
+    cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-api-kit', '--kit=api'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('the api kit scaffolds', apiResult.exitCode === 0, `exit ${apiResult.exitCode}`)
+  check(
+    'it ships no views of its own',
+    !(await Bun.file(join(apiTarget, 'resources/views/pages/sign-in.tsx')).exists())
+  )
+  check(
+    'and its auth config turns the bearer plugin on',
+    (await Bun.file(join(apiTarget, 'config/auth.ts')).text()).includes('bearer()')
+  )
+
   const unknownKit = Bun.spawnSync({
     cmd: ['bun', 'packages/create-elysian/src/index.ts', '.smoke-kit-bad', '--kit=nope'],
     cwd: join(import.meta.dir, '..'),
@@ -2763,8 +2791,12 @@ try {
    *
    * The check has to run in the scaffold, which is why it lives here.
    */
-  for (const target of [scaffoldTarget, kitTarget]) {
-    const label = target.endsWith('.smoke-kit') ? 'the kit' : 'the template'
+  for (const target of [scaffoldTarget, kitTarget, apiTarget]) {
+    const label = target.endsWith('.smoke-kit')
+      ? 'the kit'
+      : target.endsWith('.smoke-api-kit')
+        ? 'the api kit'
+        : 'the template'
 
     const typed = Bun.spawnSync({
       cmd: ['bun', 'run', 'typecheck'],
@@ -2796,6 +2828,7 @@ try {
   }
 
   await proveTheKitWorks(kitTarget)
+  await proveTheApiKitWorks(apiTarget)
 
   // --------------------------------------------------------------- route names
 
@@ -3157,6 +3190,7 @@ try {
   check('every registered name matched a real route', app.make('routes').has('articles.show'))
 
   await rm(kitTarget, { recursive: true, force: true })
+  await rm(apiTarget, { recursive: true, force: true })
   await rm(join(app.basePath(), '..', '.smoke-kit-bad'), { recursive: true, force: true })
 
   for (const [command, provider] of [
@@ -3891,6 +3925,151 @@ function tokenIn(html: string): string | undefined {
  */
 function where(response: Response): string {
   return response.headers.get('location') ?? `status ${response.status}`
+}
+
+/**
+ * The API kit, actually used — over a socket, with a token.
+ *
+ * The kit's own controller is small; what this proves is what the framework does
+ * around it. A guest must get 401 and not a redirect to a sign-in page the kit
+ * does not have; `/api/*` must be outside CSRF, since a bearer token is never
+ * sent the way a cookie is; and the token has to be the session, so signing out
+ * ends it rather than asking the client to forget it.
+ */
+async function proveTheApiKitWorks(target: string): Promise<void> {
+  section('The API kit, over HTTP')
+
+  const port = 41_993
+  const origin = `http://127.0.0.1:${port}`
+
+  await writeFile(
+    join(target, '.env'),
+    [
+      'APP_NAME=SmokeApiKit',
+      'APP_ENV=local',
+      'APP_DEBUG=true',
+      `APP_URL=${origin}`,
+      'APP_KEY=smoke-api-kit-application-key-32-chars',
+      'AUTH_SECRET=smoke-api-kit-better-auth-secret-not-app-key',
+      'AUTH_MOUNT=true',
+      'DB_CONNECTION=sqlite',
+      'DB_DATABASE=database/api-kit.sqlite',
+      'DB_FOREIGN_KEYS=true',
+      'SESSION_DRIVER=file',
+      // On, so the exemption for `/api/*` is what carries the requests below
+      // rather than the check being absent.
+      'SESSION_CSRF=true',
+      'CACHE_STORE=file',
+      'QUEUE_CONNECTION=sync',
+      'MAIL_MAILER=log',
+      'LOG_LEVEL=error',
+      `PORT=${port}`,
+      ''
+    ].join('\n')
+  )
+
+  const runner = new ProcessManager().path(target).timeout(120_000)
+
+  await runner.run(['bun', 'artisan.ts', 'auth:schema'])
+  const migrated = await runner.run(['bun', 'artisan.ts', 'migrate', '--force'])
+
+  check('the api kit migrates', migrated.successful(), migrated.all().slice(-300))
+
+  const server = new ProcessManager()
+    .path(target)
+    .forever()
+    .start(['bun', 'artisan.ts', 'serve', `--port=${port}`])
+
+  /** Every call is JSON in and JSON out; nothing here has a cookie jar. */
+  const call = async (
+    path: string,
+    options: { method?: string; body?: unknown; token?: string } = {}
+  ) =>
+    await fetch(`${origin}${path}`, {
+      method: options.method ?? 'GET',
+      headers: {
+        accept: 'application/json',
+        ...(options.body ? { 'content-type': 'application/json' } : {}),
+        ...(options.token ? { authorization: `Bearer ${options.token}` } : {})
+      },
+      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+      redirect: 'manual'
+    })
+
+  try {
+    await server.waitUntil((output) => output.includes('Server running'))
+
+    const stamp = Date.now()
+    const email = `api-${stamp}@example.com`
+
+    const registered = await call('/api/register', {
+      method: 'POST',
+      body: { name: 'Ada', email, password: 'longenough1' }
+    })
+    const created = (await registered.json()) as { token?: string; user?: { email?: string } }
+
+    check('registering answers 201 with a token', registered.status === 201 && !!created.token)
+    check('and the user it made', created.user?.email === email)
+
+    /**
+     * A guest is refused, not redirected.
+     *
+     * The web kit sends a guest to `/sign-in`; this kit has no such page, and a
+     * 302 to one would be a client library's worst day. The framework decides
+     * this from `Accept`, which is why the check is worth having here.
+     */
+    const guest = await call('/api/user')
+
+    check('a guest gets 401 rather than a redirect', guest.status === 401, `status ${guest.status}`)
+
+    const withToken = await call('/api/user', { token: created.token })
+    const identified = (await withToken.json()) as { user?: { email?: string } }
+
+    check('a bearer token identifies the caller', identified.user?.email === email)
+
+    // The token is enough on its own: no cookie was kept and CSRF is on.
+    check('and no CSRF token was needed for it', withToken.status === 200)
+
+    const wrong = await call('/api/login', {
+      method: 'POST',
+      body: { email, password: 'not-the-password' }
+    })
+
+    check('a bad password is 401 as JSON', wrong.status === 401, `status ${wrong.status}`)
+    check(
+      'with a message rather than a page',
+      ((await wrong.json()) as { message?: string }).message !== undefined
+    )
+
+    const loggedIn = await call('/api/login', {
+      method: 'POST',
+      body: { email, password: 'longenough1' }
+    })
+    const second = (await loggedIn.json()) as { token?: string }
+
+    check('signing in again answers another token', loggedIn.status === 200 && !!second.token)
+
+    const out = await call('/api/logout', { method: 'POST', token: second.token })
+
+    check('signing out answers 204', out.status === 204, `status ${out.status}`)
+
+    const dead = await call('/api/user', { token: second.token })
+
+    // The token *is* the session, so it dies at the source rather than being
+    // forgotten by a well-behaved client.
+    check('and the token it used is dead', dead.status === 401, `status ${dead.status}`)
+
+    // The first token belongs to a different session and is untouched.
+    const stillAlive = await call('/api/user', { token: created.token })
+
+    check(
+      'while another session survives',
+      stillAlive.status === 200,
+      `status ${stillAlive.status}`
+    )
+  } finally {
+    await server.stop(2000)
+  }
 }
 
 async function proveTheKitWorks(target: string): Promise<void> {
