@@ -1,6 +1,8 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import { test as press } from '@elysian/testing'
+import { User } from '../app/Models/User.ts'
 import app from '../bootstrap/app.ts'
+import { UserFactory } from '../database/factories/UserFactory.ts'
 import './database.ts'
 
 /**
@@ -15,6 +17,19 @@ import './database.ts'
  * the middleware and the exception handler take part. There is no server to
  * start and no port to pick.
  */
+
+/**
+ * The rate limiter, cleared between tests.
+ *
+ * `/api/register` and `/api/login` are throttled — six a minute, so `/api/login`
+ * is not a credential-stuffing endpoint — and the counts live in the store named
+ * by `cache.limiter`, an array store and therefore per process. Six registrations
+ * into a run, the seventh is a 429 and the test that made it fails for a reason
+ * that has nothing to do with what it was checking.
+ */
+beforeEach(async () => {
+  await app.make('cache').store('array').flush()
+})
 
 /** Unique per run, so re-running is not a duplicate registration. */
 const address = () => `test-${Date.now()}-${Math.round(Math.random() * 1e6)}@example.com`
@@ -118,5 +133,26 @@ describe('signing out', () => {
     ;(
       await press(app).withHeader('authorization', `Bearer ${first.token}`).getJson('/api/user')
     ).assertOk()
+  })
+})
+
+describe('the User model', () => {
+  test('reads the accounts better-auth wrote', async () => {
+    const email = address()
+    await register(email)
+
+    const person = await User.query().where('email', email).first()
+
+    expect(person?.name).toBe('Test Person')
+  })
+
+  test('and the factory makes rows for everything a test needs to find', async () => {
+    // `createOne()` for a single model; `create()` answers a collection, since a
+    // factory can be asked for twenty.
+    const made = await new UserFactory().verified().createOne()
+
+    const found = await User.query().find(made.id)
+
+    expect(found?.emailVerified).toBe(true)
   })
 })
