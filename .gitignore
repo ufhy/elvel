@@ -1,10 +1,12 @@
 node_modules
 dist
 
-# Scratch apps: `bun run create apps/<name>` targets, and the throwaway project
-# the smoke test scaffolds. playground/ is tracked on purpose.
+# Scratch apps: `bun run create apps/<name>` targets, the throwaway project the
+# smoke test scaffolds, and a demo scaffolded to look at. playground/ is tracked
+# on purpose.
 apps/
 .smoke-scaffold/
+.demo/
 
 *.tsbuildinfo
 .DS_Store

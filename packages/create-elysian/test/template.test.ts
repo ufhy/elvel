@@ -233,3 +233,46 @@ describe('the template ships nothing a test run left behind', () => {
     expect<string[]>(strays.map((path) => path.slice(templateDir.length + 1))).toEqual([])
   })
 })
+
+describe('the versions the template pins', () => {
+  /**
+   * A pin written from memory is a pin that is wrong.
+   *
+   * `vite` shipped as `^7.1.14` while 8 had been out for some time — and the
+   * end-to-end check had actually run against 8, because `bun add` installs the
+   * latest. So the template told people to install a major version older than
+   * the one it was verified with, and nothing said so.
+   *
+   * This does not reach the network: it holds the pins to what the repository
+   * itself uses, which is what gets exercised. A package the repository does not
+   * use — `vite` is the only one — is listed here with the version it was
+   * verified against, so bumping it is a decision somebody makes rather than a
+   * number that drifts.
+   */
+  test('match what this repository uses, or say what they were tested with', async () => {
+    const template = JSON.parse(await Bun.file(resolve(templateDir, '_package.json')).text()) as {
+      dependencies: Record<string, string>
+      devDependencies: Record<string, string>
+    }
+
+    const repository = JSON.parse(await Bun.file(resolve(root, 'package.json')).text()) as {
+      devDependencies: Record<string, string>
+    }
+
+    const verifiedSeparately: Record<string, string> = { vite: '^8.2.1' }
+    const mismatched: string[] = []
+
+    for (const [name, pinned] of Object.entries({
+      ...template.dependencies,
+      ...template.devDependencies
+    })) {
+      if (pinned.startsWith('{{')) continue
+
+      const here = repository.devDependencies[name] ?? verifiedSeparately[name]
+
+      if (here && here !== pinned) mismatched.push(`${name}: template ${pinned}, here ${here}`)
+    }
+
+    expect<string[]>(mismatched).toEqual([])
+  })
+})
