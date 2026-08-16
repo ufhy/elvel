@@ -12,7 +12,10 @@ let instance: Vite | undefined
 export function vite(entrypoints: string | string[]): string {
   instance ??= new Vite({
     publicPath: app().basePath('public'),
-    buildDirectory: config<string>('vite.buildDirectory', 'build')
+    buildDirectory: config<string>('vite.buildDirectory', 'build'),
+    // Loud in production, where a missing build is a broken deploy; quiet
+    // elsewhere, where it usually means the asset build has not been run yet.
+    whenMissing: app().isProduction() ? 'throw' : 'ignore'
   })
 
   return instance.tags(entrypoints)

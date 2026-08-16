@@ -14,4 +14,7 @@ import { AppServiceProvider } from '../app/Providers/AppServiceProvider.ts'
 export default await Application.configure(join(import.meta.dir, '..'))
   .withProviders([AppServiceProvider])
   .withRoutes(() => import('../routes/web.ts'))
+  // Scheduled work lives in its own file, as Laravel's `routes/console.php`
+  // does. It registers rather than routes, so it is loaded rather than mounted.
+  .withConsole(() => import('../routes/console.ts'))
   .create()

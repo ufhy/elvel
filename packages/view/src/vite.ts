@@ -25,6 +25,9 @@ type ManifestChunk = {
  * query string that changes every request.
  */
 export class Vite {
+  /** Warned once per process, not once per render. */
+  private static warned = false
+
   constructor(
     private readonly options: {
       /** Where the build wrote its output, relative to the public directory. */
@@ -32,6 +35,16 @@ export class Vite {
       publicPath: string
       /** Written by `vite dev`; its presence is what "development" means. */
       hotFile?: string
+      /**
+       * What to do when there is neither a dev server nor a build.
+       *
+       * `throw` in production, where a missing build means a deploy shipped an
+       * unstyled page and silence would be the wrong answer. `ignore` elsewhere,
+       * because a freshly scaffolded application boots before anybody has run
+       * the asset build, and a 500 on the landing page is a poor first minute —
+       * one warning and no tags says the same thing without breaking the page.
+       */
+      whenMissing?: 'throw' | 'ignore'
     }
   ) {}
 
@@ -60,6 +73,10 @@ export class Vite {
     }
 
     const manifest = this.manifest()
+
+    // Nothing built and nothing running: the page renders without its assets.
+    if (!manifest) return ''
+
     const tags: string[] = []
 
     for (const entry of entries) {
@@ -115,10 +132,21 @@ export class Vite {
    */
   private cached: Record<string, ManifestChunk> | undefined
 
-  private manifest(): Record<string, ManifestChunk> {
+  private manifest(): Record<string, ManifestChunk> | undefined {
     if (this.cached) return this.cached
 
     if (!existsSync(this.manifestPath)) {
+      if (this.options.whenMissing === 'ignore') {
+        if (!Vite.warned) {
+          Vite.warned = true
+          console.warn(
+            `No Vite manifest at ${this.manifestPath}. Assets are not on the page. Run the build, or start the dev server.`
+          )
+        }
+
+        return undefined
+      }
+
       throw new Error(
         `No Vite manifest at ${this.manifestPath}. Run the build, or start the dev server.`
       )

@@ -876,6 +876,37 @@ this is a helper rather than an instruction to remember.
 each one expression. Blade needs `$loop` because its `foreach` hands over neither.
 
 
+## What a scaffolded application ships
+
+Measured against `laravel new` and the official starter kits, file by file. Most
+of the difference was ours to close and is now closed; what is left is
+deliberate.
+
+- **A frontend build.** `vite.config.ts`, `resources/js/app.ts`,
+  `resources/css/app.css`, and `bun run build` / `bun run dev:assets`. The hot
+  file is written by a plugin in the config rather than by a dependency —
+  Laravel's `laravel-vite-plugin` does the same few lines. The config exports a
+  plain object rather than going through `defineConfig`, so `bun run typecheck`
+  works before the front-end dependencies are installed.
+- **`vite()` is loud in production and quiet elsewhere.** With no manifest and no
+  dev server, a production render throws — a deploy that shipped an unstyled page
+  should not do so silently — and any other environment warns once and renders no
+  tags, because a freshly scaffolded application boots before anybody has run the
+  asset build and a 500 on the landing page is a poor first minute.
+- **`routes/console.ts`**, loaded by `withConsole()` rather than `withRoutes()`:
+  it registers schedules and commands and mounts nothing, so it has no default
+  export to mount. Laravel reaches the same file through `withRouting(console:)`.
+- **`config/services.ts`**, `.editorconfig`, `.gitattributes` — the last of these
+  for the reason this repository learned the hard way: a checkout on Windows
+  arrives with CRLF and every file reads as unformatted.
+- **Storage directories exist**, each with the `.gitignore` that keeps its
+  contents out and itself in.
+
+What is still deliberately absent: **migrations**. Laravel ships three; better-
+auth's tables depend on the options and plugins in `config/auth.ts`, so
+`auth:schema` generates them and the kits' next steps say so.
+
+
 ## The starter kits
 
 Two, and they are different *shapes* of application rather than two takes on the

@@ -328,6 +328,7 @@ export class Application implements ApplicationContract {
 export class ApplicationBuilder {
   private readonly providers: ServiceProviderConstructor[] = []
   private readonly routeLoaders: RouteLoader[] = []
+  private readonly consoleLoaders: Array<() => Promise<unknown>> = []
   private configLoaders: ConfigLoaders | undefined
 
   constructor(private readonly basePath: string) {}
@@ -378,6 +379,24 @@ export class ApplicationBuilder {
     return this
   }
 
+  /**
+   * Load a module for its registrations rather than for its routes.
+   *
+   * `routes/console.ts` is the case this exists for — Laravel's
+   * `routes/console.php`, reached there through `withRouting(console: …)`. Such
+   * a file has no default export and mounts nothing: it calls `schedule()` and
+   * registers commands, and what it needs is to be imported once, after the
+   * providers have booted and before anything runs.
+   *
+   * ```ts
+   * .withConsole(() => import('../routes/console.ts'))
+   * ```
+   */
+  withConsole(...loaders: Array<() => Promise<unknown>>): this {
+    this.consoleLoaders.push(...loaders)
+    return this
+  }
+
   async create(): Promise<Application> {
     const app = new Application(this.basePath)
 
@@ -412,7 +431,11 @@ export class ApplicationBuilder {
     // 5. boot providers
     await app.boot()
 
-    // 6. routes — last, so handlers can resolve anything a provider bound
+    // 6. console registrations — schedules and commands, which are not routes
+    //    and have nothing to mount, but do need the container populated.
+    for (const loader of this.consoleLoaders) await loader()
+
+    // 7. routes — last, so handlers can resolve anything a provider bound
     for (const loader of this.routeLoaders) {
       const module = await loader()
       app.useRoutes(module.default)

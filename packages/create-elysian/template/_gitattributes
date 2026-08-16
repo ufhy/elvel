@@ -1,0 +1,16 @@
+# Line endings are normalised on the way in and checked out as LF everywhere.
+#
+# Without this, a checkout on Windows arrives with CRLF and every file reads as
+# unformatted to the linter — a wall of diffs that belongs to the operating
+# system rather than to anybody's work.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.sqlite binary

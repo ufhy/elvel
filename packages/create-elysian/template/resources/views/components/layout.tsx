@@ -1,5 +1,5 @@
 import { config } from '@elysian/core'
-import { stack } from '@elysian/view'
+import { stack, vite } from '@elysian/view'
 import type { Children } from '@kitajs/html'
 
 export type LayoutProps = {
@@ -29,7 +29,15 @@ export function Layout({ title, children }: LayoutProps) {
         <title safe>
           {title} — {name}
         </title>
-        <link rel="stylesheet" href="/css/app.css" />
+        {/*
+          The stylesheet and the script, from the build.
+
+          While `bun run dev` is up these point at Vite's dev server, so a change
+          reaches the browser without a rebuild; after `bun run build` they point
+          at the hashed files in `public/build`, which is what stops a deploy
+          serving yesterday's JavaScript to anybody with a warm cache.
+        */}
+        {vite(['resources/css/app.css', 'resources/js/app.ts'])}
 
         {/* Anything a page pushed to `head` lands here, even though this element
             rendered before that page's body ran. */}

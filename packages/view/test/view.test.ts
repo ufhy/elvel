@@ -104,6 +104,34 @@ describe('Vite tags', () => {
     }
   })
 
+  test('with no build and no dev server, production says so and stops', async () => {
+    const root = await build({})
+
+    try {
+      // A deploy that shipped an unstyled page should not do so quietly.
+      expect(() => new Vite({ publicPath: root }).tags('resources/js/app.ts')).toThrow(
+        /No Vite manifest/
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test('and elsewhere the page renders without its assets', async () => {
+    const root = await build({})
+
+    try {
+      // A freshly scaffolded application boots before anybody has run the asset
+      // build; a 500 on the landing page is a poor first minute, and one warning
+      // says the same thing without breaking the page.
+      expect<string>(
+        new Vite({ publicPath: root, whenMissing: 'ignore' }).tags('resources/js/app.ts')
+      ).toBe('')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test('the dev server wins when it is running', async () => {
     const root = await build({
       hot: 'http://localhost:5173\n',

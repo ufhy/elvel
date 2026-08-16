@@ -56,6 +56,8 @@ const RENAMES: Record<string, string> = {
    * no `.test.` in it, which is what keeps them out of that net; the underscore
    * says the same thing to a reader, as it does for `package.json`.
    */
+  _editorconfig: '.editorconfig',
+  _gitattributes: '.gitattributes',
   '_example.ts': 'example.test.ts',
   '_auth.ts': 'auth.test.ts',
   '_api.ts': 'api.test.ts'
@@ -211,6 +213,10 @@ async function main(): Promise<number> {
   const start = [
     ...(kit === 'auth' || kit === 'api' ? ['bun artisan auth:schema'] : []),
     'bun artisan migrate',
+    // Once, so the manifest exists and the pages carry their assets. While
+    // working on them, `bun run dev:assets` in a second terminal is the
+    // hot-reloading version.
+    ...(kit === 'api' ? [] : ['bun run build']),
     'bun run dev'
   ]
 
