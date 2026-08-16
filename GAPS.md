@@ -58,30 +58,17 @@ hides all progress.
 
 ---
 
-## 1. Which providers an application cannot boot without
+## 1. Dependencies per kit
 
-Strip the provider list one at a time against `--kit=none` until what remains is
-what the application genuinely needs — the guess is core, http, view, log,
-events, encryption and session, and a guess is exactly what this is meant to
-replace. The survivors become the core list, held up by evidence rather than by
-taste.
+`_package.json` stops naming all twenty-six packages unconditionally. Each kit
+now registers only what it needs — eleven providers for `--kit=none`, seventeen
+for `auth`, sixteen for `api` — so the dependency list can follow the same
+shape, and `--kit=none` stops installing `better-auth` at all.
 
-## 2. `config/app.ts` per kit
+This is the part no amount of tree-shaking can reach: an unused dependency is
+still downloaded, still resolved, still in the lockfile.
 
-`--kit=none` registers the core list; `auth` and `api` each add what they need.
-This is the row that makes tree-shaking work at all, because a provider that is
-never imported is finally droppable.
-
-Touches both existing kits and their tests.
-
-## 3. Dependencies per kit
-
-`_package.json` stops naming all twenty-six packages unconditionally.
-`--kit=none` installs no `better-auth`, and no `@elysian/database` if row 1 finds
-it is not required. This is the part no amount of tree-shaking can reach: an
-unused dependency is still downloaded, still resolved, still in the lockfile.
-
-## 4. `artisan config:publish`
+## 2. `artisan config:publish`
 
 Laravel's, whose signature is:
 
@@ -93,10 +80,10 @@ ships.
 
 Ours has to work the same way for every config file the template stops sending,
 which means each package keeps its defaults where the command can find them.
-Prerequisite for row 5: Laravel could slim its skeleton because it had this
+Prerequisite for row 4: Laravel could slim its skeleton because it had this
 first.
 
-## 5. Trim the template's `config/` to ten files
+## 3. Trim the template's `config/` to ten files
 
 Laravel 11 slimmed its skeleton deliberately, and ships:
 
@@ -111,17 +98,18 @@ Every config read in the framework already carries a default —
 `config.get<string>('queue.default', 'sync')` and its like — so a missing file
 is not a missing setting.
 
-## 6. Hold the number
+## 4. Hold the number
 
 Re-measure the `--kit=none` bundle and lock it with a test, the way
 `tests/side-effects.test.ts` locks the `sideEffects` claim. Today it is 1165
-modules and 5.2 MB of source for a landing page; whatever rows 1 to 3 bring it
-down to is the number to assert.
+modules and 5.2 MB of source with every provider registered, and 1.47 MB built
+once `--kit=none` registers only eleven; whatever row 1 brings it down to is the
+number to assert.
 
 A number that is never asserted is a number that quietly goes back up, and
 nothing about a scaffolded application would break loudly when it does.
 
-## 7. The no-auth story
+## 5. The no-auth story
 
 Only after the rows above, because the answer moves. Three directions:
 
@@ -129,6 +117,21 @@ Only after the rows above, because the answer moves. Three directions:
 - have `none` ship one working data chain — model, migration, factory, seeder;
 - add a fourth kit and leave `none` as bare as it is.
 
-If row 3 concludes that `--kit=none` should not install `@elysian/database` at
+If row 1 concludes that `--kit=none` should not install `@elysian/database` at
 all, the second direction stops being a matter of taste and starts being a
 contradiction.
+
+## 6. Deferrable providers
+
+Laravel's own answer to a long provider list, and one this framework has no
+version of. `Mail`, `Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation`
+and `Hashing` all implement `DeferrableProvider`: they declare what they provide,
+and the container registers them the first time one of those bindings is asked
+for. A manifest maps binding to provider, so the class is not even loaded before
+that.
+
+It solves a different half of the problem than the rows above. Per-kit lists stop
+an application installing and bundling what it cannot use; deferring stops it
+*booting* what it has not used yet. Worth having once the lists are settled,
+because the two compose: a kit that legitimately needs the mailer still should
+not pay for it on a request that sends no mail.
