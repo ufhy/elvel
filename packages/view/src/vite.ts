@@ -38,11 +38,17 @@ export class Vite {
       /**
        * What to do when there is neither a dev server nor a build.
        *
-       * `throw` in production, where a missing build means a deploy shipped an
-       * unstyled page and silence would be the wrong answer. `ignore` elsewhere,
-       * because a freshly scaffolded application boots before anybody has run
-       * the asset build, and a 500 on the landing page is a poor first minute —
-       * one warning and no tags says the same thing without breaking the page.
+       * A departure from Laravel, which throws
+       * `ViteManifestNotFoundException` in every environment.
+       *
+       * `throw` here too in production, where a missing build means a deploy
+       * shipped an unstyled page and silence would be the wrong answer. `ignore`
+       * elsewhere, because `laravel new` runs the asset build as part of
+       * installing — so Laravel's first boot always has a manifest — and this
+       * scaffolder cannot: Bun installs the front-end packages only when the
+       * developer asks. A 500 on the landing page before anybody has run
+       * anything is a poor first minute; one warning naming the fix says the
+       * same thing without breaking the page.
        */
       whenMissing?: 'throw' | 'ignore'
     }
@@ -119,8 +125,22 @@ export class Vite {
     return this.options.hotFile ?? join(this.options.publicPath, 'hot')
   }
 
+  /**
+   * Where the manifest is, allowing for both places Vite has put it.
+   *
+   * `build/manifest.json` is where a config that names the file writes it, and
+   * the only place Laravel looks — `laravel-vite-plugin` sets `manifest:
+   * 'manifest.json'` so it is always there. Vite 5 changed the default to
+   * `.vite/manifest.json` inside the output directory, so a project that merely
+   * set `manifest: true` — which is most of them, and was this framework's own
+   * template until a build was actually run — has it there instead. Looking in
+   * both is one `existsSync` more than Laravel does, and saves an afternoon.
+   */
   private get manifestPath(): string {
-    return join(this.options.publicPath, this.options.buildDirectory ?? 'build', 'manifest.json')
+    const directory = join(this.options.publicPath, this.options.buildDirectory ?? 'build')
+    const named = join(directory, 'manifest.json')
+
+    return existsSync(named) ? named : join(directory, '.vite', 'manifest.json')
   }
 
   /**

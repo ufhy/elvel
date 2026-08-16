@@ -58,7 +58,14 @@ export default {
     // framework looks in for the manifest.
     outDir: 'public/build',
     emptyOutDir: true,
-    manifest: true,
+    /**
+     * Named, not merely enabled.
+     *
+     * Vite 5 moved the manifest to `.vite/manifest.json` inside the output
+     * directory. Naming it puts it back at `build/manifest.json`, which is where
+     * the framework looks — and where Laravel's plugin keeps it too.
+     */
+    manifest: 'manifest.json',
 
     rollupOptions: {
       input: ['resources/css/app.css', 'resources/js/app.ts']

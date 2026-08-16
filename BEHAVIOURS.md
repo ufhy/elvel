@@ -888,11 +888,20 @@ deliberate.
   Laravel's `laravel-vite-plugin` does the same few lines. The config exports a
   plain object rather than going through `defineConfig`, so `bun run typecheck`
   works before the front-end dependencies are installed.
-- **`vite()` is loud in production and quiet elsewhere.** With no manifest and no
-  dev server, a production render throws — a deploy that shipped an unstyled page
-  should not do so silently — and any other environment warns once and renders no
-  tags, because a freshly scaffolded application boots before anybody has run the
-  asset build and a 500 on the landing page is a poor first minute.
+- **`vite()` is loud in production and quiet elsewhere**, which is a departure:
+  Laravel's `Vite` throws `ViteManifestNotFoundException` in every environment.
+  It can, because `laravel new` runs the asset build while installing, so its
+  first boot always has a manifest; this scaffolder cannot, since the front-end
+  packages are installed when the developer asks. A 500 on the landing page
+  before anybody has run anything is a poor first minute, so outside production
+  it warns once, names the fix, and renders no tags.
+- **The manifest is looked for in two places.** `build/manifest.json` is where
+  Laravel looks and where `laravel-vite-plugin` puts it — it sets `manifest:
+  'manifest.json'`, and this template does the same. Vite 5's default is
+  `.vite/manifest.json`, so a project that only set `manifest: true` has it
+  there; falling back costs one `existsSync`. Found by running the build rather
+  than by reading the config: the template said `manifest: true` and the page
+  came out with no assets at all.
 - **`routes/console.ts`**, loaded by `withConsole()` rather than `withRoutes()`:
   it registers schedules and commands and mounts nothing, so it has no default
   export to mount. Laravel reaches the same file through `withRouting(console:)`.

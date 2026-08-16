@@ -104,6 +104,25 @@ describe('Vite tags', () => {
     }
   })
 
+  test('the manifest is found where Vite 5 puts it, too', async () => {
+    // A project that set `manifest: true` rather than naming the file has it at
+    // `.vite/manifest.json`; before this, that project rendered no tags at all
+    // and the page came out unstyled with the build sitting right there.
+    const root = await build({
+      'build/.vite/manifest.json': JSON.stringify({
+        'resources/js/app.ts': { file: 'assets/app-abc123.js' }
+      })
+    })
+
+    try {
+      const tags = new Vite({ publicPath: root }).tags('resources/js/app.ts')
+
+      expect<boolean>(tags.includes('/build/assets/app-abc123.js')).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test('with no build and no dev server, production says so and stops', async () => {
     const root = await build({})
 
