@@ -25,6 +25,27 @@ export type ConnectionConfig = {
   connectionTimeout?: number
   /** SQLite only: enforce foreign keys, as Laravel does by default. */
   foreignKeys?: boolean
+  /**
+   * SQLite only: the journal mode. `wal` unless told otherwise.
+   *
+   * The rollback journal SQLite ships with locks the whole database for a write,
+   * so a reader that arrives mid-write is refused outright — `database is
+   * locked`, immediately, with nothing to wait for. Write-ahead logging lets
+   * readers carry on while one writer works, which is the difference between a
+   * test suite and a running application being able to share a file at all.
+   *
+   * `delete` restores the old behaviour for a database on a filesystem where WAL
+   * cannot work — a network share, most notably, since WAL needs shared memory.
+   */
+  journalMode?: 'wal' | 'delete' | 'truncate' | 'persist' | 'memory' | 'off'
+  /**
+   * SQLite only: milliseconds a blocked statement waits before failing.
+   *
+   * WAL still allows one writer at a time. Without this, the second writer is
+   * refused the instant it arrives; with it, it waits for the first to finish —
+   * which is almost always what was meant, since the first is about to.
+   */
+  busyTimeout?: number
   [option: string]: unknown
 }
 
@@ -108,9 +129,30 @@ export class BunSqlConnection implements Connection {
     const sql = new Bun.SQL(BunSqlConnection.optionsFor(config) as never)
     const connection = new BunSqlConnection(name, sql, config, dispatcher)
 
-    // Laravel enables SQLite foreign keys by default; SQLite does not.
-    if (config.driver === 'sqlite' && config.foreignKeys !== false) {
-      await connection.unprepared('PRAGMA foreign_keys = ON')
+    if (config.driver === 'sqlite') {
+      // Laravel enables SQLite foreign keys by default; SQLite does not.
+      if (config.foreignKeys !== false) await connection.unprepared('PRAGMA foreign_keys = ON')
+
+      /**
+       * The timeout first, and that order is the whole point.
+       *
+       * Switching the journal mode takes an exclusive lock, so it is itself a
+       * statement that can be refused — and with no `busy_timeout` set yet it is
+       * refused the instant another process holds the file, which is exactly the
+       * moment it was needed. Set the waiting rule before doing anything that
+       * might have to wait.
+       */
+      await connection.unprepared(
+        `PRAGMA busy_timeout = ${Math.max(0, config.busyTimeout ?? BunSqlConnection.DEFAULT_BUSY_TIMEOUT)}`
+      )
+
+      /**
+       * `:memory:` has no journal and nothing to contend for, so it is left
+       * alone — asking it for WAL is not an error but it is not anything either.
+       */
+      if (config.database !== ':memory:') {
+        await connection.unprepared(`PRAGMA journal_mode = ${config.journalMode ?? 'wal'}`)
+      }
     }
 
     return connection
@@ -130,6 +172,15 @@ export class BunSqlConnection implements Connection {
    * sets `connectionTimeout` in `config/database.ts`.
    */
   static readonly DEFAULT_CONNECTION_TIMEOUT = 30
+
+  /**
+   * Milliseconds a blocked SQLite statement waits before giving up.
+   *
+   * Five seconds because the thing it waits for is another writer finishing,
+   * which takes milliseconds; anything still blocked after five seconds is
+   * stuck rather than busy, and should say so.
+   */
+  static readonly DEFAULT_BUSY_TIMEOUT = 5000
 
   private static optionsFor(config: ConnectionConfig): Record<string, unknown> {
     const shared = {

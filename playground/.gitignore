@@ -16,6 +16,9 @@ storage/app/public/
 # looked. `bun run playground migrate --force && bun run playground db:seed`
 # rebuilds it.
 database/*.sqlite
+# WAL leaves two sidecars beside the database.
+database/*.sqlite-shm
+database/*.sqlite-wal
 
 # …except this one. The playground is a fixture in this repository, not
 # somebody's application: its APP_KEY and AUTH_SECRET are placeholders, and

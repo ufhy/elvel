@@ -85,6 +85,28 @@ Three things to know about pivots:
   are methods (`await user.posts().get()`), and `with()` prevents the N+1.
 
 
+## SQLite — one file, several processes
+
+- **WAL is on unless the config says otherwise.** SQLite's default journal locks
+  the whole database for a write, so a second process is refused the instant it
+  arrives: `database is locked`, with nothing to wait for. Write-ahead logging
+  lets readers carry on while one writer works, which is what makes a test suite
+  and a running `artisan serve` able to share a file at all. `journalMode:
+  'delete'` restores the old behaviour for a filesystem where WAL cannot work —
+  a network share, since WAL needs shared memory.
+- **`busy_timeout` is set before the journal mode, and the order is the point.**
+  Switching the journal takes an exclusive lock, so it is itself a statement that
+  can be refused; with no timeout set yet it is refused at the exact moment it
+  was needed. This was found by two test suites running at once, which is also
+  how it is tested.
+- **An in-memory database is left alone.** There is nothing to contend for and no
+  journal to switch.
+- **The playground's tests use a database of their own.** Even with WAL, one file
+  shared by the tests, the smoke run and a running server is a file that is being
+  migrated out from under somebody. Laravel's answer is the same: a separate
+  database for testing.
+
+
 ## @elysian/events
 
 Four things to know about a queued listener:
