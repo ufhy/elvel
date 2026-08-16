@@ -899,8 +899,26 @@ browser sending cookies unasked, and a bearer token is never sent that way.
 
 A kit is a folder copied over the template rather than a fork of it, so anything
 a kit does not mention it inherits and the two cannot drift. The API kit mentions
-exactly two files: its controller, and a `config/auth.ts` that differs from the
-template's by one line.
+four files: its controller, a `config/auth.ts` that differs from the template's by
+one line, and its two test files.
+
+**A scaffolded application arrives with tests.** The template ships a feature
+test and a unit test; each kit ships tests for the flows it scaffolds — written
+the way the application's author would write them, since they are the author's
+now. Laravel does the same, and for the same reason: `@elysian/testing` was in
+every scaffolded `package.json` and no scaffolded file used it, which is the
+shape of every "we have that feature" that turns out not to work.
+
+They are stored under names with no `.test.` in them — `_example.ts` becomes
+`tests/example.test.ts` on copy — because this repository's own `bun test` would
+otherwise find them, and they import a `bootstrap/app.ts` that only exists once
+scaffolded. The same rename mechanism already carries `_package.json`.
+
+**The tests use a database of their own**, built from the real migrations on
+first run: `tests/database.ts`, which any test that touches the database imports.
+The kits' copy adds one thing — a clear error when better-auth's tables have not
+been generated yet, since `auth:schema` writes a migration that depends on
+`config/auth.ts` and cannot be shipped.
 
 
 ## create-elysian

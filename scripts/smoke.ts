@@ -2825,6 +2825,31 @@ try {
       linted.exitCode === 0,
       plain(linted.stdout.toString() + linted.stderr.toString()).slice(-700)
     )
+
+    /**
+     * And one whose own tests pass.
+     *
+     * The template ships an example feature test and a unit test, and the kits
+     * ship tests for the flows they scaffold — all of them written the way an
+     * application's author would write them. A scaffold whose first `bun test`
+     * is red teaches the wrong thing on the first day. The kits' suites need
+     * better-auth's tables, so theirs run further down where the schema has been
+     * written.
+     */
+    if (target === scaffoldTarget) {
+      const tested = Bun.spawnSync({
+        cmd: ['bun', 'test'],
+        cwd: target,
+        stdout: 'pipe',
+        stderr: 'pipe'
+      })
+
+      check(
+        `${label} scaffolds an application whose tests pass`,
+        tested.exitCode === 0,
+        plain(tested.stdout.toString() + tested.stderr.toString()).slice(-700)
+      )
+    }
   }
 
   await proveTheKitWorks(kitTarget)
@@ -3975,6 +4000,10 @@ async function proveTheApiKitWorks(target: string): Promise<void> {
 
   check('the api kit migrates', migrated.successful(), migrated.all().slice(-300))
 
+  const suite = await runner.run(['bun', 'test'])
+
+  check('and the tests it ships pass there', suite.successful(), plain(suite.all()).slice(-500))
+
   const server = new ProcessManager()
     .path(target)
     .forever()
@@ -4136,6 +4165,14 @@ async function proveTheKitWorks(target: string): Promise<void> {
 
   // Its own process group, so a server that ignores SIGTERM still dies with the
   // group rather than holding the port for the next run.
+  const suite = await runner.run(['bun', 'test'])
+
+  check(
+    'the kit ships tests that pass in the application it scaffolds',
+    suite.successful(),
+    plain(suite.all()).slice(-500)
+  )
+
   const server = new ProcessManager()
     .path(target)
     .forever()

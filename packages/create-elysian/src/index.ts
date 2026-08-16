@@ -46,7 +46,19 @@ const KITS: Record<string, { label: string; describe: string; routes: string[] }
 const RENAMES: Record<string, string> = {
   '_package.json': 'package.json',
   '_env.example': '.env.example',
-  _gitignore: '.gitignore'
+  _gitignore: '.gitignore',
+  /**
+   * The shipped tests, which are real tests once they are somewhere real.
+   *
+   * They import `../bootstrap/app.ts`, which only exists in a scaffolded
+   * application — so under their real name this repository's own `bun test`
+   * would find them, boot nothing, and fail. The name they are stored under has
+   * no `.test.` in it, which is what keeps them out of that net; the underscore
+   * says the same thing to a reader, as it does for `package.json`.
+   */
+  '_example.ts': 'example.test.ts',
+  '_auth.ts': 'auth.test.ts',
+  '_api.ts': 'api.test.ts'
 }
 
 /** Substitution runs on these extensions only, never on binaries or CSS. */
@@ -197,7 +209,7 @@ async function main(): Promise<number> {
   }
 
   const start = [
-    ...(kit === 'auth' ? ['bun artisan auth:schema'] : []),
+    ...(kit === 'auth' || kit === 'api' ? ['bun artisan auth:schema'] : []),
     'bun artisan migrate',
     'bun run dev'
   ]
@@ -266,7 +278,10 @@ async function setUpProject(installRoot: string, target: string, kit: string): P
 
   if (!(await run('Installing dependencies', installRoot, ['bun', 'install']))) return false
 
-  if (kit === 'auth') {
+  // Both auth kits need better-auth's tables, and both leave them to be
+  // generated rather than shipping a migration: what the tables are depends on
+  // the options and plugins in `config/auth.ts`.
+  if (kit === 'auth' || kit === 'api') {
     if (!(await run('Writing the auth tables', target, ['bun', 'artisan.ts', 'auth:schema']))) {
       return false
     }
