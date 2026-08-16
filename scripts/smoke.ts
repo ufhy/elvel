@@ -4978,6 +4978,54 @@ try {
   await app.make('cache').store().forget('defer:ran')
 }
 
+// --------------------------------------------------------------------- bundle
+
+section('Bundling')
+
+/**
+ * The application, built into one file and run.
+ *
+ * Nothing else here would catch this. Every other check runs from source, where
+ * every module is loaded and `config/` is a directory to read; a bundle is the
+ * one arrangement where an unnamed config file, or a module that acts on import
+ * and says it does not, actually breaks something. It broke for a long time
+ * without anybody noticing, because nobody ran the bundle.
+ */
+{
+  const repository = join(import.meta.dir, '..')
+  const bundle = join(app.basePath(), 'storage', 'framework', `smoke-bundle-${process.pid}.js`)
+
+  const built = Bun.spawnSync({
+    cmd: ['bun', 'build', 'playground/artisan-bundle.ts', '--target=bun', '--outfile', bundle],
+    cwd: repository,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('the application bundles', built.exitCode === 0, built.stderr.toString().slice(0, 300))
+
+  if (built.exitCode === 0) {
+    const ran = Bun.spawnSync({
+      cmd: ['bun', bundle, 'list'],
+      cwd: app.basePath(),
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    const output = ran.stdout.toString()
+
+    check(
+      'and the bundle boots, with its providers registered',
+      ran.exitCode === 0 && output.includes('migrate'),
+      `${ran.exitCode}: ${ran.stderr.toString().slice(0, 300)}`
+    )
+  }
+
+  await Bun.file(bundle)
+    .delete()
+    .catch(() => undefined)
+}
+
 // -------------------------------------------------------------------- summary
 
 console.log()

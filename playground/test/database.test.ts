@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, test as it } from 'bun:test'
-import '../bootstrap/app.ts'
+import app from '../bootstrap/app.ts'
 import './database.ts'
 import { Article } from '../app/Models/Article.ts'
 
 /**
- * The model layer, against the application's own database.
+ * The model layer, against a database of the tests' own.
  *
  * Importing `bootstrap/app.ts` for its side effect is the whole setup: the
  * providers have run, so `Article.query()` already knows which connection to use.
@@ -128,5 +128,25 @@ describe('the query builder', () => {
     // `pluck` and friends are the reason: a plain array would make every caller
     // reach for a helper the framework already has.
     expect(articles.pluck('id').all().length).toBe(articles.count())
+  })
+})
+
+describe('which database the tests use', () => {
+  it('is the testing one, not the application’s', () => {
+    /**
+     * Not decoration. These tests migrate and seed, and the application's own
+     * database is also read by `bun run smoke` and by a running `artisan serve`
+     * — two processes on one SQLite file, where the second is refused outright
+     * and fifteen tests fail together with `database is locked`. That is how
+     * this was found.
+     *
+     * WAL and a busy timeout, added at the same time, make the collision
+     * survivable; a database of its own is what stops it happening.
+     */
+    const connection = app.config.get<string>('database.default', 'sqlite')
+    const path = app.config.get<string>(`database.connections.${connection}.database`, '')
+
+    expect(path).toContain('testing.sqlite')
+    expect(path).not.toContain('playground.sqlite')
   })
 })
