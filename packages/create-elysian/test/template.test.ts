@@ -69,29 +69,124 @@ describe('the template ships every package', () => {
 
     expect<string[]>(linked).toEqual(await workspacePackages())
   })
+})
+
+/**
+ * Which providers a scaffolded application registers, and which it does not.
+ *
+ * It used to register all of them, and there was a test here demanding exactly
+ * that. Laravel can afford the equivalent — its providers arrive inside one
+ * Composer package whether or not they are used — but here each one is a
+ * separate package, so a provider named in `bootstrap/providers.ts` is a package
+ * installed, imported and bundled. Registering all twenty-two took a landing
+ * page from 1.0 MB to 3.7 MB.
+ *
+ * So the rule is inverted now: a kit registers what it needs. What has to stay
+ * true is narrower, and these are it.
+ */
+describe('the providers a kit registers', () => {
+  /** Every `bootstrap/providers.ts` there is — the template's and each kit's. */
+  async function providerLists(): Promise<Array<{ where: string; source: string }>> {
+    const lists = [{ where: 'template', source: '' }]
+    const kitsDir = resolve(import.meta.dir, '..', 'kits')
+
+    for (const kit of (await readdir(kitsDir, { withFileTypes: true })).filter((entry) =>
+      entry.isDirectory()
+    )) {
+      lists.push({ where: kit.name, source: '' })
+    }
+
+    for (const list of lists) {
+      const path =
+        list.where === 'template'
+          ? resolve(templateDir, 'bootstrap', 'providers.ts')
+          : resolve(kitsDir, list.where, 'bootstrap', 'providers.ts')
+
+      list.source = await Bun.file(path)
+        .text()
+        .catch(() => '')
+    }
+
+    // A kit with no file of its own inherits the template's, which is fine and
+    // not something to assert against.
+    return lists.filter((list) => list.source !== '')
+  }
+
+  /** `[[package, ProviderClass], …]`, read from the import lines. */
+  function imported(source: string): Array<[string, string]> {
+    return [...source.matchAll(/import \{ (\w+ServiceProvider) \} from '@elysian\/([\w-]+)'/g)].map(
+      (match) => [match[2] as string, match[1] as string]
+    )
+  }
+
+  test('every provider named is one its package actually exports', async () => {
+    const wrong: string[] = []
+
+    for (const { where, source } of await providerLists()) {
+      for (const [pkg, provider] of imported(source)) {
+        const file = Bun.file(resolve(root, 'packages', pkg, 'src', 'provider.ts'))
+
+        if (!(await file.exists())) {
+          wrong.push(`${where}: @elysian/${pkg} has no provider.ts`)
+          continue
+        }
+
+        if (!(await file.text()).includes(`export class ${provider}`)) {
+          wrong.push(`${where}: @elysian/${pkg} does not export ${provider}`)
+        }
+      }
+    }
+
+    expect<string[]>(wrong).toEqual([])
+  })
+
+  test('and every provider imported is also in the list', async () => {
+    const unused: string[] = []
+
+    for (const { where, source } of await providerLists()) {
+      const listed = source.slice(source.indexOf('export const providers'))
+
+      for (const [, provider] of imported(source)) {
+        if (!new RegExp(`^\\s*${provider},?$`, 'm').test(listed)) {
+          unused.push(`${where}: ${provider} imported but not registered`)
+        }
+      }
+    }
+
+    expect<string[]>(unused).toEqual([])
+  })
 
   /**
-   * Every package that *has* a provider must be registered.
+   * The packages no kit registers at all.
    *
-   * Not every package has one — `contracts`, `support` and `testing` are plain
-   * libraries — so this reads the packages rather than assuming, which keeps it
-   * true when the next package arrives without a provider.
+   * Named rather than counted, so a package arriving with a provider that
+   * nothing ever registers is a decision somebody made rather than a number that
+   * quietly went up. Each of these is reachable — `providers` is an ordinary
+   * array in an ordinary file — but none of the three kits needs it, and none of
+   * them should pay for it.
    */
-  test('config/app.ts registers every provider that exists', async () => {
-    const config = await Bun.file(resolve(templateDir, 'config', 'app.ts')).text()
-    const missing: string[] = []
+  test('what nothing registers is what we expect nothing to register', async () => {
+    const registered = new Set<string>()
+
+    for (const { source } of await providerLists()) {
+      for (const [pkg] of imported(source)) registered.add(pkg)
+    }
+
+    const never: string[] = []
 
     for (const name of await workspacePackages()) {
       const provider = Bun.file(resolve(root, 'packages', name, 'src', 'provider.ts'))
-      if (!(await provider.exists())) continue
 
-      const exported = (await provider.text()).match(/export class (\w+ServiceProvider)/)
-      if (!exported) continue
-
-      if (!config.includes(exported[1] as string)) missing.push(`${name} (${exported[1]})`)
+      if ((await provider.exists()) && !registered.has(name)) never.push(name)
     }
 
-    expect<string[]>(missing).toEqual([])
+    expect<string[]>(never.sort()).toEqual([
+      'broadcasting',
+      'concurrency',
+      'http-client',
+      'image',
+      'process'
+    ])
   })
 })
 

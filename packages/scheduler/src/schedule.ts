@@ -57,7 +57,22 @@ export class Schedule {
 
     return this.add(
       new ScheduledEvent(async () => {
-        await this.app.make('queue').dispatch(job as never, options)
+        /**
+         * Reached by name, because an application may not have the queue.
+         *
+         * `make('queue')` is typed by a declaration `@elysian/queue` merges in,
+         * and an application that does not register the queue provider never
+         * loads that file — so the binding types as `unknown` and the
+         * *application's* `tsc` fails inside this package. The cast says what is
+         * true either way: this is a binding that may not be there, and calling
+         * `schedule().job(…)` without it is a run-time error with a name, not a
+         * compile-time one in somebody else's source.
+         */
+        await (
+          this.app.make('queue' as never) as {
+            dispatch(job: unknown, options: unknown): Promise<unknown>
+          }
+        ).dispatch(job, options)
       }, summary)
     )
   }

@@ -1,26 +1,5 @@
-import { AuthServiceProvider } from '@elysian/auth'
-import { BroadcastServiceProvider } from '@elysian/broadcasting'
-import { CacheServiceProvider } from '@elysian/cache'
-import { ConcurrencyServiceProvider } from '@elysian/concurrency'
-import { ConsoleServiceProvider } from '@elysian/console'
 import { Env, env } from '@elysian/core'
-import { DatabaseServiceProvider } from '@elysian/database'
-import { EncryptionServiceProvider } from '@elysian/encryption'
-import { EventServiceProvider } from '@elysian/events'
-import { HashServiceProvider } from '@elysian/hashing'
-import { HttpServiceProvider } from '@elysian/http'
-import { HttpClientServiceProvider } from '@elysian/http-client'
-import { ImageServiceProvider } from '@elysian/image'
-import { LogServiceProvider } from '@elysian/log'
-import { MailServiceProvider } from '@elysian/mail'
-import { NotificationServiceProvider } from '@elysian/notifications'
-import { ProcessServiceProvider } from '@elysian/process'
-import { QueueServiceProvider } from '@elysian/queue'
-import { ScheduleServiceProvider } from '@elysian/scheduler'
-import { StorageServiceProvider } from '@elysian/storage'
-import { TranslationServiceProvider } from '@elysian/translation'
-import { ValidationServiceProvider } from '@elysian/validation'
-import { ViewServiceProvider } from '@elysian/view'
+import { providers } from '../bootstrap/providers.ts'
 
 export default {
   name: env('APP_NAME', 'Elysian'),
@@ -57,37 +36,11 @@ export default {
   host: env('HOST', ''),
 
   /**
-   * Framework service providers, in boot order. Events and logging come first:
-   * everything after them may emit events or write logs while booting.
+   * The providers this application registers.
    *
-   * Application providers live in `bootstrap/app.ts` so they boot after these.
+   * The list itself lives in `bootstrap/providers.ts`, where a starter kit can
+   * replace it — and where the comment explains why leaving one out matters here
+   * in a way it does not in Laravel.
    */
-  providers: [
-    EventServiceProvider,
-    LogServiceProvider,
-    // Early: notifications, validation messages and views all read through it.
-    TranslationServiceProvider,
-    EncryptionServiceProvider,
-    HashServiceProvider,
-    ConsoleServiceProvider,
-    ConcurrencyServiceProvider,
-    ProcessServiceProvider,
-    DatabaseServiceProvider,
-    StorageServiceProvider,
-    ImageServiceProvider,
-    CacheServiceProvider,
-    QueueServiceProvider,
-    MailServiceProvider,
-    // Before notifications: its `broadcast` channel resolves this at build time.
-    BroadcastServiceProvider,
-    NotificationServiceProvider,
-    ScheduleServiceProvider,
-    ValidationServiceProvider,
-    HttpServiceProvider,
-    HttpClientServiceProvider,
-    // Before the view provider: its static handler claims `GET /*`, which would
-    // otherwise shadow the auth endpoints.
-    AuthServiceProvider,
-    ViewServiceProvider
-  ]
+  providers
 }
