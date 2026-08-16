@@ -96,6 +96,82 @@ describe('the template ships every package', () => {
 })
 
 /**
+ * `bootstrap/app.ts` names every config file, and has to keep naming them.
+ *
+ * The alternative — letting the framework read `config/` — is what a scaffolded
+ * application did until now, and it cannot be built: the imports resolve against
+ * a disk at run time, so a bundle contains no configuration and therefore no
+ * providers, and boots into a container with nothing in it. Measured before the
+ * change, `--kit=none` bundled 345 modules and could not start; the twenty-three
+ * providers its own `config/app.ts` lists were simply not there.
+ *
+ * The cost of naming them is a list that drifts, which is what this holds shut.
+ * A config file added without a line beside it is silently absent — `config()`
+ * returns the default and nothing says why — so the failure this prevents is one
+ * that looks like a wrong setting rather than a missing file.
+ */
+describe('the bootstrap can be followed by a bundler', () => {
+  async function configFiles(directory: string): Promise<string[]> {
+    const entries = await readdir(resolve(directory, 'config'))
+
+    return entries
+      .filter((entry) => entry.endsWith('.ts'))
+      .map((entry) => entry.slice(0, -'.ts'.length))
+      .sort()
+  }
+
+  /** The keys of the object passed to `withConfig`. */
+  async function namedInBootstrap(directory: string): Promise<string[]> {
+    const source = await Bun.file(resolve(directory, 'bootstrap', 'app.ts')).text()
+
+    return [...source.matchAll(/^\s*(\w+): \(\) => import\('\.\.\/config\/([\w-]+)\.ts'\)/gm)]
+      .map((match) => {
+        // Key and filename have to agree as well: `Config` stores what the key
+        // says, so a mismatch files `config/mail.ts` under something nothing
+        // reads.
+        expect<string>(match[1] as string).toBe(match[2] as string)
+
+        return match[1] as string
+      })
+      .sort()
+  }
+
+  test('the template names every config file it ships', async () => {
+    expect<string[]>(await namedInBootstrap(templateDir)).toEqual(await configFiles(templateDir))
+  })
+
+  test('and so does the playground', async () => {
+    const playground = resolve(root, 'playground')
+
+    expect<string[]>(await namedInBootstrap(playground)).toEqual(await configFiles(playground))
+  })
+
+  /**
+   * A kit may replace a config file, but adding one would need a line in
+   * `bootstrap/app.ts` that the template cannot know about — so for now the rule
+   * is that it may not, and this says so rather than leaving it to be found.
+   */
+  test('no kit ships a config file the template does not', async () => {
+    const shipped = new Set(await configFiles(templateDir))
+    const extra: string[] = []
+
+    const kitsDir = resolve(import.meta.dir, '..', 'kits')
+
+    for (const kit of (await readdir(kitsDir, { withFileTypes: true })).filter((entry) =>
+      entry.isDirectory()
+    )) {
+      for (const entry of await readdir(resolve(kitsDir, kit.name, 'config')).catch(() => [])) {
+        if (entry.endsWith('.ts') && !shipped.has(entry.slice(0, -'.ts'.length))) {
+          extra.push(`${kit.name}/${entry}`)
+        }
+      }
+    }
+
+    expect<string[]>(extra).toEqual([])
+  })
+})
+
+/**
  * The secrets a scaffolded application starts with.
  *
  * The template used to ship `APP_KEY=change-me-to-32-characters-or-more`, which
