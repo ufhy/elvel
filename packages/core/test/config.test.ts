@@ -79,3 +79,51 @@ describe('Config.loadFrom', () => {
     expect(Object.keys(config.all())).toEqual(['app'])
   })
 })
+
+describe('named config loaders', () => {
+  /**
+   * What makes a bundled application possible.
+   *
+   * Reading `config/` resolves its imports at run time, so a bundle loads a
+   * second copy of the framework through them — and the helpers a config file
+   * calls then read an `Application.current` belonging to the copy that is not
+   * running. Naming the files lets a bundler follow them instead.
+   */
+  test('a loader per file becomes the config', async () => {
+    const config = await Config.loadUsing({
+      app: async () => ({ default: { name: 'Bundled' } }),
+      database: async () => ({ default: { default: 'sqlite' } })
+    })
+
+    expect<string>(config.get('app.name', '')).toBe('Bundled')
+    expect<string>(config.get('database.default', '')).toBe('sqlite')
+  })
+
+  test('the loaders are lazy, and run in the order they were given', async () => {
+    const order: string[] = []
+
+    await Config.loadUsing({
+      app: async () => {
+        order.push('app')
+
+        return { default: {} }
+      },
+      filesystems: async () => {
+        order.push('filesystems')
+
+        return { default: {} }
+      }
+    })
+
+    // Lazy because a config file may call `storage_path()` while it loads, which
+    // needs an application to exist first; ordered because one file may read
+    // what an earlier one set up.
+    expect<string[]>(order).toEqual(['app', 'filesystems'])
+  })
+
+  test('a module with no default export names itself', async () => {
+    await expect(Config.loadUsing({ broken: async () => ({}) })).rejects.toThrow(
+      /"broken".*default export/s
+    )
+  })
+})

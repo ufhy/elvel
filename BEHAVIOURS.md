@@ -471,12 +471,23 @@ None of this changes how the framework runs: a server executes the source, and
 every module is loaded anyway. What it changes is the cost to anyone who bundles
 — and the cost of importing one helper into something small.
 
-**A bundled application does not boot yet**, and that is older than this. `config/`
-is read with `readdir` and imported at runtime, so a bundle loads a second copy
-of the framework through those imports and the two copies do not share a
-container: `bun build` then `bun bundle.js list` fails with `Target [middleware]
-is not bound`. The same failure happens with a bundle built before any of this,
-so it is the configuration loader's shape, not the packaging.
+**A bundled application needs its config named.** Reading `config/` — the
+default, and right while developing — resolves those imports at run time, so a
+bundle loads a *second* copy of the framework through them. The copies do not
+share `Application.current`, which is a static, so a config file calling
+`storage_path()` as it loads reads an application that does not exist, and the
+boot fails somewhere else entirely: `Target [middleware] is not bound`.
+
+`withConfig({ app: () => import('../config/app.ts'), … })` fixes both halves at
+once. A literal `import('./x.ts')` is something a bundler can follow, so the
+config ends up inside the bundle; and it stays lazy, so it is evaluated after the
+application exists. `playground/bootstrap/bundle.ts` is a worked example, and its
+base path is `process.cwd()` rather than `import.meta.dir` — inside a bundle that
+directory is wherever the bundle was written, not where `storage/` and
+`database/` are.
+
+The cost is that a new config file has to be named in that file as well, which is
+why it is a second bootstrap rather than the only one.
 
 
 ## @elysian/process

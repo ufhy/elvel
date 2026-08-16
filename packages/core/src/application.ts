@@ -34,6 +34,9 @@ export type RouteModule =
 
 export type RouteLoader = () => Promise<{ default: RouteModule }>
 
+/** `{ app: () => import('../config/app.ts') }` — see `withConfig`. */
+export type ConfigLoaders = Record<string, () => Promise<{ default?: unknown }>>
+
 /**
  * Application — container, provider registry, and owner of the root Elysia
  * instance.
@@ -325,8 +328,37 @@ export class Application implements ApplicationContract {
 export class ApplicationBuilder {
   private readonly providers: ServiceProviderConstructor[] = []
   private readonly routeLoaders: RouteLoader[] = []
+  private configLoaders: ConfigLoaders | undefined
 
   constructor(private readonly basePath: string) {}
+
+  /**
+   * Name the config files instead of letting the directory be read.
+   *
+   * The default reads `config/` and imports whatever is in it, which is right
+   * for development and cannot survive bundling: those imports are resolved at
+   * run time against the disk, so a bundled application loads a *second* copy of
+   * the framework through them — and `Application.current`, which the helpers in
+   * a config file reach for, belongs to the copy that is not running.
+   *
+   * ```ts
+   * .withConfig({
+   *   app: () => import('../config/app.ts'),
+   *   database: () => import('../config/database.ts')
+   * })
+   * ```
+   *
+   * The loaders are lazy for the same reason the route loaders are: a config
+   * file may call `storage_path()` while it is being evaluated, and that needs
+   * an application to exist first. Bundlers can still follow a literal
+   * `import('./x.ts')`, so everything ends up in the bundle and there is only
+   * one copy of anything.
+   */
+  withConfig(loaders: ConfigLoaders): this {
+    this.configLoaders = { ...this.configLoaders, ...loaders }
+
+    return this
+  }
 
   withProviders(providers: ServiceProviderConstructor[]): this {
     this.providers.push(...providers)
@@ -360,11 +392,12 @@ export class ApplicationBuilder {
      * absorbs most of that cost, but it is also what lets a container image
      * ship a config it cannot accidentally re-evaluate.
      */
-    app.config =
-      (await Config.loadCached(
-        app.basePath('bootstrap', 'cache', 'config.json'),
-        app.configPath()
-      )) ?? (await Config.loadFrom(app.configPath()))
+    app.config = this.configLoaders
+      ? await Config.loadUsing(this.configLoaders)
+      : ((await Config.loadCached(
+          app.basePath('bootstrap', 'cache', 'config.json'),
+          app.configPath()
+        )) ?? (await Config.loadFrom(app.configPath())))
 
     // 3. exceptions
     app.handleExceptions()

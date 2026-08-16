@@ -50,6 +50,32 @@ export class Config implements ConfigRepository {
   /** Was this loaded from a cache file? `config:clear` and `about` ask. */
   cached = false
 
+  /**
+   * Build from named loaders rather than from a directory — see
+   * `ApplicationBuilder.withConfig`.
+   *
+   * Awaited one at a time, in the order given, because a config file may read
+   * something an earlier one set up and because the failure of one should name
+   * itself rather than arriving as an unhandled rejection among several.
+   */
+  static async loadUsing(loaders: Record<string, () => Promise<{ default?: unknown }>>) {
+    const config = new Config()
+
+    for (const [key, load] of Object.entries(loaders)) {
+      const module = await load()
+
+      if (module.default === undefined) {
+        throw new Error(
+          `Config loader "${key}" resolved a module with no default export. Export the config object as default.`
+        )
+      }
+
+      config.set(key, module.default)
+    }
+
+    return config
+  }
+
   static async loadFrom(directory: string): Promise<Config> {
     const config = new Config()
 
