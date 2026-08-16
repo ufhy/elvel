@@ -3932,7 +3932,16 @@ async function proveTheKitWorks(target: string): Promise<void> {
       'QUEUE_CONNECTION=sync',
       'MAIL_MAILER=log',
       'VIEW_CACHE=false',
-      'LOG_LEVEL=error',
+      /**
+       * `info`, not `error`, because the mail *is* the log here.
+       *
+       * The `log` transport writes the whole message — headers, body, and the
+       * link — through `logger.info`, and the reset and verification flows
+       * cannot be followed without reading it. At `error` the mail was written
+       * nowhere and the flows could not be tested at all, which is why they
+       * never were.
+       */
+      'LOG_LEVEL=info',
       `PORT=${port}`,
       ''
     ].join('\n')
@@ -4282,6 +4291,187 @@ async function proveTheKitWorks(target: string): Promise<void> {
       'and the session goes with it',
       gone.status >= 300 && gone.status < 400,
       `status ${gone.status}`
+    )
+
+    /**
+     * Resetting a forgotten password, end to end, through the inbox.
+     *
+     * The three flows below had pages, routes and no checks at all — the same
+     * shape as the two bugs already found in this kit, where a form existed and
+     * the endpoint behind it answered 400 or 404. Following them needs the mail,
+     * so the mail is read out of the server's log, which is where `MAIL_MAILER=
+     * log` puts it.
+     */
+    const mailbox = () => server.output()
+
+    /** The most recent link better-auth sent, of a given kind. */
+    const linkFor = (kind: 'reset-password' | 'verify-email'): string | undefined => {
+      const found = [...mailbox().matchAll(new RegExp(`${origin}/api/auth/${kind}[^\\s"<]*`, 'g'))]
+
+      return found.at(-1)?.[0]
+    }
+
+    /**
+     * A second account, because the first one was just deleted.
+     *
+     * Registered through the same form as everything else here rather than
+     * inserted, so what is reset below is an account the kit itself made.
+     */
+    const resetEmail = `kit-reset-${stamp}@example.com`
+    const owner = new Visitor(origin)
+
+    await owner.submit('/sign-up', {
+      name: `Linus ${stamp}`,
+      email: resetEmail,
+      password: 'longenough3'
+    })
+
+    const forgetful = new Visitor(origin)
+    const forgotPage = await forgetful.page('/forgot-password')
+
+    check('the forgot-password page renders', forgotPage.includes('action="/forgot-password"'))
+
+    const before = mailbox().length
+    const asked = await forgetful.submit('/forgot-password', { email: resetEmail })
+
+    check(
+      'asking for a link redirects to the same page, said and done',
+      (asked.headers.get('location') ?? '').includes('sent=1'),
+      where(asked)
+    )
+
+    const resetLink = linkFor('reset-password')
+
+    check('and the mail goes out with a link in it', resetLink !== undefined)
+
+    /**
+     * An address nobody holds is answered exactly the same way, and sends
+     * nothing.
+     *
+     * Reporting "no account with that email" turns this form into a way to ask
+     * whether somebody banks here.
+     */
+    const stranger = await forgetful.submit('/forgot-password', {
+      email: `nobody-${stamp}@example.com`
+    })
+
+    check(
+      'an unknown address is answered the same way',
+      (stranger.headers.get('location') ?? '').includes('sent=1'),
+      where(stranger)
+    )
+    const sinceAsking = mailbox().slice(before)
+    const resetMails = [...sinceAsking.matchAll(/Subject: Reset/g)].length
+
+    check('and no second mail was sent for it', resetMails === 1, `${resetMails} sent`)
+
+    // better-auth's link is its own endpoint, which hands the token to the page.
+    const landed = await forgetful.visit(
+      (resetLink ?? '').slice(origin.length).replace(/&amp;/g, '&')
+    )
+    const resetPath = (landed.headers.get('location') ?? '').replace(origin, '')
+
+    check(
+      'the link lands on the reset form, carrying the token',
+      resetPath.startsWith('/reset-password?token='),
+      `${landed.status} ${resetPath}`
+    )
+
+    const resetForm = await forgetful.page(resetPath)
+
+    check('and the form ships the token as a hidden field', resetForm.includes('name="token"'))
+
+    const token = /name="token" value="([^"]+)"/.exec(resetForm)?.[1] ?? ''
+
+    const mismatched = await forgetful.submit(
+      '/reset-password',
+      { token, password: 'brand-new-1', password_confirmation: 'different-1' },
+      resetPath
+    )
+
+    check(
+      'two passwords that differ are refused before better-auth is asked',
+      (mismatched.headers.get('location') ?? '').includes('/reset-password?token='),
+      where(mismatched)
+    )
+
+    const reset = await forgetful.submit(
+      '/reset-password',
+      { token, password: 'brand-new-1', password_confirmation: 'brand-new-1' },
+      resetPath
+    )
+
+    check(
+      'a good reset sends them to sign in rather than signing them in',
+      (reset.headers.get('location') ?? '') === '/sign-in',
+      where(reset)
+    )
+
+    const withNew = new Visitor(origin)
+    const signedInAgain = await withNew.submit('/sign-in', {
+      email: resetEmail,
+      password: 'brand-new-1'
+    })
+
+    check(
+      'the new password works',
+      (signedInAgain.headers.get('location') ?? '') === '/dashboard',
+      where(signedInAgain)
+    )
+
+    const reused = await forgetful.submit(
+      '/reset-password',
+      { token, password: 'third-attempt-1', password_confirmation: 'third-attempt-1' },
+      resetPath
+    )
+
+    // A link that still works after it has been used is a link worth stealing.
+    check(
+      'and the same link cannot be used twice',
+      (reused.headers.get('location') ?? '').includes('/reset-password?token='),
+      where(reused)
+    )
+
+    /**
+     * Confirming an address, which nothing had exercised either.
+     */
+    const unverified = await withNew.page('/verify-email')
+
+    check(
+      'the verify-email page renders for a signed-in user',
+      unverified.includes('/verify-email')
+    )
+
+    const resent = await withNew.submit('/verify-email/resend', {}, '/verify-email')
+
+    check(
+      'asking again redirects with a note',
+      (resent.headers.get('location') ?? '').includes('sent=1'),
+      where(resent)
+    )
+
+    const verifyLink = linkFor('verify-email')
+
+    check('and the verification mail carries its own link', verifyLink !== undefined)
+
+    const followed = await withNew.visit(
+      (verifyLink ?? '').slice(origin.length).replace(/&amp;/g, '&')
+    )
+
+    check(
+      'following it sends the visitor on to the callback',
+      followed.status >= 300 && followed.status < 400,
+      `status ${followed.status}`
+    )
+
+    const profileAfter = await withNew.page('/settings/profile')
+
+    // The point of the whole flow: the account reads as confirmed afterwards,
+    // where before it offered to send the link again.
+    check(
+      'and the address now reads as confirmed',
+      profileAfter.includes('Confirmed.') && !profileAfter.includes('Not confirmed yet'),
+      profileAfter.includes('Not confirmed yet') ? 'still unconfirmed' : 'neither state found'
     )
 
     /**
