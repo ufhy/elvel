@@ -1,9 +1,10 @@
+import { messageFrom, withSession } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { Profile } from '../../../../resources/views/pages/settings/profile.tsx'
-import { account, api, messageFrom, withSession } from '../../../Support/auth.ts'
+import { account, api } from '../../../Support/auth.ts'
 
 /**
  * The name and address on the account, and closing it.

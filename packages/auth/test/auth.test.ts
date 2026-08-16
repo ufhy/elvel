@@ -8,6 +8,7 @@ import { type AuthUser, Gate } from '../src/gate.ts'
 import { AuthManager, type AuthSession } from '../src/manager.ts'
 import { Policy } from '../src/policy.ts'
 import { AuthorizationError, AuthorizationResponse } from '../src/response.ts'
+import { messageFrom, sessionSummaries, withSession } from '../src/responses.ts'
 
 // -------------------------------------------------------------------- the gate
 
@@ -643,5 +644,60 @@ describe('named guards', () => {
     // "No user" and "there is no request to read" are different answers, and
     // conflating them hides a bug in a console command.
     expect(() => manager.guard('api')).toThrow('only be used inside a request')
+  })
+})
+
+describe('the response glue a server-rendered application needs', () => {
+  test('withSession carries better-auth’s cookies onto the redirect', () => {
+    const from = new Response(null, {
+      headers: [
+        ['set-cookie', 'session=abc; Path=/; HttpOnly'],
+        ['set-cookie', 'other=def; Path=/']
+      ]
+    })
+
+    const to = new Response(null, { status: 303, headers: { location: '/dashboard' } })
+    const carried = withSession(from, to)
+
+    // Without this the sign-in "works" and the browser is never given a
+    // session, which is the bug this exists to prevent.
+    expect<string[]>(carried.headers.getSetCookie()).toEqual([
+      'session=abc; Path=/; HttpOnly',
+      'other=def; Path=/'
+    ])
+    expect<number>(carried.status).toBe(303)
+    expect(carried.headers.get('location')).toBe('/dashboard')
+  })
+
+  test('messageFrom prefers what better-auth said, and falls back quietly', async () => {
+    const said = Response.json({ message: 'That address is already taken.' }, { status: 400 })
+    const silent = new Response('not json at all', { status: 500 })
+
+    expect(await messageFrom(said, 'Something went wrong.')).toBe('That address is already taken.')
+    expect(await messageFrom(silent, 'Something went wrong.')).toBe('Something went wrong.')
+  })
+
+  test('sessionSummaries marks the browser doing the asking', () => {
+    const headers = new Headers({ cookie: 'better-auth.session_token=tok-2.signature; other=1' })
+
+    const rows = sessionSummaries(
+      [
+        { token: 'tok-1', userAgent: 'Firefox', ipAddress: '' },
+        { token: 'tok-2', userAgent: 'Chrome', createdAt: new Date('2026-01-02T03:04:05Z') }
+      ],
+      headers
+    )
+
+    // Marking the wrong row current offers a "sign this out" button that ends
+    // the session being read in.
+    expect<boolean[]>(rows.map((row) => row.current)).toEqual([false, true])
+    // An empty string is what better-auth stores when it was never told; `??`
+    // would keep it and leave a row with neither a value nor a fallback.
+    expect(rows[0]?.ipAddress).toBeUndefined()
+    expect(rows[1]?.createdAt).toBe('2026-01-02 03:04')
+  })
+
+  test('and answers an empty list for anything that is not one', () => {
+    expect<unknown[]>(sessionSummaries(undefined, new Headers())).toEqual([])
   })
 })

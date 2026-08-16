@@ -1,9 +1,10 @@
+import { sessionSummaries, withSession } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { Security } from '../../../../resources/views/pages/settings/security.tsx'
-import { api, sessionRows, withSession } from '../../../Support/auth.ts'
+import { api } from '../../../Support/auth.ts'
 
 /**
  * Where this account is signed in, and how to end those sessions.
@@ -20,7 +21,7 @@ export default controller('settings-security')
 
       return view(Security, {
         title: 'Security',
-        sessions: sessionRows(listed, request.headers),
+        sessions: sessionSummaries(listed, request.headers),
         revoked: query.revoked === '1',
         error: errors().first('session')
       })

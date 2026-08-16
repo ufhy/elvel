@@ -1,9 +1,10 @@
+import { messageFrom, withSession } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { errors, middleware, redirect } from '@elysian/http'
 import { view } from '@elysian/view'
 import { t } from 'elysia'
 import { SignUp } from '../../../../resources/views/pages/auth/sign-up.tsx'
-import { api, messageFrom, withSession } from '../../../Support/auth.ts'
+import { api } from '../../../Support/auth.ts'
 
 /**
  * Creating an account.

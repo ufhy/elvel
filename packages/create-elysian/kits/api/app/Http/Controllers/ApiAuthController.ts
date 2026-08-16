@@ -1,22 +1,20 @@
-import { type AuthUser, auth, userOf } from '@elysian/auth'
+import { type AuthUser, authApi, userOf } from '@elysian/auth'
 import { controller } from '@elysian/core'
 import { middleware } from '@elysian/http'
+import type { Auth } from 'better-auth'
 import { t } from 'elysia'
+import type authConfig from '../../../config/auth.ts'
 
 /**
- * better-auth's server API, typed as far as this kit reaches into it.
+ * better-auth's server API, typed from this application's own config.
  *
- * Widened here rather than in the framework: an application reaches for
- * whichever endpoints its own plugins add, and a type that tried to list them
- * would be wrong for every application but one.
+ * `betterAuth<Options>(options) => Auth<Options>` infers the endpoints from the
+ * options object, plugins included — so reading `typeof authConfig` back out of
+ * `config/auth.ts` recovers exactly what this application has, `bearer` and all.
+ * A hand-written list of signatures would typecheck and still accept a call that
+ * fails at runtime.
  */
-type ServerApi = {
-  signInEmail(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
-  signUpEmail(args: { body: unknown; headers: Headers; asResponse: true }): Promise<Response>
-  signOut(args: { headers: Headers; asResponse: true }): Promise<Response>
-}
-
-const api = () => auth().instance.api as unknown as ServerApi
+const api = () => authApi<Auth<typeof authConfig>['api']>()
 
 /** The fields this kit's schema actually has, narrowed once. */
 function account(context: unknown): { id: string; name: string; email: string } {
