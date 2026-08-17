@@ -1221,6 +1221,29 @@ Twenty-seven packages means twenty-seven of those. The alternative has a deadlin
 rather than a cost — npm restricted bypass-2FA tokens to publishing only in
 August 2026, and takes that away around January 2027.
 
+**There is no provenance, and it is not for want of trying.** npm's provenance
+attaches a verifiable link from a published version to the commit and workflow
+that built it, and npm's documentation says it is automatic under trusted
+publishing, with no `--provenance` flag needed. It was not happening: the
+attestations endpoint answered `Not found` where a package with provenance returns
+two, and the publish log never mentioned the word.
+
+Three publishes settled it. From a tarball, no attestation. From the package
+directory — the first guess, since npm generates provenance from a build context —
+no attestation either. With `--provenance` asked for outright, npm signed the
+statement, logged it to Sigstore's transparency log, and the registry refused the
+upload:
+
+    422 Error verifying sigstore provenance bundle: Unsupported GitHub Actions
+    source repository visibility: "private". Only public source repositories are
+    supported when publishing with provenance.
+
+The repository is private. That is the whole cause, it appears in none of the four
+documented prerequisites, and without the flag npm skips provenance in silence
+rather than saying so. So the flag stays out: with a private repository it would
+fail every release instead of improving one. Making the repository public is the
+only way to have provenance, and that is a separate decision.
+
 **Two things the workflow guards that a laptop did not.** The tag has to match the
 version every manifest carries, because a release labelled one thing and
 containing another is not something a tarball check can find. And

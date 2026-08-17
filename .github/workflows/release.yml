@@ -9,11 +9,16 @@ name: release
 # version. It took a second release the same day to fix. A release that runs the
 # full suite first, on three platforms, is what should have caught it.
 #
-# npm authentication is OIDC rather than a token. npm's own words: "The critical
-# requirement is the id-token: write permission", and with it "npm automatically
-# generates and publishes provenance attestations for your package. This happens
-# by default — you don't need to add the --provenance flag." No secret is stored
-# here, and there is nothing to rotate or leak.
+# npm authentication is OIDC rather than a token — "The critical requirement is
+# the id-token: write permission", in npm's own words. No secret is stored here,
+# and there is nothing to rotate or leak.
+#
+# There is no provenance, and that is not an oversight. npm signs an attestation
+# and the registry then refuses it: `Unsupported GitHub Actions source repository
+# visibility: "private". Only public source repositories are supported when
+# publishing with provenance.` This repository is private, so `--provenance` would
+# fail every release rather than improve one — and without the flag npm skips it
+# in silence, which is why it took publishing a package three ways to find out.
 #
 # It needs configuring once per package on npmjs.com, under the package's
 # Settings → Trusted Publisher: this repository, and this workflow's filename,
@@ -34,13 +39,6 @@ on:
         description: Pack and check every tarball, publish nothing
         default: true
         type: boolean
-      from-directory:
-        description: >-
-          Publish one package from its directory instead of from a tarball, to
-          find out whether that is what npm needs to attach provenance. Names a
-          directory under packages/.
-        default: ''
-        type: string
 
 concurrency:
   group: release-${{ github.ref }}
@@ -131,50 +129,8 @@ jobs:
       - name: Pack and check
         run: bun scripts/release.ts
 
-      # An experiment, and deliberately narrow.
-      #
-      # `1.0.0-alpha.4` went out over OIDC and carries no provenance — the
-      # attestations endpoint answers `Not found` where a package with provenance
-      # returns two. npm's documentation says nothing about pre-packed tarballs
-      # versus package directories, so the only way to know whether that is the
-      # cause is to publish one of each and look.
-      #
-      # It publishes under the `experimental` dist-tag so `latest` does not move,
-      # and only a package with no dependencies at all can be named: publishing
-      # from a directory sends the manifest as it sits, and `workspace:*` in it
-      # would be a version no installer can read.
-      - name: Publish one package from its directory
-        if: inputs.from-directory != ''
-        env:
-          TARGET: ${{ inputs.from-directory }}
-        run: |
-          case "$TARGET" in
-            ''|*[!a-z0-9-]*) echo "refusing [$TARGET]"; exit 1 ;;
-          esac
-
-          cd "packages/$TARGET"
-
-          if grep -q 'workspace:' package.json; then
-            echo "packages/$TARGET has workspace: dependencies — it cannot go from its directory"
-            exit 1
-          fi
-
-          cp ../../LICENSE .
-          printf '# %s\n\nSee https://github.com/ufhy/elvel\n' "$(bun --print 'require("./package.json").name')" > README.md
-
-          # `--provenance` asked for outright.
-          #
-          # Publishing from a directory made no difference — neither form produced
-          # an attestation — and every documented prerequisite is met: npm 11, a
-          # public `repository` that matches, GitHub Actions, trusted publishing.
-          # npm's own words are that with trusted publishing provenance is
-          # "automatically generated ... without requiring the `--provenance`
-          # flag", and it was not. Asking outright turns silence into an error
-          # message that names what is missing.
-          npm publish --access public --tag experimental --provenance
-
       - name: Publish
-        if: (github.event_name == 'push' || inputs.dry-run == false) && inputs.from-directory == ''
+        if: github.event_name == 'push' || inputs.dry-run == false
         env:
           # Through the environment rather than interpolated into the command: a
           # dispatch input reaching a shell directly is a command injection, even
