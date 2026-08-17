@@ -82,6 +82,11 @@ jobs:
       - name: The npm that will publish is new enough for OIDC
         # Compared in Node rather than through `npx semver`, which would download
         # a package mid-release to answer a question about three numbers.
+        #
+        # The fallback installs a pinned npm rather than `latest`, for the reason
+        # this file pins Bun: a release should not change because something else
+        # released. `latest` is 12.0.2, whose engines exclude odd-numbered Node
+        # releases outright.
         run: |
           node --version
           npm --version
@@ -96,7 +101,7 @@ jobs:
               console.log("npm " + process.argv[1] + " cannot use trusted publishing")
               process.exit(1)
             }
-          ' "$(npm --version)" || npm install -g npm@latest
+          ' "$(npm --version)" || npm install -g npm@11.15.0
 
           npm --version
 

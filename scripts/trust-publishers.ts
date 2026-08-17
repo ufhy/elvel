@@ -40,7 +40,19 @@ const ROOT = resolve(import.meta.dir, '..')
 const WORKFLOW = 'release.yml'
 const REPOSITORY = 'ufhy/elvel'
 
-/** Pinned: `npm trust` does not exist before this, and 11.6 is still common. */
+/**
+ * Pinned, and not to `latest` — which would be the wrong version twice over.
+ *
+ * `npm trust` does not exist before 11.15.0, so the npm on a machine is often too
+ * old: this one has 11.6.2. And `npm@latest` is 12.0.2, whose engines are
+ * `^22.22.2 || ^24.15.0 || >=26.0.0` — Node 25, an odd-numbered non-LTS release,
+ * satisfies none of them, and npm 12 says so five times before doing anything.
+ * 11.15.0 wants `^20.17.0 || >=22.9.0`, which is every Node this is likely to
+ * meet.
+ *
+ * So this is the oldest version that has the command and runs where it is needed.
+ * Bump it deliberately, the way `verify.yml` pins Bun.
+ */
 const NPM = 'npm@11.15.0'
 
 const register = Bun.argv.includes('--register')
