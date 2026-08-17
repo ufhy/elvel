@@ -1202,6 +1202,37 @@ protocol, and only when packing from inside the package directory — from a sta
 copy it would publish a range no installer can read.
 
 
+## Releasing from CI, and the deadline behind it
+
+`.github/workflows/release.yml` publishes all twenty-seven packages from a tag,
+with no token stored anywhere. It calls `verify.yml` rather than repeating it, so
+a release runs the same checks a push runs on all three platforms before anything
+is uploaded — which is exactly what `1.0.0-alpha.1` skipped, and it needed a
+second release the same day.
+
+**Authentication is OIDC, not a token.** npm's requirement is one permission —
+`id-token: write` — and with it npm generates provenance attestations by default,
+with no `--provenance` flag. Nothing here has to be rotated, and there is no
+secret to leak into a log.
+
+The cost is configuration: a trusted publisher has to be set up **once per
+package** on npmjs.com, naming this repository and this workflow's filename.
+Twenty-seven packages means twenty-seven of those. The alternative has a deadline
+rather than a cost — npm restricted bypass-2FA tokens to publishing only in
+August 2026, and takes that away around January 2027.
+
+**Two things the workflow guards that a laptop did not.** The tag has to match the
+version every manifest carries, because a release labelled one thing and
+containing another is not something a tarball check can find. And
+`cancel-in-progress` is off: twenty-three packages published and four not is a
+state nothing can install, so a release is never interrupted by a later push.
+
+Publishing still runs through npm even though everything else here is Bun:
+trusted publishing is an npm CLI feature, needing 11.5.1 or later on Node 22.14
+or later. The version check is three numbers compared in Node, rather than `npx
+semver`, which would download a package in the middle of a release to answer it.
+
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

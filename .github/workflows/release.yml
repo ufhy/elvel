@@ -1,0 +1,158 @@
+name: release
+
+# Publishing all twenty-seven packages, from a tag, with no token stored anywhere.
+#
+# The reason this exists is `1.0.0-alpha.1`. It went out from a laptop, and the
+# thing it got wrong — `create-elvel` writing `^0.0.1` as the range for every
+# framework package — was invisible to every check that ran, because a scaffold
+# inside the checkout is a workspace member and never resolves a published
+# version. It took a second release the same day to fix. A release that runs the
+# full suite first, on three platforms, is what should have caught it.
+#
+# npm authentication is OIDC rather than a token. npm's own words: "The critical
+# requirement is the id-token: write permission", and with it "npm automatically
+# generates and publishes provenance attestations for your package. This happens
+# by default — you don't need to add the --provenance flag." No secret is stored
+# here, and there is nothing to rotate or leak.
+#
+# It needs configuring once per package on npmjs.com, under the package's
+# Settings → Trusted Publisher: this repository, and this workflow's filename,
+# `release.yml`. Twenty-seven packages means twenty-seven of those, which is the
+# real cost of this approach — and the alternative has a deadline: bypass-2FA
+# tokens lose the ability to publish directly around January 2027.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dist-tag:
+        description: The npm dist-tag to publish under
+        default: latest
+        type: string
+      dry-run:
+        description: Pack and check every tarball, publish nothing
+        default: true
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref }}
+  # Never cancel a release half way through: twenty-three published packages and
+  # four not is a state nothing can install.
+  cancel-in-progress: false
+
+jobs:
+  # The same checks a push runs, on all three platforms, before anything is
+  # uploaded. Called rather than copied, so the two cannot drift.
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    permissions:
+      # OIDC. Without this npm has no identity to trust and falls back to asking
+      # for a token that is not there.
+      id-token: write
+      # `gh release create` writes to the repository.
+      contents: write
+
+    steps:
+      # The whole history and every tag: the release notes are read out of the
+      # tag's own annotation, and a shallow checkout may have the ref without the
+      # object that carries the message.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      # npm does the publishing even though everything else here is Bun: trusted
+      # publishing is an npm CLI feature, and it needs 11.5.1 or later on Node
+      # 22.14 or later. Node 24 satisfies both.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: The npm that will publish is new enough for OIDC
+        # Compared in Node rather than through `npx semver`, which would download
+        # a package mid-release to answer a question about three numbers.
+        run: |
+          node --version
+          npm --version
+
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number)
+            const enough =
+              major > 11 ||
+              (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)))
+
+            if (!enough) {
+              console.log("npm " + process.argv[1] + " cannot use trusted publishing")
+              process.exit(1)
+            }
+          ' "$(npm --version)" || npm install -g npm@latest
+
+          npm --version
+
+      - run: bun install --frozen-lockfile
+
+      # A tag that disagrees with the manifests is how a release goes out
+      # labelled one thing and containing another.
+      - name: The tag matches the version every package carries
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          declared="$(bun --print 'require("./package.json").version')"
+
+          echo "tag $tagged, manifests $declared"
+          test "$tagged" = "$declared"
+
+      # Packs all twenty-seven and opens each tarball — licence and readme
+      # present, no `test/`, version correct, and no dependency still saying
+      # `workspace:*`. Nothing is uploaded by this step.
+      - name: Pack and check
+        run: bun scripts/release.ts
+
+      - name: Publish
+        if: github.event_name == 'push' || inputs.dry-run == false
+        env:
+          # Through the environment rather than interpolated into the command: a
+          # dispatch input reaching a shell directly is a command injection, even
+          # when only somebody with write access can set it.
+          DIST_TAG: ${{ inputs.dist-tag || 'latest' }}
+        run: |
+          case "$DIST_TAG" in
+            ''|*[!a-zA-Z0-9._-]*)
+              echo "refusing dist-tag [$DIST_TAG]: letters, digits, dot, dash and underscore only"
+              exit 1
+              ;;
+          esac
+
+          bun scripts/release.ts --publish "--tag=$DIST_TAG"
+
+      # The tag's own annotation is the release notes: it is written when the
+      # release is cut, by whoever cut it, and repeating it here by hand is how
+      # the two end up saying different things.
+      - name: Announce it
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release already exists, leaving it alone"
+            exit 0
+          fi
+
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Elvel ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md \
+            --prerelease \
+            --latest

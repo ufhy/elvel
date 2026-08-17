@@ -12,10 +12,14 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Called by `release.yml`, so a release runs exactly the checks a push runs
+  # rather than a second, thinner copy of them.
+  workflow_call:
 
 concurrency:
-  group: verify-${{ github.ref }}
-  cancel-in-progress: true
+  group: verify-${{ github.ref }}-${{ github.workflow }}
+  # A release must not be cancelled by the push that carries its tag.
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 
 defaults:
   run:
