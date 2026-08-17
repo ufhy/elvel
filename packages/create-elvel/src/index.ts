@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import * as prompts from '@clack/prompts'
 import pc from 'picocolors'
 
@@ -166,7 +166,23 @@ async function main(): Promise<number> {
    * `file:` dependencies into its store, so an editor that writes by replacing
    * a file silently detaches the copy and the app keeps running stale code.
    */
-  const workspaceMode = monorepoRoot !== undefined && target.startsWith(`${monorepoRoot}/`)
+  /**
+   * Is the target inside the framework checkout?
+   *
+   * Compared through `relative()` rather than by string prefix: the prefix form
+   * hardcoded `/`, so on Windows — where the same paths are `D:\a\elvel\elvel`
+   * — it was never true, and a scaffold created inside the checkout quietly asked
+   * npm for the published packages instead of linking the ones being edited.
+   */
+  const inside = (() => {
+    if (monorepoRoot === undefined) return false
+
+    const step = relative(monorepoRoot, target)
+
+    return step !== '' && !step.startsWith('..') && !isAbsolute(step)
+  })()
+
+  const workspaceMode = inside
 
   if (monorepoRoot !== undefined && !workspaceMode) {
     prompts.log.warn(

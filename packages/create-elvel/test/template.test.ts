@@ -500,7 +500,14 @@ async function scaffold(kit: string): Promise<Scaffold> {
     stderr: 'pipe'
   })
 
-  expect<number>(scaffolded.exitCode).toBe(0)
+  // The child's own output, or a failure here says only "1" — which is what a
+  // Windows run reported for a fortnight.
+  expect<string>(
+    `${scaffolded.exitCode}: ${new TextDecoder().decode(scaffolded.stdout)}${new TextDecoder().decode(scaffolded.stderr)}`.slice(
+      0,
+      900
+    )
+  ).toStartWith('0:')
 
   const manifest = (await Bun.file(join(target, 'package.json')).json()) as {
     dependencies: Record<string, string>
@@ -712,7 +719,14 @@ describe('what a scaffolded application asks npm for', () => {
       stderr: 'pipe'
     })
 
-    expect<number>(scaffolded.exitCode).toBe(0)
+    // The child's own output, or a failure here says only "1" — which is what a
+    // Windows run reported for a fortnight.
+    expect<string>(
+      `${scaffolded.exitCode}: ${new TextDecoder().decode(scaffolded.stdout)}${new TextDecoder().decode(scaffolded.stderr)}`.slice(
+        0,
+        900
+      )
+    ).toStartWith('0:')
 
     const written = (await Bun.file(join(target, 'package.json')).json()) as {
       dependencies: Record<string, string>

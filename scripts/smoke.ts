@@ -80,6 +80,22 @@ console.log(pc.bold(pc.cyan('\nElvel smoke test')))
 
 const app = (await import('../playground/bootstrap/app.ts')).default
 
+/**
+ * Migrate the file database before anything renders a page.
+ *
+ * The session driver is `database`, and its store took the application's default
+ * connection when the provider booted — so the very first rendered page writes a
+ * session row, and on a machine that has never had `database/playground.sqlite`
+ * the answer is `no such table: sessions`. Ten view checks fail and the eleventh
+ * dies on the error JSON that comes back instead of markup.
+ *
+ * That is what CI was doing. The file used to be committed, was removed from git
+ * in August, and every run since has been red while every developer machine
+ * passed — because the file was already sitting there with its tables in it.
+ * Migrating it here is what makes the two the same.
+ */
+await app.make('artisan').run(['migrate', '--force'])
+
 // ---------------------------------------------------------------- bootstrap
 
 section('Bootstrap')
@@ -317,8 +333,8 @@ check(
 
 // Everything below reads and writes through models, so give the app a fresh
 // in-memory database as its *default* connection and run the real migrations and
-// seeders against it. The checked-in sqlite file is never touched, and the
-// assertions below do not depend on whatever state it happens to be in.
+// seeders against it. The file database keeps whatever it had, and the assertions
+// below do not depend on it.
 app.config.set('database.connections.smoke_default', { driver: 'sqlite', database: ':memory:' })
 app.make('db').setDefaultConnection('smoke_default')
 
