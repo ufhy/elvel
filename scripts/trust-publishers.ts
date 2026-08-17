@@ -31,7 +31,8 @@ import { join, resolve } from 'node:path'
  *
  *     npm login --auth-type=web
  *
- * After that this script can do the rest.
+ * After that, run this script **yourself, in a terminal** — it cannot be driven
+ * from a captured shell, for the reason `run()` explains below.
  */
 
 const ROOT = resolve(import.meta.dir, '..')
@@ -79,7 +80,24 @@ for (const entry of await readdir(join(ROOT, 'packages'), { withFileTypes: true 
 
 packages.sort()
 
-const run = (argv: string[]): { code: number; output: string } => {
+/**
+ * Registering has to run attached to the terminal, so `inherit` rather than pipe.
+ *
+ * npm asks for a second factor on every governance action, and with a security
+ * key its way of asking is to print a URL, open a browser and *wait*. Captured
+ * output means no terminal, so npm skips the waiting and fails with `EOTP` — and
+ * masks the URL, which is the one thing that would have helped. Measured: piped,
+ * it fails every time even with a fresh `npm login --auth-type=web` session.
+ *
+ * So this prints npm's own output as it goes and reads only the exit code.
+ */
+const run = (argv: string[], attached = false): { code: number; output: string } => {
+  if (attached) {
+    const result = Bun.spawnSync({ cmd: argv, cwd: ROOT, stdio: ['inherit', 'inherit', 'inherit'] })
+
+    return { code: result.exitCode ?? 1, output: '' }
+  }
+
   const result = Bun.spawnSync({ cmd: argv, cwd: ROOT, stdout: 'pipe', stderr: 'pipe' })
 
   return {
@@ -119,20 +137,25 @@ if (!register) {
 const failed: string[] = []
 
 for (const name of packages) {
-  const { code, output } = run([
-    'npx',
-    '-y',
-    NPM,
-    'trust',
-    'github',
-    name,
-    '--file',
-    WORKFLOW,
-    '--repo',
-    REPOSITORY,
-    '--allow-publish',
-    '-y'
-  ])
+  console.log(`\n--- ${name}`)
+
+  const { code } = run(
+    [
+      'npx',
+      '-y',
+      NPM,
+      'trust',
+      'github',
+      name,
+      '--file',
+      WORKFLOW,
+      '--repo',
+      REPOSITORY,
+      '--allow-publish',
+      '-y'
+    ],
+    true
+  )
 
   if (code === 0) {
     console.log(`registered ${name}`)
@@ -143,9 +166,6 @@ for (const name of packages) {
   failed.push(name)
 
   console.log(`FAILED ${name}`)
-
-  // The first failure carries the reason; the rest are usually the same one.
-  if (failed.length === 1) console.log(output.split('\n').slice(-6).join('\n'))
 }
 
 console.log(`\n${packages.length - failed.length} of ${packages.length} registered`)
