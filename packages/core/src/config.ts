@@ -62,7 +62,29 @@ export class Config implements ConfigRepository {
     const config = new Config()
 
     for (const [key, load] of Object.entries(loaders)) {
-      const module = await load()
+      /**
+       * A loader that cannot find its file says which config file, and how to
+       * get it back.
+       *
+       * Bun's own message is `Cannot find module '../config/mail.ts' from
+       * '/app/bootstrap/app.ts'`, which names a path and a bundler concern and
+       * nothing about configuration — and this is now the ordinary way to break
+       * a boot, since a scaffolded application ships only the config files its
+       * packages need and `config:publish` is how the rest arrive. Somebody who
+       * deletes one, or names one before publishing it, should not have to
+       * recognise a module-resolution error as a missing setting.
+       */
+      const module = await load().catch((problem: unknown) => {
+        const reason = problem instanceof Error ? problem.message : String(problem)
+
+        if (!/cannot find module/i.test(reason)) throw problem
+
+        throw new Error(
+          `bootstrap/app.ts names config/${key}.ts, which is not there. ` +
+            `Publish it with \`artisan config:publish ${key}\`, or remove the \`${key}:\` line from withConfig.`,
+          { cause: problem }
+        )
+      })
 
       if (module.default === undefined) {
         throw new Error(

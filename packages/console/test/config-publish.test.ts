@@ -1,6 +1,10 @@
-import { describe, expect, test } from 'bun:test'
-import { readdir } from 'node:fs/promises'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { Application } from '@elysian/core'
+import { ConfigPublishCommand } from '../src/commands/config-publish.ts'
+import { Kernel } from '../src/kernel.ts'
 
 /**
  * `config:publish` copies a default out of the package that owns it, so two
@@ -137,4 +141,88 @@ test('the scaffolder agrees about who owns what', async () => {
   )
 
   expect<Record<string, string>>(theirs).toEqual(await mapped())
+})
+
+/**
+ * The branch that only exists for an application without the package.
+ *
+ * `--kit=none` installs no mailer, so `config:publish mail` has nothing to copy —
+ * and until now that path had never actually run. Inside this repository every
+ * package resolves through the workspace root whether an application depends on
+ * it or not, so `Bun.resolveSync` always succeeds and the error was unreachable
+ * from any scaffolded application here.
+ *
+ * A temporary directory is what makes it reachable: resolution walks up from the
+ * application's base path, and above `/tmp` there is no `node_modules` holding
+ * `@elysian/mail`. Which is exactly the situation of a real application that
+ * never installed it.
+ */
+describe('publishing a config whose package is absent', () => {
+  let root: string
+  let app: Application
+  let kernel: Kernel
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'elysian-publish-'))
+    await mkdir(join(root, 'config'), { recursive: true })
+
+    app = new Application(root)
+    kernel = new Kernel(app)
+    kernel.register(ConfigPublishCommand)
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  /** Run a command, capturing what it printed with colours stripped. */
+  async function run(argv: string[]): Promise<{ status: number; output: string }> {
+    const lines: string[] = []
+    const collect = (...args: unknown[]) => lines.push(args.map(String).join(' '))
+    const log = console.log
+    const error = console.error
+
+    console.log = collect
+    console.error = collect
+
+    try {
+      const status = await kernel.run(argv)
+
+      return {
+        status,
+        output: lines
+          .join('\n')
+          .replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
+      }
+    } finally {
+      console.log = log
+      console.error = error
+    }
+  }
+
+  test('it says which package to install, and fails', async () => {
+    const { status, output } = await run(['config:publish', 'mail'])
+
+    expect<number>(status).toBe(1)
+    expect<string>(output).toContain('[@elysian/mail] is not installed')
+    expect<string>(output).toContain('bun add @elysian/mail')
+
+    // And wrote nothing: a half-published config is worse than none, because the
+    // file exists and the settings in it were never chosen.
+    expect<boolean>(await Bun.file(join(root, 'config', 'mail.ts')).exists()).toBe(false)
+  })
+
+  /**
+   * `--all` over the same application says nothing and succeeds.
+   *
+   * Deliberate: an application that installed six packages should not read
+   * eleven errors about the twenty it did not, and `--all` means "everything
+   * available to me", not "everything that exists".
+   */
+  test('but --all passes over what it cannot publish', async () => {
+    const { status, output } = await run(['config:publish', '--all'])
+
+    expect<number>(status).toBe(0)
+    expect<string>(output).not.toContain('is not installed')
+  })
 })

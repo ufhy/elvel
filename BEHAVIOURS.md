@@ -1081,6 +1081,19 @@ Nothing happens until somebody builds one, and any edit makes it stale — a fas
 path that is used without being opted into is a fast path that eventually runs
 yesterday's code.
 
+**Routing is core; `HttpServiceProvider` is everything around a request.** An
+application that leaves it out still serves pages — the root Elysia instance and
+`controller()` live in `@elysian/core` — and loses sessions, cookies, CSRF, the
+rate limiters and the middleware registry. Found while measuring which providers
+a landing page cannot boot without, where dropping it changed nothing that the
+two probed routes touched.
+
+What it does not do is fail quietly. A route declared with `middleware('auth')`
+in such an application answers 500, not 200 — so the guard is never bypassed. But
+it fails per request rather than at boot, and on the route that was meant to be
+guarded, so `middlewares()` now says which provider is missing instead of
+`Target [middleware] is not bound in the container`.
+
 **`"sideEffects": false` and `bun build` do not agree about barrel files.** The
 field is on every package, and `tests/side-effects.test.ts` keeps it true,
 because without it importing one helper from `@elysian/http` pulled 498 modules

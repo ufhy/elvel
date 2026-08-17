@@ -173,7 +173,29 @@ export class MiddlewareRegistry {
 
 /** The registry. */
 export function middlewares(): MiddlewareRegistry {
-  return app('middleware')
+  try {
+    return app('middleware')
+  } catch (problem) {
+    /**
+     * The registry is bound by `HttpServiceProvider`, which an application can
+     * leave out — routing itself lives in `@elysian/core`, so an application
+     * without it still serves pages and only fails on the routes that asked for
+     * middleware.
+     *
+     * Worth naming, because the raw message is `Target [middleware] is not bound
+     * in the container`, it arrives per request rather than at boot, and the
+     * route it arrives on is usually the one that was meant to be guarded.
+     */
+    if (problem instanceof Error && /\[middleware\] is not bound/.test(problem.message)) {
+      throw new Error(
+        'Middleware needs HttpServiceProvider, which this application does not register. ' +
+          'Add it to bootstrap/providers.ts, importing it from @elysian/http.',
+        { cause: problem }
+      )
+    }
+
+    throw problem
+  }
 }
 
 /**
