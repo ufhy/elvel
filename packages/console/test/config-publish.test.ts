@@ -114,3 +114,27 @@ describe('the config files a package can publish', () => {
     expect<string[]>(differ).toEqual([])
   })
 })
+
+/**
+ * The scaffolder carries its own copy of the ownership map, and must not drift.
+ *
+ * `create-elysian` depends on no framework package — `bunx create-elysian`
+ * should download a scaffolder, not a framework — so it cannot import this one.
+ * A copy held to the original by a test is the trade: the alternative is a
+ * scaffolded application that keeps a config file for a package it does not
+ * install, or drops one it does.
+ */
+test('the scaffolder agrees about who owns what', async () => {
+  const source = await Bun.file(join(packagesDir, 'create-elysian', 'src', 'index.ts')).text()
+
+  const block = source.slice(
+    source.indexOf('const CONFIG_OWNERS'),
+    source.indexOf('}', source.indexOf('const CONFIG_OWNERS'))
+  )
+
+  const theirs = Object.fromEntries(
+    [...block.matchAll(/^ {2}([\w-]+): '([\w-]+)'/gm)].map((match) => [match[1], match[2]])
+  )
+
+  expect<Record<string, string>>(theirs).toEqual(await mapped())
+})

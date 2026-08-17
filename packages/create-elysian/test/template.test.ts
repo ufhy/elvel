@@ -470,44 +470,63 @@ describe('the versions the template pins', () => {
  * after the kit is copied over the template and reads the files that land. A
  * test against the template alone would be testing the wrong artefact.
  */
-describe('what a scaffolded application installs', () => {
-  const scaffolds = new Map<string, Record<string, string>>()
+type Scaffold = {
+  dependencies: Record<string, string>
+  configs: string[]
+  bootstrap: string
+}
 
-  async function dependencies(kit: string): Promise<Record<string, string>> {
-    const cached = scaffolds.get(kit)
-    if (cached) return cached
+const scaffolds = new Map<string, Scaffold>()
 
-    const target = join(tmpdir(), `elysian-deps-${kit}-${process.pid}`)
+async function scaffold(kit: string): Promise<Scaffold> {
+  const cached = scaffolds.get(kit)
+  if (cached) return cached
 
-    await rm(target, { recursive: true, force: true })
+  const target = join(tmpdir(), `elysian-deps-${kit}-${process.pid}`)
 
-    const scaffolded = Bun.spawnSync({
-      cmd: [
-        'bun',
-        resolve(import.meta.dir, '..', 'src', 'index.ts'),
-        target,
-        `--kit=${kit}`,
-        '--no-install',
-        '--force'
-      ],
-      cwd: root,
-      stdout: 'pipe',
-      stderr: 'pipe'
-    })
+  await rm(target, { recursive: true, force: true })
 
-    expect<number>(scaffolded.exitCode).toBe(0)
+  const scaffolded = Bun.spawnSync({
+    cmd: [
+      'bun',
+      resolve(import.meta.dir, '..', 'src', 'index.ts'),
+      target,
+      `--kit=${kit}`,
+      '--no-install',
+      '--force'
+    ],
+    cwd: root,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
 
-    const manifest = (await Bun.file(join(target, 'package.json')).json()) as {
-      dependencies: Record<string, string>
-    }
+  expect<number>(scaffolded.exitCode).toBe(0)
 
-    await rm(target, { recursive: true, force: true })
-
-    scaffolds.set(kit, manifest.dependencies)
-
-    return manifest.dependencies
+  const manifest = (await Bun.file(join(target, 'package.json')).json()) as {
+    dependencies: Record<string, string>
   }
 
+  const built: Scaffold = {
+    dependencies: manifest.dependencies,
+    configs: (await readdir(join(target, 'config')))
+      .filter((entry) => entry.endsWith('.ts'))
+      .map((entry) => entry.slice(0, -'.ts'.length))
+      .sort(),
+    bootstrap: await Bun.file(join(target, 'bootstrap', 'app.ts')).text()
+  }
+
+  await rm(target, { recursive: true, force: true })
+
+  scaffolds.set(kit, built)
+
+  return built
+}
+
+async function dependencies(kit: string): Promise<Record<string, string>> {
+  return (await scaffold(kit)).dependencies
+}
+
+describe('what a scaffolded application installs', () => {
   test('an application with no auth does not install better-auth', async () => {
     const none = Object.keys(await dependencies('none'))
 
@@ -558,6 +577,79 @@ describe('what a scaffolded application installs', () => {
           offered.has(name) ? `${kit}: ${name}` : `${kit}: not offered by the template`
         )
       }
+    }
+  })
+})
+
+/**
+ * Which config files a scaffolded application is given.
+ *
+ * Laravel 11 slimmed its skeleton to ten and left the rest to `config:publish`.
+ * The idea is borrowed; the list is not. Laravel's ten are chosen for an
+ * application that always has every component, and two of them — `mail` and
+ * `queue` — would be settings for packages `--kit=none` does not install, while
+ * `view` and `vite`, in neither Laravel's ten nor its framework defaults, are
+ * read on every page it serves.
+ *
+ * So a config file ships when its package does. These are the results, named
+ * rather than counted, because a file quietly appearing or vanishing changes
+ * what an application is configured with.
+ */
+describe('the config files a kit ships', () => {
+  test('a landing page gets ten, and they are these ten', async () => {
+    expect<string[]>((await scaffold('none')).configs).toEqual([
+      'app',
+      'cache',
+      'cors',
+      'database',
+      'http',
+      'logging',
+      'services',
+      'session',
+      'view',
+      'vite'
+    ])
+  })
+
+  test('the auth kit adds what signing in needs', async () => {
+    const added = (await scaffold('auth')).configs.filter(
+      (name) => !(scaffolds.get('none') as { configs: string[] }).configs.includes(name)
+    )
+
+    expect<string[]>(added).toEqual([
+      'auth',
+      'filesystems',
+      'hashing',
+      'mail',
+      'notifications',
+      'queue'
+    ])
+  })
+
+  test('and the api kit the same, without the file storage', async () => {
+    const auth = (await scaffold('auth')).configs
+    const api = (await scaffold('api')).configs
+
+    expect<string[]>(auth.filter((name) => !api.includes(name))).toEqual(['filesystems'])
+  })
+
+  /**
+   * Every file shipped is named, and nothing else is.
+   *
+   * The two halves fail differently and both quietly. A config file with no line
+   * in `withConfig` is never read — `config('mail.default')` returns the default
+   * and nothing says the file was skipped. A line with no file behind it is
+   * worse: `Cannot find module` at boot, naming a path rather than a config.
+   */
+  test('bootstrap/app.ts names exactly the files that are there', async () => {
+    for (const kit of ['none', 'auth', 'api']) {
+      const { configs, bootstrap } = await scaffold(kit)
+
+      const named = [...bootstrap.matchAll(/import\('\.\.\/config\/([\w-]+)\.ts'\)/g)]
+        .map((match) => match[1] as string)
+        .sort()
+
+      expect<string[]>(named).toEqual(configs)
     }
   })
 })

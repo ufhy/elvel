@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { randomBytes } from 'node:crypto'
-import { mkdir, readdir, stat } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 import * as prompts from '@clack/prompts'
 import pc from 'picocolors'
@@ -191,7 +191,7 @@ async function main(): Promise<number> {
     await registerKitRoutes(target, KITS[kit as string]?.routes ?? [])
   }
 
-  await pruneDependencies(target)
+  await pruneConfig(target, await pruneDependencies(target))
 
   // Ship a working .env, not just the example — with its secrets filled in.
   const exampleEnv = Bun.file(join(target, '.env.example'))
@@ -451,6 +451,82 @@ async function copyTemplate(
 const ALWAYS_DEPENDED_ON = new Set(['elysia', '@kitajs/html'])
 
 /**
+ * Which package each config file belongs to.
+ *
+ * A copy of `OWNERS` in `@elysian/console`'s `config:publish`, held to it by a
+ * test rather than imported: this installer depends on no framework package, so
+ * that `bunx create-elysian` downloads a scaffolder and not a framework.
+ *
+ * `app` and `services` are absent because they belong to the application. Both
+ * ship with every scaffold and neither is publishable.
+ */
+const CONFIG_OWNERS: Record<string, string> = {
+  auth: 'auth',
+  broadcasting: 'broadcasting',
+  cache: 'cache',
+  concurrency: 'concurrency',
+  cors: 'http',
+  database: 'database',
+  filesystems: 'storage',
+  hashing: 'hashing',
+  http: 'http',
+  image: 'image',
+  logging: 'log',
+  mail: 'mail',
+  notifications: 'notifications',
+  queue: 'queue',
+  session: 'http',
+  view: 'view',
+  vite: 'view'
+}
+
+/**
+ * Drop the config files for packages this application does not have.
+ *
+ * Laravel slimmed its skeleton to ten config files in 11 and left the rest to
+ * `config:publish`, which is where the idea comes from — but the list is not
+ * copied, because Laravel's ten are chosen for an application that always has
+ * every component. Here `--kit=none` has no mailer at all, so `config/mail.ts`
+ * would be settings for a package that is not installed, while `config/view.ts`
+ * and `config/vite.ts` — neither of them in Laravel's ten — are read on every
+ * page it serves.
+ *
+ * So the rule follows the providers instead: a config file stays if its package
+ * is one this application actually uses. `app` and `services` always stay; they
+ * belong to the application rather than to any package.
+ *
+ * The `withConfig` line goes with the file. Naming a config file that is not
+ * there is not a missing setting — it is `Cannot find module` at boot.
+ */
+async function pruneConfig(target: string, present: Set<string>): Promise<void> {
+  const removed: string[] = []
+
+  for (const [name, owner] of Object.entries(CONFIG_OWNERS)) {
+    if (present.has(`@elysian/${owner}`)) continue
+
+    const path = join(target, 'config', `${name}.ts`)
+
+    if (!(await exists(path))) continue
+
+    await rm(path)
+    removed.push(name)
+  }
+
+  if (removed.length === 0) return
+
+  const path = join(target, 'bootstrap', 'app.ts')
+  const source = await Bun.file(path).text()
+
+  await Bun.write(
+    path,
+    source
+      .split('\n')
+      .filter((line) => !removed.some((name) => line.includes(`import('../config/${name}.ts')`)))
+      .join('\n')
+  )
+}
+
+/**
  * Drop the dependencies this application does not import.
  *
  * The template lists every framework package, because it has to be the union of
@@ -466,7 +542,7 @@ const ALWAYS_DEPENDED_ON = new Set(['elysia', '@kitajs/html'])
  * Only `dependencies` is touched. `devDependencies` is the toolchain, the same
  * for every application whatever it imports.
  */
-async function pruneDependencies(target: string): Promise<void> {
+async function pruneDependencies(target: string): Promise<Set<string>> {
   const imported = new Set<string>(ALWAYS_DEPENDED_ON)
 
   for await (const path of new Bun.Glob('**/*.{ts,tsx}').scan({ cwd: target, absolute: true })) {
@@ -491,6 +567,8 @@ async function pruneDependencies(target: string): Promise<void> {
   )
 
   await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  return imported
 }
 
 function substitute(contents: string, replacements: Replacements): string {
