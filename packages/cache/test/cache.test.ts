@@ -491,15 +491,27 @@ for (const candidate of candidates) {
       let peak = 0
       const refused: boolean[] = []
 
+      /**
+       * The slot outlives the work, which it did not before.
+       *
+       * This was `releaseAfter(10)` around a callback holding for 60 ms — a lock
+       * expiring in the middle of the work it guards. It passed only while all
+       * three callers got in inside those 10 ms, and on a Windows runner the third
+       * arrived late: peak 2, expected 3, and a release blocked by a test that was
+       * measuring the machine rather than the funnel.
+       *
+       * A slot held for two seconds around 150 ms of work leaves the outcome
+       * decided by the limit, which is what the test is about.
+       */
       const worker = () =>
         cache
           .funnel('reports')
           .limit(3)
-          .releaseAfter(10)
+          .releaseAfter(2000)
           .then(async () => {
             inside += 1
             peak = Math.max(peak, inside)
-            await Bun.sleep(60)
+            await Bun.sleep(150)
             inside -= 1
 
             return 'done'
