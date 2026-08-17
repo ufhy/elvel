@@ -31,7 +31,6 @@
     "access": "public"
   },
   "dependencies": {},
-  "private": true,
   "devDependencies": {
     "@elvel/core": "workspace:*"
   }

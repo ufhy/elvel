@@ -33,6 +33,5 @@
   "dependencies": {
     "@elvel/core": "workspace:*",
     "@elvel/support": "workspace:*"
-  },
-  "private": true
+  }
 }

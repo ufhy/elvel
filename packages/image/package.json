@@ -36,6 +36,5 @@
     "@elvel/contracts": "workspace:*",
     "@elvel/core": "workspace:*",
     "@elvel/process": "workspace:*"
-  },
-  "private": true
+  }
 }

@@ -37,6 +37,5 @@
   "dependencies": {
     "@elvel/contracts": "workspace:*",
     "@elvel/core": "workspace:*"
-  },
-  "private": true
+  }
 }

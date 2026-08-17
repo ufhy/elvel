@@ -111,6 +111,16 @@ describe('every package is publishable', () => {
     for (const { dir, manifest } of await packages()) {
       const missing: string[] = []
 
+      /**
+       * `private` stops a publish dead, and eight packages carried it.
+       *
+       * It is how six of the eleven packages that were never published under the
+       * old scope came to be missing — `npm publish` answers `EPRIVATE` and
+       * refuses, and nothing else in a monorepo ever asks. The root manifest
+       * keeps the flag on purpose; a package inside `packages/` must not.
+       */
+      if ((manifest as { private?: boolean }).private) missing.push('private: true')
+
       if (!manifest.description) missing.push('description')
       if (!manifest.keywords?.length) missing.push('keywords')
       if (manifest.license !== 'MIT') missing.push('license')
