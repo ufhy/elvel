@@ -393,6 +393,26 @@ const FRAMEWORK_PACKAGES = [
   'view'
 ] as const
 
+/**
+ * Read a JSON file, and say which one when it will not parse.
+ *
+ * Bun's own message is `SyntaxError: Failed to parse JSON` and nothing else —
+ * no path, no offending text. A Windows CI run failed on that line for a
+ * fortnight saying only that, while three JSON files were candidates.
+ */
+async function readJson<T>(path: string): Promise<T> {
+  const text = await Bun.file(path).text()
+
+  try {
+    return JSON.parse(text) as T
+  } catch (problem) {
+    throw new Error(
+      `${path} is not valid JSON (${problem instanceof Error ? problem.message : problem}): ` +
+        `${text.slice(0, 200)}`
+    )
+  }
+}
+
 /** Locate the framework checkout root, if we are scaffolding from inside one. */
 async function findMonorepoRoot(): Promise<string | undefined> {
   let directory = import.meta.dir
@@ -401,7 +421,9 @@ async function findMonorepoRoot(): Promise<string | undefined> {
     const manifest = Bun.file(join(directory, 'package.json'))
 
     if (await manifest.exists()) {
-      const parsed = (await manifest.json()) as { name?: string; workspaces?: unknown }
+      const parsed = await readJson<{ name?: string; workspaces?: unknown }>(
+        join(directory, 'package.json')
+      )
       if (parsed.name === 'elvel' && parsed.workspaces !== undefined) return directory
     }
 
@@ -425,9 +447,9 @@ async function findMonorepoRoot(): Promise<string | undefined> {
  * Read from disk rather than compiled in, so a release cannot forget it.
  */
 async function installerVersion(): Promise<string> {
-  const manifest = (await Bun.file(resolve(import.meta.dir, '..', 'package.json')).json()) as {
-    version?: string
-  }
+  const manifest = await readJson<{ version?: string }>(
+    resolve(import.meta.dir, '..', 'package.json')
+  )
 
   return manifest.version ?? '*'
 }
@@ -593,9 +615,7 @@ async function pruneDependencies(target: string): Promise<Set<string>> {
   }
 
   const path = join(target, 'package.json')
-  const manifest = (await Bun.file(path).json()) as {
-    dependencies?: Record<string, string>
-  }
+  const manifest = await readJson<{ dependencies?: Record<string, string> }>(path)
 
   manifest.dependencies = Object.fromEntries(
     Object.entries(manifest.dependencies ?? {}).filter(([name]) => imported.has(name))
