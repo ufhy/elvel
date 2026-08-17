@@ -1,6 +1,23 @@
 {
   "name": "@elyvel/encryption",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Encryption for Elyvel — authenticated ciphers over Bun’s crypto, with key rotation",
+  "keywords": [
+    "aes",
+    "bun",
+    "crypto",
+    "elyvel",
+    "encryption",
+    "key-rotation"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/encryption"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -8,23 +25,30 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*"
   },
   "peerDependencies": {
+    "@elyvel/database": "workspace:*"
+  },
+  "devDependencies": {
     "@elyvel/database": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@elyvel/database": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@elyvel/database": "workspace:*"
   }
 }

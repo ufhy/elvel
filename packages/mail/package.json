@@ -1,6 +1,22 @@
 {
   "name": "@elyvel/mail",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Laravel-style mail for Elyvel — Mailables and log, array and SMTP transports",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "email",
+    "mail",
+    "smtp"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/mail"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -9,8 +25,18 @@
     ".": "./src/index.ts",
     "./config/*": "./config/*"
   },
+  "files": [
+    "src",
+    "config",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@elyvel/console": "workspace:*",

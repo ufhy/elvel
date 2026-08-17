@@ -77,7 +77,7 @@ almost twice what the module count suggested — `@sinclair/typebox` at 236
 modules and `kysely` at 250 still arrive from npm as many small files and are
 untouched by any of this.
 
-Two obstacles, both verified rather than assumed.
+Three obstacles, all verified rather than assumed.
 
 **`"sideEffects": false` makes `bun build` produce a broken bundle.** Given an
 entry that only re-exports — which every `src/index.ts` here is — Bun 1.3.14
@@ -92,6 +92,16 @@ not import.
 **`bun pm pack` ignores `publishConfig`.** The obvious way to publish `dist`
 while developing against `src` is `publishConfig.exports`, and the tarball comes
 out with `exports` still pointing at `./src/index.ts` and `publishConfig` left in
-the manifest unused. So the switch has to happen in a release script — and there
-is no release process here at all yet, which is what this row is really waiting
-on.
+the manifest unused. So the switch has to happen in `scripts/release.ts`.
+
+**And a built package needs types it cannot currently emit.** Pointing `exports`
+at `dist/index.js` means pointing `types` at `dist/index.d.ts`, and TypeScript
+does produce them — `tsc --declaration --emitDeclarationOnly --noEmit false`
+across the whole repository emits without a single error. What it emits is
+unusable: because the source imports carry extensions, every line comes out as
+`export { Config } from './config.ts'`, and a consumer resolving that looks for
+`config.ts.d.ts`. So this needs a `.d.ts` bundler, or dropping `.ts` from every
+relative import in twenty-six packages.
+
+That is why `1.0.0-alpha.1` ships source, as `0.1.0-alpha.6` did. The release
+works and the types are exact; the boot cost stays.

@@ -1,6 +1,23 @@
 {
   "name": "create-elyvel",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Scaffold an Elyvel application — bun create elyvel my-app",
+  "keywords": [
+    "bun",
+    "create",
+    "elyvel",
+    "scaffold",
+    "starter",
+    "template"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/create-elyvel"
+  },
   "type": "module",
   "sideEffects": [
     "./src/index.ts"
@@ -9,8 +26,18 @@
     "create-elyvel": "./src/index.ts"
   },
   "main": "./src/index.ts",
+  "files": [
+    "src",
+    "template",
+    "kits",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",

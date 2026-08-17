@@ -1,6 +1,24 @@
 {
   "name": "@elyvel/console",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Artisan for Elyvel — command signatures, generators, prompts, and the kernel that runs them",
+  "keywords": [
+    "artisan",
+    "bun",
+    "cli",
+    "commands",
+    "console",
+    "elyvel",
+    "generator"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/console"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -9,8 +27,17 @@
     ".": "./src/index.ts",
     "./stubs/*": "./stubs/*"
   },
+  "files": [
+    "src",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",

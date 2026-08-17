@@ -1,6 +1,22 @@
 {
   "name": "@elyvel/contracts",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "The interfaces Elyvel’s packages agree on — types only, nothing at run time",
+  "keywords": [
+    "bun",
+    "contracts",
+    "elyvel",
+    "interfaces",
+    "types"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/contracts"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -8,10 +24,19 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "elysia": ">=1.4.0"
-  }
+  },
+  "dependencies": {}
 }

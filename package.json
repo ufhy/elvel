@@ -62,5 +62,12 @@
   "dependencies": {
     "better-auth": "1.6.27",
     "nodemailer": "9.0.5"
+  },
+  "version": "1.0.0-alpha.1",
+  "license": "MIT",
+  "description": "Elyvel — a Laravel-shaped framework for Bun, built on Elysia",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git"
   }
 }

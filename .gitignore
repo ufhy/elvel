@@ -1,6 +1,13 @@
 node_modules
 dist
 
+# `scripts/release.ts` puts a LICENSE and a generated README beside each
+# package.json for the length of a `bun pm pack`, then removes them. Twenty-six
+# copies of each is not something to keep in git.
+packages/*/LICENSE
+packages/*/README.md
+dist-release/
+
 # Scratch apps: `bun run create apps/<name>` targets, the throwaway project the
 # smoke test scaffolds, and a demo scaffolded to look at. playground/ is tracked
 # on purpose.

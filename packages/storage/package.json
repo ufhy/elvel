@@ -1,6 +1,22 @@
 {
   "name": "@elyvel/storage",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Laravel-style file storage for Elyvel — local and S3 disks, Bun-native",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "filesystem",
+    "s3",
+    "storage"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/storage"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -9,8 +25,17 @@
     ".": "./src/index.ts",
     "./config/*": "./config/*"
   },
+  "files": [
+    "src",
+    "config",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@elyvel/console": "workspace:*",

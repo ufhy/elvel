@@ -48,16 +48,17 @@
     },
     "packages/auth": {
       "name": "@elyvel/auth",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/cache": "workspace:*",
         "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
         "@elyvel/database": "workspace:*",
         "@elyvel/http": "workspace:*",
         "@elyvel/notifications": "workspace:*",
         "@elyvel/support": "workspace:*",
+      },
+      "devDependencies": {
+        "@elyvel/cache": "workspace:*",
       },
       "peerDependencies": {
         "better-auth": ">=1.6.0",
@@ -66,9 +67,9 @@
     },
     "packages/broadcasting": {
       "name": "@elyvel/broadcasting",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
+        "@elyvel/console": "workspace:*",
         "@elyvel/core": "workspace:*",
       },
       "peerDependencies": {
@@ -77,18 +78,17 @@
     },
     "packages/cache": {
       "name": "@elyvel/cache",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
         "@elyvel/database": "workspace:*",
-        "@elyvel/support": "workspace:*",
       },
     },
     "packages/concurrency": {
       "name": "@elyvel/concurrency",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
@@ -96,7 +96,7 @@
     },
     "packages/console": {
       "name": "@elyvel/console",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@clack/prompts": "^1.7.0",
         "@elyvel/contracts": "workspace:*",
@@ -110,14 +110,14 @@
     },
     "packages/contracts": {
       "name": "@elyvel/contracts",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "peerDependencies": {
         "elysia": ">=1.4.0",
       },
     },
     "packages/core": {
       "name": "@elyvel/core",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/contracts": "workspace:*",
         "@elyvel/support": "workspace:*",
@@ -128,7 +128,7 @@
     },
     "packages/create-elyvel": {
       "name": "create-elyvel",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "bin": {
         "create-elyvel": "./src/index.ts",
       },
@@ -139,7 +139,7 @@
     },
     "packages/database": {
       "name": "@elyvel/database",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
@@ -151,10 +151,9 @@
     },
     "packages/encryption": {
       "name": "@elyvel/encryption",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
       },
       "devDependencies": {
@@ -169,15 +168,16 @@
     },
     "packages/events": {
       "name": "@elyvel/events",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
+        "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
       },
     },
     "packages/hashing": {
       "name": "@elyvel/hashing",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
@@ -185,15 +185,15 @@
     },
     "packages/http": {
       "name": "@elyvel/http",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/cache": "workspace:*",
         "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
         "@elyvel/database": "workspace:*",
         "@elyvel/support": "workspace:*",
         "@elyvel/validation": "workspace:*",
+        "picocolors": "^1.1.1",
       },
       "peerDependencies": {
         "elysia": ">=1.4.0",
@@ -201,15 +201,14 @@
     },
     "packages/http-client": {
       "name": "@elyvel/http-client",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
       },
     },
     "packages/image": {
       "name": "@elyvel/image",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
@@ -218,8 +217,9 @@
     },
     "packages/log": {
       "name": "@elyvel/log",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
+        "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
         "@elyvel/support": "workspace:*",
@@ -231,7 +231,7 @@
     },
     "packages/mail": {
       "name": "@elyvel/mail",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
@@ -243,7 +243,7 @@
     },
     "packages/notifications": {
       "name": "@elyvel/notifications",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
@@ -256,15 +256,14 @@
     },
     "packages/process": {
       "name": "@elyvel/process",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
       },
     },
     "packages/queue": {
       "name": "@elyvel/queue",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/cache": "workspace:*",
         "@elyvel/console": "workspace:*",
@@ -277,7 +276,7 @@
     },
     "packages/scheduler": {
       "name": "@elyvel/scheduler",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
@@ -291,7 +290,7 @@
     },
     "packages/storage": {
       "name": "@elyvel/storage",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elyvel/console": "workspace:*",
         "@elyvel/contracts": "workspace:*",
@@ -301,31 +300,28 @@
     },
     "packages/support": {
       "name": "@elyvel/support",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
     },
     "packages/testing": {
       "name": "@elyvel/testing",
-      "version": "0.1.0",
-      "dependencies": {
-        "@elyvel/contracts": "workspace:*",
+      "version": "1.0.0-alpha.1",
+      "devDependencies": {
         "@elyvel/core": "workspace:*",
-        "@elyvel/support": "workspace:*",
       },
     },
     "packages/translation": {
       "name": "@elyvel/translation",
-      "version": "0.1.0",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
         "@elyvel/support": "workspace:*",
       },
     },
     "packages/validation": {
       "name": "@elyvel/validation",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
+        "@elyvel/console": "workspace:*",
         "@elyvel/core": "workspace:*",
         "@elyvel/support": "workspace:*",
       },
@@ -338,12 +334,11 @@
     },
     "packages/view": {
       "name": "@elyvel/view",
-      "version": "0.0.1",
+      "version": "1.0.0-alpha.1",
       "dependencies": {
         "@elysiajs/static": "^1.4.10",
         "@elyvel/contracts": "workspace:*",
         "@elyvel/core": "workspace:*",
-        "@kitajs/html": "^4.2.13",
       },
       "peerDependencies": {
         "elysia": ">=1.4.0",

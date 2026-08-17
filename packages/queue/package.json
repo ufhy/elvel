@@ -1,6 +1,24 @@
 {
   "name": "@elyvel/queue",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Laravel-style queues for Elyvel — jobs, workers, batches, and sync, database, Redis and SQS drivers",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "jobs",
+    "queue",
+    "redis",
+    "sqs",
+    "worker"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/queue"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -9,8 +27,18 @@
     ".": "./src/index.ts",
     "./config/*": "./config/*"
   },
+  "files": [
+    "src",
+    "config",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@elyvel/cache": "workspace:*",

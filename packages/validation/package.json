@@ -1,6 +1,22 @@
 {
   "name": "@elyvel/validation",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Laravel-style validation for Elyvel — a rule DSL, message bags, and form requests",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "rules",
+    "validation",
+    "validator"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/validation"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -8,11 +24,20 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
+    "@elyvel/console": "workspace:*",
     "@elyvel/core": "workspace:*",
     "@elyvel/support": "workspace:*"
   },

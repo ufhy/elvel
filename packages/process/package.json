@@ -1,14 +1,38 @@
 {
   "name": "@elyvel/process",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
+  "description": "Running processes from Elyvel — fluent commands, pipes, pools and process groups",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "exec",
+    "process",
+    "shell",
+    "spawn"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/process"
+  },
   "type": "module",
   "sideEffects": false,
-  "private": true,
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*"
-  }
+  },
+  "private": true
 }

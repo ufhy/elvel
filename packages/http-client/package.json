@@ -1,14 +1,38 @@
 {
   "name": "@elyvel/http-client",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
+  "description": "An HTTP client for Elyvel — fluent requests, retries, and recording for tests",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "fetch",
+    "http-client",
+    "requests",
+    "retry"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/http-client"
+  },
   "type": "module",
   "sideEffects": false,
-  "private": true,
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*"
-  }
+  },
+  "private": true
 }

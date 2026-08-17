@@ -1,6 +1,24 @@
 {
   "name": "@elyvel/http",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "The HTTP layer for Elyvel — middleware, sessions, cookies, CSRF and rate limiting",
+  "keywords": [
+    "bun",
+    "csrf",
+    "elyvel",
+    "http",
+    "middleware",
+    "rate-limit",
+    "session"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/http"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -10,17 +28,27 @@
     "./stubs/*": "./stubs/*",
     "./config/*": "./config/*"
   },
+  "files": [
+    "src",
+    "config",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@elyvel/cache": "workspace:*",
     "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*",
     "@elyvel/database": "workspace:*",
     "@elyvel/support": "workspace:*",
-    "@elyvel/validation": "workspace:*"
+    "@elyvel/validation": "workspace:*",
+    "picocolors": "^1.1.1"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"

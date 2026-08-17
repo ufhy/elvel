@@ -1,6 +1,24 @@
 {
   "name": "@elyvel/auth",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Authentication for Elyvel — token guard, gate, and better-auth over the framework ORM",
+  "keywords": [
+    "auth",
+    "authentication",
+    "authorization",
+    "bun",
+    "elyvel",
+    "gate",
+    "policy"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/auth"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -9,13 +27,21 @@
     ".": "./src/index.ts",
     "./config/*": "./config/*"
   },
+  "files": [
+    "src",
+    "config",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@elyvel/cache": "workspace:*",
     "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*",
     "@elyvel/database": "workspace:*",
     "@elyvel/http": "workspace:*",
@@ -25,5 +51,8 @@
   "peerDependencies": {
     "better-auth": ">=1.6.0",
     "elysia": ">=1.4.0"
+  },
+  "devDependencies": {
+    "@elyvel/cache": "workspace:*"
   }
 }

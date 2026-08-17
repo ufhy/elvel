@@ -1,6 +1,22 @@
 {
   "name": "@elyvel/scheduler",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Laravel-style task scheduling for Elyvel — cron expressions, fluent frequencies, schedule:run",
+  "keywords": [
+    "bun",
+    "cron",
+    "elyvel",
+    "scheduler",
+    "tasks"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/scheduler"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -8,8 +24,16 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@elyvel/console": "workspace:*",

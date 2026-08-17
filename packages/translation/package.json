@@ -1,15 +1,38 @@
 {
   "name": "@elyvel/translation",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
+  "description": "Translation for Elyvel — line files, replacements, and pluralisation",
+  "keywords": [
+    "bun",
+    "elyvel",
+    "i18n",
+    "localisation",
+    "translation"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/translation"
+  },
   "type": "module",
   "sideEffects": false,
-  "private": true,
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*",
     "@elyvel/support": "workspace:*"
-  }
+  },
+  "private": true
 }

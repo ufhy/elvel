@@ -1,6 +1,22 @@
 {
   "name": "@elyvel/events",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Laravel-style event dispatcher for Elyvel — listeners, subscribers, and deferred dispatch",
+  "keywords": [
+    "bun",
+    "dispatcher",
+    "elyvel",
+    "events",
+    "listeners"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/events"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -8,10 +24,19 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
+    "@elyvel/console": "workspace:*",
     "@elyvel/contracts": "workspace:*",
     "@elyvel/core": "workspace:*"
   }

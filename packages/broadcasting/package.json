@@ -1,18 +1,44 @@
 {
   "name": "@elyvel/broadcasting",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
+  "description": "Real-time broadcasting for Elyvel — Bun-native WebSocket pub/sub, no Pusher needed",
+  "keywords": [
+    "broadcasting",
+    "bun",
+    "elyvel",
+    "pubsub",
+    "websocket"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/broadcasting"
+  },
   "type": "module",
   "sideEffects": false,
-  "private": true,
   "exports": {
     ".": "./src/index.ts",
     "./config/*": "./config/*"
   },
+  "files": [
+    "src",
+    "config",
+    "stubs",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
+    "@elyvel/console": "workspace:*",
     "@elyvel/core": "workspace:*"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"
-  }
+  },
+  "private": true
 }

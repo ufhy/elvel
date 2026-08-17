@@ -1,6 +1,23 @@
 {
   "name": "@elyvel/support",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
+  "description": "Foundational utilities shared across Elyvel — Collection, Str, Arr, mirrors Illuminate\\Support",
+  "keywords": [
+    "arr",
+    "bun",
+    "collection",
+    "elyvel",
+    "helpers",
+    "str"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elyvel.git",
+    "directory": "packages/support"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -8,7 +25,16 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {}
 }
