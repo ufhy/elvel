@@ -30,56 +30,50 @@ bun run artisan db:seed                    # run DatabaseSeeder
 bun run artisan db:show                    # tables and row counts
 ```
 
-## Putting data on a page
+## Adding a database
 
-The landing page needs no database — this application boots and serves without
-one, and `config/database.ts` is only consulted the first time something asks.
-When you do want rows, the path is four commands and two edits:
+This application has none. It boots, serves, and renders without one, and
+nothing in it opens a connection — which is why `@elysian/database` is not
+installed and there is no `database/` directory.
 
-```bash
-bun run artisan make:model Post -mfs   # model, migration, factory, seeder
-```
-
-Add the columns to `database/migrations/*_create_posts_table.ts`:
-
-```ts
-await schema.create('posts', (table) => {
-  table.id()
-  table.string('title')
-  table.text('body')
-  table.timestamps()
-})
-```
-
-…and the same names to `database/factories/PostFactory.ts`, which starts empty
-so it cannot name a column the migration has not created:
-
-```ts
-definition(index: number) {
-  return { title: `Post ${index}`, body: 'Something to read.' }
-}
-```
-
-Then create the table and fill it — `db:seed` runs `DatabaseSeeder`, which is
-where `PostSeeder` gets called from:
+Three steps to change that:
 
 ```bash
-bun run artisan migrate
-bun run artisan db:seed
+bun add @elysian/database
+bun artisan config:publish database
 ```
 
-Read them in a controller, and hand them to the page:
+then add `DatabaseServiceProvider` to `bootstrap/providers.ts`, importing it
+from `@elysian/database`. That registers `make:model`, `migrate`, `db:seed` and
+the rest.
+
+From there:
+
+```bash
+bun artisan make:model Post -mfs
+```
+
+which writes a model, a migration, a factory and a seeder. The migration starts
+with `id` and timestamps — add your columns there, and the matching lines to the
+factory's `definition()`, which starts empty for that reason. Then:
+
+```bash
+bun artisan migrate
+bun artisan db:seed
+```
+
+And on a page:
 
 ```ts
+import { controller } from '@elysian/core'
+import { view } from '@elysian/view'
 import { Post } from '../../Models/Post.ts'
+import Landing from '../../../resources/views/pages/landing.tsx'
 
 export default controller('page').get('/', async () =>
   view(Landing, { title: 'Welcome', posts: await Post.query().latest().get() })
 )
 ```
-
-A page is a function of its props, so `posts` is typed all the way into the
-markup — a renamed column is a compile error rather than a blank section.
 
 ## Layout
 
@@ -89,11 +83,8 @@ app/
   Http/Controllers/     controllers (each one is an Elysia instance)
   Providers/            service providers
 bootstrap/app.ts        env -> config -> exceptions -> providers -> routes
+bootstrap/providers.ts  the providers this application registers
 config/                 every file's default export becomes a config namespace
-app/Models/             models
-database/migrations/    migrations, ordered by their timestamp prefix
-database/seeders/       seeders, composed explicitly
-database/factories/     model factories
 resources/views/        JSX view components
 public/                 static assets served by @elysiajs/static
 routes/web.ts           route registration
