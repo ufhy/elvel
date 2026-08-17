@@ -1,6 +1,6 @@
 {
   "name": "@elvel/view",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "Server-rendered views for Elvel — JSX components, layouts, stacks, and Vite assets",
   "keywords": [
     "bun",
