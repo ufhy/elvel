@@ -58,39 +58,26 @@ hides all progress. One left.
 
 ---
 
-## 1. Four seconds before anything happens
+## 1. Every package ships as a hundred files
 
-Every `artisan` command and every `bun run dev` in the auth kit waits four
-seconds before doing any work. `artisan list` — which prints a table and exits —
-takes 4.019s.
+What is left of the boot cost, after `app:build` and the fast path in
+`artisan.ts` took the repeated case from 4.019s to 0.285s.
 
-Measured, because the obvious culprit is the wrong one:
+Two cases still pay full price, and both are development: the first `artisan`
+after any edit, which correctly refuses a stale bundle, and `bun run dev`, which
+restarts on every save and takes 2676 ms to serve the change. A bundle is the
+wrong tool for either — rebuilding on each keystroke trades one wait for another.
 
-    plain   2047 ms unbundled     221 ms bundled
-    auth    4005 ms unbundled     535 ms bundled
+The cause is that nothing here is packaged. `main` and `exports` point at
+`./src/index.ts`, so an application installing `@elysian/mail` gets sixteen
+TypeScript modules to transpile rather than one file to parse, and the twenty-six
+packages together contribute about 311 of the thousand-odd modules a boot loads.
+Building each package to a single file and pointing the published `exports` at
+it — source stays the workspace's own entry — would remove those 311 without
+touching how the framework is developed.
 
-    of the auth kit's 4005 ms:
-      3761 ms   loading the provider modules
-       244 ms   config, register, boot, routes
-
-So it is not the providers doing work at boot — that is six per cent of it. It
-is Bun transpiling something like a thousand small TypeScript files, every time,
-with nothing cached between runs. Bundling removes it almost entirely, which is
-what the two right-hand numbers are.
-
-This row is what remains of a row that read "deferrable providers", after the
-measurement disproved its premise. Laravel defers `Mail`, `Cache`, `Queue`,
-`Validation`, `Broadcasting`, `Translation` and `Hashing` through
-`DeferrableProvider`, and porting that here would have saved the 244 ms and
-about a fifth of the module loading — perhaps 700 ms of 4005, against real
-complexity: a container that can resolve a binding by loading a package, and a
-rule that a deferred provider's `register()` may not be async.
-
-Bundling saves 3470 ms and already works, so `artisan app:build` now exists and
-`optimize` runs it: a deploy gets `dist/artisan.js`, and `bun dist/artisan.js
-list` takes 0.604 s where `bun artisan.ts list` takes 4.019 s.
-
-What is left is development, where the bundle is the wrong tool — `bun run dev`
-watches source and rebuilding on every keystroke trades one wait for another.
-Four seconds per `artisan` invocation is still four seconds, and nothing here
-addresses it.
+It would not remove the rest. `@sinclair/typebox` is 236 modules and `kysely`
+250, and both arrive that way from npm. So the ceiling on this is roughly a third
+of the boot, and the work is a build step for twenty-six packages plus a publish
+story — worth doing, but worth measuring first on one package rather than
+assuming the third.
