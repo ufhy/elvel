@@ -58,18 +58,7 @@ hides all progress.
 
 ---
 
-## 1. Hold the number
-
-Re-measure the `--kit=none` bundle and lock it with a test, the way
-`tests/side-effects.test.ts` locks the `sideEffects` claim. Today it is 1165
-modules and 5.2 MB of source with every provider registered, and 1.47 MB built
-once `--kit=none` registers only eleven; 1.47 MB now that a kit registers only what it
-needs; that is the number to assert.
-
-A number that is never asserted is a number that quietly goes back up, and
-nothing about a scaffolded application would break loudly when it does.
-
-## 2. The no-auth story
+## 1. The no-auth story
 
 Only after the rows above, because the answer moves. Three directions:
 
@@ -81,7 +70,7 @@ If the pruning concludes that `--kit=none` should not install `@elysian/database
 all, the second direction stops being a matter of taste and starts being a
 contradiction.
 
-## 3. Deferrable providers
+## 2. Deferrable providers
 
 Laravel's own answer to a long provider list, and one this framework has no
 version of. `Mail`, `Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation`
