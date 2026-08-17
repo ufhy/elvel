@@ -1,4 +1,4 @@
-import { FormRequest } from '@elysian/http'
+import { FormRequest } from '@elyvel/http'
 
 export class {{ class }} extends FormRequest {
   /** Return false to refuse the request with a 403, not a 422. */

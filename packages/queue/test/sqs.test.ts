@@ -10,7 +10,7 @@ import { SqsQueue } from '../src/drivers/sqs.ts'
  * count, delayed visibility — is exercised for real. What it cannot cover is
  * AWS's own eventual consistency, which is noted in BEHAVIOURS.md.
  *
- *   docker run -d --name elysian-sqs -p 9324:9324 softwaremill/elasticmq-native
+ *   docker run -d --name elyvel-sqs -p 9324:9324 softwaremill/elasticmq-native
  *   TEST_SQS_ENDPOINT=http://127.0.0.1:9324/000000000000 bun test packages/queue
  *
  * Without an endpoint it skips with a note, as the other server suites do.
@@ -24,7 +24,7 @@ const credentials = {
 }
 
 /** One queue per run, so two suites against one server never collide. */
-const queueName = `elysian-t${Date.now().toString(36)}`
+const queueName = `elyvel-t${Date.now().toString(36)}`
 
 const reachable = await (async () => {
   try {

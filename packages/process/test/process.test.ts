@@ -69,7 +69,7 @@ describe('running a command', () => {
 
 describe('configuration', () => {
   test('runs in a given directory', async () => {
-    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elysian-process-')))
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elyvel-process-')))
     const result = await run().path(directory).run(WHERE)
 
     expect(await realpath(result.output.trim())).toBe(directory)
@@ -90,7 +90,7 @@ describe('configuration', () => {
   })
 
   test('an immutable builder does not leak between calls', async () => {
-    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elysian-process-')))
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elyvel-process-')))
     const base = run()
     const elsewhere = base.path(directory)
 
@@ -342,7 +342,7 @@ describe('binary output', () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])
 
   test('the bytes survive exactly, where the string does not', async () => {
-    const file = join(await mkdtemp(join(tmpdir(), 'elysian-binary-')), 'probe.png')
+    const file = join(await mkdtemp(join(tmpdir(), 'elyvel-binary-')), 'probe.png')
     await Bun.write(file, png)
 
     const result = await run().binary().run(['cat', file])

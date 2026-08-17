@@ -1,5 +1,5 @@
-import { controller } from '@elysian/core'
-import { __, choice, trans } from '@elysian/translation'
+import { controller } from '@elyvel/core'
+import { __, choice, trans } from '@elyvel/translation'
 
 /**
  * Generated with `bun run playground make:controller LanguageController`, then

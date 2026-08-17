@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { Address } from './mailable.ts'
 import type { Mailer, PendingMail } from './mailer.ts'
 import type { MailManager } from './manager.ts'

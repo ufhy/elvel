@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import { AppServiceProvider } from '../app/Providers/AppServiceProvider.ts'
 
 /**

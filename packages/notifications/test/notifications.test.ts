@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elysian/core'
-import { ConnectionManager } from '@elysian/database'
+import { Application } from '@elyvel/core'
+import { ConnectionManager } from '@elyvel/database'
 import { BroadcastNotificationChannel } from '../src/channels/broadcast.ts'
 import { DatabaseNotificationChannel } from '../src/channels/database.ts'
 import { LogNotificationChannel } from '../src/channels/log.ts'
@@ -325,9 +325,9 @@ describe('MailMessage', () => {
       .line('above two')
       .action('Do it', 'https://example.com/go')
       .line('below')
-      .salutation('Bye,\nElysian')
+      .salutation('Bye,\nElyvel')
 
-    const text = message.toText('Elysian')
+    const text = message.toText('Elyvel')
 
     expect(text.indexOf('above one')).toBeLessThan(text.indexOf('Do it'))
     expect(text.indexOf('Do it')).toBeLessThan(text.indexOf('below'))
@@ -340,7 +340,7 @@ describe('MailMessage', () => {
       .greeting('Hello Ada!')
       .line('Your article is live.')
       .action('Read it', 'https://example.com/a')
-      .toHtml('Elysian')
+      .toHtml('Elyvel')
 
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(html).toContain('Hello Ada!')
@@ -363,14 +363,14 @@ describe('MailMessage', () => {
 
   test('a line from user input cannot inject markup', () => {
     // A notification line very often carries a title or a name somebody typed.
-    const html = new MailMessage().line('<script>alert(1)</script>').toHtml('Elysian')
+    const html = new MailMessage().line('<script>alert(1)</script>').toHtml('Elyvel')
 
     expect(html).not.toContain('<script>')
     expect(html).toContain('&lt;script&gt;')
   })
 
   test('a hostile action URL is replaced rather than emitted', () => {
-    const html = new MailMessage().action('Click', 'javascript:alert(1)').toHtml('Elysian')
+    const html = new MailMessage().action('Click', 'javascript:alert(1)').toHtml('Elyvel')
 
     expect(html).not.toContain('javascript:')
     expect(html).toContain('href="#"')

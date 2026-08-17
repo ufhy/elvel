@@ -1,4 +1,4 @@
-import { Seeder, type SeederContext } from '@elysian/database'
+import { Seeder, type SeederContext } from '@elyvel/database'
 
 export class {{ class }} extends Seeder {
   async run({ table, call, note }: SeederContext): Promise<void> {

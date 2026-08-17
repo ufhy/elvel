@@ -1,4 +1,4 @@
-import { type Credentials, signRequest } from '@elysian/support'
+import { type Credentials, signRequest } from '@elyvel/support'
 import type { JobPayload, QueueDriver, QueuedJob } from '../contracts.ts'
 
 export type SqsQueueOptions = Credentials & {
@@ -43,7 +43,7 @@ export type SqsQueueOptions = Credentials & {
  *   several hosts cannot answer exactly without stopping. Do not build a
  *   "wait until empty" loop on it.
  *
- * Requests are signed with SigV4 from `@elysian/support` rather than through the
+ * Requests are signed with SigV4 from `@elyvel/support` rather than through the
  * AWS SDK, and use the query protocol, which every S3-compatible SQS — including
  * ElasticMQ, which the tests run against — still speaks.
  */

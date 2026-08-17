@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elysian/contracts'
+import type { ApplicationContract } from '@elyvel/contracts'
 import { type ImageDriver, ImageError } from './contracts.ts'
 import { MagickDriver } from './drivers/magick.ts'
 import { SharpDriver } from './drivers/sharp.ts'

@@ -1,5 +1,5 @@
-import { Policy } from '@elysian/auth'
-import type { AuthUser } from '@elysian/auth'
+import { Policy } from '@elyvel/auth'
+import type { AuthUser } from '@elyvel/auth'
 
 /**
  * Abilities for {{ studly }}. The method name *is* the ability name:

@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Arr } from '@elysian/support'
+import { Arr } from '@elyvel/support'
 import { choose } from './selector.ts'
 
 export type Messages = Record<string, unknown>

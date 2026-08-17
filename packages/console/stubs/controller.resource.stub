@@ -1,4 +1,4 @@
-import { controller } from '@elysian/core'
+import { controller } from '@elyvel/core'
 import { t } from 'elysia'
 
 /**

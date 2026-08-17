@@ -1,4 +1,4 @@
-import { Arr } from '@elysian/support'
+import { Arr } from '@elyvel/support'
 import type { Data } from './types.ts'
 
 /**

@@ -1,13 +1,13 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { EventSubscriber } from '@elysian/contracts'
-import { ServiceProvider } from '@elysian/core'
+import type { EventSubscriber } from '@elyvel/contracts'
+import { ServiceProvider } from '@elyvel/core'
 import { EventListCommand } from './console/event-list.ts'
 import { Dispatcher } from './dispatcher.ts'
 import { EventRegistry } from './event-registry.ts'
 import { isQueuedListener } from './listener.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     events: Dispatcher
     'events.registry': EventRegistry

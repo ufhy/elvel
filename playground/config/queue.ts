@@ -1,4 +1,4 @@
-import { env } from '@elysian/core'
+import { env } from '@elyvel/core'
 
 export default {
   /** Connection `dispatch()` uses when a job does not name one. */

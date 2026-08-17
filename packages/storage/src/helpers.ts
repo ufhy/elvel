@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { Disk } from './contracts.ts'
 import type { StorageManager } from './manager.ts'
 

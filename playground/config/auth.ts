@@ -1,4 +1,4 @@
-import { env } from '@elysian/core'
+import { env } from '@elyvel/core'
 
 /**
  * better-auth's options, plus the few keys the framework reads itself.

@@ -1,4 +1,4 @@
-import type { ViewComponent } from '@elysian/contracts'
+import type { ViewComponent } from '@elyvel/contracts'
 import { markdownToHtml, markdownToText } from './markdown.ts'
 
 /** One mailbox. A bare string is an address with no display name. */

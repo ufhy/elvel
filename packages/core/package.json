@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/core",
+  "name": "@elyvel/core",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/contracts": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/support": "workspace:*"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"

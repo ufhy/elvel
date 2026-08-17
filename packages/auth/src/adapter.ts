@@ -1,5 +1,5 @@
-import type { Connection, ConnectionManager, Row } from '@elysian/database'
-import { Expression, QueryBuilder } from '@elysian/database'
+import type { Connection, ConnectionManager, Row } from '@elyvel/database'
+import { Expression, QueryBuilder } from '@elyvel/database'
 import type {
   AdapterFactory,
   CleanedWhere,
@@ -21,7 +21,7 @@ type AuthField = AuthTables[string]['fields'][string]
 
 export type Dialect = 'sqlite' | 'mysql' | 'mariadb' | 'postgres'
 
-export type ElysianAdapterOptions = {
+export type ElyvelAdapterOptions = {
   /** Named connection to use. Defaults to the application's default. */
   connection?: string
   /** Dialect of that connection. Decides how booleans are stored. */
@@ -47,7 +47,7 @@ export type ElysianAdapterOptions = {
  * adapter only when `experimental.joins` is on, and otherwise emulates it with
  * extra queries of its own.
  */
-export function elysianAdapter(db: ConnectionManager, options: ElysianAdapterOptions) {
+export function elyvelAdapter(db: ConnectionManager, options: ElyvelAdapterOptions) {
   // Kept so a transaction can build a nested adapter with the same options,
   // exactly as better-auth's own memory adapter does.
   let lazyOptions: BetterAuthOptions = {}
@@ -55,8 +55,8 @@ export function elysianAdapter(db: ConnectionManager, options: ElysianAdapterOpt
   const build = (resolve: () => Promise<Connection>): AdapterFactory<BetterAuthOptions> =>
     createAdapterFactory({
       config: {
-        adapterId: 'elysian',
-        adapterName: 'Elysian Adapter',
+        adapterId: 'elyvel',
+        adapterName: 'Elyvel Adapter',
         usePlural: false,
         debugLogs: options.debugLogs ?? false,
 
@@ -338,7 +338,7 @@ function normaliseDate(value: unknown, field: AuthField, dialect: Dialect): unkn
   return parsed.toISOString().slice(0, 19).replace('T', ' ')
 }
 
-function defaultMigrationPath(options: ElysianAdapterOptions): string {
+function defaultMigrationPath(options: ElyvelAdapterOptions): string {
   const name = options.migrationName ?? 'create_auth_tables'
 
   return `${options.migrationPath ?? 'database/migrations'}/${name}.ts`
@@ -389,7 +389,7 @@ export function migrationFor(tables: AuthTables, dialect: Dialect): string {
     down.unshift(`    await schema.dropIfExists('${table.modelName}')`)
   }
 
-  return `import { Migration, type MigrationContext } from '@elysian/database'
+  return `import { Migration, type MigrationContext } from '@elyvel/database'
 
 /**
  * Auth tables, generated from better-auth's schema by \`artisan auth:schema\`.
@@ -531,7 +531,7 @@ export function diffMigrationFor(
     )
   }
 
-  const code = `import { Migration, type MigrationContext } from '@elysian/database'
+  const code = `import { Migration, type MigrationContext } from '@elyvel/database'
 
 /**
  * Brings the auth tables up to what the current configuration asks for.

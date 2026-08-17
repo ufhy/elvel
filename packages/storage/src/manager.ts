@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elysian/contracts'
+import type { ApplicationContract } from '@elyvel/contracts'
 import type { Disk, Visibility } from './contracts.ts'
 import { LocalDisk } from './disks/local.ts'
 import { MemoryDisk } from './disks/memory.ts'

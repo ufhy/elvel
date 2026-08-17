@@ -5,7 +5,7 @@ import type {
   LoggerContract,
   LogLevel,
   LogRecord
-} from '@elysian/contracts'
+} from '@elyvel/contracts'
 import { isHandling } from './levels.ts'
 
 /**

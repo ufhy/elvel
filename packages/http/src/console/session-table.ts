@@ -1,4 +1,4 @@
-import { MigrationGeneratorCommand } from '@elysian/database'
+import { MigrationGeneratorCommand } from '@elyvel/database'
 
 /** `session:table` — the migration the `database` session driver needs. */
 export class SessionTableCommand extends MigrationGeneratorCommand {

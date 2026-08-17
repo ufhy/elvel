@@ -1,4 +1,4 @@
-import { Job } from '@elysian/queue'
+import { Job } from '@elyvel/queue'
 import type { Notifiable } from './notifiable.ts'
 import type { AnyNotification, NotificationRegistry } from './notification.ts'
 

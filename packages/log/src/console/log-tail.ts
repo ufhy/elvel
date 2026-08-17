@@ -1,5 +1,5 @@
 import { stat } from 'node:fs/promises'
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 import pc from 'picocolors'
 
 /** How a line is coloured, by level. */
@@ -140,7 +140,7 @@ export class LogTailCommand extends Command {
   private defaultPath(): string {
     const channel = this.app.config.get<{ path?: string } | undefined>('logging.channels.single')
 
-    return channel?.path ?? this.app.storagePath('logs', 'elysian.log')
+    return channel?.path ?? this.app.storagePath('logs', 'elyvel.log')
   }
 }
 

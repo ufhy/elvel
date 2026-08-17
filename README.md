@@ -1,4 +1,4 @@
-# Elysian
+# Elyvel
 
 Laravel's structure and developer experience, built on [Elysia](https://elysiajs.com)
 and Bun.
@@ -26,10 +26,10 @@ nothing running: `cache=file`, `queue=sync`, `mail=log`, `disk=local`, SQLite. S
 env change plus the migration its command writes — `artisan cache:table`,
 `queue:table`, `queue:failed-table`, `notifications:table`.
 
-`bun create elysian my-app` does **not** work yet. `bun create <name>` resolves
+`bun create elyvel my-app` does **not** work yet. `bun create <name>` resolves
 only via `bunx create-<name>` on npm, a GitHub repo, or a template folder in
 `$HOME/.bun-create` / `./.bun-create` — never a workspace package. The short
-form starts working once `create-elysian` is published.
+form starts working once `create-elyvel` is published.
 
 Open <http://localhost:3000>.
 
@@ -58,25 +58,25 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 
 | Package | Contents |
 | --- | --- |
-| `@elysian/contracts` | Interfaces only. Breaks dependency cycles between packages. |
-| `@elysian/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
-| `@elysian/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
-| `@elysian/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
-| `@elysian/http` | `FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF, rate limiting, CORS, trusted proxies. |
-| `@elysian/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
-| `@elysian/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
-| `@elysian/log` | Channels and drivers (console, json, single, daily, stack, null). |
-| `@elysian/console` | Artisan: signature parser, command base, kernel, stub generators. |
-| `@elysian/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
-| `@elysian/auth` | better-auth over our own query builder, plus Gate and policies. |
-| `@elysian/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
-| `@elysian/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
-| `@elysian/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |
-| `@elysian/mail` | Mailables, nodemailer transports, queued mail. |
-| `@elysian/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |
-| `@elysian/notifications` | Channels (mail, database, log), per-recipient ids, on-demand recipients. |
-| `@elysian/encryption` | AES-256-GCM, HKDF-derived keys, context binding, key rotation, `key:generate`. |
-| `create-elysian` | Application skeleton scaffolder. |
+| `@elyvel/contracts` | Interfaces only. Breaks dependency cycles between packages. |
+| `@elyvel/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
+| `@elyvel/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
+| `@elyvel/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
+| `@elyvel/http` | `FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF, rate limiting, CORS, trusted proxies. |
+| `@elyvel/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
+| `@elyvel/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
+| `@elyvel/log` | Channels and drivers (console, json, single, daily, stack, null). |
+| `@elyvel/console` | Artisan: signature parser, command base, kernel, stub generators. |
+| `@elyvel/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
+| `@elyvel/auth` | better-auth over our own query builder, plus Gate and policies. |
+| `@elyvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
+| `@elyvel/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
+| `@elyvel/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |
+| `@elyvel/mail` | Mailables, nodemailer transports, queued mail. |
+| `@elyvel/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |
+| `@elyvel/notifications` | Channels (mail, database, log), per-recipient ids, on-demand recipients. |
+| `@elyvel/encryption` | AES-256-GCM, HKDF-derived keys, context binding, key rotation, `key:generate`. |
+| `create-elyvel` | Application skeleton scaffolder. |
 
 ## Design decisions
 
@@ -105,7 +105,7 @@ Components are passed by reference, never by name:
 
 ```ts
 // app/Http/Controllers/PageController.ts  — stays .ts, no JSX syntax here
-import { view } from '@elysian/view'
+import { view } from '@elyvel/view'
 import { Landing } from '../../../resources/views/pages/landing.tsx'
 
 .get('/', () => view(Landing, { title: 'Welcome' }))
@@ -332,7 +332,7 @@ TEST_POSTGRES_URL=postgres://user:pass@host:5432/db bun test dialects
 
 A dialect whose server is unreachable is skipped with a note rather than
 failing, so the suite stays green without them — but then it is only proving
-SQLite. It creates its own `elysian_test` database per server: MySQL's system
+SQLite. It creates its own `elyvel_test` database per server: MySQL's system
 schema `mysql` does **not** enforce InnoDB foreign keys, so running there
 silently accepted rows a real application database rejects.
 
@@ -432,7 +432,7 @@ integration tests; the playground is for end-to-end checks and manual poking.
 
 `bun test --coverage` reports **74% of functions / 85% of lines**. Every package
 has unit tests except `contracts` (interfaces only, no runtime) and
-`create-elysian` (covered end to end by the smoke test).
+`create-elyvel` (covered end to end by the smoke test).
 
 Deliberately not unit-tested:
 
@@ -482,7 +482,7 @@ details are what make an error bag readable rather than noisy:
   reach a database write
 
 `unique` and `exists` read the database through a `PresenceVerifier`, which is an
-interface: `@elysian/validation` has **no dependency** on `@elysian/database`, and
+interface: `@elyvel/validation` has **no dependency** on `@elyvel/database`, and
 the two rules explain themselves if no verifier is available. Both support the
 string form (`unique:users,email,ignoreId,idColumn`) and the object form with
 extra constraints (`Rule.unique('users','email').where('tenant', id)`).
@@ -563,7 +563,7 @@ configured paths, and answers 419 on a mismatch.
 **Cookies are signed by default, and can be encrypted.** A signed value stays
 readable by the client but cannot be altered without the key; the session cookie
 carries only an id, so signing is enough for it. Setting `SESSION_ENCRYPT=true`
-encrypts it instead, through `@elysian/encryption`, **bound to its own name** — the
+encrypts it instead, through `@elyvel/encryption`, **bound to its own name** — the
 cookie name is authenticated as the AEAD's associated data, so a value lifted into
 a different cookie fails to decrypt. Reading falls back from decrypt to unsign, so
 turning encryption on does not log everybody out. An encrypted `X-XSRF-TOKEN` is

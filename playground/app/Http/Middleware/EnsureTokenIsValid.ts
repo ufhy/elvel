@@ -1,5 +1,5 @@
-import { ForbiddenException } from '@elysian/core'
-import type { MiddlewareHook } from '@elysian/http'
+import { ForbiddenException } from '@elyvel/core'
+import type { MiddlewareHook } from '@elyvel/http'
 
 /**
  * Generated with `bun run playground make:middleware EnsureTokenIsValid`, then

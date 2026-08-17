@@ -1,4 +1,4 @@
-import { Str } from '@elysian/support'
+import { Str } from '@elyvel/support'
 import { GeneratorCommand } from '../generator.ts'
 
 export class MakeMiddlewareCommand extends GeneratorCommand {

@@ -1,6 +1,6 @@
-import { controller } from '@elysian/core'
-import { redirect } from '@elysian/http'
-import { view } from '@elysian/view'
+import { controller } from '@elyvel/core'
+import { redirect } from '@elyvel/http'
+import { view } from '@elyvel/view'
 import { t } from 'elysia'
 import { editableMarkup, ViewHelpers } from '../../../resources/views/pages/view-helpers.tsx'
 

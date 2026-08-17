@@ -1,5 +1,5 @@
-import { app, ForbiddenException, HttpException, UnauthorizedException } from '@elysian/core'
-import { redirect, sessionOf } from '@elysian/http'
+import { app, ForbiddenException, HttpException, UnauthorizedException } from '@elyvel/core'
+import { redirect, sessionOf } from '@elyvel/http'
 import { gate } from './helpers.ts'
 import type { AuthManager } from './manager.ts'
 

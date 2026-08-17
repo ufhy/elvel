@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/view",
+  "name": "@elyvel/view",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@elysiajs/static": "^1.4.10",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
     "@kitajs/html": "^4.2.13"
   },
   "peerDependencies": {

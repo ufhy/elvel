@@ -1,8 +1,8 @@
 export {
   type Dialect,
   diffMigrationFor,
-  type ElysianAdapterOptions,
-  elysianAdapter,
+  type ElyvelAdapterOptions,
+  elyvelAdapter,
   migrationFor,
   schemaShape
 } from './adapter.ts'

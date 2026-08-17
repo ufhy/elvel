@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { CacheServiceProvider } from '@elysian/cache'
-import { Application } from '@elysian/core'
-import { DatabaseServiceProvider } from '@elysian/database'
+import { CacheServiceProvider } from '@elyvel/cache'
+import { Application } from '@elyvel/core'
+import { DatabaseServiceProvider } from '@elyvel/database'
 import {
   HttpServiceProvider,
   MiddlewareRegistry,
@@ -9,7 +9,7 @@ import {
   middlewareNamesOf,
   middlewares,
   signedRoute
-} from '@elysian/http'
+} from '@elyvel/http'
 import { Elysia } from 'elysia'
 import { AuthServiceProvider } from '../src/index.ts'
 

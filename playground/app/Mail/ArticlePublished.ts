@@ -1,5 +1,5 @@
-import type { Content, Envelope } from '@elysian/mail'
-import { Mailable, viewContent } from '@elysian/mail'
+import type { Content, Envelope } from '@elyvel/mail'
+import { Mailable, viewContent } from '@elyvel/mail'
 import { ArticlePublishedMail } from '../../resources/views/mail/article-published.tsx'
 
 /**

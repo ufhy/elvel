@@ -1,4 +1,4 @@
-import type { LogDriver, LogRecord } from '@elysian/contracts'
+import type { LogDriver, LogRecord } from '@elyvel/contracts'
 
 export type JsonDriverOptions = {
   /** Where to write. `stdout` by default; `stderr` suits container platforms. */

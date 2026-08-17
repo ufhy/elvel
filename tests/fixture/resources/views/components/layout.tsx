@@ -1,4 +1,4 @@
-import { config } from '@elysian/core'
+import { config } from '@elyvel/core'
 import type { Children } from '@kitajs/html'
 
 export type LayoutProps = {

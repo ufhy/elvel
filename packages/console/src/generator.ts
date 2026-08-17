@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
-import { Str } from '@elysian/support'
+import { Str } from '@elyvel/support'
 import { Command } from './command.ts'
 import type { CommandDefinition } from './signature.ts'
 
@@ -127,7 +127,7 @@ export abstract class GeneratorCommand extends Command {
   }
 
   /**
-   * Resolve the stub contents. Overridable so a package outside @elysian/console
+   * Resolve the stub contents. Overridable so a package outside @elyvel/console
    * can ship its own stubs directory.
    */
   protected async readStub(): Promise<string> {

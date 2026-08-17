@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { ConnectionManager } from './connection/manager.ts'
 import { DbCommand } from './console/db.ts'
 import { DbMonitorCommand } from './console/db-monitor.ts'
@@ -25,7 +25,7 @@ import { ModelShowCommand } from './console/model-show.ts'
 import { SchemaDumpCommand } from './console/schema-dump.ts'
 import { Model } from './model/model.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     db: ConnectionManager
   }

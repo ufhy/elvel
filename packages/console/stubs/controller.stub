@@ -1,4 +1,4 @@
-import { controller } from '@elysian/core'
+import { controller } from '@elyvel/core'
 
 /**
  * {{ class }}
@@ -9,7 +9,7 @@ import { controller } from '@elysian/core'
  * To render a view, import the component and hand it to `view()` — the props
  * are typechecked at the call site:
  *
- *   import { view } from '@elysian/view'
+ *   import { view } from '@elyvel/view'
  *   import { {{ studly }} } from '../../../resources/views/pages/{{ kebab }}.tsx'
  *
  *   .get('/', () => view({{ studly }}, { title: '{{ studly }}' }))

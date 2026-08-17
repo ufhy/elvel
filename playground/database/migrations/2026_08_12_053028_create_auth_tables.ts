@@ -1,4 +1,4 @@
-import { Migration, type MigrationContext } from '@elysian/database'
+import { Migration, type MigrationContext } from '@elyvel/database'
 
 /**
  * Auth tables, generated from better-auth's schema by `artisan auth:schema`.

@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/notifications",
+  "name": "@elyvel/notifications",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -13,12 +13,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/console": "workspace:*",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/database": "workspace:*",
-    "@elysian/mail": "workspace:*",
-    "@elysian/queue": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elyvel/console": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/database": "workspace:*",
+    "@elyvel/mail": "workspace:*",
+    "@elyvel/queue": "workspace:*",
+    "@elyvel/support": "workspace:*"
   }
 }

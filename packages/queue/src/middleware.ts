@@ -1,4 +1,4 @@
-import type { Lock, RateLimiter, Repository } from '@elysian/cache'
+import type { Lock, RateLimiter, Repository } from '@elyvel/cache'
 import type { AnyJob, JobMiddleware } from './job.ts'
 
 /**
@@ -23,7 +23,7 @@ export class WithoutOverlapping implements JobMiddleware {
       releaseAfter?: number | false
     } = {}
   ) {
-    this.lock = cache.lock(`elysian:queue:overlap:${key}`, options.expiresAfter ?? 0)
+    this.lock = cache.lock(`elyvel:queue:overlap:${key}`, options.expiresAfter ?? 0)
   }
 
   async handle(job: AnyJob, next: () => Promise<void>): Promise<void> {

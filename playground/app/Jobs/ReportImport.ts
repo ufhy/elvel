@@ -1,5 +1,5 @@
-import { cache } from '@elysian/cache'
-import { Job, queue } from '@elysian/queue'
+import { cache } from '@elyvel/cache'
+import { Job, queue } from '@elyvel/queue'
 
 /**
  * A batch callback — dispatched by `then()` / `catch()` when the batch reaches

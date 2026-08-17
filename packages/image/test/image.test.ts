@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import {
   Image,
   ImageError,
@@ -284,7 +284,7 @@ describe.if(detected !== undefined)(`transformations through ${detected?.name}`,
   })
 
   test('store writes the transformed bytes', async () => {
-    const path = join(process.env.TMPDIR ?? '/tmp', `elysian-image-test-${process.pid}-stored.png`)
+    const path = join(process.env.TMPDIR ?? '/tmp', `elyvel-image-test-${process.pid}-stored.png`)
 
     try {
       await (await open()).resize(12, 8).store(path)
@@ -300,7 +300,7 @@ describe.if(detected !== undefined)(`transformations through ${detected?.name}`,
   })
 
   test('leaves nothing behind in the temporary directory', async () => {
-    const before = new Bun.Glob('elysian-image-*').scanSync({
+    const before = new Bun.Glob('elyvel-image-*').scanSync({
       cwd: process.env.TMPDIR ?? '/tmp',
       onlyFiles: false
     })
@@ -323,7 +323,7 @@ describe.if(detected !== undefined)(`transformations through ${detected?.name}`,
       .toBytes()
       .catch(() => undefined)
 
-    const after = new Bun.Glob('elysian-image-*').scanSync({
+    const after = new Bun.Glob('elyvel-image-*').scanSync({
       cwd: process.env.TMPDIR ?? '/tmp',
       onlyFiles: false
     })

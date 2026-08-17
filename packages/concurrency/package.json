@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/concurrency",
+  "name": "@elyvel/concurrency",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": [
@@ -11,7 +11,7 @@
     "./config/*": "./config/*"
   },
   "dependencies": {
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*"
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*"
   }
 }

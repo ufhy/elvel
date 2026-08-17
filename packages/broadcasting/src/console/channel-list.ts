@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /**
  * `channel:list` — the private channels, in matching order.

@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/http",
+  "name": "@elyvel/http",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -14,13 +14,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/cache": "workspace:*",
-    "@elysian/console": "workspace:*",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/database": "workspace:*",
-    "@elysian/support": "workspace:*",
-    "@elysian/validation": "workspace:*"
+    "@elyvel/cache": "workspace:*",
+    "@elyvel/console": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/database": "workspace:*",
+    "@elyvel/support": "workspace:*",
+    "@elyvel/validation": "workspace:*"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"

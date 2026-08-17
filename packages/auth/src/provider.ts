@@ -1,8 +1,8 @@
-import { ServiceProvider } from '@elysian/core'
-import { middlewares, registerCurrentPasswordRule } from '@elysian/http'
+import { ServiceProvider } from '@elyvel/core'
+import { middlewares, registerCurrentPasswordRule } from '@elyvel/http'
 import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
-import { type Dialect, elysianAdapter } from './adapter.ts'
+import { type Dialect, elyvelAdapter } from './adapter.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
 import { AuthSecretCommand } from './console/auth-secret.ts'
 import { MakePolicyCommand } from './console/make-policy.ts'
@@ -17,7 +17,7 @@ import {
   requirePassword
 } from './middleware.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     auth: AuthManager
     gate: Gate
@@ -37,7 +37,7 @@ export type AuthConfig = {
   mount?: boolean
   /**
    * Send the reset and verification links as notifications. On by default,
-   * whenever `@elysian/notifications` is registered.
+   * whenever `@elyvel/notifications` is registered.
    */
   notifications?: boolean
   [option: string]: unknown
@@ -57,7 +57,7 @@ export class AuthServiceProvider extends ServiceProvider {
   /**
    * The five aliases that need to know who is signed in.
    *
-   * Registered here rather than in `@elysian/http`, which owns the registry but
+   * Registered here rather than in `@elyvel/http`, which owns the registry but
    * must not depend on this package — an application with no authentication still
    * wants `throttle` and `signed`.
    *
@@ -156,7 +156,7 @@ export class AuthServiceProvider extends ServiceProvider {
     return betterAuth({
       ...this.withMail(options, notifications),
       basePath: basePath ?? '/api/auth',
-      database: elysianAdapter(db, { connection, dialect })
+      database: elyvelAdapter(db, { connection, dialect })
     }) as unknown as AuthInstance
   }
 
@@ -184,7 +184,7 @@ export class AuthServiceProvider extends ServiceProvider {
       options,
       authMailHooks({
         notifier: this.app.make('notifications' as never) as Notifier,
-        appName: this.app.config.get<string>('app.name', 'Elysian'),
+        appName: this.app.config.get<string>('app.name', 'Elyvel'),
         // better-auth's own default, stated here so the mail can name it.
         resetExpiresIn: credentials.resetPasswordTokenExpiresIn ?? 3600
       })
@@ -206,7 +206,7 @@ export class AuthServiceProvider extends ServiceProvider {
     const basePath = this.config<string>('auth.basePath', '/api/auth')
     const handler = ({ request }: { request: Request }) => auth.handler(request)
 
-    const plugin = new Elysia({ name: 'elysian:auth' })
+    const plugin = new Elysia({ name: 'elyvel:auth' })
       // Resolving is async and its result is held on the manager rather than
       // returned into the context: `session` there already belongs to the http
       // package, and shadowing it breaks session persistence.

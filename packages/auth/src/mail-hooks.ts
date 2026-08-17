@@ -30,7 +30,7 @@ export type MailHookOptions = {
  *
  * better-auth builds the tokens and the URLs and then asks the application to
  * deliver them; it deliberately ships no mailer. This is that delivery, routed
- * through `@elysian/notifications` so an application can queue it, log it, fake
+ * through `@elyvel/notifications` so an application can queue it, log it, fake
  * it in a test, or replace any of the three by setting its own callback in
  * `config/auth.ts` — the provider only fills in what is not already there.
  *

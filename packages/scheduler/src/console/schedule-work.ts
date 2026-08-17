@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 import { INTERRUPT_KEY, PAUSE_KEY } from './schedule-interrupt.ts'
 
 /**

@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /** `schedule:list` — what is registered, and when each entry next runs. */
 export class ScheduleListCommand extends Command {

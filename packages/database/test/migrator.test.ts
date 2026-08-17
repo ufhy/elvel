@@ -51,7 +51,7 @@ function migrator(): Migrator {
 }
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'elysian-migrations-'))
+  directory = await mkdtemp(join(tmpdir(), 'elyvel-migrations-'))
   connection = await BunSqlConnection.make('testing', { driver: 'sqlite', database: ':memory:' })
   repository = new MigrationRepository(connection)
   notes = []

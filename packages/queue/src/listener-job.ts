@@ -1,4 +1,4 @@
-import type { AnyQueuedListenerClass, EventRegistry, ListenerRegistry } from '@elysian/events'
+import type { AnyQueuedListenerClass, EventRegistry, ListenerRegistry } from '@elyvel/events'
 import { Job } from './job.ts'
 
 /** What travels for a queued listener: two names and the event's data. */

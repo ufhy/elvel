@@ -10,7 +10,7 @@ export class AboutCommand extends Command {
     this.line()
     this.line(pc.bold('  Environment'))
     this.output.pairs([
-      ['Application Name', this.app.config.get('app.name', 'Elysian')],
+      ['Application Name', this.app.config.get('app.name', 'Elyvel')],
       ['Environment', this.app.environment()],
       ['Debug Mode', this.app.hasDebugModeEnabled() ? 'ENABLED' : 'OFF'],
       ['URL', this.app.url],

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isAbsolute, join } from 'node:path'
-import type { EventDispatcher } from '@elysian/contracts'
+import type { EventDispatcher } from '@elyvel/contracts'
 import type { Grammar } from '../query/grammar.ts'
 import { MariaDbGrammar, MySqlGrammar } from '../query/grammars/mysql.ts'
 import { PostgresGrammar } from '../query/grammars/postgres.ts'

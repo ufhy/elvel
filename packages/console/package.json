@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/console",
+  "name": "@elyvel/console",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -14,9 +14,9 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/support": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/support": "workspace:*",
     "picocolors": "^1.1.1"
   },
   "peerDependencies": {

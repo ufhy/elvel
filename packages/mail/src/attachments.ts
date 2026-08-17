@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { Attachment } from './mailable.ts'
 
 /** The slice of a storage disk an attachment needs. */

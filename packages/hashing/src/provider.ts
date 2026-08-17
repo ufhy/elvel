@@ -1,7 +1,7 @@
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { HashManager } from './manager.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     hash: HashManager
   }

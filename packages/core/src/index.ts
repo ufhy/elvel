@@ -6,7 +6,7 @@ export type {
   ServiceProviderConstructor,
   ServiceProviderContract,
   ViewFactory
-} from '@elysian/contracts'
+} from '@elyvel/contracts'
 export {
   Application,
   ApplicationBuilder,

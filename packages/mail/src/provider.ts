@@ -1,12 +1,12 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { MakeMailCommand } from './console/make-mail.ts'
 import type { MailableClass } from './mailable.ts'
 import { MailManager } from './manager.ts'
 import { SendQueuedMail } from './queued.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     mail: MailManager
   }

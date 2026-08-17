@@ -1,8 +1,8 @@
 import { staticPlugin } from '@elysiajs/static'
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { JsxViewFactory } from './factory.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     view: JsxViewFactory
   }

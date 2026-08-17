@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import { DatabaseServiceProvider, Model } from '../src/index.ts'
 
 class Note extends Model {

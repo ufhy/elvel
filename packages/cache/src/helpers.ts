@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { CacheManager } from './manager.ts'
 import type { RateLimiter } from './rate-limiter.ts'
 import type { Repository } from './repository.ts'

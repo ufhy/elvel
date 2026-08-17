@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { RouteRegistry } from './routes.ts'
 
 /** The route name table. */

@@ -1,5 +1,5 @@
-import { isUnlimited, Limit, type RateLimiter } from '@elysian/cache'
-import { app, HttpException } from '@elysian/core'
+import { isUnlimited, Limit, type RateLimiter } from '@elyvel/cache'
+import { app, HttpException } from '@elyvel/core'
 import { Elysia } from 'elysia'
 import { clientIp, type ProxyOptions, type SocketAddress } from './proxies.ts'
 
@@ -16,7 +16,7 @@ export type LimiterContext = {
   request: Request
   /** The caller's address, already resolved through any trusted proxy. */
   ip: string
-  /** The authenticated user, when `@elysian/auth` is registered and someone is. */
+  /** The authenticated user, when `@elyvel/auth` is registered and someone is. */
   user?: { id?: unknown } | undefined
 }
 
@@ -27,7 +27,7 @@ export type LimiterCallback = (
 /**
  * Named rate limiters — `RateLimiter::for('uploads', …)`.
  *
- * The registry is here rather than in `@elysian/cache` because a limiter decides
+ * The registry is here rather than in `@elyvel/cache` because a limiter decides
  * from the *request*: who is calling, what they are asking for. The counting
  * lives in the cache package, where it belongs.
  */
@@ -80,7 +80,7 @@ export function throttle(limiter: string | ThrottleOptions = {}): Elysia {
   const named = typeof limiter === 'string' ? limiter : undefined
   const options = typeof limiter === 'string' ? {} : limiter
 
-  return new Elysia({ name: `elysian:throttle:${named ?? `${options.max}/${options.decay}`}` })
+  return new Elysia({ name: `elyvel:throttle:${named ?? `${options.max}/${options.decay}`}` })
     .onBeforeHandle({ as: 'scoped' }, (context) =>
       enforceThrottle(context as never, named, options)
     )

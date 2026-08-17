@@ -1,4 +1,4 @@
-import { FormRequest } from '@elysian/http'
+import { FormRequest } from '@elyvel/http'
 
 /**
  * Generated with `artisan make:request StoreOrderRequest`, then extended.

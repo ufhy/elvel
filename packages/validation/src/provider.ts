@@ -1,4 +1,4 @@
-import { app, ServiceProvider } from '@elysian/core'
+import { app, ServiceProvider } from '@elyvel/core'
 import { MakeRuleCommand } from './console/make-rule.ts'
 import type { Data, PresenceVerifier, Rules, ValidatorOptions } from './types.ts'
 import { Validator } from './validator.ts'
@@ -15,8 +15,8 @@ type Manager = { table(name: string): Promise<Query> }
 /**
  * Reads the database for `unique` and `exists`.
  *
- * Duck-typed rather than imported, so `@elysian/validation` carries no
- * dependency on `@elysian/database`: the rules work without a database, and only
+ * Duck-typed rather than imported, so `@elyvel/validation` carries no
+ * dependency on `@elyvel/database`: the rules work without a database, and only
  * these two need one.
  */
 export class DatabasePresenceVerifier implements PresenceVerifier {
@@ -65,7 +65,7 @@ export class DatabasePresenceVerifier implements PresenceVerifier {
   }
 }
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     'validation.verifier': PresenceVerifier | undefined
   }

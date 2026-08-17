@@ -1,5 +1,5 @@
-import type { Connection, ConnectionManager } from '@elysian/database'
-import { QueryBuilder } from '@elysian/database'
+import type { Connection, ConnectionManager } from '@elyvel/database'
+import { QueryBuilder } from '@elyvel/database'
 import { decode, encode, expiresAt } from '../payload.ts'
 import { Lock, type LockProvider, type Store } from '../store.ts'
 

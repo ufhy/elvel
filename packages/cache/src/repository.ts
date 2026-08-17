@@ -1,4 +1,4 @@
-import { defer } from '@elysian/core'
+import { defer } from '@elyvel/core'
 import { Funnel } from './funnel.ts'
 import { isLockProvider, type Lock, LockTimeoutError, type Store } from './store.ts'
 import { NamespacedStore, TagSet } from './tags.ts'
@@ -184,7 +184,7 @@ export class Repository {
     callback: () => T | Promise<T>,
     lock: { seconds?: number; owner?: string } = {}
   ): Promise<T> {
-    const createdKey = `elysian:cache:flexible:created:${key}`
+    const createdKey = `elyvel:cache:flexible:created:${key}`
 
     const { [key]: value, [createdKey]: created } = await this.many<T | number>([key, createdKey])
 
@@ -208,7 +208,7 @@ export class Repository {
       }
 
       await this.store
-        .lock(`elysian:cache:flexible:lock:${key}`, lock.seconds ?? 0, lock.owner)
+        .lock(`elyvel:cache:flexible:lock:${key}`, lock.seconds ?? 0, lock.owner)
         .get(async () => {
           // Another request may have refreshed it while we waited for the lock;
           // the `created` stamp we read is the guard against doing it twice.
@@ -222,7 +222,7 @@ export class Repository {
     // Keyed so a burst of requests on the same stale key schedules one refresh,
     // not one per request. The rejection is swallowed by `flushDeferred`: a failed
     // background refresh must not surface as a failure of the request.
-    defer(refresh, { key: `elysian:cache:flexible:${key}` })
+    defer(refresh, { key: `elyvel:cache:flexible:${key}` })
 
     return value as T
   }

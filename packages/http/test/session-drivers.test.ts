@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elysian/database'
+import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elyvel/database'
 import { CacheSessionDriver, DatabaseSessionDriver } from '../src/session-drivers.ts'
 
 let connection: BunSqlConnection

@@ -1,9 +1,9 @@
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { StorageLinkCommand } from './console/storage-link.ts'
 import { StorageUnlinkCommand } from './console/storage-unlink.ts'
 import { StorageManager } from './manager.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     storage: StorageManager
   }

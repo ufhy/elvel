@@ -1,5 +1,5 @@
-import type { AuthUser } from '@elysian/auth'
-import { AuthorizationResponse, Policy } from '@elysian/auth'
+import type { AuthUser } from '@elyvel/auth'
+import { AuthorizationResponse, Policy } from '@elyvel/auth'
 import type { Article } from '../Models/Article.ts'
 
 /**

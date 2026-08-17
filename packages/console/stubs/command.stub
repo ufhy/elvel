@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 export class {{ class }} extends Command {
   static override signature = '{{ kebab }} {name : The thing to act on} {--force : Skip confirmation}'

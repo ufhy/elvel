@@ -1,4 +1,4 @@
-import type { LogLevel } from '@elysian/contracts'
+import type { LogLevel } from '@elyvel/contracts'
 
 /**
  * RFC 5424 levels in descending severity, exactly the eight Laravel exposes.

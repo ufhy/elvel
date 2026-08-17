@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { Translator } from './translator.ts'
 
 /** The translator. */

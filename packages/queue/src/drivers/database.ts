@@ -1,5 +1,5 @@
-import type { Connection, ConnectionManager } from '@elysian/database'
-import { QueryBuilder } from '@elysian/database'
+import type { Connection, ConnectionManager } from '@elyvel/database'
+import { QueryBuilder } from '@elyvel/database'
 import type { JobPayload, QueueDriver, QueuedJob } from '../contracts.ts'
 
 export type DatabaseQueueOptions = {

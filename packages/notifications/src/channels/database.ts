@@ -1,4 +1,4 @@
-import type { ConnectionManager } from '@elysian/database'
+import type { ConnectionManager } from '@elyvel/database'
 import { identify, type Notifiable } from '../notifiable.ts'
 import type { AnyNotification } from '../notification.ts'
 

@@ -52,7 +52,7 @@ export async function messageFrom(response: Response, fallback: string): Promise
  * `betterAuth<Options>(options)` returns `Auth<Options>`:
  *
  * ```ts
- * declare module '@elysian/auth' {
+ * declare module '@elyvel/auth' {
  *   interface AuthTypes {
  *     api: Auth<typeof config>['api']
  *   }

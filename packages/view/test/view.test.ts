@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import { JsxViewFactory } from '../src/factory.ts'
 import { classes, json, stream, styles } from '../src/index.ts'
 import { Vite } from '../src/vite.ts'
@@ -74,7 +74,7 @@ describe('streaming a page', () => {
 
 describe('Vite tags', () => {
   const build = async (files: Record<string, string>) => {
-    const root = await mkdtemp(join(tmpdir(), 'elysian-vite-'))
+    const root = await mkdtemp(join(tmpdir(), 'elyvel-vite-'))
 
     for (const [name, contents] of Object.entries(files)) {
       await mkdir(dirname(join(root, name)), { recursive: true })

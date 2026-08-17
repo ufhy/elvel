@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /**
  * `auth:secret`

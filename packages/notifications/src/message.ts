@@ -1,4 +1,4 @@
-import type { ViewComponent } from '@elysian/contracts'
+import type { ViewComponent } from '@elyvel/contracts'
 
 export type MailAttachment = {
   filename: string

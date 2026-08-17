@@ -1,4 +1,4 @@
-import { QueuedListener } from '@elysian/events'
+import { QueuedListener } from '@elyvel/events'
 import type { {{ event }} } from '../Events/{{ event }}.ts'
 
 /**

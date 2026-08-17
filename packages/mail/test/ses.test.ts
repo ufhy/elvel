@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
-import { canonicalRequest, signingKey, stringToSign } from '@elysian/support'
+import { canonicalRequest, signingKey, stringToSign } from '@elyvel/support'
 import type { SentMessage } from '../src/message.ts'
 import { SesTransport } from '../src/transports/ses.ts'
 
@@ -96,7 +96,7 @@ const transport = () =>
 
 const message = (overrides: Partial<SentMessage> = {}): SentMessage => ({
   mailable: 'Welcome',
-  from: { address: 'hello@example.com', name: 'Elysian' },
+  from: { address: 'hello@example.com', name: 'Elyvel' },
   to: [{ address: 'ada@example.com' }],
   cc: [],
   bcc: [],

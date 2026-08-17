@@ -1,5 +1,5 @@
-import { cache } from '@elysian/cache'
-import { Job } from '@elysian/queue'
+import { cache } from '@elyvel/cache'
+import { Job } from '@elyvel/queue'
 
 /**
  * Generated with `artisan make:job ImportRow`, then extended.

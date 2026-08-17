@@ -1,4 +1,4 @@
-import { errors, old } from '@elysian/http'
+import { errors, old } from '@elyvel/http'
 import { Layout } from '../components/layout.tsx'
 
 export type SubscribeProps = {

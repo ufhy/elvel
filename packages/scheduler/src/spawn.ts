@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import type { ApplicationContract } from '@elysian/contracts'
-import { ProcessManager } from '@elysian/process'
+import type { ApplicationContract } from '@elyvel/contracts'
+import { ProcessManager } from '@elyvel/process'
 import type { Spawner } from './runner.ts'
 
 /**
@@ -15,7 +15,7 @@ import type { Spawner } from './runner.ts'
  * logging then reaches wherever the scheduler's does, rather than disappearing
  * into a buffer nobody reads.
  *
- * Runs through `@elysian/process` rather than `Bun.spawn` directly, which is
+ * Runs through `@elyvel/process` rather than `Bun.spawn` directly, which is
  * what makes the child its own process group: a scheduled command that forks
  * used to leave its children behind when the entry was killed.
  */

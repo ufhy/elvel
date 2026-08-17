@@ -1,4 +1,4 @@
-import { app, UnauthorizedException } from '@elysian/core'
+import { app, UnauthorizedException } from '@elyvel/core'
 import type { AuthUser, Gate } from './gate.ts'
 import type { AuthManager, AuthSession } from './manager.ts'
 import type { CurrentUser } from './types.ts'

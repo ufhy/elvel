@@ -67,11 +67,11 @@ describe('stacks', () => {
    */
   test('a marker written by hand is left alone', async () => {
     const markup = await factory.render(
-      () => `${push('head', '<script></script>')}<!--elysian:stack:guessed:head-->${stack('head')}`,
+      () => `${push('head', '<script></script>')}<!--elyvel:stack:guessed:head-->${stack('head')}`,
       {}
     )
 
-    expect(markup).toBe('<!--elysian:stack:guessed:head--><script></script>')
+    expect(markup).toBe('<!--elyvel:stack:guessed:head--><script></script>')
   })
 
   test('two renders do not see each other', async () => {

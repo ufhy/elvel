@@ -1,8 +1,8 @@
 import { describe, expect, test as it } from 'bun:test'
-import { channels } from '@elysian/broadcasting'
-import { Arr, collect, Str } from '@elysian/support'
-import { test } from '@elysian/testing'
-import { __, trans } from '@elysian/translation'
+import { channels } from '@elyvel/broadcasting'
+import { Arr, collect, Str } from '@elyvel/support'
+import { test } from '@elyvel/testing'
+import { __, trans } from '@elyvel/translation'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 

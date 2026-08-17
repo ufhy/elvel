@@ -20,9 +20,9 @@ describe('keys', () => {
   })
 
   test('derivation is deterministic, and separated by purpose', () => {
-    const first = deriveKey(SECRET, 'elysian:encrypt:v1')
-    const again = deriveKey(SECRET, 'elysian:encrypt:v1')
-    const other = deriveKey(SECRET, 'elysian:something-else')
+    const first = deriveKey(SECRET, 'elyvel:encrypt:v1')
+    const again = deriveKey(SECRET, 'elyvel:encrypt:v1')
+    const other = deriveKey(SECRET, 'elyvel:something-else')
 
     expect(first.equals(again)).toBe(true)
     // The whole point: the cookie signer and the encrypter never share key

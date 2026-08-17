@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 
 const FIXTURE = join(import.meta.dir, 'fixture')
 

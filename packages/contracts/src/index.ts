@@ -19,7 +19,7 @@ export interface ConfigRepository {
  * Laravel's string-keyed blindness:
  *
  * ```ts
- * declare module '@elysian/contracts' {
+ * declare module '@elyvel/contracts' {
  *   interface ContainerBindings {
  *     view: ViewFactory
  *   }
@@ -124,7 +124,7 @@ export interface EventSubscriber {
  * A listener class the dispatcher queues instead of calling.
  *
  * Structural on purpose: the contracts package must not depend on
- * `@elysian/events`, and what matters here is only that the class can be
+ * `@elyvel/events`, and what matters here is only that the class can be
  * constructed and handles this event.
  */
 export type QueuedListenerFor<E> = new () => { handle(event: E): unknown | Promise<unknown> }

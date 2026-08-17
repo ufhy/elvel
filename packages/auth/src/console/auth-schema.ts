@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
-import { Command } from '@elysian/console'
-import { MakeMigrationCommand, SchemaBuilder } from '@elysian/database'
+import { Command } from '@elyvel/console'
+import { MakeMigrationCommand, SchemaBuilder } from '@elyvel/database'
 import { type Dialect, diffMigrationFor, schemaShape } from '../adapter.ts'
 
 /** What better-auth's factory-wrapped adapter exposes for schema generation. */

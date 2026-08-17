@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
-import { Command } from '@elysian/console'
-import { Str } from '@elysian/support'
+import { Command } from '@elyvel/console'
+import { Str } from '@elyvel/support'
 import { MakeMigrationCommand } from './make-migration.ts'
 
 /**

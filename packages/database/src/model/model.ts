@@ -1,5 +1,5 @@
-import type { ApplicationContract, EventDispatcher } from '@elysian/contracts'
-import { Collection } from '@elysian/support'
+import type { ApplicationContract, EventDispatcher } from '@elyvel/contracts'
+import { Collection } from '@elyvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { ModelBuilder } from './builder.ts'

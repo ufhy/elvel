@@ -1,6 +1,6 @@
 import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { ProcessManager } from '@elysian/process'
+import { ProcessManager } from '@elyvel/process'
 import type { ConnectionManager } from '../connection/manager.ts'
 import { MigrationCommand } from './base.ts'
 
@@ -86,7 +86,7 @@ export class SchemaDumpCommand extends MigrationCommand {
     )
 
     const lines = [
-      '-- Elysian schema dump.',
+      '-- Elyvel schema dump.',
       '-- Load it with `artisan migrate`, which uses it when no migration has run yet.',
       '',
       ...objects.map((object) => `${object.sql};`),

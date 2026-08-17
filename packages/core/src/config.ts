@@ -1,13 +1,13 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ConfigRepository } from '@elysian/contracts'
-import { Arr } from '@elysian/support'
+import type { ConfigRepository } from '@elyvel/contracts'
+import { Arr } from '@elyvel/support'
 
 /**
  * Config repository — the `LoadConfiguration` bootstrapper.
  *
  * Every `config/<name>.ts` file's default export becomes the `<name>` key,
- * so `config/app.ts` exporting `{ name: 'Elysian' }` reads as
+ * so `config/app.ts` exporting `{ name: 'Elyvel' }` reads as
  * `config('app.name')`.
  */
 export class Config implements ConfigRepository {

@@ -1,4 +1,4 @@
-import type { EventKey } from '@elysian/contracts'
+import type { EventKey } from '@elyvel/contracts'
 import { Dispatcher, eventName } from './dispatcher.ts'
 
 type Recorded = { event: string; payload: unknown }

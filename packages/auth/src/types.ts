@@ -13,7 +13,7 @@ import type { AuthSession } from './manager.ts'
  * bindings are declared:
  *
  * ```ts
- * declare module '@elysian/auth' {
+ * declare module '@elyvel/auth' {
  *   interface AuthTypes {
  *     api: Auth<typeof config>['api']
  *     user: { id: string; name: string; email: string; emailVerified: boolean }

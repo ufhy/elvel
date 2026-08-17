@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /**
  * `event:list` — what is listening, and to what.

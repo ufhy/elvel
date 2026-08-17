@@ -1,4 +1,4 @@
-import type { RuleHandler } from '@elysian/validation'
+import type { RuleHandler } from '@elyvel/validation'
 
 /**
  * {{ class }} — a validation rule.

@@ -2,7 +2,7 @@
  * Testing — pressing the application without a socket.
  *
  * ```ts
- * import { test } from '@elysian/testing'
+ * import { test } from '@elyvel/testing'
  *
  * const response = await test(app).getJson('/posts')
  *
@@ -37,10 +37,10 @@ import { PendingCommand, type Runnable } from './console.ts'
  * An artisan command under test.
  *
  * `outputPrototype` is `Output.prototype`, passed by the caller because this
- * package must not depend on `@elysian/console`:
+ * package must not depend on `@elyvel/console`:
  *
  * ```ts
- * import { Output } from '@elysian/console'
+ * import { Output } from '@elyvel/console'
  *
  * await artisan(kernel, ['make:model', 'Post'], Output.prototype)
  *   .expectsConfirmation('Overwrite', true)

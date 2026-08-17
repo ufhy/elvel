@@ -23,6 +23,6 @@ export default {
     url: process.env.BROADCAST_REDIS_URL ?? process.env.REDIS_URL,
 
     /** Namespaces the bus, so two applications on one Redis stay apart. */
-    prefix: process.env.BROADCAST_REDIS_PREFIX ?? 'elysian:'
+    prefix: process.env.BROADCAST_REDIS_PREFIX ?? 'elyvel:'
   }
 }

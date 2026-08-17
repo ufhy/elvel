@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 import { ScheduleRunner } from '../runner.ts'
 import { spawner } from '../spawn.ts'
 

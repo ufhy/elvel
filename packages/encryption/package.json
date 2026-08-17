@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/encryption",
+  "name": "@elyvel/encryption",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -12,19 +12,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/console": "workspace:*",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*"
+    "@elyvel/console": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*"
   },
   "peerDependencies": {
-    "@elysian/database": "workspace:*"
+    "@elyvel/database": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@elysian/database": {
+    "@elyvel/database": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@elysian/database": "workspace:*"
+    "@elyvel/database": "workspace:*"
   }
 }

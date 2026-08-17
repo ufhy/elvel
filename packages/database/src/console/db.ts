@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /**
  * Hand the connection over to the database's own client — Laravel's `db`.

@@ -5,7 +5,7 @@ export const METHOD_FIELD = '_method'
 export const METHOD_HEADER = 'x-http-method-override'
 
 /** Set on the re-entered request, so the override is applied once. */
-const APPLIED = 'x-elysian-method-override'
+const APPLIED = 'x-elyvel-method-override'
 
 /**
  * Methods a form may spoof.
@@ -49,7 +49,7 @@ export function methodOverridePlugin(
 ) {
   const allowed = new Set((options.allow ?? [...SPOOFABLE]).map((method) => method.toUpperCase()))
 
-  return new Elysia({ name: 'elysian:method-override' }).onRequest(async ({ request }) => {
+  return new Elysia({ name: 'elyvel:method-override' }).onRequest(async ({ request }) => {
     if (request.method !== 'POST' || request.headers.get(APPLIED)) return undefined
 
     /**

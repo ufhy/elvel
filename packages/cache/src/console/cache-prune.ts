@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 import { DatabaseStore } from '../stores/database.ts'
 
 /**

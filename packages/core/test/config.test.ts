@@ -6,9 +6,9 @@ import { Config } from '../src/config.ts'
 
 describe('Config', () => {
   test('reads with dot notation', () => {
-    const config = new Config({ app: { name: 'Elysian', nested: { debug: false } } })
+    const config = new Config({ app: { name: 'Elyvel', nested: { debug: false } } })
 
-    expect(config.get<string>('app.name')).toBe('Elysian')
+    expect(config.get<string>('app.name')).toBe('Elyvel')
     expect(config.get<boolean>('app.nested.debug')).toBe(false)
     expect(config.get('app.missing', 'fallback')).toBe('fallback')
   })
@@ -39,7 +39,7 @@ describe('Config.loadFrom', () => {
   let directory: string
 
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'elysian-config-'))
+    directory = await mkdtemp(join(tmpdir(), 'elyvel-config-'))
   })
 
   afterEach(async () => {

@@ -65,7 +65,7 @@ describe('what a sqlite connection is opened with', () => {
   const open = (options: Record<string, unknown> = {}) =>
     BunSqlConnection.make('probe', { driver: 'sqlite', ...options } as never)
 
-  const file = async () => join(await mkdtemp(join(tmpdir(), 'elysian-sqlite-')), 'probe.sqlite')
+  const file = async () => join(await mkdtemp(join(tmpdir(), 'elyvel-sqlite-')), 'probe.sqlite')
 
   test('a file database is opened in WAL, and waits rather than refusing', async () => {
     const connection = await open({ database: await file() })

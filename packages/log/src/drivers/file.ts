@@ -1,6 +1,6 @@
 import { readdir, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import type { LogDriver, LogRecord } from '@elysian/contracts'
+import type { LogDriver, LogRecord } from '@elyvel/contracts'
 
 function formatLine(record: LogRecord): string {
   const context = Object.keys(record.context).length > 0 ? ` ${JSON.stringify(record.context)}` : ''
@@ -49,7 +49,7 @@ export type DailyDriverOptions = {
 /**
  * One file per day — Laravel's `daily` driver.
  *
- * `logs/elysian.log` becomes `logs/elysian-2026-08-11.log`, and files beyond
+ * `logs/elyvel.log` becomes `logs/elyvel-2026-08-11.log`, and files beyond
  * `maxFiles` are pruned after each rotation.
  */
 export class DailyDriver extends FileDriver {

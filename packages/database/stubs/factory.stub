@@ -1,4 +1,4 @@
-import { Factory } from '@elysian/database'
+import { Factory } from '@elyvel/database'
 import { {{ model }} } from '../../app/Models/{{ model }}.ts'
 
 export class {{ class }} extends Factory<{{ model }}> {

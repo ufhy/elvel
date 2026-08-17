@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { Application } from '@elysian/core'
-import { type ConnectionConfig, ConnectionManager } from '@elysian/database'
+import { Application } from '@elyvel/core'
+import { type ConnectionConfig, ConnectionManager } from '@elyvel/database'
 import { DatabaseBatchRepository } from '../src/batch.ts'
 import type { JobPayload } from '../src/contracts.ts'
 import { DatabaseQueue } from '../src/drivers/database.ts'
@@ -18,7 +18,7 @@ import { DatabaseQueue } from '../src/drivers/database.ts'
  */
 
 const PREFIX = `queue_t${Date.now().toString(36)}`
-const TEST_DATABASE = 'elysian_test'
+const TEST_DATABASE = 'elyvel_test'
 
 const candidates: Array<{ name: string; config: ConnectionConfig }> = [
   { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },

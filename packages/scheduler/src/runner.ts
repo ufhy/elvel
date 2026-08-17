@@ -1,6 +1,6 @@
 import type { ScheduledEvent } from './event.ts'
 
-/** The cache surface the mutexes need. Satisfied by `@elysian/cache`. */
+/** The cache surface the mutexes need. Satisfied by `@elyvel/cache`. */
 export type MutexStore = {
   add(key: string, value: unknown, ttl?: number | Date | null): Promise<boolean>
   forget(key: string): Promise<boolean>

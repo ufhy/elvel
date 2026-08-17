@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/translation",
+  "name": "@elyvel/translation",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -8,8 +8,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/support": "workspace:*"
   }
 }

@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { Application } from '@elysian/core'
+import type { Application } from '@elyvel/core'
 import pc from 'picocolors'
 import type { Command } from './command.ts'
 import { Output } from './output.ts'
@@ -68,7 +68,7 @@ export class Kernel {
     }
 
     if (name === '--version' || name === '-V') {
-      this.output.line(`Elysian ${this.app.config.get('app.version', '0.0.1')}`)
+      this.output.line(`Elyvel ${this.app.config.get('app.version', '0.0.1')}`)
       return 0
     }
 
@@ -161,7 +161,7 @@ export class Kernel {
     }
 
     const store = this.app.make('cache').store()
-    const key = `elysian:command:${name}`
+    const key = `elyvel:command:${name}`
 
     // An expiry, not a bare flag: a process killed mid-command must not lock the
     // command out for ever, and an hour is longer than any command should be.
@@ -219,7 +219,7 @@ export class Kernel {
   private renderList(): void {
     this.output.line()
     this.output.line(
-      `${pc.bold(this.app.config.get('app.name', 'Elysian'))} ${pc.dim(
+      `${pc.bold(this.app.config.get('app.name', 'Elyvel'))} ${pc.dim(
         `(${this.app.environment()})`
       )}`
     )

@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /**
  * Exists so `bun run smoke` proves application command discovery still works:

@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/queue",
+  "name": "@elyvel/queue",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -13,12 +13,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/cache": "workspace:*",
-    "@elysian/console": "workspace:*",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/database": "workspace:*",
-    "@elysian/events": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elyvel/cache": "workspace:*",
+    "@elyvel/console": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/database": "workspace:*",
+    "@elyvel/events": "workspace:*",
+    "@elyvel/support": "workspace:*"
   }
 }

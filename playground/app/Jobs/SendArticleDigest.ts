@@ -1,5 +1,5 @@
-import { cache } from '@elysian/cache'
-import { Job, WithoutOverlapping } from '@elysian/queue'
+import { cache } from '@elyvel/cache'
+import { Job, WithoutOverlapping } from '@elyvel/queue'
 import { Article } from '../Models/Article.ts'
 
 /**

@@ -42,7 +42,7 @@ const OWNERS: Record<string, string> = {
  * files rather than every one, and this is how the rest are fetched when they
  * are wanted. Here the reason is sharper. A config file's package may not even
  * be installed — `--kit=none` has no mailer — so publishing `mail` without
- * `@elysian/mail` is a question with a real answer rather than a missing file.
+ * `@elyvel/mail` is a question with a real answer rather than a missing file.
  *
  * One step Laravel does not need: the copy is not enough on its own. An
  * application names its config files in `bootstrap/app.ts` so a bundler can
@@ -90,8 +90,8 @@ export class ConfigPublishCommand extends Command {
         // over an application that installed six packages should not print
         // eleven errors.
         if (names.length === 1) {
-          this.error(`[@elysian/${OWNERS[name]}] is not installed, so there is no ${name} config.`)
-          this.comment(`Install it first: bun add @elysian/${OWNERS[name]}`)
+          this.error(`[@elyvel/${OWNERS[name]}] is not installed, so there is no ${name} config.`)
+          this.comment(`Install it first: bun add @elyvel/${OWNERS[name]}`)
           failed = true
         }
 
@@ -121,7 +121,7 @@ export class ConfigPublishCommand extends Command {
   /** Where the package keeps its default, or nothing if it is not installed. */
   private defaultFor(name: string): string | undefined {
     try {
-      return Bun.resolveSync(`@elysian/${OWNERS[name]}/config/${name}.ts`, this.app.basePath())
+      return Bun.resolveSync(`@elyvel/${OWNERS[name]}/config/${name}.ts`, this.app.basePath())
     } catch {
       return undefined
     }

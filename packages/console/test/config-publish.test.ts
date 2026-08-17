@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import { ConfigPublishCommand } from '../src/commands/config-publish.ts'
 import { Kernel } from '../src/kernel.ts'
 
@@ -58,7 +58,7 @@ describe('the config files a package can publish', () => {
   /**
    * A default is only reachable if its package exports it.
    *
-   * The command resolves `@elysian/mail/config/mail.ts` from the application's
+   * The command resolves `@elyvel/mail/config/mail.ts` from the application's
    * own directory, which goes through `exports` — a package that ships the file
    * without exporting it publishes nothing, and says only that the package is
    * not installed.
@@ -101,7 +101,7 @@ describe('the config files a package can publish', () => {
    * difference this allows for.
    */
   test('a published default matches what a new application is given', async () => {
-    const templateConfig = join(packagesDir, 'create-elysian', 'template', 'config')
+    const templateConfig = join(packagesDir, 'create-elyvel', 'template', 'config')
     const differ: string[] = []
 
     for (const [name, pkg] of Object.entries(await shipped())) {
@@ -109,7 +109,7 @@ describe('the config files a package can publish', () => {
 
       if (!(await template.exists())) continue
 
-      const theirs = (await template.text()).replace('{{ name }}', 'Elysian')
+      const theirs = (await template.text()).replace('{{ name }}', 'Elyvel')
       const ours = await Bun.file(join(packagesDir, pkg, 'config', `${name}.ts`)).text()
 
       if (theirs !== ours) differ.push(name)
@@ -122,14 +122,14 @@ describe('the config files a package can publish', () => {
 /**
  * The scaffolder carries its own copy of the ownership map, and must not drift.
  *
- * `create-elysian` depends on no framework package — `bunx create-elysian`
+ * `create-elyvel` depends on no framework package — `bunx create-elyvel`
  * should download a scaffolder, not a framework — so it cannot import this one.
  * A copy held to the original by a test is the trade: the alternative is a
  * scaffolded application that keeps a config file for a package it does not
  * install, or drops one it does.
  */
 test('the scaffolder agrees about who owns what', async () => {
-  const source = await Bun.file(join(packagesDir, 'create-elysian', 'src', 'index.ts')).text()
+  const source = await Bun.file(join(packagesDir, 'create-elyvel', 'src', 'index.ts')).text()
 
   const block = source.slice(
     source.indexOf('const CONFIG_OWNERS'),
@@ -154,7 +154,7 @@ test('the scaffolder agrees about who owns what', async () => {
  *
  * A temporary directory is what makes it reachable: resolution walks up from the
  * application's base path, and above `/tmp` there is no `node_modules` holding
- * `@elysian/mail`. Which is exactly the situation of a real application that
+ * `@elyvel/mail`. Which is exactly the situation of a real application that
  * never installed it.
  */
 describe('publishing a config whose package is absent', () => {
@@ -163,7 +163,7 @@ describe('publishing a config whose package is absent', () => {
   let kernel: Kernel
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'elysian-publish-'))
+    root = await mkdtemp(join(tmpdir(), 'elyvel-publish-'))
     await mkdir(join(root, 'config'), { recursive: true })
 
     app = new Application(root)
@@ -204,8 +204,8 @@ describe('publishing a config whose package is absent', () => {
     const { status, output } = await run(['config:publish', 'mail'])
 
     expect<number>(status).toBe(1)
-    expect<string>(output).toContain('[@elysian/mail] is not installed')
-    expect<string>(output).toContain('bun add @elysian/mail')
+    expect<string>(output).toContain('[@elyvel/mail] is not installed')
+    expect<string>(output).toContain('bun add @elyvel/mail')
 
     // And wrote nothing: a half-published config is worse than none, because the
     // file exists and the settings in it were never chosen.

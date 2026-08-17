@@ -8,7 +8,7 @@ export type CookieOptions = {
   sameSite?: 'strict' | 'lax' | 'none'
 }
 
-/** The encryption an encrypted cookie needs. `@elysian/encryption` satisfies it. */
+/** The encryption an encrypted cookie needs. `@elyvel/encryption` satisfies it. */
 export type CookieEncrypter = {
   encryptString(value: string, context?: string): string
   decryptString(payload: string, context?: string): string

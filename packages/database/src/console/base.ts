@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 import type { ConnectionManager } from '../connection/manager.ts'
 import { Migrator } from '../migrations/migrator.ts'
 import { MigrationRepository } from '../migrations/repository.ts'

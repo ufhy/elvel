@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import { expectMessage } from '../src/assertions.ts'
 import type { MailFake } from '../src/fake.ts'
 import { type Content, type Envelope, Mailable } from '../src/mailable.ts'

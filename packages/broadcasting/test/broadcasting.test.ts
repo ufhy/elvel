@@ -295,7 +295,7 @@ const REDIS_URL = process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379'
 const redisAvailable = await (async () => {
   try {
     const probe = new RedisClient(REDIS_URL)
-    await probe.set('elysian:broadcast:probe', '1')
+    await probe.set('elyvel:broadcast:probe', '1')
     probe.close()
 
     return true

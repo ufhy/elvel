@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { Row } from './connection/connection.ts'
 import type { QueryBuilder } from './query/builder.ts'
 import type { SchemaBuilder } from './schema/builder.ts'

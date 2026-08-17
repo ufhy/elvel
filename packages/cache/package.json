@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/cache",
+  "name": "@elyvel/cache",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -13,10 +13,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/console": "workspace:*",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/database": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elyvel/console": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/database": "workspace:*",
+    "@elyvel/support": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/http-client",
+  "name": "@elyvel/http-client",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*"
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*"
   }
 }

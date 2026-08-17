@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /** `queue:forget <id>` — drop one failed job without retrying it. */
 export class QueueForgetCommand extends Command {

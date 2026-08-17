@@ -1,4 +1,4 @@
-import { Model } from '@elysian/database'
+import { Model } from '@elyvel/database'
 import { Comment } from './Comment.ts'
 import { Tag } from './Tag.ts'
 

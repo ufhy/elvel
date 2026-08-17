@@ -1,4 +1,4 @@
-import { env } from '@elysian/core'
+import { env } from '@elyvel/core'
 
 export default {
   /** Mailer used when none is named. `log` writes the message instead of sending. */
@@ -7,7 +7,7 @@ export default {
   /** Sender for any mailable whose envelope does not name one. */
   from: {
     address: env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-    name: env('MAIL_FROM_NAME', 'Elysian')
+    name: env('MAIL_FROM_NAME', 'Elyvel')
   },
 
   /**

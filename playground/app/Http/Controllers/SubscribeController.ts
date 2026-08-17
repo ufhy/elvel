@@ -1,6 +1,6 @@
-import { controller } from '@elysian/core'
-import { redirect, sessionOf, validateRequest } from '@elysian/http'
-import { view } from '@elysian/view'
+import { controller } from '@elyvel/core'
+import { redirect, sessionOf, validateRequest } from '@elyvel/http'
+import { view } from '@elyvel/view'
 import { Subscribe } from '../../../resources/views/pages/subscribe.tsx'
 import { SubscribeRequest } from '../Requests/SubscribeRequest.ts'
 

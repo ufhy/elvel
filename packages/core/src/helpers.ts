@@ -1,4 +1,4 @@
-import type { BindingKey, Resolved } from '@elysian/contracts'
+import type { BindingKey, Resolved } from '@elyvel/contracts'
 import { Application } from './application.ts'
 
 /**

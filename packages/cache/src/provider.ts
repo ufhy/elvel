@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { CacheClearCommand } from './console/cache-clear.ts'
 import { CacheForgetCommand } from './console/cache-forget.ts'
 import { CachePruneCommand } from './console/cache-prune.ts'
@@ -6,7 +6,7 @@ import { CacheTableCommand } from './console/cache-table.ts'
 import { CacheManager } from './manager.ts'
 import { RateLimiter } from './rate-limiter.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     cache: CacheManager
     'cache.limiter': RateLimiter

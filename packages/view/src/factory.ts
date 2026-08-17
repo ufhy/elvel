@@ -1,4 +1,4 @@
-import type { ViewComponent, ViewFactory } from '@elysian/contracts'
+import type { ViewComponent, ViewFactory } from '@elyvel/contracts'
 import { resolveStacks, withStacks } from './stacks.ts'
 
 const DOCTYPE = '<!DOCTYPE html>'

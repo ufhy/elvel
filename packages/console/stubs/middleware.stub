@@ -1,4 +1,4 @@
-import type { MiddlewareHook } from '@elysian/http'
+import type { MiddlewareHook } from '@elyvel/http'
 
 /**
  * Registered as an alias, then used by name on a route:

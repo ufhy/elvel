@@ -1,5 +1,5 @@
-import { Mailable } from '@elysian/mail'
-import type { Content, Envelope } from '@elysian/mail'
+import { Mailable } from '@elyvel/mail'
+import type { Content, Envelope } from '@elyvel/mail'
 
 /**
  * {{ studly }}

@@ -24,7 +24,7 @@ if (!Bun.argv.includes('--force')) {
 await rm(target, { recursive: true, force: true })
 
 const scaffold = Bun.spawnSync({
-  cmd: ['bun', 'packages/create-elysian/src/index.ts', 'playground'],
+  cmd: ['bun', 'packages/create-elyvel/src/index.ts', 'playground'],
   cwd: root,
   stdout: 'inherit',
   stderr: 'inherit'

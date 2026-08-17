@@ -1,5 +1,5 @@
-import { MailMessage, Notification } from '@elysian/notifications'
-import type { Notifiable } from '@elysian/notifications'
+import { MailMessage, Notification } from '@elyvel/notifications'
+import type { Notifiable } from '@elyvel/notifications'
 
 /**
  * {{ studly }}

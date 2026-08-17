@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import { DailyDriver, FileDriver } from '../src/drivers/file.ts'
 import { MemoryDriver } from '../src/drivers/misc.ts'
 import { LogManager } from '../src/manager.ts'
@@ -12,7 +12,7 @@ let manager: LogManager
 let root: string
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'elysian-log-'))
+  root = await mkdtemp(join(tmpdir(), 'elyvel-log-'))
   app = new Application(root)
   app.config.set('logging', {
     default: 'memory',

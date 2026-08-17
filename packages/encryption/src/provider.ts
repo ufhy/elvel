@@ -1,10 +1,10 @@
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import { EncryptionRotateCommand } from './console/encryption-rotate.ts'
 import { EnvironmentDecryptCommand, EnvironmentEncryptCommand } from './console/env-encrypt.ts'
 import { KeyGenerateCommand } from './console/key-generate.ts'
 import { Encrypter } from './encrypter.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     encrypter: Encrypter
   }
@@ -74,7 +74,7 @@ export class EncryptionServiceProvider extends ServiceProvider {
   private async enableEncryptedCasts(): Promise<void> {
     if (!this.app.bound('db')) return
 
-    const { setAttributeEncrypter } = await import('@elysian/database')
+    const { setAttributeEncrypter } = await import('@elyvel/database')
     const resolve = () => this.app.make('encrypter')
 
     setAttributeEncrypter({

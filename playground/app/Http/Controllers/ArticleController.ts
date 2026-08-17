@@ -1,5 +1,5 @@
-import { controller, NotFoundException } from '@elysian/core'
-import { redirect, route, routes, sessionOf, validateRequest } from '@elysian/http'
+import { controller, NotFoundException } from '@elyvel/core'
+import { redirect, route, routes, sessionOf, validateRequest } from '@elyvel/http'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 import type { Comment } from '../../Models/Comment.ts'

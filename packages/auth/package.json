@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/auth",
+  "name": "@elyvel/auth",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -13,14 +13,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/cache": "workspace:*",
-    "@elysian/console": "workspace:*",
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/database": "workspace:*",
-    "@elysian/http": "workspace:*",
-    "@elysian/notifications": "workspace:*",
-    "@elysian/support": "workspace:*"
+    "@elyvel/cache": "workspace:*",
+    "@elyvel/console": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/database": "workspace:*",
+    "@elyvel/http": "workspace:*",
+    "@elyvel/notifications": "workspace:*",
+    "@elyvel/support": "workspace:*"
   },
   "peerDependencies": {
     "better-auth": ">=1.6.0",

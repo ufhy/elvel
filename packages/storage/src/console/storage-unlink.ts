@@ -1,5 +1,5 @@
 import { lstat, unlink } from 'node:fs/promises'
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /**
  * `storage:unlink` — remove what `storage:link` created.

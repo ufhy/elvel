@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /** `queue:flush` — clear the failed jobs, optionally only the older ones. */
 export class QueueFlushCommand extends Command {

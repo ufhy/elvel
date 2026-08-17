@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { GeneratorCommand } from '@elysian/console'
-import { Str } from '@elysian/support'
+import { GeneratorCommand } from '@elyvel/console'
+import { Str } from '@elyvel/support'
 
 export class MakeFactoryCommand extends GeneratorCommand {
   static override signature =

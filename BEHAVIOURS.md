@@ -22,7 +22,7 @@ are at the bottom of this file.
 ---
 
 
-## @elysian/database — complete for this milestone
+## @elyvel/database — complete for this milestone
 
 Two things to know about walking a table:
 
@@ -107,7 +107,7 @@ Three things to know about pivots:
   database for testing.
 
 
-## @elysian/events
+## @elyvel/events
 
 Four things to know about a queued listener:
 
@@ -145,7 +145,7 @@ The dispatcher itself knows nothing about queues: the push arrives as a hook tha
 and names the provider — running it in the request would look like it worked.
 
 
-## @elysian/validation
+## @elyvel/validation
 
 Four things to know about file rules:
 
@@ -178,12 +178,12 @@ Three things to know about wildcard rules:
   it per order means writing the rule per order.
 
 
-## @elysian/http
+## @elyvel/http
 
 - **`app.handle()` needs a URL at least 12 characters long before the path.**
   Elysia slices the path out of `request.url` at a fixed offset, so
   `new Request('http://x/thing')` routes to nothing and answers 404 while
-  `http://localhost/thing` works. `@elysian/testing` uses `http://localhost` and
+  `http://localhost/thing` works. `@elyvel/testing` uses `http://localhost` and
   is unaffected; a handwritten `app.handle()` in a test is where this bites.
 - **A request body can be read once, and `clone()` is not a licence to read it
   twice.** `methodOverridePlugin` cloned the request once to find `_method` and
@@ -252,7 +252,7 @@ Four things to know about the middleware:
   looks like one.
 
 
-## @elysian/auth
+## @elyvel/auth
 
 Two things to know when using it:
 - **`{ user }` cannot be destructured from a controller's context and typed.**
@@ -297,7 +297,7 @@ Two things to know when using it:
   who merely mistyped.
 
 
-## @elysian/cache
+## @elyvel/cache
 
 Three behaviours worth knowing rather than discovering:
 
@@ -315,7 +315,7 @@ Three behaviours worth knowing rather than discovering:
   there is nothing to scan for, and it does flush the database.
 
 
-## @elysian/queue
+## @elyvel/queue
 
 Behaviours worth knowing rather than discovering:
 
@@ -385,7 +385,7 @@ Behaviours worth knowing rather than discovering:
   will still leak it after being declared failed.
 
 
-## @elysian/http — route middleware
+## @elyvel/http — route middleware
 
 **A rate limit checks and then increments, so concurrent requests slip past.**
 Four simultaneous calls against `throttle:3,1` all return 200: each reads the
@@ -434,12 +434,12 @@ cacheable one.
 Elysia compiles a route's `beforeHandle` list into an anonymous chain, so by the
 time there is a route table there is nothing to say *which* middleware guards
 what — a listing could only report that some does. `middleware()` tags its hook
-with `Symbol.for('elysian.middleware.names')`, and Elysia wraps each hook as
+with `Symbol.for('elyvel.middleware.names')`, and Elysia wraps each hook as
 `{ fn }` while leaving the function's own properties alone, which is what lets
 `route:list` print a column and `middleware:list` count usage. That wrapping is
 not a public contract, so both readers come back empty rather than throwing if it
-changes. The global symbol is also why `@elysian/console` needs no dependency on
-`@elysian/http` to print the column.
+changes. The global symbol is also why `@elyvel/console` needs no dependency on
+`@elyvel/http` to print the column.
 
 **`signed` covers the origin and `signed:relative` does not.** The absolute form
 is right for a link in an email and cannot be followed on a host `APP_URL` does
@@ -453,7 +453,7 @@ application by hand does not, and `Retry-After` goes missing for that reason alo
 rather than because the limiter forgot it.
 
 
-## @elysian/support
+## @elyvel/support
 
 **A union of a value and a callback makes a generic class invariant, and the
 blast radius is not local.** `search(needle: T | ((item: T) => boolean))` looked
@@ -478,12 +478,12 @@ Every package declares `"sideEffects": false`, which is a claim about its
 modules and not a setting: nothing in `src/` does anything at import time beyond
 declaring. It was checked file by file rather than assumed — the only two
 modules that *do* act on import are named instead of hidden by the blanket
-claim: `@elysian/concurrency`'s `worker-entry.ts`, which installs
-`self.onmessage` and is loaded as a worker, and `create-elysian`'s `index.ts`,
+claim: `@elyvel/concurrency`'s `worker-entry.ts`, which installs
+`self.onmessage` and is loaded as a worker, and `create-elyvel`'s `index.ts`,
 which is a CLI and ends in `process.exit`.
 
 Without the claim a bundler must assume the worst. Measured on Bun 1.3.14,
-importing one function — `csrfField` from `@elysian/http` — pulled **498 modules
+importing one function — `csrfField` from `@elyvel/http` — pulled **498 modules
 and 1.1 MB**, because the barrel re-exports the provider and the console
 commands, and those reach the console, database, cache and validation packages.
 With the claim, the same import is **5 modules**. The playground application
@@ -512,7 +512,7 @@ The cost is that a new config file has to be named in that file as well, which i
 why it is a second bootstrap rather than the only one.
 
 
-## @elysian/process
+## @elyvel/process
 
 - **Output is text unless you ask for bytes.** `output` is a JavaScript string,
   and a string here is UTF-16: a PNG or a tarball on stdout becomes replacement
@@ -529,7 +529,7 @@ why it is a second bootstrap rather than the only one.
   needs no shell anywhere, and is the form to use for anything built from input.
 
 
-## @elysian/http-client
+## @elyvel/http-client
 
 **Bun's `fetch` accepts `timeout` and `retry` and silently ignores both.**
 Measured on 1.3.12: `fetch(url, { timeout: 200 })` against a three-second handler
@@ -562,7 +562,7 @@ redirect alone — otherwise every caller using `withoutRedirecting()` to read a
 `Location` would have to catch.
 
 
-## @elysian/scheduler
+## @elyvel/scheduler
 
 Things worth knowing:
 
@@ -647,7 +647,7 @@ completion, not a command anybody runs.
 here; listeners are discovered from `app/Listeners`.
 
 
-## @elysian/mail
+## @elyvel/mail
 
 Three behaviours worth knowing:
 
@@ -656,14 +656,14 @@ Three behaviours worth knowing:
   One of them — `post-x-www-form-urlencoded` — has files that disagree with each
   other, so only its canonical request is asserted; the reason is in the test.
 - **`alwaysTo` keeps the originals.** Redirected recipients are written to
-  `X-Elysian-To`/`Cc`/`Bcc` rather than dropped, so a message caught on staging can
+  `X-Elyvel-To`/`Cc`/`Bcc` rather than dropped, so a message caught on staging can
   still be traced to who it was for.
 - **`allowSelfSigned` is refused in production.** The flag exists for a local mail
   catcher; the manager throws rather than honour it where it would mean mail
   readable in transit.
 
 
-## @elysian/mail
+## @elyvel/mail
 
 - **A built message does not remember which disk an attachment came from.**
   `attachFromDisk` resolves the file to bytes while the message is built, on
@@ -677,7 +677,7 @@ Three behaviours worth knowing:
   itself.
 
 
-## @elysian/storage
+## @elyvel/storage
 
 Four behaviours worth knowing:
 
@@ -704,7 +704,7 @@ Four behaviours worth knowing:
   quoted string or split the header; the real name travels in `filename*`.
 
 
-## @elysian/translation
+## @elyvel/translation
 
 - **A missing key comes back as the key.** An untranslated page shows
   `orders.title` — obviously wrong, obviously fixable — where an empty string
@@ -719,7 +719,7 @@ Four behaviours worth knowing:
   translating anything, and a sentence key still reads correctly untranslated.
 
 
-## @elysian/notifications
+## @elyvel/notifications
 
 Two things to know about language:
 
@@ -750,7 +750,7 @@ And three more:
   an orphan.
 
 
-## @elysian/encryption
+## @elyvel/encryption
 
 Decisions worth knowing rather than discovering:
 
@@ -797,7 +797,7 @@ Decisions worth knowing rather than discovering:
   read, not what you search by.
 
 
-## @elysian/broadcasting
+## @elyvel/broadcasting
 
 - **A presence channel authorises and identifies in one answer.** What the
   callback returns *is* what the other members are told, so everything on the
@@ -849,7 +849,7 @@ Decisions worth knowing rather than discovering:
   model or a secret.
 
 
-## @elysian/view — what Blade's directives became
+## @elyvel/view — what Blade's directives became
 
 Most of Blade's directive set is a workaround for PHP-in-HTML that TSX makes
 unnecessary, and the mapping is worth stating once so the absence does not read
@@ -933,7 +933,7 @@ What is still deliberately different, and why:
 - **No `phpunit.xml` equivalent.** `bun test` needs no configuration file.
 
 
-## @elysian/auth — what an application declares about itself
+## @elyvel/auth — what an application declares about itself
 
 Two things the framework cannot know: which endpoints better-auth exposes, and
 what a user row holds. Both depend on `config/auth.ts` — its plugins and the
@@ -941,7 +941,7 @@ schema `auth:schema` generated from them — so an application says them once, b
 declaration merging, beside the config they come from:
 
 ```ts
-declare module '@elysian/auth' {
+declare module '@elyvel/auth' {
   interface AuthTypes {
     api: Auth<typeof config>['api']
     user: { id: string; name: string; email: string; emailVerified: boolean }
@@ -1005,7 +1005,7 @@ one line, and its two test files.
 **A scaffolded application arrives with tests.** The template ships a feature
 test and a unit test; each kit ships tests for the flows it scaffolds — written
 the way the application's author would write them, since they are the author's
-now. Laravel does the same, and for the same reason: `@elysian/testing` was in
+now. Laravel does the same, and for the same reason: `@elyvel/testing` was in
 every scaffolded `package.json` and no scaffolded file used it, which is the
 shape of every "we have that feature" that turns out not to work.
 
@@ -1021,7 +1021,7 @@ been generated yet, since `auth:schema` writes a migration that depends on
 `config/auth.ts` and cannot be shipped.
 
 
-## create-elysian
+## create-elyvel
 
 **The kit is now proven, not merely scaffolded.** Every earlier check on the auth
 kit asserted that files landed and that a string appears in `routes/web.ts`. A
@@ -1040,7 +1040,7 @@ One thing worth knowing, and two worth remembering:
 - **No migrations ship in the box.** Laravel's skeleton carries `users`, `cache`
   and `jobs`; better-auth's tables depend on `config/auth.ts`, so they are
   generated with `auth:schema`, and the rest are only needed when a driver changes.
-  `create-elysian` prints those steps rather than assuming them.
+  `create-elyvel` prints those steps rather than assuming them.
 
 - **The template drifted for eight packages and nothing noticed.** Every package
   was exercised by the playground, where the wiring was written by hand, so a new
@@ -1083,7 +1083,7 @@ yesterday's code.
 
 **Routing is core; `HttpServiceProvider` is everything around a request.** An
 application that leaves it out still serves pages — the root Elysia instance and
-`controller()` live in `@elysian/core` — and loses sessions, cookies, CSRF, the
+`controller()` live in `@elyvel/core` — and loses sessions, cookies, CSRF, the
 rate limiters and the middleware registry. Found while measuring which providers
 a landing page cannot boot without, where dropping it changed nothing that the
 two probed routes touched.
@@ -1096,7 +1096,7 @@ guarded, so `middlewares()` now says which provider is missing instead of
 
 **`"sideEffects": false` and `bun build` do not agree about barrel files.** The
 field is on every package, and `tests/side-effects.test.ts` keeps it true,
-because without it importing one helper from `@elysian/http` pulled 498 modules
+because without it importing one helper from `@elyvel/http` pulled 498 modules
 instead of five. What it also does, in Bun 1.3.14, is break `bun build` of the
 package itself: an entry that only re-exports comes out as 0.55 KB of export list
 with no implementation behind it, and throws `Exported binding ... needs to refer
@@ -1184,7 +1184,7 @@ the process will not exit, and nothing says why. `DB_CONNECT_TIMEOUT` changes it
 per application.
 
 **Bun has no image API at all.** No `createImageBitmap`, no `OffscreenCanvas`,
-nothing native — checked directly on 1.3.12. So `@elysian/image` is two halves.
+nothing native — checked directly on 1.3.12. So `@elyvel/image` is two halves.
 `probe()` reads format and dimensions out of the bytes in pure TypeScript for
 png, jpeg, gif, webp, bmp, tiff, avif and heic, needs nothing installed, and
 covers the check most applications actually want, since a file extension and a
@@ -1248,7 +1248,7 @@ uncovered, and why:
   `picocolors`
 - `serve.ts` — its `handle()` never resolves by design; the smoke test binds a
   real socket instead
-- `create-elysian` — covered end to end by the smoke test rather than by units:
+- `create-elyvel` — covered end to end by the smoke test rather than by units:
   it scaffolds, boots, and every package's commands are registered in what it
   wrote. Not covered is a scaffold installed *from npm* rather than resolved
   through the workspace

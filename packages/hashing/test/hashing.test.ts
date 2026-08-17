@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import {
   Argon2idHasher,
   BcryptHasher,

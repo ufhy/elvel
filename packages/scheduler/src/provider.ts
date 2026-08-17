@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elysian/core'
+import { ServiceProvider } from '@elyvel/core'
 import {
   ScheduleClearCacheCommand,
   ScheduleInterruptCommand,
@@ -11,7 +11,7 @@ import { ScheduleTestCommand } from './console/schedule-test.ts'
 import { ScheduleWorkCommand } from './console/schedule-work.ts'
 import { Schedule } from './schedule.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     schedule: Schedule
   }

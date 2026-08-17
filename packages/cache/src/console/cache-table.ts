@@ -1,4 +1,4 @@
-import { MigrationGeneratorCommand } from '@elysian/database'
+import { MigrationGeneratorCommand } from '@elyvel/database'
 
 /** `cache:table` — write the migration the `database` store needs. */
 export class CacheTableCommand extends MigrationGeneratorCommand {

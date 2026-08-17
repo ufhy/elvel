@@ -1,33 +1,33 @@
-import { AuthServiceProvider } from '@elysian/auth'
-import { BroadcastServiceProvider } from '@elysian/broadcasting'
-import { CacheServiceProvider } from '@elysian/cache'
-import { ConcurrencyServiceProvider } from '@elysian/concurrency'
-import { ConsoleServiceProvider } from '@elysian/console'
-import { Env, env } from '@elysian/core'
-import { DatabaseServiceProvider } from '@elysian/database'
-import { EncryptionServiceProvider } from '@elysian/encryption'
-import { EventServiceProvider } from '@elysian/events'
-import { HashServiceProvider } from '@elysian/hashing'
-import { HttpServiceProvider } from '@elysian/http'
-import { HttpClientServiceProvider } from '@elysian/http-client'
-import { ImageServiceProvider } from '@elysian/image'
-import { LogServiceProvider } from '@elysian/log'
-import { MailServiceProvider } from '@elysian/mail'
-import { NotificationServiceProvider } from '@elysian/notifications'
-import { ProcessServiceProvider } from '@elysian/process'
-import { QueueServiceProvider } from '@elysian/queue'
-import { ScheduleServiceProvider } from '@elysian/scheduler'
-import { StorageServiceProvider } from '@elysian/storage'
-import { TranslationServiceProvider } from '@elysian/translation'
-import { ValidationServiceProvider } from '@elysian/validation'
-import { ViewServiceProvider } from '@elysian/view'
+import { AuthServiceProvider } from '@elyvel/auth'
+import { BroadcastServiceProvider } from '@elyvel/broadcasting'
+import { CacheServiceProvider } from '@elyvel/cache'
+import { ConcurrencyServiceProvider } from '@elyvel/concurrency'
+import { ConsoleServiceProvider } from '@elyvel/console'
+import { Env, env } from '@elyvel/core'
+import { DatabaseServiceProvider } from '@elyvel/database'
+import { EncryptionServiceProvider } from '@elyvel/encryption'
+import { EventServiceProvider } from '@elyvel/events'
+import { HashServiceProvider } from '@elyvel/hashing'
+import { HttpServiceProvider } from '@elyvel/http'
+import { HttpClientServiceProvider } from '@elyvel/http-client'
+import { ImageServiceProvider } from '@elyvel/image'
+import { LogServiceProvider } from '@elyvel/log'
+import { MailServiceProvider } from '@elyvel/mail'
+import { NotificationServiceProvider } from '@elyvel/notifications'
+import { ProcessServiceProvider } from '@elyvel/process'
+import { QueueServiceProvider } from '@elyvel/queue'
+import { ScheduleServiceProvider } from '@elyvel/scheduler'
+import { StorageServiceProvider } from '@elyvel/storage'
+import { TranslationServiceProvider } from '@elyvel/translation'
+import { ValidationServiceProvider } from '@elyvel/validation'
+import { ViewServiceProvider } from '@elyvel/view'
 
 export default {
   /** Default language, and what to fall back to when a key is missing. */
   locale: env('APP_LOCALE', 'en'),
   fallbackLocale: env('APP_FALLBACK_LOCALE', 'en'),
 
-  name: env('APP_NAME', 'Elysian'),
+  name: env('APP_NAME', 'Elyvel'),
 
   /**
    * Signs cookies and, through HKDF, derives the encryption key.

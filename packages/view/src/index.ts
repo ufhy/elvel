@@ -1,7 +1,7 @@
-import type { ViewComponent } from '@elysian/contracts'
-import { app } from '@elysian/core'
+import type { ViewComponent } from '@elyvel/contracts'
+import { app } from '@elyvel/core'
 
-export type { ViewComponent } from '@elysian/contracts'
+export type { ViewComponent } from '@elyvel/contracts'
 export { type ClassInput, classes, json, styles } from './attributes.ts'
 export { JsxViewFactory, type ViewFactoryOptions } from './factory.ts'
 export { ViewServiceProvider } from './provider.ts'

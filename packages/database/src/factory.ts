@@ -1,4 +1,4 @@
-import { Collection } from '@elysian/support'
+import { Collection } from '@elyvel/support'
 import type { Row } from './connection/connection.ts'
 import type { Model, ModelClass } from './model/model.ts'
 

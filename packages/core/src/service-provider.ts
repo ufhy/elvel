@@ -1,4 +1,4 @@
-import type { ApplicationContract, ServiceProviderContract } from '@elysian/contracts'
+import type { ApplicationContract, ServiceProviderContract } from '@elyvel/contracts'
 import type { Elysia } from 'elysia'
 
 /**

@@ -8,14 +8,14 @@ import type {
   Resolved,
   ServiceProviderConstructor,
   ServiceProviderContract
-} from '@elysian/contracts'
+} from '@elyvel/contracts'
 import { Elysia } from 'elysia'
 import { Config } from './config.ts'
 import { Env } from './env.ts'
 import { ExceptionHandler } from './exceptions.ts'
 import { MaintenanceMode } from './maintenance.ts'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     'exception.handler': ExceptionHandlerContract
     maintenance: MaintenanceMode
@@ -63,7 +63,7 @@ export class Application implements ApplicationContract {
 
   constructor(private readonly root: string) {
     this.config = new Config()
-    this.router = new Elysia({ name: 'elysian' })
+    this.router = new Elysia({ name: 'elyvel' })
 
     this.instance('exception.handler', new ExceptionHandler(this))
 

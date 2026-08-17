@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elysian/contracts'
+import type { ApplicationContract } from '@elyvel/contracts'
 import {
   Argon2idHasher,
   BcryptHasher,

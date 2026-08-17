@@ -1,7 +1,7 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /** The cache key a paused queue is marked with. */
-export const pauseKey = (queue: string) => `elysian:queue:paused:${queue}`
+export const pauseKey = (queue: string) => `elyvel:queue:paused:${queue}`
 
 /**
  * `queue:pause` — stop reserving work without stopping the workers.

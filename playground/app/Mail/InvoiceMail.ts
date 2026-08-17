@@ -1,5 +1,5 @@
-import type { Attachment, Content, Envelope } from '@elysian/mail'
-import { Mailable } from '@elysian/mail'
+import type { Attachment, Content, Envelope } from '@elyvel/mail'
+import { Mailable } from '@elyvel/mail'
 
 /**
  * An invoice, with the PDF read off a storage disk and a logo embedded.

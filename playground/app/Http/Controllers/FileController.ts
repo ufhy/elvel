@@ -1,5 +1,5 @@
-import { controller, NotFoundException } from '@elysian/core'
-import { validateRequest } from '@elysian/http'
+import { controller, NotFoundException } from '@elyvel/core'
+import { validateRequest } from '@elyvel/http'
 import {
   disk,
   download,
@@ -7,7 +7,7 @@ import {
   isCloudDisk,
   PathOutsideDiskError,
   storage
-} from '@elysian/storage'
+} from '@elyvel/storage'
 import { t } from 'elysia'
 import { UploadAvatarRequest } from '../Requests/UploadAvatarRequest.ts'
 

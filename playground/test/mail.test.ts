@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, test as it } from 'bun:test'
-import { type MailFake, mail, mailer, mailTo } from '@elysian/mail'
+import { type MailFake, mail, mailer, mailTo } from '@elyvel/mail'
 import '../bootstrap/app.ts'
 import './database.ts'
 import { ArticlePublished } from '../app/Mail/ArticlePublished.ts'
@@ -79,7 +79,7 @@ describe('building without sending', () => {
    * assertions on `Mailable` itself, and the shape a preview route uses.
    */
   it('renders a mailable that never goes anywhere', async () => {
-    const { expectMessage } = await import('@elysian/mail')
+    const { expectMessage } = await import('@elyvel/mail')
 
     const built = await mailer('array').build(new ArticlePublished(article), {
       to: [{ address: 'ada@example.com' }]

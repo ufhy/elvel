@@ -1,4 +1,4 @@
-import { JsonResource } from '@elysian/http'
+import { JsonResource } from '@elyvel/http'
 import type { Article } from '../../Models/Article.ts'
 import type { Comment } from '../../Models/Comment.ts'
 import { CommentResource } from './CommentResource.ts'

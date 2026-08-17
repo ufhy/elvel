@@ -1,4 +1,4 @@
-import { Migration, type MigrationContext } from '@elysian/database'
+import { Migration, type MigrationContext } from '@elyvel/database'
 
 /**
  * Add Secret To Articles Table

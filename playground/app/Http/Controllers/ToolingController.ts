@@ -1,8 +1,8 @@
-import { concurrency } from '@elysian/concurrency'
-import { controller } from '@elysian/core'
-import { hash } from '@elysian/hashing'
-import { image, probe } from '@elysian/image'
-import { process } from '@elysian/process'
+import { concurrency } from '@elyvel/concurrency'
+import { controller } from '@elyvel/core'
+import { hash } from '@elyvel/hashing'
+import { image, probe } from '@elyvel/image'
+import { process } from '@elyvel/process'
 
 /**
  * The four packages the playground never booted.

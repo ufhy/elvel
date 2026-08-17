@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { NotificationManager } from './manager.ts'
 import type { AnonymousNotifiable, Notifiable } from './notifiable.ts'
 import type { AnyNotification } from './notification.ts'

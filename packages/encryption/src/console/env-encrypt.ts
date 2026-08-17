@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 import { Encrypter } from '../encrypter.ts'
 import { generateKey } from '../keys.ts'
 
@@ -76,10 +76,10 @@ export class EnvironmentDecryptCommand extends Command {
     const target = this.app.basePath(name === '' ? '.env' : `.env.${name}`)
     const source = encrypted(target)
 
-    const key = this.stringOption('key') || String(process.env.ELYSIAN_ENV_KEY ?? '')
+    const key = this.stringOption('key') || String(process.env.ELYVEL_ENV_KEY ?? '')
 
     if (key === '') {
-      this.error('A key is required: pass --key, or set ELYSIAN_ENV_KEY.')
+      this.error('A key is required: pass --key, or set ELYVEL_ENV_KEY.')
 
       return 1
     }

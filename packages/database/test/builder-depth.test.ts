@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elysian/core'
+import { Application } from '@elyvel/core'
 import type { ConnectionManager } from '../src/connection/manager.ts'
 import { DatabaseServiceProvider } from '../src/index.ts'
 

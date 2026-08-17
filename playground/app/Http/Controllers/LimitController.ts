@@ -1,5 +1,5 @@
-import { controller, routeGroup } from '@elysian/core'
-import { clientIp, limiters, throttle } from '@elysian/http'
+import { controller, routeGroup } from '@elyvel/core'
+import { clientIp, limiters, throttle } from '@elyvel/http'
 
 /**
  * Generated with `artisan make:controller LimitController`, then extended.

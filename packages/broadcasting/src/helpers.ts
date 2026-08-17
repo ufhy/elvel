@@ -1,4 +1,4 @@
-import { app } from '@elysian/core'
+import { app } from '@elyvel/core'
 import type { Broadcaster } from './broadcaster.ts'
 import type { ChannelRegistry } from './channels.ts'
 

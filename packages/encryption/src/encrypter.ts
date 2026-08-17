@@ -73,7 +73,7 @@ export class Encrypter {
   private readonly indexKey: Buffer
 
   constructor(secret: string, options: EncrypterOptions = {}) {
-    const purpose = options.purpose ?? 'elysian:encrypt:v1'
+    const purpose = options.purpose ?? 'elyvel:encrypt:v1'
 
     // The primary key is first: it is what writes, and what reads are tried
     // against first.

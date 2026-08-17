@@ -1,5 +1,5 @@
-import type { ApplicationContract } from '@elysian/contracts'
-import { ProcessManager } from '@elysian/process'
+import type { ApplicationContract } from '@elyvel/contracts'
+import { ProcessManager } from '@elyvel/process'
 import { type EventCallback, ScheduledEvent } from './event.ts'
 
 /** A job, structurally — the queue package satisfies this. */
@@ -60,7 +60,7 @@ export class Schedule {
         /**
          * Reached by name, because an application may not have the queue.
          *
-         * `make('queue')` is typed by a declaration `@elysian/queue` merges in,
+         * `make('queue')` is typed by a declaration `@elyvel/queue` merges in,
          * and an application that does not register the queue provider never
          * loads that file — so the binding types as `unknown` and the
          * *application's* `tsc` fails inside this package. The cast says what is
@@ -95,7 +95,7 @@ export class Schedule {
     return this.add(
       new ScheduledEvent(async () => {
         // An array is passed straight to the program; only an explicit string
-        // opts into a shell. `@elysian/process` makes the same distinction, and
+        // opts into a shell. `@elyvel/process` makes the same distinction, and
         // gives the command its own process group so a scheduled task that forks
         // does not leave children behind.
         const result = await new ProcessManager().path(this.app.basePath()).inherit().run(command)

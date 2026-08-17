@@ -1,6 +1,6 @@
-import { app, NotFoundException } from '@elysian/core'
+import { app, NotFoundException } from '@elyvel/core'
 
-declare module '@elysian/contracts' {
+declare module '@elyvel/contracts' {
   interface ContainerBindings {
     bindings: BindingRegistry
   }

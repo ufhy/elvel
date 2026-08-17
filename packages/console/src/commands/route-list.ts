@@ -16,7 +16,7 @@ const METHOD_COLORS: Record<string, (value: string) => string> = {
  * dependencies: the console has no business depending on the HTTP package to
  * print a column. A global symbol is the contract between them.
  */
-const MIDDLEWARE_NAMES = Symbol.for('elysian.middleware.names')
+const MIDDLEWARE_NAMES = Symbol.for('elyvel.middleware.names')
 
 /**
  * The middleware guarding one route, in declaration order.

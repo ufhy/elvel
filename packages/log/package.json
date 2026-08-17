@@ -1,5 +1,5 @@
 {
-  "name": "@elysian/log",
+  "name": "@elyvel/log",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -13,9 +13,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysian/contracts": "workspace:*",
-    "@elysian/core": "workspace:*",
-    "@elysian/support": "workspace:*",
+    "@elyvel/contracts": "workspace:*",
+    "@elyvel/core": "workspace:*",
+    "@elyvel/support": "workspace:*",
     "picocolors": "^1.1.1"
   },
   "peerDependencies": {

@@ -13,7 +13,7 @@
   ],
   "exclude": [
     "**/node_modules",
-    "packages/create-elysian/template/**",
-    "packages/create-elysian/kits/**"
+    "packages/create-elyvel/template/**",
+    "packages/create-elyvel/kits/**"
   ]
 }

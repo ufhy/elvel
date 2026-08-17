@@ -446,7 +446,7 @@ describe('against bare fetch', () => {
   test.skipIf(process.platform === 'win32')(
     "Bun's real options are forwarded rather than reimplemented",
     async () => {
-      const path = join(tmpdir(), `elysian-client-${process.pid}.sock`)
+      const path = join(tmpdir(), `elyvel-client-${process.pid}.sock`)
       const socket = Bun.serve({ unix: path, fetch: () => new Response('over a socket file') })
 
       try {

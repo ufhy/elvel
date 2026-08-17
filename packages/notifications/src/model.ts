@@ -1,4 +1,4 @@
-import { Model } from '@elysian/database'
+import { Model } from '@elyvel/database'
 
 /**
  * A stored notification — Laravel's `DatabaseNotification`.

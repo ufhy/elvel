@@ -1,4 +1,4 @@
-import { env } from '@elysian/core'
+import { env } from '@elyvel/core'
 
 export default {
   /** Which store `cache()` uses when none is named. */

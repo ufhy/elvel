@@ -5,7 +5,7 @@ import { join } from 'node:path'
 /**
  * Run a CLI backend through two temporary files.
  *
- * Pipes would be better and are not available: `@elysian/process` decodes a
+ * Pipes would be better and are not available: `@elyvel/process` decodes a
  * command's output as UTF-8 text, which turns a PNG into replacement
  * characters, and `sips` has no stdin mode at all. Files cost two writes and a
  * read per image, and they are correct.
@@ -19,7 +19,7 @@ export async function throughFiles<T>(
   outputExtension: string,
   run: (input: string, output: string) => Promise<T>
 ): Promise<Uint8Array> {
-  const directory = await mkdtemp(join(tmpdir(), 'elysian-image-'))
+  const directory = await mkdtemp(join(tmpdir(), 'elyvel-image-'))
   const input = join(directory, `in.${inputExtension}`)
   const output = join(directory, `out.${outputExtension}`)
 

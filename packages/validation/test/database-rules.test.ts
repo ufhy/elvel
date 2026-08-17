@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elysian/database'
+import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elyvel/database'
 import { DatabasePresenceVerifier } from '../src/provider.ts'
 import { Rule } from '../src/types.ts'
 import { Validator } from '../src/validator.ts'

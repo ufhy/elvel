@@ -5,7 +5,7 @@ import type {
   LogDriver,
   LoggerContract,
   LogLevel
-} from '@elysian/contracts'
+} from '@elyvel/contracts'
 import { ConsoleDriver } from './drivers/console.ts'
 import { DailyDriver, FileDriver } from './drivers/file.ts'
 import { JsonDriver } from './drivers/json.ts'
@@ -196,10 +196,10 @@ export class LogManager implements LoggerContract {
         return new JsonDriver({ stream: resolved.stream ?? 'stdout' })
 
       case 'single':
-        return new FileDriver(this.pathFor(resolved, 'elysian.log'))
+        return new FileDriver(this.pathFor(resolved, 'elyvel.log'))
 
       case 'daily':
-        return new DailyDriver(this.pathFor(resolved, 'elysian.log'), {
+        return new DailyDriver(this.pathFor(resolved, 'elyvel.log'), {
           maxFiles: resolved.maxFiles ?? 14
         })
 

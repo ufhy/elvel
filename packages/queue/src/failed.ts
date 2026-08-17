@@ -1,4 +1,4 @@
-import type { ConnectionManager } from '@elysian/database'
+import type { ConnectionManager } from '@elyvel/database'
 import type { FailedJobRecord, FailedJobStore, JobPayload } from './contracts.ts'
 
 export type DatabaseFailedJobStoreOptions = {

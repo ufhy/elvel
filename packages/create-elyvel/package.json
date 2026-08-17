@@ -1,0 +1,19 @@
+{
+  "name": "create-elyvel",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": [
+    "./src/index.ts"
+  ],
+  "bin": {
+    "create-elyvel": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "picocolors": "^1.1.1"
+  }
+}

@@ -173,7 +173,7 @@ describe('whole-sentence translations', () => {
 
 describe('loading a lang directory', () => {
   test('it reads both shapes: a locale directory and a locale json file', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'elysian-lang-'))
+    const root = await mkdtemp(join(tmpdir(), 'elyvel-lang-'))
 
     try {
       await mkdir(join(root, 'id'), { recursive: true })
@@ -198,7 +198,7 @@ describe('loading a lang directory', () => {
   })
 
   test('a malformed json file does not stop the rest from loading', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'elysian-lang-'))
+    const root = await mkdtemp(join(tmpdir(), 'elyvel-lang-'))
 
     try {
       await mkdir(join(root, 'id'), { recursive: true })

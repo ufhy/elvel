@@ -1,4 +1,4 @@
-import { Command } from '@elysian/console'
+import { Command } from '@elyvel/console'
 
 /** `cache:forget <key>` — drop one entry without flushing the store. */
 export class CacheForgetCommand extends Command {
