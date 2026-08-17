@@ -542,13 +542,22 @@ for (const candidate of candidates) {
       expect<unknown>(await funnel().then(() => 'in')).toBe('in')
     })
 
+    /**
+     * The slot has to outlive the work, or the waiter gets in for the wrong reason.
+     *
+     * With `releaseAfter(10)` around a holder sleeping 60 ms — as this was — the
+     * lock expires while the holder is still inside, so the waiter can acquire at
+     * around 30 ms and push `second` before `first:end`. It passed on the timing
+     * of one machine rather than on the behaviour being tested, which is that
+     * `block()` waits for a *release*.
+     */
     test('block() waits for a slot rather than refusing', async () => {
       const order: string[] = []
 
       const holder = cache
         .funnel('narrow')
         .limit(1)
-        .releaseAfter(10)
+        .releaseAfter(2000)
         .then(async () => {
           order.push('first:start')
           await Bun.sleep(60)
@@ -561,7 +570,7 @@ for (const candidate of candidates) {
         return cache
           .funnel('narrow')
           .limit(1)
-          .releaseAfter(10)
+          .releaseAfter(2000)
           .betweenBlockedAttemptsSleepFor(20)
           .block(5, () => order.push('second'))
       })()
@@ -572,7 +581,9 @@ for (const candidate of candidates) {
     })
 
     test('block() gives up on the clock, not on attempts', async () => {
-      const occupied = cache.funnel('full').limit(1).releaseAfter(10)
+      // Held for the whole 200 ms, so the waiter's 0.1 s really does run out —
+      // at `releaseAfter(10)` the slot freed itself and the waiter could take it.
+      const occupied = cache.funnel('full').limit(1).releaseAfter(2000)
       const running = occupied.then(() => Bun.sleep(200))
 
       // Let the holder take the only slot before the waiter starts.
@@ -594,7 +605,8 @@ for (const candidate of candidates) {
     })
 
     test('free() reports what is left', async () => {
-      const funnel = cache.funnel('gauge').limit(2).releaseAfter(10)
+      // Long enough that the count cannot change under the assertions.
+      const funnel = cache.funnel('gauge').limit(2).releaseAfter(2000)
 
       expect<number>(await funnel.free()).toBe(2)
 

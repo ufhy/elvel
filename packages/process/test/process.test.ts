@@ -121,14 +121,27 @@ describe('timeouts', () => {
    * The distinction the idle timeout exists for: this command runs far longer
    * than the idle window but never stops talking, so it must survive.
    */
+  /**
+   * What this proves, and the margin it needs to prove it.
+   *
+   * The command runs for longer than the idle timeout while never being quiet for
+   * longer than it — so finishing is only possible if each line resets the clock.
+   * Both halves have to hold with room to spare, and they did not: at
+   * `idleTimeout(400)` with `sleep 0.1`, each tick spawns a process, and on a
+   * Windows runner that overhead pushed one gap past 400 ms. The command was
+   * killed and a release stopped.
+   *
+   * Ten ticks of 300 ms run for about three seconds against a two-second timeout,
+   * so the total still exceeds it, while each gap has six times the room it needs.
+   */
   test('output keeps a long command alive', async () => {
     const result = await run()
-      .idleTimeout(400)
-      .run('for i in 1 2 3 4 5 6; do echo tick; sleep 0.1; done')
+      .idleTimeout(2000)
+      .run('for i in 1 2 3 4 5 6 7 8 9 10; do echo tick; sleep 0.3; done')
 
     expect(result.successful()).toBe(true)
     expect(result.timedOut).toBe(false)
-    expect(result.lines().length).toBe(6)
+    expect(result.lines().length).toBe(10)
   })
 
   test('silence kills it', async () => {
