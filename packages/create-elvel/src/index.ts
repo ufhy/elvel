@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import * as prompts from '@clack/prompts'
 import pc from 'picocolors'
 
@@ -195,7 +195,16 @@ async function main(): Promise<number> {
   spinner.start('Creating project')
 
   const replacements: Replacements = {
-    name: name.replace(/^.*\//, ''),
+    /**
+     * The last path segment, whatever the separator.
+     *
+     * This was `name.replace(/^.*\//, '')`, which cuts at the last forward
+     * slash — so on Windows it cut nothing, and an absolute target put
+     * `D:\a\elvel\...` into `"name"` in `package.json`. `\a` is not a JSON
+     * escape, so the manifest the scaffolder had just written would not parse,
+     * and the scaffolder died reading its own output.
+     */
+    name: basename(target),
     ...(await frameworkDependencies(workspaceMode))
   }
 

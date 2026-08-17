@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 
 const root = resolve(import.meta.dir, '..', '..', '..')
 const templateDir = resolve(import.meta.dir, '..', 'template')
@@ -472,6 +472,8 @@ describe('the versions the template pins', () => {
  */
 type Scaffold = {
   dependencies: Record<string, string>
+  manifest: Record<string, unknown>
+  target: string
   configs: string[]
   bootstrap: string
 }
@@ -515,6 +517,8 @@ async function scaffold(kit: string): Promise<Scaffold> {
 
   const built: Scaffold = {
     dependencies: manifest.dependencies,
+    manifest: manifest as unknown as Record<string, unknown>,
+    target,
     configs: (await readdir(join(target, 'config')))
       .filter((entry) => entry.endsWith('.ts'))
       .map((entry) => entry.slice(0, -'.ts'.length))
@@ -737,5 +741,26 @@ describe('what a scaffolded application asks npm for', () => {
     // Outside the checkout there is no workspace to link, so every framework
     // package has to name a version npm can actually resolve.
     expect<string>(written.dependencies['@elvel/core'] as string).toBe(`^${manifest.version}`)
+  })
+})
+
+/**
+ * The manifest the scaffolder writes has to parse.
+ *
+ * It did not, on Windows, for as long as the check existed: the project name was
+ * taken with `name.replace(/^.*\//, '')`, which cuts at the last *forward* slash,
+ * so an absolute target left `D:\a\elvel\…` in `"name"` — and `\a` is not a JSON
+ * escape. The scaffolder then failed reading the file it had just written, with
+ * Bun reporting only `Failed to parse JSON`.
+ *
+ * Asserting the name rather than the parse is what makes this catch it here: on a
+ * machine with forward slashes the broken version produced valid JSON, so only
+ * the wrong *value* gives it away.
+ */
+describe('the manifest a scaffold is given', () => {
+  test('names the project after its directory, not its path', async () => {
+    const { manifest, target } = await scaffold('none')
+
+    expect<string>(manifest.name as string).toBe(basename(target))
   })
 })
