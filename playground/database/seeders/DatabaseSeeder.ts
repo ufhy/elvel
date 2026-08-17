@@ -1,4 +1,4 @@
-import { Seeder, type SeederContext } from '@elyvel/database'
+import { Seeder, type SeederContext } from '@elvel/database'
 import { ArticleSeeder } from './ArticleSeeder.ts'
 
 /**

@@ -1,8 +1,8 @@
-import type { ViewComponent } from '@elyvel/contracts'
+import type { ViewComponent } from '@elvel/contracts'
 import { type Address, type AnyMailable, type Attachment, addresses } from './mailable.ts'
 import type { DeliveryResult, SentMessage, Transport } from './message.ts'
 
-/** Renders a view component to HTML. `@elyvel/view` satisfies this. */
+/** Renders a view component to HTML. `@elvel/view` satisfies this. */
 export type ViewRenderer = <Props>(
   component: ViewComponent<Props>,
   props: Props
@@ -182,10 +182,10 @@ export class Mailer {
 
     const headers = { ...message.headers }
 
-    if (message.to.length > 0) headers['X-Elyvel-To'] = message.to.map((m) => m.address).join(', ')
-    if (message.cc.length > 0) headers['X-Elyvel-Cc'] = message.cc.map((m) => m.address).join(', ')
+    if (message.to.length > 0) headers['X-Elvel-To'] = message.to.map((m) => m.address).join(', ')
+    if (message.cc.length > 0) headers['X-Elvel-Cc'] = message.cc.map((m) => m.address).join(', ')
     if (message.bcc.length > 0) {
-      headers['X-Elyvel-Bcc'] = message.bcc.map((m) => m.address).join(', ')
+      headers['X-Elvel-Bcc'] = message.bcc.map((m) => m.address).join(', ')
     }
 
     return { ...message, to: [always], cc: [], bcc: [], headers }

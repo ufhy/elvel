@@ -1,7 +1,7 @@
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 import { HttpClient } from './factory.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     'http.client': HttpClient
   }

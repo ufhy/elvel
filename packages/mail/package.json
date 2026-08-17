@@ -1,20 +1,20 @@
 {
-  "name": "@elyvel/mail",
+  "name": "@elvel/mail",
   "version": "1.0.0-alpha.1",
-  "description": "Laravel-style mail for Elyvel — Mailables and log, array and SMTP transports",
+  "description": "Laravel-style mail for Elvel — Mailables and log, array and SMTP transports",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "email",
     "mail",
     "smtp"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/mail"
   },
   "type": "module",
@@ -39,11 +39,11 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/queue": "workspace:*",
-    "@elyvel/support": "workspace:*",
+    "@elvel/console": "workspace:*",
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/queue": "workspace:*",
+    "@elvel/support": "workspace:*",
     "nodemailer": "9.0.5"
   }
 }

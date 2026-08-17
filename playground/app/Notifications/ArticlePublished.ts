@@ -1,6 +1,6 @@
-import type { Notifiable } from '@elyvel/notifications'
-import { MailMessage, Notification } from '@elyvel/notifications'
-import { __ } from '@elyvel/translation'
+import type { Notifiable } from '@elvel/notifications'
+import { MailMessage, Notification } from '@elvel/notifications'
+import { __ } from '@elvel/translation'
 
 /**
  * Generated with `bun run playground make:notification ArticlePublished`, then

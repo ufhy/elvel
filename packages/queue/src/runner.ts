@@ -1,4 +1,4 @@
-import { Pipeline } from '@elyvel/support'
+import { Pipeline } from '@elvel/support'
 import type { BatchRepository } from './batch.ts'
 import type { JobPayload, QueuedJob } from './contracts.ts'
 import type { AnyJob, JobMiddleware, JobRegistry } from './job.ts'

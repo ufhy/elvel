@@ -18,7 +18,7 @@ let root: string
 const request = new Request('http://localhost/somewhere')
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'elyvel-exceptions-'))
+  root = await mkdtemp(join(tmpdir(), 'elvel-exceptions-'))
   app = new Application(root)
   // Keep report() quiet: the handler skips logging in the testing environment.
   app.config.set('app.env', 'testing')

@@ -1,7 +1,7 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /** The cache key every worker watches. */
-export const RESTART_KEY = 'elyvel:queue:restart'
+export const RESTART_KEY = 'elvel:queue:restart'
 
 /**
  * `queue:restart` — tell every worker to finish its job and exit.

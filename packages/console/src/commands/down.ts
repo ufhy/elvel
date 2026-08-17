@@ -1,4 +1,4 @@
-import { generateSecret, type MaintenancePayload } from '@elyvel/core'
+import { generateSecret, type MaintenancePayload } from '@elvel/core'
 import { Command } from '../command.ts'
 
 /**

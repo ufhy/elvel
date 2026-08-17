@@ -5,7 +5,7 @@ import {
   issueBypassCookie,
   type MaintenanceMode,
   type MaintenancePayload
-} from '@elyvel/core'
+} from '@elvel/core'
 import { Elysia } from 'elysia'
 import { CookieJar } from './cookies.ts'
 
@@ -38,7 +38,7 @@ export class ServiceUnavailableException extends HttpException {
 // The return type is inferred on purpose: `onRequest` narrows Elysia's generics,
 // and naming the bare `Elysia` here makes the two instantiations unrelated.
 export function maintenancePlugin(maintenance: MaintenanceMode, cookiePath = '/') {
-  return new Elysia({ name: 'elyvel:maintenance' }).onRequest(async ({ request, set }) => {
+  return new Elysia({ name: 'elvel:maintenance' }).onRequest(async ({ request, set }) => {
     if (!(await maintenance.active())) return undefined
 
     const data = await maintenance.data()

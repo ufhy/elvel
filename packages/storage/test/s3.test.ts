@@ -14,21 +14,21 @@ import { S3Disk } from '../src/disks/s3.ts'
  *
  * MinIO, for example — the bucket has to exist first, the client will not make it:
  *
- *   docker run -d --name elyvel-minio -p 9000:9000 \
+ *   docker run -d --name elvel-minio -p 9000:9000 \
  *     -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
  *     minio/minio server /data
- *   curl -X PUT http://127.0.0.1:9000/elyvel-test --aws-sigv4 aws:amz:us-east-1:s3 \
+ *   curl -X PUT http://127.0.0.1:9000/elvel-test --aws-sigv4 aws:amz:us-east-1:s3 \
  *     --user minioadmin:minioadmin \
  *     -H "x-amz-content-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
  *
  *   TEST_S3_ENDPOINT=http://127.0.0.1:9000 \
- *   TEST_S3_BUCKET=elyvel-test \
+ *   TEST_S3_BUCKET=elvel-test \
  *   TEST_S3_KEY=minioadmin \
  *   TEST_S3_SECRET=minioadmin \
  *   bun test packages/storage
  */
 const endpoint = process.env.TEST_S3_ENDPOINT
-const bucket = process.env.TEST_S3_BUCKET ?? 'elyvel-test'
+const bucket = process.env.TEST_S3_BUCKET ?? 'elvel-test'
 const accessKeyId = process.env.TEST_S3_KEY
 const secretAccessKey = process.env.TEST_S3_SECRET
 

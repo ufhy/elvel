@@ -1,4 +1,4 @@
-import { JsonResource } from '@elyvel/http'
+import { JsonResource } from '@elvel/http'
 import type { Comment } from '../../Models/Comment.ts'
 
 /** Generated with `bun run playground make:resource Comment`, then extended. */

@@ -1,4 +1,4 @@
-import type { RuleHandler } from '@elyvel/validation'
+import type { RuleHandler } from '@elvel/validation'
 
 /**
  * {{ class }} — a validation rule.

@@ -1,4 +1,4 @@
-import { Job } from '@elyvel/queue'
+import { Job } from '@elvel/queue'
 import type { Address, AnyMailable, MailableClass } from './mailable.ts'
 
 /**

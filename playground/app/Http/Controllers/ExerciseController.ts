@@ -1,6 +1,6 @@
-import { config, controller, NotFoundException } from '@elyvel/core'
-import { Arr, collect, Str } from '@elyvel/support'
-import { render, view } from '@elyvel/view'
+import { config, controller, NotFoundException } from '@elvel/core'
+import { Arr, collect, Str } from '@elvel/support'
+import { render, view } from '@elvel/view'
 import { DelayedGreeting, Exercise } from '../../../resources/views/pages/exercise.tsx'
 
 /**
@@ -27,7 +27,7 @@ export default controller('exercise', '/exercise')
   .get('/render', async () => ({
     html: await render(Exercise, { title: 'Raw', items: ['one'], untrusted: 'x' })
   }))
-  .get('/async', () => view(DelayedGreeting, { name: 'Elyvel' }))
+  .get('/async', () => view(DelayedGreeting, { name: 'Elvel' }))
   .get('/support', () => ({
     studly: Str.studly('send_reports'),
     plural: Str.plural('category'),

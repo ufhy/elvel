@@ -1,4 +1,4 @@
-import type { ChannelAuthorizer } from '@elyvel/broadcasting'
+import type { ChannelAuthorizer } from '@elvel/broadcasting'
 
 /**
  * {{ class }} — who may listen to this channel.

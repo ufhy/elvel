@@ -1,6 +1,6 @@
-import { app } from '@elyvel/core'
+import { app } from '@elvel/core'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     middleware: MiddlewareRegistry
   }
@@ -178,7 +178,7 @@ export function middlewares(): MiddlewareRegistry {
   } catch (problem) {
     /**
      * The registry is bound by `HttpServiceProvider`, which an application can
-     * leave out — routing itself lives in `@elyvel/core`, so an application
+     * leave out — routing itself lives in `@elvel/core`, so an application
      * without it still serves pages and only fails on the routes that asked for
      * middleware.
      *
@@ -189,7 +189,7 @@ export function middlewares(): MiddlewareRegistry {
     if (problem instanceof Error && /\[middleware\] is not bound/.test(problem.message)) {
       throw new Error(
         'Middleware needs HttpServiceProvider, which this application does not register. ' +
-          'Add it to bootstrap/providers.ts, importing it from @elyvel/http.',
+          'Add it to bootstrap/providers.ts, importing it from @elvel/http.',
         { cause: problem }
       )
     }
@@ -209,7 +209,7 @@ export function middlewares(): MiddlewareRegistry {
  *
  * It returns `{ beforeHandle }` because that is Elysia's own per-route slot: the
  * hooks run in order, and one that returns a `Response` stops the rest from
- * running at all. Nothing here reimplements a pipeline — `@elyvel/support`'s
+ * running at all. Nothing here reimplements a pipeline — `@elvel/support`'s
  * `Pipeline` exists for values, and a request already has a chain to join.
  *
  * For a whole group, hand the same object to `guard()`:
@@ -246,7 +246,7 @@ export function middleware(...names: string[]): { beforeHandle: MiddlewareHook[]
 }
 
 /** Where `middleware()` records its names, and `route:list` looks for them. */
-export const MIDDLEWARE_NAMES = Symbol.for('elyvel.middleware.names')
+export const MIDDLEWARE_NAMES = Symbol.for('elvel.middleware.names')
 
 /**
  * Read the middleware names off a compiled route, in declaration order.

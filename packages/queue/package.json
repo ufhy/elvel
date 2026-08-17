@@ -1,10 +1,10 @@
 {
-  "name": "@elyvel/queue",
+  "name": "@elvel/queue",
   "version": "1.0.0-alpha.1",
-  "description": "Laravel-style queues for Elyvel — jobs, workers, batches, and sync, database, Redis and SQS drivers",
+  "description": "Laravel-style queues for Elvel — jobs, workers, batches, and sync, database, Redis and SQS drivers",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "jobs",
     "queue",
     "redis",
@@ -13,10 +13,10 @@
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/queue"
   },
   "type": "module",
@@ -41,12 +41,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/cache": "workspace:*",
-    "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/database": "workspace:*",
-    "@elyvel/events": "workspace:*",
-    "@elyvel/support": "workspace:*"
+    "@elvel/cache": "workspace:*",
+    "@elvel/console": "workspace:*",
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/database": "workspace:*",
+    "@elvel/events": "workspace:*",
+    "@elvel/support": "workspace:*"
   }
 }

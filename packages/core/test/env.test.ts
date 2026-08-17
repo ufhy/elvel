@@ -6,8 +6,8 @@ import { Env, env, parseEnvFile } from '../src/env.ts'
 
 describe('parseEnvFile', () => {
   test('parses plain assignments', () => {
-    expect(parseEnvFile('APP_NAME=Elyvel\nPORT=3000')).toEqual({
-      APP_NAME: 'Elyvel',
+    expect(parseEnvFile('APP_NAME=Elvel\nPORT=3000')).toEqual({
+      APP_NAME: 'Elvel',
       PORT: '3000'
     })
   })
@@ -114,7 +114,7 @@ describe('Env.load', () => {
   let directory: string
 
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'elyvel-env-'))
+    directory = await mkdtemp(join(tmpdir(), 'elvel-env-'))
   })
 
   afterEach(async () => {

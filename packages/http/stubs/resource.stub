@@ -1,4 +1,4 @@
-import { JsonResource } from '@elyvel/http'
+import { JsonResource } from '@elvel/http'
 
 export class {{ class }} extends JsonResource<unknown> {
   toObject() {

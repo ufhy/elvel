@@ -7,7 +7,7 @@ import { join } from 'node:path'
  *
  * Every package declares `"sideEffects": false`, which tells a bundler it may
  * drop any module nobody imported from. Measured once: without the claim,
- * importing `csrfField` from `@elyvel/http` pulled 498 modules and 1.1 MB;
+ * importing `csrfField` from `@elvel/http` pulled 498 modules and 1.1 MB;
  * with it, five. What the claim costs is that it has to stay true — and the day
  * it stops being true, nothing here breaks. The tests run from source, where
  * every module is loaded anyway. What breaks is somebody else's bundled
@@ -124,7 +124,7 @@ describe('what a package claims about its side effects', () => {
     // made on purpose and not a number that quietly went up.
     expect<string[]>(named.sort()).toEqual([
       'concurrency/src/worker-entry.ts',
-      'create-elyvel/src/index.ts'
+      'create-elvel/src/index.ts'
     ])
   })
 })

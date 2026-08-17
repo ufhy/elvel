@@ -34,7 +34,7 @@ export type RuleHandler = (context: RuleContext) => RuleResult
 /**
  * Reads the database for `unique` and `exists`.
  *
- * Kept as an interface so `@elyvel/validation` does not depend on the database
+ * Kept as an interface so `@elvel/validation` does not depend on the database
  * package: the provider wires a query-builder-backed implementation when one is
  * available, and the rules fail loudly when it is not.
  */

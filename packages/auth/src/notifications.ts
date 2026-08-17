@@ -1,4 +1,4 @@
-import { MailMessage, Notification } from '@elyvel/notifications'
+import { MailMessage, Notification } from '@elvel/notifications'
 
 /** What better-auth hands its mail callbacks, and all these notifications need. */
 export type AuthMailData = {

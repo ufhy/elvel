@@ -1,5 +1,5 @@
-import { authorize, can, requireUser, user } from '@elyvel/auth'
-import { controller, NotFoundException } from '@elyvel/core'
+import { authorize, can, requireUser, user } from '@elvel/auth'
+import { controller, NotFoundException } from '@elvel/core'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 

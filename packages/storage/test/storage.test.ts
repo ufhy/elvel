@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import { type Disk, MissingFileError } from '../src/contracts.ts'
 import { LocalDisk } from '../src/disks/local.ts'
 import { MemoryDisk } from '../src/disks/memory.ts'
@@ -34,7 +34,7 @@ const candidates: Candidate[] = [
   {
     name: 'local',
     make: async () => {
-      const root = await mkdtemp(join(tmpdir(), 'elyvel-storage-'))
+      const root = await mkdtemp(join(tmpdir(), 'elvel-storage-'))
 
       return {
         disk: new LocalDisk('local', { root, url: 'http://localhost/files' }),
@@ -305,7 +305,7 @@ describe('LocalDisk specifics', () => {
   let disk: LocalDisk
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'elyvel-storage-local-'))
+    root = await mkdtemp(join(tmpdir(), 'elvel-storage-local-'))
     disk = new LocalDisk('local', { root })
   })
 
@@ -331,7 +331,7 @@ describe('LocalDisk specifics', () => {
   test('a symlink pointing out of the disk is refused', async () => {
     // The path itself looks innocent; only resolving it shows where it goes. This
     // is why `withinRoot` resolves before comparing.
-    const outside = await mkdtemp(join(tmpdir(), 'elyvel-outside-'))
+    const outside = await mkdtemp(join(tmpdir(), 'elvel-outside-'))
     await writeFile(join(outside, 'secret.txt'), 'not yours')
     await symlink(outside, join(root, 'escape'))
 
@@ -504,7 +504,7 @@ describe('StorageManager', () => {
   let root: string
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'elyvel-storage-manager-'))
+    root = await mkdtemp(join(tmpdir(), 'elvel-storage-manager-'))
 
     app = new Application(process.cwd())
     app.config.set('filesystems.default', 'local')
@@ -730,7 +730,7 @@ describe('reads that refuse to return null', () => {
   })
 
   test('a directory can be created with a visibility of its own', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'elyvel-visibility-'))
+    const root = await mkdtemp(join(tmpdir(), 'elvel-visibility-'))
     const disk = new LocalDisk('local', { root, visibility: 'private' })
 
     try {

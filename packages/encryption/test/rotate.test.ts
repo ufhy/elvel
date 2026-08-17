@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Kernel } from '@elyvel/console'
-import { Application } from '@elyvel/core'
-import { ConnectionManager } from '@elyvel/database'
+import { Kernel } from '@elvel/console'
+import { Application } from '@elvel/core'
+import { ConnectionManager } from '@elvel/database'
 import { EncryptionRotateCommand } from '../src/console/encryption-rotate.ts'
 import { Encrypter } from '../src/encrypter.ts'
 

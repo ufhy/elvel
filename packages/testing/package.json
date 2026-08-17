@@ -1,20 +1,20 @@
 {
-  "name": "@elyvel/testing",
+  "name": "@elvel/testing",
   "version": "1.0.0-alpha.1",
-  "description": "Test helpers for Elyvel — an HTTP client, response assertions, and database refreshing",
+  "description": "Test helpers for Elvel — an HTTP client, response assertions, and database refreshing",
   "keywords": [
     "assertions",
     "bun",
-    "elyvel",
+    "elvel",
     "http-test",
     "testing"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/testing"
   },
   "type": "module",
@@ -33,6 +33,6 @@
   "dependencies": {},
   "private": true,
   "devDependencies": {
-    "@elyvel/core": "workspace:*"
+    "@elvel/core": "workspace:*"
   }
 }

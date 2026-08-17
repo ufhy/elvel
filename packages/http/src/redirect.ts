@@ -1,4 +1,4 @@
-import { app } from '@elyvel/core'
+import { app } from '@elvel/core'
 import { BAGGED, DEFAULT_BAG, ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
 import { currentScope } from './scope.ts'
 

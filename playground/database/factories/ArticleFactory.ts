@@ -1,4 +1,4 @@
-import { Factory } from '@elyvel/database'
+import { Factory } from '@elvel/database'
 import { Article } from '../../app/Models/Article.ts'
 
 export class ArticleFactory extends Factory<Article> {

@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { flushDeferred, ServiceProvider } from '@elyvel/core'
+import { flushDeferred, ServiceProvider } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { BindingRegistry, resolveBindings } from './bindings.ts'
 import { MakeRequestCommand } from './console/make-request.ts'
@@ -31,7 +31,7 @@ import { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
 import { hasValidSignature, InvalidSignatureError } from './signed-url.ts'
 import { enforceThrottle, LimiterRegistry } from './throttle.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     'session.driver': SessionDriver
     cookies: CookieJar
@@ -49,7 +49,7 @@ export class HttpServiceProvider extends ServiceProvider {
    * The middleware registry, and the aliases this package owns.
    *
    * `auth`, `guest`, `verified`, `can` and `password.confirm` are registered by
-   * `@elyvel/auth` instead — this package must not depend on it, and an
+   * `@elvel/auth` instead — this package must not depend on it, and an
    * application without authentication should still have `throttle` and `signed`.
    *
    * The priority list is set here because it is the whole application's order,
@@ -258,7 +258,7 @@ export class HttpServiceProvider extends ServiceProvider {
       this.use(this.corsPlugin(cors, overrides))
     }
 
-    const sessionName = this.config<string>('session.cookie', 'elyvel_session')
+    const sessionName = this.config<string>('session.cookie', 'elvel_session')
 
     /**
      * No key, no sessions — and no crash either.
@@ -320,7 +320,7 @@ export class HttpServiceProvider extends ServiceProvider {
    * break same-origin callers of the same route.
    */
   private corsPlugin(global: CorsConfig, overrides: CorsOverride[] = []) {
-    return new Elysia({ name: 'elyvel:cors' })
+    return new Elysia({ name: 'elvel:cors' })
       .onRequest(({ request, set }) => {
         const config = corsFor(request, global, overrides)
 
@@ -354,7 +354,7 @@ export class HttpServiceProvider extends ServiceProvider {
    * itself is a core primitive with no idea that HTTP exists.
    */
   private deferPlugin() {
-    return new Elysia({ name: 'elyvel:defer' }).onAfterResponse({ as: 'global' }, async () => {
+    return new Elysia({ name: 'elvel:defer' }).onAfterResponse({ as: 'global' }, async () => {
       await flushDeferred((error) => this.app.make('exception.handler').report(error))
     })
   }
@@ -368,7 +368,7 @@ export class HttpServiceProvider extends ServiceProvider {
   private async sessionPlugin() {
     const driver = this.app.make('session.driver')
     const jar = this.app.make('cookies')
-    const name = this.config<string>('session.cookie', 'elyvel_session')
+    const name = this.config<string>('session.cookie', 'elvel_session')
     const lifetime = this.config<number>('session.lifetime', 7200)
     const except = this.config<string[]>('session.csrfExcept', [])
     const csrfEnabled = this.config<boolean>('session.csrf', true)
@@ -398,7 +398,7 @@ export class HttpServiceProvider extends ServiceProvider {
     }
 
     return (
-      new Elysia({ name: 'elyvel:session' })
+      new Elysia({ name: 'elvel:session' })
         .derive({ as: 'global' }, async ({ request }) => {
           const cookies = CookieJar.parse(request.headers.get('cookie'))
 

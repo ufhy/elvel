@@ -6,7 +6,7 @@ import type {
   EventSubscriber,
   Listener,
   WildcardListener
-} from '@elyvel/contracts'
+} from '@elvel/contracts'
 import {
   type AnyQueuedListenerClass,
   isQueuedListener,
@@ -107,7 +107,7 @@ export class Dispatcher implements EventDispatcher {
    * Teach the dispatcher how to queue — called by the queue's provider.
    *
    * Laravel's `setQueueResolver`, and the same containment: this package depends
-   * on `@elyvel/contracts` and `@elyvel/core` only.
+   * on `@elvel/contracts` and `@elvel/core` only.
    */
   setQueue(pusher: QueuedListenerPusher): void {
     this.pusher = pusher

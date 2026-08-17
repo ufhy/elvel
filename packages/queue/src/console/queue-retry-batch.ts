@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /**
  * `queue:retry-batch` — re-queue every failed job in one batch.

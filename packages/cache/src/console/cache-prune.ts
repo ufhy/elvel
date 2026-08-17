@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 import { DatabaseStore } from '../stores/database.ts'
 
 /**

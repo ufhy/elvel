@@ -6,7 +6,7 @@ export type {
   ServiceProviderConstructor,
   ServiceProviderContract,
   ViewFactory
-} from '@elyvel/contracts'
+} from '@elvel/contracts'
 export {
   Application,
   ApplicationBuilder,

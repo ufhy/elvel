@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elyvel/database'
+import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elvel/database'
 import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
-import { elyvelAdapter, migrationFor } from '../src/adapter.ts'
+import { elvelAdapter, migrationFor } from '../src/adapter.ts'
 import { type AuthUser, Gate } from '../src/gate.ts'
 import { AuthManager, type AuthSession } from '../src/manager.ts'
 import { Policy } from '../src/policy.ts'
@@ -385,11 +385,11 @@ function makeAuth(db: never) {
     secret: 'a-test-secret-of-at-least-32-characters',
     baseURL: 'http://localhost',
     emailAndPassword: { enabled: true },
-    database: elyvelAdapter(db, { dialect: 'sqlite' })
+    database: elvelAdapter(db, { dialect: 'sqlite' })
   })
 }
 
-describe('elyvelAdapter', () => {
+describe('elvelAdapter', () => {
   let connection: BunSqlConnection
   let auth: ReturnType<typeof makeAuth>
 
@@ -580,7 +580,7 @@ describe('migrationFor', () => {
   })
 
   test('the generated file is a migration our migrator understands', () => {
-    expect(code).toContain("import { Migration, type MigrationContext } from '@elyvel/database'")
+    expect(code).toContain("import { Migration, type MigrationContext } from '@elvel/database'")
     expect(code).toContain('async up({ schema }: MigrationContext)')
     expect(code).toContain('async down({ schema }: MigrationContext)')
   })

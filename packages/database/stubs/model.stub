@@ -1,4 +1,4 @@
-import { Model } from '@elyvel/database'
+import { Model } from '@elvel/database'
 
 export class {{ class }} extends Model {
   static override table = '{{ table }}'

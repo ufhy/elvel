@@ -29,7 +29,7 @@ export function cookiePlugin(jar: CookieJar, options: CookieMiddlewareOptions = 
   const except = options.except ?? []
 
   return (
-    new Elysia({ name: 'elyvel:cookies' })
+    new Elysia({ name: 'elvel:cookies' })
       /**
        * Synchronous, like the request scope: `enterWith` applies to the rest of the
        * current execution, and an `await` before it would put the bag out of reach

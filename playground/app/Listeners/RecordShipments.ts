@@ -1,5 +1,5 @@
-import type { EventDispatcher, EventSubscriber } from '@elyvel/events'
-import { log } from '@elyvel/log'
+import type { EventDispatcher, EventSubscriber } from '@elvel/events'
+import { log } from '@elvel/log'
 import { OrderShipped } from '../Events/OrderShipped.ts'
 import { NotifyWarehouse } from './NotifyWarehouse.ts'
 

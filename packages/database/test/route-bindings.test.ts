@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elyvel/core'
-import { bindings, bound, HttpServiceProvider, middleware } from '@elyvel/http'
+import { Application } from '@elvel/core'
+import { bindings, bound, HttpServiceProvider, middleware } from '@elvel/http'
 import { Elysia } from 'elysia'
 import { DatabaseServiceProvider, Model } from '../src/index.ts'
 

@@ -1,4 +1,4 @@
-import { env } from '@elyvel/core'
+import { env } from '@elvel/core'
 
 export default {
   /** Connection used when none is named. */
@@ -22,7 +22,7 @@ export default {
       port: Number(env('DB_PORT', 5432)),
       username: env('DB_USERNAME', 'postgres'),
       password: env('DB_PASSWORD', ''),
-      database: env('DB_DATABASE', 'elyvel'),
+      database: env('DB_DATABASE', 'elvel'),
       max: Number(env('DB_POOL_MAX', 10)),
       // Seconds before a connection attempt gives up. Without one a server that
       // never answers produces no error at all — the query simply waits.
@@ -46,7 +46,7 @@ export default {
       port: Number(env('DB_PORT', 5432)),
       username: env('DB_USERNAME', 'postgres'),
       password: env('DB_PASSWORD', ''),
-      database: env('DB_DATABASE', 'elyvel'),
+      database: env('DB_DATABASE', 'elvel'),
       max: Number(env('DB_POOL_MAX', 10)),
       // Seconds before a connection attempt gives up. Without one a server that
       // never answers produces no error at all — the query simply waits.
@@ -59,7 +59,7 @@ export default {
       port: Number(env('DB_PORT', 3306)),
       username: env('DB_USERNAME', 'root'),
       password: env('DB_PASSWORD', ''),
-      database: env('DB_DATABASE', 'elyvel'),
+      database: env('DB_DATABASE', 'elvel'),
       max: Number(env('DB_POOL_MAX', 10))
     }
   },

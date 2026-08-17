@@ -1,21 +1,21 @@
 {
-  "name": "@elyvel/hashing",
+  "name": "@elvel/hashing",
   "version": "1.0.0-alpha.1",
-  "description": "Password hashing for Elyvel — bcrypt and argon2 through Bun, with rehash detection",
+  "description": "Password hashing for Elvel — bcrypt and argon2 through Bun, with rehash detection",
   "keywords": [
     "argon2",
     "bcrypt",
     "bun",
-    "elyvel",
+    "elvel",
     "hashing",
     "password"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/hashing"
   },
   "type": "module",
@@ -34,8 +34,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*"
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*"
   },
   "private": true
 }

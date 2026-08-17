@@ -1,4 +1,4 @@
-import type { Model } from '@elyvel/database'
+import type { Model } from '@elvel/database'
 
 /**
  * {{ class }} — model lifecycle hooks in one place.

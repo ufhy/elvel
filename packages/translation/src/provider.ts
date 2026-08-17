@@ -1,7 +1,7 @@
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 import { Translator } from './translator.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     translator: Translator
   }

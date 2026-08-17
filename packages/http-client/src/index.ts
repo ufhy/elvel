@@ -6,7 +6,7 @@
  * cancels, a response object with `failed()` and `throw()`, and a fake with
  * `assertSent` so a test of code that calls an API does not call the API.
  *
- * A separate package from `@elyvel/http` on purpose. That one is the server —
+ * A separate package from `@elvel/http` on purpose. That one is the server —
  * sessions, cookies, CSRF — and a queue worker making an outbound call has no
  * business loading it.
  */

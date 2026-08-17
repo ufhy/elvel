@@ -1,4 +1,4 @@
-import { Collection } from '@elyvel/support'
+import { Collection } from '@elvel/support'
 
 export type Attributes = Record<string, unknown>
 

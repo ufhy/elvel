@@ -1,10 +1,10 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /** The cache key a running `schedule:work` watches. */
-export const INTERRUPT_KEY = 'elyvel:schedule:interrupt'
+export const INTERRUPT_KEY = 'elvel:schedule:interrupt'
 
 /** Where a pause is recorded. */
-export const PAUSE_KEY = 'elyvel:schedule:paused'
+export const PAUSE_KEY = 'elvel:schedule:paused'
 
 /**
  * `schedule:interrupt` — stop the current schedule run.

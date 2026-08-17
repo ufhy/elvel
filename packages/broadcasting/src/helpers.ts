@@ -1,4 +1,4 @@
-import { app } from '@elyvel/core'
+import { app } from '@elvel/core'
 import type { Broadcaster } from './broadcaster.ts'
 import type { ChannelRegistry } from './channels.ts'
 

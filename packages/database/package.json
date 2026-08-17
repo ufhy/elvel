@@ -1,11 +1,11 @@
 {
-  "name": "@elyvel/database",
+  "name": "@elvel/database",
   "version": "1.0.0-alpha.1",
   "description": "A Laravel Eloquent-style Active Record ORM for Bun — SQLite, Postgres and MySQL",
   "keywords": [
     "bun",
     "eloquent",
-    "elyvel",
+    "elvel",
     "migrations",
     "mysql",
     "orm",
@@ -15,10 +15,10 @@
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/database"
   },
   "type": "module",
@@ -44,11 +44,11 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/process": "workspace:*",
-    "@elyvel/support": "workspace:*",
+    "@elvel/console": "workspace:*",
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/process": "workspace:*",
+    "@elvel/support": "workspace:*",
     "picocolors": "^1.1.1"
   }
 }

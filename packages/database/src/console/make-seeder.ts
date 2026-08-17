@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { GeneratorCommand } from '@elyvel/console'
-import { Str } from '@elyvel/support'
+import { GeneratorCommand } from '@elvel/console'
+import { Str } from '@elvel/support'
 
 export class MakeSeederCommand extends GeneratorCommand {
   static override signature =

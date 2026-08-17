@@ -1,4 +1,4 @@
-import { env } from '@elyvel/core'
+import { env } from '@elvel/core'
 
 export default {
   /** Connection `dispatch()` uses when a job does not name one. */

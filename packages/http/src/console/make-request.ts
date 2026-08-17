@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { GeneratorCommand } from '@elyvel/console'
-import { Str } from '@elyvel/support'
+import { GeneratorCommand } from '@elvel/console'
+import { Str } from '@elvel/support'
 
 export class MakeRequestCommand extends GeneratorCommand {
   static override signature =
@@ -26,7 +26,7 @@ export class MakeRequestCommand extends GeneratorCommand {
     return base.endsWith('Request') ? base : `${base}Request`
   }
 
-  /** Stubs ship with this package, not with @elyvel/console. */
+  /** Stubs ship with this package, not with @elvel/console. */
   protected override async readStub(): Promise<string> {
     const published = Bun.file(this.app.basePath('stubs', this.stub()))
     if (await published.exists()) return published.text()

@@ -1,4 +1,4 @@
-import type { CastsAttributes } from '@elyvel/database'
+import type { CastsAttributes } from '@elvel/database'
 
 /**
  * {{ class }} — how one column becomes one value and back.

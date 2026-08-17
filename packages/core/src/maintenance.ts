@@ -84,7 +84,7 @@ export class MaintenanceMode implements MaintenanceDriver {
 /** How long a bypass cookie is trusted. Laravel's twelve hours. */
 const BYPASS_LIFETIME_SECONDS = 12 * 3600
 
-export const BYPASS_COOKIE = 'elyvel_maintenance'
+export const BYPASS_COOKIE = 'elvel_maintenance'
 
 /**
  * A bypass cookie — `MaintenanceModeBypassCookie`.
@@ -158,7 +158,7 @@ export type MaintenanceStore = {
 export class CachedMaintenanceMode {
   constructor(
     private readonly store: MaintenanceStore,
-    private readonly key = 'elyvel:maintenance'
+    private readonly key = 'elvel:maintenance'
   ) {}
 
   async active(): Promise<boolean> {

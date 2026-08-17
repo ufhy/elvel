@@ -4,9 +4,9 @@ import {
   type ConnectionConfig,
   QueryBuilder,
   SchemaBuilder
-} from '@elyvel/database'
+} from '@elvel/database'
 import { betterAuth } from 'better-auth'
-import { type Dialect, elyvelAdapter } from '../src/adapter.ts'
+import { type Dialect, elvelAdapter } from '../src/adapter.ts'
 
 /**
  * The adapter against real servers.
@@ -24,7 +24,7 @@ import { type Dialect, elyvelAdapter } from '../src/adapter.ts'
 type Candidate = { name: Dialect; config: ConnectionConfig }
 
 const PREFIX = `auth_t${Date.now().toString(36)}`
-const TEST_DATABASE = 'elyvel_test'
+const TEST_DATABASE = 'elvel_test'
 
 const candidates: Candidate[] = [
   { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },
@@ -167,7 +167,7 @@ for (const { name, config } of available) {
           session: { modelName: tables.session },
           account: { modelName: tables.account },
           verification: { modelName: tables.verification },
-          database: elyvelAdapter(db, { dialect: name })
+          database: elvelAdapter(db, { dialect: name })
         })
 
         const { user } = await auth.api.signUpEmail({

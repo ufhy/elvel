@@ -1,5 +1,5 @@
-import { FormRequest } from '@elyvel/http'
-import { Rule } from '@elyvel/validation'
+import { FormRequest } from '@elvel/http'
+import { Rule } from '@elvel/validation'
 
 /**
  * Generated with `bun run playground make:request StoreArticle`, then extended.

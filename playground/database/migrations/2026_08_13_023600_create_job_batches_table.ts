@@ -1,4 +1,4 @@
-import { Migration, type MigrationContext } from '@elyvel/database'
+import { Migration, type MigrationContext } from '@elvel/database'
 
 /**
  * Where `Bus::batch()` keeps its counters.

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import { Command } from '../src/command.ts'
 import { Kernel } from '../src/kernel.ts'
 
@@ -14,7 +14,7 @@ let root: string
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'elyvel-kernel-'))
+  root = await mkdtemp(join(tmpdir(), 'elvel-kernel-'))
   app = new Application(root)
   kernel = new Kernel(app)
 })
@@ -110,10 +110,10 @@ describe('dispatch', () => {
   })
 
   test('binds arguments and options', async () => {
-    const { status, output } = await run(['app:greet', 'elyvel', '--repeat', '2'])
+    const { status, output } = await run(['app:greet', 'elvel', '--repeat', '2'])
 
     expect(status).toBe(0)
-    expect(output.split('hello elyvel').length - 1).toBe(2)
+    expect(output.split('hello elvel').length - 1).toBe(2)
   })
 
   test('applies argument defaults', async () => {

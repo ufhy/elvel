@@ -1,6 +1,6 @@
 import { describe, expect, test as it } from 'bun:test'
-import { can, cannot, gate } from '@elyvel/auth'
-import { test } from '@elyvel/testing'
+import { can, cannot, gate } from '@elvel/auth'
+import { test } from '@elvel/testing'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 

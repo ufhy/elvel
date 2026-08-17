@@ -5,12 +5,13 @@ import { join } from 'node:path'
 /**
  * What has to be true of every package before it is published.
  *
- * `@elyvel/core@0.1.0-alpha.6` is on npm with two dependencies — `dayjs` and
- * `@sinclair/typebox` — and no `@elyvel/contracts`, which its own source
- * imports. `@elyvel/contracts` was never published at all. So the published
- * package cannot resolve itself, and nothing in this repository noticed, because
- * a workspace resolves every `@elyvel/*` through the root regardless of what any
- * manifest claims. The tests passed. The install did not.
+ * Under the framework's old name, `@elyvel/core@0.1.0-alpha.6` went to npm with
+ * two dependencies — `dayjs` and `@sinclair/typebox` — and no
+ * `@elyvel/contracts`, which its own source imported. `@elyvel/contracts` was
+ * never published at all. So the published package could not resolve itself, and
+ * nothing in this repository noticed, because a workspace resolves every
+ * `@elvel/*` through the root regardless of what any manifest claims. The tests
+ * passed. The install did not.
  *
  * That is the shape of every problem here: a manifest is only exercised by
  * somebody else's `bun install`, which is the one place this project never runs.
@@ -100,7 +101,7 @@ describe('every package is publishable', () => {
 
     // One number for all of them, as Laravel keeps `illuminate/*` in lockstep.
     // Mixed versions were how this got to 19 packages on 0.0.1 and 8 on 0.1.0
-    // while npm held 0.1.0-alpha.6.
+    // while npm held 0.1.0-alpha.6 under the old name.
     expect<number>(versions.size).toBe(1)
   })
 
@@ -160,9 +161,9 @@ describe('every package is publishable', () => {
    * And the other direction, which costs an installer rather than breaking it.
    *
    * A dependency nothing imports is a package every consumer downloads for
-   * nothing — `@elyvel/contracts` was declared by nine packages that never
-   * imported it, and `dayjs` is in the published core manifest while no source
-   * file mentions it. A test-only import belongs in `devDependencies`.
+   * nothing — `@elvel/contracts` was declared by nine packages that never
+   * imported it, and `dayjs` was in the old published core manifest while no
+   * source file mentioned it. A test-only import belongs in `devDependencies`.
    */
   test('and nothing they do not', async () => {
     const spare: string[] = []

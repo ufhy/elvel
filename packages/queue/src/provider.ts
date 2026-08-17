@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 import { MakeJobCommand } from './console/make-job.ts'
 import { MakeJobMiddlewareCommand } from './console/make-job-middleware.ts'
 import { QueueClearCommand } from './console/queue-clear.ts'
@@ -25,7 +25,7 @@ import type { JobClass } from './job.ts'
 import { CallQueuedListener, queuedListenerJob } from './listener-job.ts'
 import { QueueManager } from './manager.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     queue: QueueManager
   }
@@ -82,7 +82,7 @@ export class QueueServiceProvider extends ServiceProvider {
   /**
    * Teach the dispatcher how to queue a listener.
    *
-   * The direction matters: `@elyvel/events` knows nothing about queues, so the
+   * The direction matters: `@elvel/events` knows nothing about queues, so the
    * push arrives as a hook installed from here. That keeps the dispatcher usable
    * with no queue at all — a listener that wants to be queued then says so instead
    * of running in the request.

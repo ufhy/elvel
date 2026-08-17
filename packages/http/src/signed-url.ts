@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual as nodeTimingSafeEqual } from 'node:crypto'
-import { app, HttpException } from '@elyvel/core'
+import { app, HttpException } from '@elvel/core'
 import { route } from './route-helpers.ts'
 
 /** 403, for a URL whose signature does not hold. */

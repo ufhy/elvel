@@ -1,4 +1,4 @@
-import { ProcessManager } from '@elyvel/process'
+import { ProcessManager } from '@elvel/process'
 import { type Encoding, type ImageDriver, ImageError, type Transformation } from '../contracts.ts'
 import { probe } from '../probe.ts'
 import { throughFiles } from './files.ts'

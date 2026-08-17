@@ -1,19 +1,19 @@
 {
-  "name": "@elyvel/notifications",
+  "name": "@elvel/notifications",
   "version": "1.0.0-alpha.1",
-  "description": "Laravel-style notifications for Elyvel — mail, database, broadcast and Telegram channels",
+  "description": "Laravel-style notifications for Elvel — mail, database, broadcast and Telegram channels",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "notifications",
     "telegram"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/notifications"
   },
   "type": "module",
@@ -38,12 +38,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/database": "workspace:*",
-    "@elyvel/mail": "workspace:*",
-    "@elyvel/queue": "workspace:*",
-    "@elyvel/support": "workspace:*"
+    "@elvel/console": "workspace:*",
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/database": "workspace:*",
+    "@elvel/mail": "workspace:*",
+    "@elvel/queue": "workspace:*",
+    "@elvel/support": "workspace:*"
   }
 }

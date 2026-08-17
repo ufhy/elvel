@@ -19,7 +19,7 @@ let notes: string[]
  *
  * A Windows path is `E:\SourceCode\...`, and interpolating it into a quoted
  * string makes `\S` and `\e` escape sequences that collapse to bare letters. The
- * import specifier arrived as `E:SourceCodeelyvel…` and every migration test
+ * import specifier arrived as `E:SourceCodeelvel…` and every migration test
  * failed with "cannot find package", on Windows only.
  */
 const MIGRATION_ROOT = pathToFileURL(join(import.meta.dir, '..', 'src')).href
@@ -51,7 +51,7 @@ function migrator(): Migrator {
 }
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'elyvel-migrations-'))
+  directory = await mkdtemp(join(tmpdir(), 'elvel-migrations-'))
   connection = await BunSqlConnection.make('testing', { driver: 'sqlite', database: ':memory:' })
   repository = new MigrationRepository(connection)
   notes = []

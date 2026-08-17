@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /**
  * `queue:prune-batches` — drop batch records that are no longer worth keeping.

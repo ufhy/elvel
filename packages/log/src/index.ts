@@ -1,8 +1,8 @@
 export { LogTailCommand } from './console/log-tail.ts'
 
-import { app } from '@elyvel/core'
+import { app } from '@elvel/core'
 
-export type { LogContext, LogDriver, LoggerContract, LogLevel, LogRecord } from '@elyvel/contracts'
+export type { LogContext, LogDriver, LoggerContract, LogLevel, LogRecord } from '@elvel/contracts'
 export { ConsoleDriver, type ConsoleDriverOptions } from './drivers/console.ts'
 export { DailyDriver, type DailyDriverOptions, FileDriver } from './drivers/file.ts'
 export { JsonDriver, type JsonDriverOptions } from './drivers/json.ts'

@@ -1,4 +1,4 @@
-import { Str } from '@elyvel/support'
+import { Str } from '@elvel/support'
 import { GeneratorCommand } from '../generator.ts'
 
 /**

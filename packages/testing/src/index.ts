@@ -2,7 +2,7 @@
  * Testing — pressing the application without a socket.
  *
  * ```ts
- * import { test } from '@elyvel/testing'
+ * import { test } from '@elvel/testing'
  *
  * const response = await test(app).getJson('/posts')
  *
@@ -37,10 +37,10 @@ import { PendingCommand, type Runnable } from './console.ts'
  * An artisan command under test.
  *
  * `outputPrototype` is `Output.prototype`, passed by the caller because this
- * package must not depend on `@elyvel/console`:
+ * package must not depend on `@elvel/console`:
  *
  * ```ts
- * import { Output } from '@elyvel/console'
+ * import { Output } from '@elvel/console'
  *
  * await artisan(kernel, ['make:model', 'Post'], Output.prototype)
  *   .expectsConfirmation('Overwrite', true)

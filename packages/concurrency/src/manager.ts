@@ -1,5 +1,5 @@
-import type { ApplicationContract } from '@elyvel/contracts'
-import { defer } from '@elyvel/core'
+import type { ApplicationContract } from '@elvel/contracts'
+import { defer } from '@elvel/core'
 import type { ConcurrencyDriver, RunOptions, TaskResult, Tasks } from './contracts.ts'
 import { SyncDriver, WorkerDriver } from './drivers.ts'
 

@@ -1,4 +1,4 @@
-import { Arr, Str } from '@elyvel/support'
+import { Arr, Str } from '@elvel/support'
 import { extensionOf, isFile, kilobytes, looksExecutable, mediaTypesFor, sniff } from './files.ts'
 import type { Data, RuleContext, RuleHandler } from './types.ts'
 import { ExistsRule, UniqueRule } from './types.ts'

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test as it } from 'bun:test'
-import { decrypt, decryptString, encrypt, encryptString } from '@elyvel/encryption'
-import { EventFake, events } from '@elyvel/events'
-import { hash } from '@elyvel/hashing'
-import { notifications } from '@elyvel/notifications'
-import { storage } from '@elyvel/storage'
+import { decrypt, decryptString, encrypt, encryptString } from '@elvel/encryption'
+import { EventFake, events } from '@elvel/events'
+import { hash } from '@elvel/hashing'
+import { notifications } from '@elvel/notifications'
+import { storage } from '@elvel/storage'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 
@@ -69,7 +69,7 @@ describe('notifications', () => {
    */
   it('records who would have been notified, and with what', async () => {
     const fake = notifications().fake()
-    const { VerifyEmailNotification } = await import('@elyvel/auth')
+    const { VerifyEmailNotification } = await import('@elvel/auth')
 
     const recipient = notifications().route('mail', 'ada@example.com')
 

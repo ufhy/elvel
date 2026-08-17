@@ -1,5 +1,5 @@
-import { controller } from '@elyvel/core'
-import { ConnectionError, HttpResponse, http, RequestError } from '@elyvel/http-client'
+import { controller } from '@elvel/core'
+import { ConnectionError, HttpResponse, http, RequestError } from '@elvel/http-client'
 
 /**
  * Generated with `bun run playground make:controller HttpClientController`, then

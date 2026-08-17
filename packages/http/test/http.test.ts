@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ForbiddenException } from '@elyvel/core'
-import { Rule, ValidationError, type Validator } from '@elyvel/validation'
+import { ForbiddenException } from '@elvel/core'
+import { Rule, ValidationError, type Validator } from '@elvel/validation'
 import { CookieJar, timingSafeEqual } from '../src/cookies.ts'
 import { isExempt, TokenMismatchError, tokenFromRequest, tokensMatch } from '../src/csrf.ts'
 import { FormRequest } from '../src/form-request.ts'
@@ -505,7 +505,7 @@ describe('Session', () => {
   })
 
   test('the file driver round-trips and refuses an unsafe id', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'elyvel-session-'))
+    const directory = await mkdtemp(join(tmpdir(), 'elvel-session-'))
 
     try {
       const files = new FileSessionDriver(directory)

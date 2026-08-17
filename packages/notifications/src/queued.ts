@@ -1,4 +1,4 @@
-import { Job } from '@elyvel/queue'
+import { Job } from '@elvel/queue'
 import type { Notifiable } from './notifiable.ts'
 import type { AnyNotification, NotificationRegistry } from './notification.ts'
 

@@ -6,13 +6,17 @@ import { join, resolve } from 'node:path'
  * Pack every package for npm, and check each tarball before anybody publishes it.
  *
  * Written because the last release was wrong in a way nothing could have caught.
- * `@elyvel/core@0.1.0-alpha.6` went out declaring `dayjs` and
- * `@sinclair/typebox` and not `@elyvel/contracts`, which its own source imports —
- * and `@elyvel/contracts` was never published at all, so the package could not
- * resolve itself. Eleven of the twenty-six packages were missing from npm
- * entirely while fifteen depended on them.
+ * That release went out under the old name: `@elyvel/core@0.1.0-alpha.6` declared
+ * `dayjs` and `@sinclair/typebox` and not `@elyvel/contracts`, which its own
+ * source imported — and `@elyvel/contracts` was never published at all, so the
+ * package could not resolve itself. Eleven of the twenty-six were missing from
+ * npm entirely while fifteen depended on them.
  *
- * None of that shows up here. A workspace resolves every `@elyvel/*` through the
+ * That scope is gone now: after a deletion request npm took ownership of the
+ * `@elyvel` names — `npm owner ls @elyvel/core` answers `npm-support` — and the
+ * organisation with it, which is why this is `@elvel`.
+ *
+ * None of that shows up here. A workspace resolves every `@elvel/*` through the
  * root regardless of what a manifest says, so the tests pass, the playground
  * runs, and the tarball is the first place the mistake exists. So this looks at
  * the tarball.
@@ -48,14 +52,14 @@ const otp = Bun.argv.find((one) => one.startsWith('--otp='))?.slice('--otp='.len
 /**
  * `latest`, deliberately, even though every version so far is a prerelease.
  *
- * npm's `latest` tag is what a bare `bun add @elyvel/core` installs, and it
+ * npm's `latest` tag is what a bare `bun add @elvel/core` installs, and it
  * currently points at `0.1.0-alpha.6` — the release whose manifest is missing its
  * own dependencies. Publishing under `--tag=alpha` would leave it pointing
  * there, so the broken version would stay the one everybody gets. Moving
  * `latest` forward is the whole point of this release.
  *
  * A second pointer can be added afterwards, which needs no republish:
- * `npm dist-tag add @elyvel/core@1.0.0-alpha.1 alpha`.
+ * `npm dist-tag add @elvel/core@1.0.0-alpha.1 alpha`.
  */
 const tag = Bun.argv.find((one) => one.startsWith('--tag='))?.slice('--tag='.length) ?? 'latest'
 
@@ -79,7 +83,7 @@ function readme(manifest: Manifest): string {
 
 ${manifest.description}
 
-Part of [Elyvel](https://github.com/ufhy/elyvel) — a Laravel-shaped framework for
+Part of [Elvel](https://github.com/ufhy/elvel) — a Laravel-shaped framework for
 Bun, built on Elysia. This package is published from the monorepo and versioned
 in lockstep with the rest of it.
 
@@ -93,12 +97,12 @@ Most applications get it through the scaffolder instead, which installs only the
 packages the chosen starter kit uses:
 
 \`\`\`bash
-bun create elyvel my-app
+bun create elvel my-app
 \`\`\`
 
 ## Documentation
 
-See the [repository](https://github.com/ufhy/elyvel#readme). \`BEHAVIOURS.md\`
+See the [repository](https://github.com/ufhy/elvel#readme). \`BEHAVIOURS.md\`
 there records the decisions behind this package that the code cannot state on its
 own.
 
@@ -249,7 +253,7 @@ if (!publish) {
  * would fail, and a publish that dies halfway leaves the registry in exactly
  * that state. Contracts and support first, then the rest alphabetically.
  */
-const first = ['@elyvel/contracts', '@elyvel/support', '@elyvel/core']
+const first = ['@elvel/contracts', '@elvel/support', '@elvel/core']
 const order = [
   ...first.map((name) => packed.find((one) => one.manifest.name === name)),
   ...packed.filter((one) => !first.includes(one.manifest.name))

@@ -1,20 +1,20 @@
 {
-  "name": "@elyvel/image",
+  "name": "@elvel/image",
   "version": "1.0.0-alpha.1",
-  "description": "Images for Elyvel — dimensions everywhere, transformations where a backend exists",
+  "description": "Images for Elvel — dimensions everywhere, transformations where a backend exists",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "image",
     "resize",
     "thumbnail"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/image"
   },
   "type": "module",
@@ -33,9 +33,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/process": "workspace:*"
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/process": "workspace:*"
   },
   "private": true
 }

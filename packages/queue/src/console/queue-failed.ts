@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /** `queue:failed` — what failed, and enough of why to act on it. */
 export class QueueFailedCommand extends Command {

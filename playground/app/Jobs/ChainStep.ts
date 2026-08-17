@@ -1,5 +1,5 @@
-import { cache } from '@elyvel/cache'
-import { Job } from '@elyvel/queue'
+import { cache } from '@elvel/cache'
+import { Job } from '@elvel/queue'
 
 /**
  * Generated with `artisan make:job ChainStep`, then extended.

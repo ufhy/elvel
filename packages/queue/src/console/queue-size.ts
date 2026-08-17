@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /** `queue:size` — how much work is waiting. */
 export class QueueSizeCommand extends Command {

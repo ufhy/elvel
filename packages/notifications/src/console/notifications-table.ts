@@ -1,4 +1,4 @@
-import { MigrationGeneratorCommand } from '@elyvel/database'
+import { MigrationGeneratorCommand } from '@elvel/database'
 
 /** `notifications:table` — the migration the database channel needs. */
 export class NotificationsTableCommand extends MigrationGeneratorCommand {

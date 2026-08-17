@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "elyvel",
+      "name": "elvel",
       "dependencies": {
         "better-auth": "1.6.27",
         "nodemailer": "9.0.5",
@@ -11,33 +11,33 @@
       "devDependencies": {
         "@biomejs/biome": "^2.5.8",
         "@clack/prompts": "^1.7.0",
+        "@elvel/auth": "workspace:*",
+        "@elvel/broadcasting": "workspace:*",
+        "@elvel/cache": "workspace:*",
+        "@elvel/concurrency": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
+        "@elvel/encryption": "workspace:*",
+        "@elvel/events": "workspace:*",
+        "@elvel/hashing": "workspace:*",
+        "@elvel/http": "workspace:*",
+        "@elvel/http-client": "workspace:*",
+        "@elvel/image": "workspace:*",
+        "@elvel/log": "workspace:*",
+        "@elvel/mail": "workspace:*",
+        "@elvel/notifications": "workspace:*",
+        "@elvel/process": "workspace:*",
+        "@elvel/queue": "workspace:*",
+        "@elvel/scheduler": "workspace:*",
+        "@elvel/storage": "workspace:*",
+        "@elvel/support": "workspace:*",
+        "@elvel/testing": "workspace:*",
+        "@elvel/translation": "workspace:*",
+        "@elvel/validation": "workspace:*",
+        "@elvel/view": "workspace:*",
         "@elysiajs/static": "^1.4.10",
-        "@elyvel/auth": "workspace:*",
-        "@elyvel/broadcasting": "workspace:*",
-        "@elyvel/cache": "workspace:*",
-        "@elyvel/concurrency": "workspace:*",
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
-        "@elyvel/encryption": "workspace:*",
-        "@elyvel/events": "workspace:*",
-        "@elyvel/hashing": "workspace:*",
-        "@elyvel/http": "workspace:*",
-        "@elyvel/http-client": "workspace:*",
-        "@elyvel/image": "workspace:*",
-        "@elyvel/log": "workspace:*",
-        "@elyvel/mail": "workspace:*",
-        "@elyvel/notifications": "workspace:*",
-        "@elyvel/process": "workspace:*",
-        "@elyvel/queue": "workspace:*",
-        "@elyvel/scheduler": "workspace:*",
-        "@elyvel/storage": "workspace:*",
-        "@elyvel/support": "workspace:*",
-        "@elyvel/testing": "workspace:*",
-        "@elyvel/translation": "workspace:*",
-        "@elyvel/validation": "workspace:*",
-        "@elyvel/view": "workspace:*",
         "@kitajs/html": "^4.2.13",
         "@types/bun": "^1.3.14",
         "@types/nodemailer": "^8.0.1",
@@ -47,18 +47,18 @@
       },
     },
     "packages/auth": {
-      "name": "@elyvel/auth",
+      "name": "@elvel/auth",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
-        "@elyvel/http": "workspace:*",
-        "@elyvel/notifications": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
+        "@elvel/http": "workspace:*",
+        "@elvel/notifications": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
       "devDependencies": {
-        "@elyvel/cache": "workspace:*",
+        "@elvel/cache": "workspace:*",
       },
       "peerDependencies": {
         "better-auth": ">=1.6.0",
@@ -66,42 +66,42 @@
       },
     },
     "packages/broadcasting": {
-      "name": "@elyvel/broadcasting",
+      "name": "@elvel/broadcasting",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/core": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
       "peerDependencies": {
         "elysia": ">=1.4.0",
       },
     },
     "packages/cache": {
-      "name": "@elyvel/cache",
+      "name": "@elvel/cache",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
       },
     },
     "packages/concurrency": {
-      "name": "@elyvel/concurrency",
+      "name": "@elvel/concurrency",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
     },
     "packages/console": {
-      "name": "@elyvel/console",
+      "name": "@elvel/console",
       "version": "1.0.0-alpha.1",
       "dependencies": {
         "@clack/prompts": "^1.7.0",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/support": "workspace:*",
         "picocolors": "^1.1.1",
       },
       "peerDependencies": {
@@ -109,28 +109,28 @@
       },
     },
     "packages/contracts": {
-      "name": "@elyvel/contracts",
+      "name": "@elvel/contracts",
       "version": "1.0.0-alpha.1",
       "peerDependencies": {
         "elysia": ">=1.4.0",
       },
     },
     "packages/core": {
-      "name": "@elyvel/core",
+      "name": "@elvel/core",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
       "peerDependencies": {
         "elysia": ">=1.4.0",
       },
     },
-    "packages/create-elyvel": {
-      "name": "create-elyvel",
+    "packages/create-elvel": {
+      "name": "create-elvel",
       "version": "1.0.0-alpha.1",
       "bin": {
-        "create-elyvel": "./src/index.ts",
+        "create-elvel": "./src/index.ts",
       },
       "dependencies": {
         "@clack/prompts": "^1.7.0",
@@ -138,61 +138,61 @@
       },
     },
     "packages/database": {
-      "name": "@elyvel/database",
+      "name": "@elvel/database",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/process": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/process": "workspace:*",
+        "@elvel/support": "workspace:*",
         "picocolors": "^1.1.1",
       },
     },
     "packages/encryption": {
-      "name": "@elyvel/encryption",
+      "name": "@elvel/encryption",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/core": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
       "devDependencies": {
-        "@elyvel/database": "workspace:*",
+        "@elvel/database": "workspace:*",
       },
       "peerDependencies": {
-        "@elyvel/database": "workspace:*",
+        "@elvel/database": "workspace:*",
       },
       "optionalPeers": [
-        "@elyvel/database",
+        "@elvel/database",
       ],
     },
     "packages/events": {
-      "name": "@elyvel/events",
+      "name": "@elvel/events",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
     },
     "packages/hashing": {
-      "name": "@elyvel/hashing",
+      "name": "@elvel/hashing",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
     },
     "packages/http": {
-      "name": "@elyvel/http",
+      "name": "@elvel/http",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/cache": "workspace:*",
-        "@elyvel/console": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
-        "@elyvel/support": "workspace:*",
-        "@elyvel/validation": "workspace:*",
+        "@elvel/cache": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
+        "@elvel/support": "workspace:*",
+        "@elvel/validation": "workspace:*",
         "picocolors": "^1.1.1",
       },
       "peerDependencies": {
@@ -200,29 +200,29 @@
       },
     },
     "packages/http-client": {
-      "name": "@elyvel/http-client",
+      "name": "@elvel/http-client",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/core": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
     },
     "packages/image": {
-      "name": "@elyvel/image",
+      "name": "@elvel/image",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/process": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/process": "workspace:*",
       },
     },
     "packages/log": {
-      "name": "@elyvel/log",
+      "name": "@elvel/log",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/support": "workspace:*",
         "picocolors": "^1.1.1",
       },
       "peerDependencies": {
@@ -230,115 +230,115 @@
       },
     },
     "packages/mail": {
-      "name": "@elyvel/mail",
+      "name": "@elvel/mail",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/queue": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/queue": "workspace:*",
+        "@elvel/support": "workspace:*",
         "nodemailer": "9.0.5",
       },
     },
     "packages/notifications": {
-      "name": "@elyvel/notifications",
+      "name": "@elvel/notifications",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
-        "@elyvel/mail": "workspace:*",
-        "@elyvel/queue": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
+        "@elvel/mail": "workspace:*",
+        "@elvel/queue": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
     },
     "packages/process": {
-      "name": "@elyvel/process",
+      "name": "@elvel/process",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/core": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
     },
     "packages/queue": {
-      "name": "@elyvel/queue",
+      "name": "@elvel/queue",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/cache": "workspace:*",
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
-        "@elyvel/events": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/cache": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
+        "@elvel/events": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
     },
     "packages/scheduler": {
-      "name": "@elyvel/scheduler",
+      "name": "@elvel/scheduler",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/process": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/process": "workspace:*",
       },
       "devDependencies": {
-        "@elyvel/cache": "workspace:*",
-        "@elyvel/queue": "workspace:*",
+        "@elvel/cache": "workspace:*",
+        "@elvel/queue": "workspace:*",
       },
     },
     "packages/storage": {
-      "name": "@elyvel/storage",
+      "name": "@elvel/storage",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
     },
     "packages/support": {
-      "name": "@elyvel/support",
+      "name": "@elvel/support",
       "version": "1.0.0-alpha.1",
     },
     "packages/testing": {
-      "name": "@elyvel/testing",
+      "name": "@elvel/testing",
       "version": "1.0.0-alpha.1",
       "devDependencies": {
-        "@elyvel/core": "workspace:*",
+        "@elvel/core": "workspace:*",
       },
     },
     "packages/translation": {
-      "name": "@elyvel/translation",
+      "name": "@elvel/translation",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/core": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
     },
     "packages/validation": {
-      "name": "@elyvel/validation",
+      "name": "@elvel/validation",
       "version": "1.0.0-alpha.1",
       "dependencies": {
-        "@elyvel/console": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/support": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
       "devDependencies": {
-        "@elyvel/database": "workspace:*",
+        "@elvel/database": "workspace:*",
       },
       "peerDependencies": {
         "elysia": ">=1.4.0",
       },
     },
     "packages/view": {
-      "name": "@elyvel/view",
+      "name": "@elvel/view",
       "version": "1.0.0-alpha.1",
       "dependencies": {
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
         "@elysiajs/static": "^1.4.10",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
       },
       "peerDependencies": {
         "elysia": ">=1.4.0",
@@ -347,31 +347,31 @@
     "playground": {
       "name": "playground",
       "dependencies": {
-        "@elyvel/auth": "workspace:*",
-        "@elyvel/broadcasting": "workspace:*",
-        "@elyvel/cache": "workspace:*",
-        "@elyvel/concurrency": "workspace:*",
-        "@elyvel/console": "workspace:*",
-        "@elyvel/contracts": "workspace:*",
-        "@elyvel/core": "workspace:*",
-        "@elyvel/database": "workspace:*",
-        "@elyvel/encryption": "workspace:*",
-        "@elyvel/events": "workspace:*",
-        "@elyvel/hashing": "workspace:*",
-        "@elyvel/http": "workspace:*",
-        "@elyvel/http-client": "workspace:*",
-        "@elyvel/image": "workspace:*",
-        "@elyvel/log": "workspace:*",
-        "@elyvel/mail": "workspace:*",
-        "@elyvel/notifications": "workspace:*",
-        "@elyvel/process": "workspace:*",
-        "@elyvel/queue": "workspace:*",
-        "@elyvel/scheduler": "workspace:*",
-        "@elyvel/storage": "workspace:*",
-        "@elyvel/support": "workspace:*",
-        "@elyvel/translation": "workspace:*",
-        "@elyvel/validation": "workspace:*",
-        "@elyvel/view": "workspace:*",
+        "@elvel/auth": "workspace:*",
+        "@elvel/broadcasting": "workspace:*",
+        "@elvel/cache": "workspace:*",
+        "@elvel/concurrency": "workspace:*",
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
+        "@elvel/encryption": "workspace:*",
+        "@elvel/events": "workspace:*",
+        "@elvel/hashing": "workspace:*",
+        "@elvel/http": "workspace:*",
+        "@elvel/http-client": "workspace:*",
+        "@elvel/image": "workspace:*",
+        "@elvel/log": "workspace:*",
+        "@elvel/mail": "workspace:*",
+        "@elvel/notifications": "workspace:*",
+        "@elvel/process": "workspace:*",
+        "@elvel/queue": "workspace:*",
+        "@elvel/scheduler": "workspace:*",
+        "@elvel/storage": "workspace:*",
+        "@elvel/support": "workspace:*",
+        "@elvel/translation": "workspace:*",
+        "@elvel/validation": "workspace:*",
+        "@elvel/view": "workspace:*",
         "@kitajs/html": "^4.2.13",
         "better-auth": "1.6.27",
         "elysia": "^1.4.29",
@@ -425,59 +425,59 @@
 
     "@clack/prompts": ["@clack/prompts@1.7.0", "", { "dependencies": { "@clack/core": "1.4.3", "fast-string-width": "^3.0.2", "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A=="],
 
+    "@elvel/auth": ["@elvel/auth@workspace:packages/auth"],
+
+    "@elvel/broadcasting": ["@elvel/broadcasting@workspace:packages/broadcasting"],
+
+    "@elvel/cache": ["@elvel/cache@workspace:packages/cache"],
+
+    "@elvel/concurrency": ["@elvel/concurrency@workspace:packages/concurrency"],
+
+    "@elvel/console": ["@elvel/console@workspace:packages/console"],
+
+    "@elvel/contracts": ["@elvel/contracts@workspace:packages/contracts"],
+
+    "@elvel/core": ["@elvel/core@workspace:packages/core"],
+
+    "@elvel/database": ["@elvel/database@workspace:packages/database"],
+
+    "@elvel/encryption": ["@elvel/encryption@workspace:packages/encryption"],
+
+    "@elvel/events": ["@elvel/events@workspace:packages/events"],
+
+    "@elvel/hashing": ["@elvel/hashing@workspace:packages/hashing"],
+
+    "@elvel/http": ["@elvel/http@workspace:packages/http"],
+
+    "@elvel/http-client": ["@elvel/http-client@workspace:packages/http-client"],
+
+    "@elvel/image": ["@elvel/image@workspace:packages/image"],
+
+    "@elvel/log": ["@elvel/log@workspace:packages/log"],
+
+    "@elvel/mail": ["@elvel/mail@workspace:packages/mail"],
+
+    "@elvel/notifications": ["@elvel/notifications@workspace:packages/notifications"],
+
+    "@elvel/process": ["@elvel/process@workspace:packages/process"],
+
+    "@elvel/queue": ["@elvel/queue@workspace:packages/queue"],
+
+    "@elvel/scheduler": ["@elvel/scheduler@workspace:packages/scheduler"],
+
+    "@elvel/storage": ["@elvel/storage@workspace:packages/storage"],
+
+    "@elvel/support": ["@elvel/support@workspace:packages/support"],
+
+    "@elvel/testing": ["@elvel/testing@workspace:packages/testing"],
+
+    "@elvel/translation": ["@elvel/translation@workspace:packages/translation"],
+
+    "@elvel/validation": ["@elvel/validation@workspace:packages/validation"],
+
+    "@elvel/view": ["@elvel/view@workspace:packages/view"],
+
     "@elysiajs/static": ["@elysiajs/static@1.4.10", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-BN/3PZVWjqkL/6TM7RH69Pae89CfU0OqfEYPeBp2hB/GR5Euds39Wy+0ug9Vbvu++GG4tRRANf2QjaLnriJveg=="],
-
-    "@elyvel/auth": ["@elyvel/auth@workspace:packages/auth"],
-
-    "@elyvel/broadcasting": ["@elyvel/broadcasting@workspace:packages/broadcasting"],
-
-    "@elyvel/cache": ["@elyvel/cache@workspace:packages/cache"],
-
-    "@elyvel/concurrency": ["@elyvel/concurrency@workspace:packages/concurrency"],
-
-    "@elyvel/console": ["@elyvel/console@workspace:packages/console"],
-
-    "@elyvel/contracts": ["@elyvel/contracts@workspace:packages/contracts"],
-
-    "@elyvel/core": ["@elyvel/core@workspace:packages/core"],
-
-    "@elyvel/database": ["@elyvel/database@workspace:packages/database"],
-
-    "@elyvel/encryption": ["@elyvel/encryption@workspace:packages/encryption"],
-
-    "@elyvel/events": ["@elyvel/events@workspace:packages/events"],
-
-    "@elyvel/hashing": ["@elyvel/hashing@workspace:packages/hashing"],
-
-    "@elyvel/http": ["@elyvel/http@workspace:packages/http"],
-
-    "@elyvel/http-client": ["@elyvel/http-client@workspace:packages/http-client"],
-
-    "@elyvel/image": ["@elyvel/image@workspace:packages/image"],
-
-    "@elyvel/log": ["@elyvel/log@workspace:packages/log"],
-
-    "@elyvel/mail": ["@elyvel/mail@workspace:packages/mail"],
-
-    "@elyvel/notifications": ["@elyvel/notifications@workspace:packages/notifications"],
-
-    "@elyvel/process": ["@elyvel/process@workspace:packages/process"],
-
-    "@elyvel/queue": ["@elyvel/queue@workspace:packages/queue"],
-
-    "@elyvel/scheduler": ["@elyvel/scheduler@workspace:packages/scheduler"],
-
-    "@elyvel/storage": ["@elyvel/storage@workspace:packages/storage"],
-
-    "@elyvel/support": ["@elyvel/support@workspace:packages/support"],
-
-    "@elyvel/testing": ["@elyvel/testing@workspace:packages/testing"],
-
-    "@elyvel/translation": ["@elyvel/translation@workspace:packages/translation"],
-
-    "@elyvel/validation": ["@elyvel/validation@workspace:packages/validation"],
-
-    "@elyvel/view": ["@elyvel/view@workspace:packages/view"],
 
     "@kitajs/html": ["@kitajs/html@4.2.13", "", { "dependencies": { "csstype": "^3.1.3" } }, "sha512-o+8e61EsoLDPTP7rsPkYolca1YFybHuxU2Lr5fWDZCUkYT/6uBlVkvnZUdCXMQKentJL9dxwpR8/xK2Q+U4LhA=="],
 
@@ -549,7 +549,7 @@
 
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
 
-    "create-elyvel": ["create-elyvel@workspace:packages/create-elyvel"],
+    "create-elvel": ["create-elvel@workspace:packages/create-elvel"],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 

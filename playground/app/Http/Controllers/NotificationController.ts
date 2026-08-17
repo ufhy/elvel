@@ -1,5 +1,5 @@
-import { controller, NotFoundException } from '@elyvel/core'
-import { DatabaseNotification, notifications, notify, route } from '@elyvel/notifications'
+import { controller, NotFoundException } from '@elvel/core'
+import { DatabaseNotification, notifications, notify, route } from '@elvel/notifications'
 import { t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 import { ArticlePublished } from '../../Notifications/ArticlePublished.ts'

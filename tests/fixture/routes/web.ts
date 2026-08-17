@@ -1,5 +1,5 @@
-import { controller, NotFoundException } from '@elyvel/core'
-import { render, view } from '@elyvel/view'
+import { controller, NotFoundException } from '@elvel/core'
+import { render, view } from '@elvel/view'
 import { Bare, Hello } from '../resources/views/pages/hello.tsx'
 
 export default controller('fixture:page')

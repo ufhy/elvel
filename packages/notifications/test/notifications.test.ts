@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elyvel/core'
-import { ConnectionManager } from '@elyvel/database'
+import { Application } from '@elvel/core'
+import { ConnectionManager } from '@elvel/database'
 import { BroadcastNotificationChannel } from '../src/channels/broadcast.ts'
 import { DatabaseNotificationChannel } from '../src/channels/database.ts'
 import { LogNotificationChannel } from '../src/channels/log.ts'
@@ -325,9 +325,9 @@ describe('MailMessage', () => {
       .line('above two')
       .action('Do it', 'https://example.com/go')
       .line('below')
-      .salutation('Bye,\nElyvel')
+      .salutation('Bye,\nElvel')
 
-    const text = message.toText('Elyvel')
+    const text = message.toText('Elvel')
 
     expect(text.indexOf('above one')).toBeLessThan(text.indexOf('Do it'))
     expect(text.indexOf('Do it')).toBeLessThan(text.indexOf('below'))
@@ -340,7 +340,7 @@ describe('MailMessage', () => {
       .greeting('Hello Ada!')
       .line('Your article is live.')
       .action('Read it', 'https://example.com/a')
-      .toHtml('Elyvel')
+      .toHtml('Elvel')
 
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(html).toContain('Hello Ada!')
@@ -363,14 +363,14 @@ describe('MailMessage', () => {
 
   test('a line from user input cannot inject markup', () => {
     // A notification line very often carries a title or a name somebody typed.
-    const html = new MailMessage().line('<script>alert(1)</script>').toHtml('Elyvel')
+    const html = new MailMessage().line('<script>alert(1)</script>').toHtml('Elvel')
 
     expect(html).not.toContain('<script>')
     expect(html).toContain('&lt;script&gt;')
   })
 
   test('a hostile action URL is replaced rather than emitted', () => {
-    const html = new MailMessage().action('Click', 'javascript:alert(1)').toHtml('Elyvel')
+    const html = new MailMessage().action('Click', 'javascript:alert(1)').toHtml('Elvel')
 
     expect(html).not.toContain('javascript:')
     expect(html).toContain('href="#"')

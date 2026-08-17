@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elyvel/contracts'
+import type { ApplicationContract } from '@elvel/contracts'
 import { type Dispatcher, Repository } from './repository.ts'
 import type { Store } from './store.ts'
 import { ArrayStore } from './stores/array.ts'
@@ -78,7 +78,7 @@ export class CacheManager {
     // The global prefix keeps two applications apart on a shared server; a store
     // may override it.
     const prefix = String(
-      config.prefix ?? this.app.config.get<string>('cache.prefix', 'elyvel_cache_')
+      config.prefix ?? this.app.config.get<string>('cache.prefix', 'elvel_cache_')
     )
 
     switch (config.driver) {

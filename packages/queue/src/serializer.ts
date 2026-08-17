@@ -1,4 +1,4 @@
-import type { Model, ModelClass } from '@elyvel/database'
+import type { Model, ModelClass } from '@elvel/database'
 
 /**
  * A model that travelled through a payload as a reference.

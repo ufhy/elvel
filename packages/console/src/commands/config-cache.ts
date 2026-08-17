@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import { Config } from '@elyvel/core'
+import { Config } from '@elvel/core'
 import { Command } from '../command.ts'
 
 /**

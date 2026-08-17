@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import type { LogLevel, LogRecord } from '@elyvel/contracts'
+import type { LogLevel, LogRecord } from '@elvel/contracts'
 import { stripControl } from '../src/console/log-tail.ts'
 import { ConsoleDriver } from '../src/drivers/console.ts'
 import { JsonDriver } from '../src/drivers/json.ts'

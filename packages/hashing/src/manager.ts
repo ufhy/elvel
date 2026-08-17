@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elyvel/contracts'
+import type { ApplicationContract } from '@elvel/contracts'
 import {
   Argon2idHasher,
   BcryptHasher,

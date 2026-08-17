@@ -1,4 +1,4 @@
-import { env, storage_path } from '@elyvel/core'
+import { env, storage_path } from '@elvel/core'
 
 export default {
   /** Disk used when none is named. */
@@ -36,7 +36,7 @@ export default {
      */
     s3: {
       driver: 's3',
-      bucket: env('S3_BUCKET', 'elyvel-playground'),
+      bucket: env('S3_BUCKET', 'elvel-playground'),
       accessKeyId: env('S3_KEY', 'AKIAEXAMPLE'),
       secretAccessKey: env('S3_SECRET', 'secret'),
       region: env('S3_REGION', 'eu-west-1'),

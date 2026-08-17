@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Application, flushDeferred, forgetDeferred } from '@elyvel/core'
-import { ConnectionManager } from '@elyvel/database'
+import { Application, flushDeferred, forgetDeferred } from '@elvel/core'
+import { ConnectionManager } from '@elvel/database'
 import { encode, FOREVER } from '../src/payload.ts'
 import { RateLimiter } from '../src/rate-limiter.ts'
 import { Repository } from '../src/repository.ts'
@@ -55,7 +55,7 @@ const candidates: Candidate[] = [
   {
     name: 'file',
     make: async () => {
-      const directory = await mkdtemp(join(tmpdir(), 'elyvel-cache-'))
+      const directory = await mkdtemp(join(tmpdir(), 'elvel-cache-'))
 
       return {
         store: new FileStore(directory, 't:'),
@@ -738,7 +738,7 @@ describe('FileStore layout', () => {
   let directory: string
 
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'elyvel-cache-layout-'))
+    directory = await mkdtemp(join(tmpdir(), 'elvel-cache-layout-'))
   })
 
   afterEach(async () => {

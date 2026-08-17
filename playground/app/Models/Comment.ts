@@ -1,4 +1,4 @@
-import { Model } from '@elyvel/database'
+import { Model } from '@elvel/database'
 import { Article } from './Article.ts'
 
 /** Generated with `bun run playground make:model Comment -m`, then extended. */

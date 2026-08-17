@@ -1,20 +1,20 @@
 {
-  "name": "@elyvel/contracts",
+  "name": "@elvel/contracts",
   "version": "1.0.0-alpha.1",
-  "description": "The interfaces Elyvel’s packages agree on — types only, nothing at run time",
+  "description": "The interfaces Elvel’s packages agree on — types only, nothing at run time",
   "keywords": [
     "bun",
     "contracts",
-    "elyvel",
+    "elvel",
     "interfaces",
     "types"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/contracts"
   },
   "type": "module",

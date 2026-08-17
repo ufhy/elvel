@@ -1,4 +1,4 @@
-import { env } from '@elyvel/core'
+import { env } from '@elvel/core'
 
 export default {
   /** Turn the session middleware off entirely for a pure API. */
@@ -10,7 +10,7 @@ export default {
   /** Where the file driver writes. Defaults to storage/framework/sessions. */
   path: undefined,
 
-  cookie: env('SESSION_COOKIE', 'elyvel_session'),
+  cookie: env('SESSION_COOKIE', 'elvel_session'),
 
   /** Seconds. */
   lifetime: Number(env('SESSION_LIFETIME', 7200)),

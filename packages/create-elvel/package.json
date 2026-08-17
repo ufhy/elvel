@@ -1,0 +1,46 @@
+{
+  "name": "create-elvel",
+  "version": "1.0.0-alpha.1",
+  "description": "Scaffold an Elvel application — bun create elvel my-app",
+  "keywords": [
+    "bun",
+    "create",
+    "elvel",
+    "scaffold",
+    "starter",
+    "template"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elvel.git",
+    "directory": "packages/create-elvel"
+  },
+  "type": "module",
+  "sideEffects": [
+    "./src/index.ts"
+  ],
+  "bin": {
+    "create-elvel": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "files": [
+    "src",
+    "template",
+    "kits",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "picocolors": "^1.1.1"
+  }
+}

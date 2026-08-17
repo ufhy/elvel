@@ -1,4 +1,4 @@
-import type { ApplicationContract, ExceptionHandlerContract } from '@elyvel/contracts'
+import type { ApplicationContract, ExceptionHandlerContract } from '@elvel/contracts'
 
 /**
  * Base class for exceptions that carry their own HTTP response, mirroring
@@ -8,10 +8,10 @@ import type { ApplicationContract, ExceptionHandlerContract } from '@elyvel/cont
  * Marks an exception that carries its own finished `Response`.
  *
  * A symbol, and `Symbol.for` so two copies of this package agree on it. Core
- * cannot import `@elyvel/http`, and this is the whole contract between them.
+ * cannot import `@elvel/http`, and this is the whole contract between them.
  */
 export const CARRIES_RESPONSE: unique symbol = Symbol.for(
-  'elyvel.carriesResponse'
+  'elvel.carriesResponse'
 ) as typeof CARRIES_RESPONSE
 
 export type CarriesResponse = { [CARRIES_RESPONSE](): Response }

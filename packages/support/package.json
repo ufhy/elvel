@@ -1,21 +1,21 @@
 {
-  "name": "@elyvel/support",
+  "name": "@elvel/support",
   "version": "1.0.0-alpha.1",
-  "description": "Foundational utilities shared across Elyvel — Collection, Str, Arr, mirrors Illuminate\\Support",
+  "description": "Foundational utilities shared across Elvel — Collection, Str, Arr, mirrors Illuminate\\Support",
   "keywords": [
     "arr",
     "bun",
     "collection",
-    "elyvel",
+    "elvel",
     "helpers",
     "str"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/support"
   },
   "type": "module",

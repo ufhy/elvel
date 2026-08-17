@@ -1,4 +1,4 @@
-import { Migration, type MigrationContext } from '@elyvel/database'
+import { Migration, type MigrationContext } from '@elvel/database'
 
 /**
  * Tables for the `database` cache store.

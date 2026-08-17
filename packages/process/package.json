@@ -1,10 +1,10 @@
 {
-  "name": "@elyvel/process",
+  "name": "@elvel/process",
   "version": "1.0.0-alpha.1",
-  "description": "Running processes from Elyvel — fluent commands, pipes, pools and process groups",
+  "description": "Running processes from Elvel — fluent commands, pipes, pools and process groups",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "exec",
     "process",
     "shell",
@@ -12,10 +12,10 @@
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/process"
   },
   "type": "module",
@@ -32,7 +32,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/core": "workspace:*"
+    "@elvel/core": "workspace:*"
   },
   "private": true
 }

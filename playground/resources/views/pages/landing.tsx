@@ -8,7 +8,7 @@ export function Landing({ title }: LandingProps) {
   return (
     <Layout title={title}>
       <section class="hero">
-        <p class="eyebrow">Elyvel</p>
+        <p class="eyebrow">Elvel</p>
 
         <h1>
           The Laravel developer experience,

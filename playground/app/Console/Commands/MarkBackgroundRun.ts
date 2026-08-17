@@ -1,5 +1,5 @@
-import { cache } from '@elyvel/cache'
-import { Command } from '@elyvel/console'
+import { cache } from '@elvel/cache'
+import { Command } from '@elvel/console'
 
 /**
  * Generated with `artisan make:command MarkBackgroundRun`, then extended.

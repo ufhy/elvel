@@ -1,4 +1,4 @@
-import { controller } from '@elyvel/core'
+import { controller } from '@elvel/core'
 import {
   clientPrefix,
   clientUrl,
@@ -9,7 +9,7 @@ import {
   intended,
   queueCookie,
   redirect
-} from '@elyvel/http'
+} from '@elvel/http'
 
 /**
  * Cookies that hide their contents, named error bags and proxy-aware URLs —

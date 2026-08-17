@@ -1,10 +1,10 @@
 {
-  "name": "@elyvel/view",
+  "name": "@elvel/view",
   "version": "1.0.0-alpha.1",
-  "description": "Server-rendered views for Elyvel — JSX components, layouts, stacks, and Vite assets",
+  "description": "Server-rendered views for Elvel — JSX components, layouts, stacks, and Vite assets",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "html",
     "jsx",
     "template",
@@ -13,10 +13,10 @@
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/view"
   },
   "type": "module",
@@ -41,8 +41,8 @@
   },
   "dependencies": {
     "@elysiajs/static": "^1.4.10",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*"
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"

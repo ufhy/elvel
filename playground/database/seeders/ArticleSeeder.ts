@@ -1,4 +1,4 @@
-import { Seeder, type SeederContext } from '@elyvel/database'
+import { Seeder, type SeederContext } from '@elvel/database'
 import { Comment } from '../../app/Models/Comment.ts'
 import { ArticleFactory } from '../factories/ArticleFactory.ts'
 

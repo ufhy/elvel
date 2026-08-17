@@ -1,12 +1,12 @@
 import { describe, expect, test as it } from 'bun:test'
-import { test } from '@elyvel/testing'
+import { test } from '@elvel/testing'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 
 /**
  * Pressing the application, with no socket and no server.
  *
- * This is what a feature test looks like in an Elyvel application: import the
+ * This is what a feature test looks like in an Elvel application: import the
  * booted app, hand it to `test()`, and assert on what came back. Everything the
  * framework does on a real request happens here too — middleware, the session,
  * validation, the exception handler — because it is the same `handle()` a socket

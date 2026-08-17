@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import type { Command } from '../src/command.ts'
 import { MakeCommandCommand } from '../src/commands/make-command.ts'
 import { MakeComponentCommand } from '../src/commands/make-component.ts'
@@ -14,7 +14,7 @@ let app: Application
 let root: string
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'elyvel-generator-'))
+  root = await mkdtemp(join(tmpdir(), 'elvel-generator-'))
   app = new Application(root)
 })
 

@@ -7,7 +7,7 @@ describe('JsxViewFactory', () => {
   test('renders a component with its props', async () => {
     const Greeting = ({ name }: { name: string }) => `<p>Hello ${name}</p>`
 
-    expect(await factory.render(Greeting, { name: 'Elyvel' })).toBe('<p>Hello Elyvel</p>')
+    expect(await factory.render(Greeting, { name: 'Elvel' })).toBe('<p>Hello Elvel</p>')
   })
 
   test('awaits async components', async () => {

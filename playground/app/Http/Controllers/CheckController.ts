@@ -1,5 +1,5 @@
-import { controller } from '@elyvel/core'
-import { Rule, ValidationError, validator } from '@elyvel/validation'
+import { controller } from '@elvel/core'
+import { Rule, ValidationError, validator } from '@elvel/validation'
 import { t } from 'elysia'
 
 /**

@@ -1,21 +1,21 @@
 {
-  "name": "@elyvel/log",
+  "name": "@elvel/log",
   "version": "1.0.0-alpha.1",
-  "description": "Logging for Elyvel — channels, stacks, and levels, mirrors Laravel’s Log",
+  "description": "Logging for Elvel — channels, stacks, and levels, mirrors Laravel’s Log",
   "keywords": [
     "bun",
     "channels",
-    "elyvel",
+    "elvel",
     "log",
     "logging",
     "monolog"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/log"
   },
   "type": "module",
@@ -39,10 +39,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/support": "workspace:*",
+    "@elvel/console": "workspace:*",
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/support": "workspace:*",
     "picocolors": "^1.1.1"
   },
   "peerDependencies": {

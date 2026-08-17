@@ -1,4 +1,4 @@
-import { config } from '@elyvel/core'
+import { config } from '@elvel/core'
 import type { Children } from '@kitajs/html'
 
 export type LayoutProps = {

@@ -1,4 +1,4 @@
-import { type Content, type Envelope, type Mailable, markdownContent } from '@elyvel/mail'
+import { type Content, type Envelope, type Mailable, markdownContent } from '@elvel/mail'
 import { type Notifiable, routeFor } from '../notifiable.ts'
 import type { AnyNotification } from '../notification.ts'
 
@@ -50,7 +50,7 @@ export class MailNotificationChannel {
 
   constructor(
     private readonly mail: Mailer,
-    private readonly appName = 'Elyvel'
+    private readonly appName = 'Elvel'
   ) {}
 
   async send(notifiable: Notifiable, notification: AnyNotification): Promise<unknown> {

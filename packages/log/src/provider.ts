@@ -1,10 +1,10 @@
-import { ServiceProvider } from '@elyvel/core'
-import { Str } from '@elyvel/support'
+import { ServiceProvider } from '@elvel/core'
+import { Str } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { LogTailCommand } from './console/log-tail.ts'
 import { LogManager } from './manager.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     log: LogManager
   }
@@ -42,7 +42,7 @@ export class LogServiceProvider extends ServiceProvider {
     const channel = this.config<string | undefined>('logging.requests.channel')
     const header = this.config<string>('logging.requests.header', 'x-request-id')
 
-    return new Elysia({ name: 'elyvel:request-log' })
+    return new Elysia({ name: 'elvel:request-log' })
       .derive({ as: 'global' }, ({ request }) => {
         const requestId = request.headers.get(header) ?? Str.uuid()
 

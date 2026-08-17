@@ -1,5 +1,5 @@
-import { cache, LockTimeoutError, limiter } from '@elyvel/cache'
-import { controller } from '@elyvel/core'
+import { cache, LockTimeoutError, limiter } from '@elvel/cache'
+import { controller } from '@elvel/core'
 import { Article } from '../../Models/Article.ts'
 
 /**
@@ -112,7 +112,7 @@ export default controller('cache')
 
     if (query.reset === 'yes') {
       await repository.forget('flexible:value')
-      await repository.forget('elyvel:cache:flexible:created:flexible:value')
+      await repository.forget('elvel:cache:flexible:created:flexible:value')
     }
 
     const value = await repository.flexible('flexible:value', [1, 60], () => Date.now())

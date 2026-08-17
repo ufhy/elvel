@@ -1,5 +1,5 @@
-import type { ApplicationContract } from '@elyvel/contracts'
-import type { QueryBuilder, Row } from '@elyvel/database'
+import type { ApplicationContract } from '@elvel/contracts'
+import type { QueryBuilder, Row } from '@elvel/database'
 
 /** A batch as it sits in the table. */
 export type BatchRecord = {

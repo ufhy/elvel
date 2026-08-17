@@ -173,7 +173,7 @@ export class SchemaBuilder {
       }
     }
 
-    const temporary = `__elyvel_rebuild_${table}`
+    const temporary = `__elvel_rebuild_${table}`
     const definitions = existing.map((column) => {
       const replacement = changed.get(column.name.toLowerCase())
 

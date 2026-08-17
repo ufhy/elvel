@@ -15,7 +15,7 @@ const inRequest = <T>(body: () => T, headers: Record<string, string> = {}): T =>
   withRequestScope({ request: request(headers), session }, body)
 
 beforeEach(async () => {
-  session = await new Session('probe', new MemorySessionDriver(), 'elyvel_session').start()
+  session = await new Session('probe', new MemorySessionDriver(), 'elvel_session').start()
 })
 
 describe('where back() goes', () => {

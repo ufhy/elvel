@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test as it } from 'bun:test'
-import { dispatch, type QueueFake, queue } from '@elyvel/queue'
+import { dispatch, type QueueFake, queue } from '@elvel/queue'
 import '../bootstrap/app.ts'
 import './database.ts'
 import { ImportRow } from '../app/Jobs/ImportRow.ts'

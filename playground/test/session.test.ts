@@ -1,5 +1,5 @@
 import { describe, expect, test as it } from 'bun:test'
-import { test } from '@elyvel/testing'
+import { test } from '@elvel/testing'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 
@@ -123,7 +123,7 @@ describe('flash data', () => {
 describe('the cookie itself', () => {
   it('is http-only and same-site, which is not decorative', async () => {
     const response = await test(app).get('/')
-    const cookie = response.headers.getSetCookie().find((one) => one.startsWith('elyvel_session'))
+    const cookie = response.headers.getSetCookie().find((one) => one.startsWith('elvel_session'))
 
     expect(cookie).toBeDefined()
     // HttpOnly keeps it away from a script that got onto the page; SameSite is

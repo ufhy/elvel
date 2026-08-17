@@ -1,6 +1,6 @@
-import { whenAuth, whenCan, whenGuest } from '@elyvel/auth'
-import { whenError } from '@elyvel/http'
-import { classes, json, once, prepend, push, pushOnce, styles } from '@elyvel/view'
+import { whenAuth, whenCan, whenGuest } from '@elvel/auth'
+import { whenError } from '@elvel/http'
+import { classes, json, once, prepend, push, pushOnce, styles } from '@elvel/view'
 import { Layout } from '../components/layout.tsx'
 
 export type ViewHelpersProps = {
@@ -15,8 +15,8 @@ export type ViewHelpersProps = {
  * Blade's `@error`, `@auth`, `@guest`, `@can`, `@once` and `@push`/`@stack` all
  * read something the page cannot see from its props: the last request's failures,
  * the signed-in user, the Gate, and a layout further up the tree. Each one lives
- * in the package that owns what it reads — `whenError` in `@elyvel/http` beside
- * `errors()` and `old()`, `whenAuth` in `@elyvel/auth` beside `user()` — which
+ * in the package that owns what it reads — `whenError` in `@elvel/http` beside
+ * `errors()` and `old()`, `whenAuth` in `@elvel/auth` beside `user()` — which
  * is where `csrfField` already was.
  *
  * The callback shape is deliberate. `{errors().first('email') ? <p>{...}</p>

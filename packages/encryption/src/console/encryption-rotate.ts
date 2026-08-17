@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /**
  * `encryption:rotate` — re-encrypt a column onto the current key.

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import { BunSqlConnection, type ConnectionConfig } from '../src/connection/bun-sql.ts'
 import { ConnectionManager } from '../src/connection/manager.ts'
 import { ReadWriteConnection } from '../src/connection/read-write.ts'
@@ -31,7 +31,7 @@ import { SchemaBuilder } from '../src/schema/builder.ts'
 
 type Candidate = { name: string; config: ConnectionConfig }
 
-const PREFIX = `elyvel_t${Date.now().toString(36)}`
+const PREFIX = `elvel_t${Date.now().toString(36)}`
 
 const candidates: Candidate[] = [
   { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },
@@ -55,7 +55,7 @@ const candidates: Candidate[] = [
   }
 ]
 
-const TEST_DATABASE = 'elyvel_test'
+const TEST_DATABASE = 'elvel_test'
 
 /**
  * Give each server its own database.
@@ -1161,7 +1161,7 @@ for (const { name, config } of available) {
       let directory: string
 
       beforeAll(async () => {
-        directory = await mkdtemp(join(tmpdir(), 'elyvel-dialect-'))
+        directory = await mkdtemp(join(tmpdir(), 'elvel-dialect-'))
 
         await Bun.write(
           join(directory, '2026_01_01_000000_create_widgets_table.ts'),

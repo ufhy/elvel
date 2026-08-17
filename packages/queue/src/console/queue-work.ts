@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 import { pauseKey } from './queue-pause.ts'
 import { RESTART_KEY } from './queue-restart.ts'
 

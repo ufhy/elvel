@@ -1,4 +1,4 @@
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 import pc from 'picocolors'
 import { middlewareNamesOf, middlewares } from '../middleware.ts'
 
@@ -9,7 +9,7 @@ import { middlewareNamesOf, middlewares } from '../middleware.ts'
  * the alias map to whoever reads `bootstrap/app.php`. That is workable when the
  * aliases live in one file you wrote. Here they are registered by whichever
  * packages happen to be installed: `throttle` and `signed` come from this one,
- * five more from `@elyvel/auth`, and an application adds its own. Asking "what
+ * five more from `@elvel/auth`, and an application adds its own. Asking "what
  * can I write on a route?" had no answer at all, which is why this exists.
  *
  * Also reports how many routes use each, so an alias nobody reaches for shows up

@@ -1,5 +1,5 @@
-import type { CommandContract } from '@elyvel/contracts'
-import type { Application } from '@elyvel/core'
+import type { CommandContract } from '@elvel/contracts'
+import type { Application } from '@elvel/core'
 import { Output } from './output.ts'
 import {
   type CommandDefinition,

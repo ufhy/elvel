@@ -1,20 +1,20 @@
 {
-  "name": "@elyvel/validation",
+  "name": "@elvel/validation",
   "version": "1.0.0-alpha.1",
-  "description": "Laravel-style validation for Elyvel — a rule DSL, message bags, and form requests",
+  "description": "Laravel-style validation for Elvel — a rule DSL, message bags, and form requests",
   "keywords": [
     "bun",
-    "elyvel",
+    "elvel",
     "rules",
     "validation",
     "validator"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/validation"
   },
   "type": "module",
@@ -37,14 +37,14 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/console": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/support": "workspace:*"
+    "@elvel/console": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/support": "workspace:*"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"
   },
   "devDependencies": {
-    "@elyvel/database": "workspace:*"
+    "@elvel/database": "workspace:*"
   }
 }

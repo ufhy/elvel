@@ -1,5 +1,5 @@
-import type { Content, Envelope } from '@elyvel/mail'
-import { Mailable, viewContent } from '@elyvel/mail'
+import type { Content, Envelope } from '@elvel/mail'
+import { Mailable, viewContent } from '@elvel/mail'
 import { ArticlePublishedMail } from '../../resources/views/mail/article-published.tsx'
 
 /**

@@ -10,7 +10,7 @@ import { ServiceProvider } from '../src/service-provider.ts'
 let root: string
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'elyvel-app-'))
+  root = await mkdtemp(join(tmpdir(), 'elvel-app-'))
 })
 
 afterEach(async () => {
@@ -412,6 +412,6 @@ describe('maintenance mode in the cache', () => {
 
     // `forever`, not a TTL: a window that expired by itself would bring the
     // application back up while the work was still going.
-    expect<boolean>(shared.entries.has('elyvel:maintenance')).toBe(true)
+    expect<boolean>(shared.entries.has('elvel:maintenance')).toBe(true)
   })
 })

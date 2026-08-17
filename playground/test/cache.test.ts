@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test as it } from 'bun:test'
-import { cache } from '@elyvel/cache'
+import { cache } from '@elvel/cache'
 import '../bootstrap/app.ts'
 import './database.ts'
 

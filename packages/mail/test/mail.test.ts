@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import { attachFromDisk } from '../src/attachments.ts'
 import {
   type Attachment,
@@ -23,7 +23,7 @@ import { type CapturedMessage, startSmtpServer } from './smtp-server.ts'
 class Welcome extends Mailable<{ name: string }> {
   envelope(): Envelope {
     return {
-      from: { address: 'hello@example.com', name: 'Elyvel' },
+      from: { address: 'hello@example.com', name: 'Elvel' },
       to: 'ada@example.com',
       subject: `Welcome, ${this.data.name}`
     }
@@ -63,7 +63,7 @@ describe('building a message', () => {
     const message = transport.messages[0] as SentMessage
 
     expect(message.mailable).toBe('Welcome')
-    expect(message.from).toEqual({ address: 'hello@example.com', name: 'Elyvel' })
+    expect(message.from).toEqual({ address: 'hello@example.com', name: 'Elvel' })
     expect(message.to).toEqual([{ address: 'ada@example.com' }])
     expect(message.subject).toBe('Welcome, Ada')
     expect(message.html).toBe('<p>Hello Ada.</p>')
@@ -149,8 +149,8 @@ describe('building a message', () => {
     expect(message.to).toEqual([{ address: 'dev@example.com' }])
     expect(message.bcc).toEqual([])
     // Dropping them silently would make a staging send impossible to trace.
-    expect(message.headers['X-Elyvel-To']).toBe('customer@example.com')
-    expect(message.headers['X-Elyvel-Bcc']).toBe('audit@example.com')
+    expect(message.headers['X-Elvel-To']).toBe('customer@example.com')
+    expect(message.headers['X-Elvel-Bcc']).toBe('audit@example.com')
   })
 
   test('a view is rendered through the renderer it was given', async () => {
@@ -349,7 +349,7 @@ describe('HTTP transports', () => {
       expect(entry.headers.get('authorization')).toBe('Bearer secret')
 
       const body = JSON.parse(entry.text) as Record<string, unknown>
-      expect(body.from).toBe('"Elyvel" <hello@example.com>')
+      expect(body.from).toBe('"Elvel" <hello@example.com>')
       expect(body.to).toEqual(['ada@example.com'])
       expect(body.subject).toBe('Welcome, Ada')
       expect(body.html).toBe('<p>Hello Ada.</p>')
@@ -575,7 +575,7 @@ describe('MailManager', () => {
     app = new Application(process.cwd())
     app.config.set('app.env', 'testing')
     app.config.set('mail.default', 'array')
-    app.config.set('mail.from', { address: 'hello@example.com', name: 'Elyvel' })
+    app.config.set('mail.from', { address: 'hello@example.com', name: 'Elvel' })
     app.config.set('mail.mailers', {
       array: { transport: 'array' },
       log: { transport: 'log' },
@@ -669,7 +669,7 @@ describe('MailManager', () => {
     const transport = mailer.transport as ArrayTransport
     expect(transport.messages[0]?.from).toEqual({
       address: 'hello@example.com',
-      name: 'Elyvel'
+      name: 'Elvel'
     })
   })
 

@@ -1,6 +1,6 @@
 import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Str } from '@elyvel/support'
+import { Str } from '@elvel/support'
 
 export type SessionData = Record<string, unknown>
 
@@ -119,7 +119,7 @@ export class Session {
   constructor(
     readonly id: string,
     private readonly driver: SessionDriver,
-    private readonly name = 'elyvel_session'
+    private readonly name = 'elvel_session'
   ) {}
 
   static newId(): string {

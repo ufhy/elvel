@@ -1,4 +1,4 @@
-import { app } from '@elyvel/core'
+import { app } from '@elvel/core'
 import type { AnyJob } from './job.ts'
 import type { DispatchOptions, QueueManager } from './manager.ts'
 

@@ -1,8 +1,8 @@
-import { concurrency } from '@elyvel/concurrency'
-import { controller } from '@elyvel/core'
-import { hash } from '@elyvel/hashing'
-import { image, probe } from '@elyvel/image'
-import { process } from '@elyvel/process'
+import { concurrency } from '@elvel/concurrency'
+import { controller } from '@elvel/core'
+import { hash } from '@elvel/hashing'
+import { image, probe } from '@elvel/image'
+import { process } from '@elvel/process'
 
 /**
  * The four packages the playground never booted.

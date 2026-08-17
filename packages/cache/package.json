@@ -1,21 +1,21 @@
 {
-  "name": "@elyvel/cache",
+  "name": "@elvel/cache",
   "version": "1.0.0-alpha.1",
-  "description": "Laravel-style cache for Elyvel — repository API, memory, file, database and Redis stores",
+  "description": "Laravel-style cache for Elvel — repository API, memory, file, database and Redis stores",
   "keywords": [
     "bun",
     "cache",
-    "elyvel",
+    "elvel",
     "lock",
     "mutex",
     "redis"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/cache"
   },
   "type": "module",
@@ -40,9 +40,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/console": "workspace:*",
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/database": "workspace:*"
+    "@elvel/console": "workspace:*",
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/database": "workspace:*"
   }
 }

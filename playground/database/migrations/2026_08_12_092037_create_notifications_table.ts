@@ -1,4 +1,4 @@
-import { Migration, type MigrationContext } from '@elyvel/database'
+import { Migration, type MigrationContext } from '@elvel/database'
 
 /**
  * The stored-notification table.

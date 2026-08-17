@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elyvel/contracts'
+import type { ApplicationContract } from '@elvel/contracts'
 import { BroadcastNotificationChannel } from './channels/broadcast.ts'
 import { DatabaseNotificationChannel } from './channels/database.ts'
 import { LogNotificationChannel } from './channels/log.ts'
@@ -164,7 +164,7 @@ export class NotificationManager {
 
         return new MailNotificationChannel(
           this.app.make('mail'),
-          this.app.config.get<string>('app.name', 'Elyvel')
+          this.app.config.get<string>('app.name', 'Elvel')
         )
 
       case 'database':

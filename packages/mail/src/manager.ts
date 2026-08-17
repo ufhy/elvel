@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elyvel/contracts'
+import type { ApplicationContract } from '@elvel/contracts'
 import { MailFake } from './fake.ts'
 import type { Address, AnyMailable, MailableClass } from './mailable.ts'
 import { Mailer, type ViewRenderer } from './mailer.ts'

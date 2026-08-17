@@ -1,4 +1,4 @@
-import type { LogDriver, LogLevel, LogRecord } from '@elyvel/contracts'
+import type { LogDriver, LogLevel, LogRecord } from '@elvel/contracts'
 import pc from 'picocolors'
 
 const COLOURS: Record<LogLevel, (value: string) => string> = {

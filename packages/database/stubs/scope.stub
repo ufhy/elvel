@@ -1,4 +1,4 @@
-import type { ModelBuilder } from '@elyvel/database'
+import type { ModelBuilder } from '@elvel/database'
 
 /**
  * {{ class }} — a constraint applied to every query for a model.

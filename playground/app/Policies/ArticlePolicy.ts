@@ -1,5 +1,5 @@
-import type { AuthUser } from '@elyvel/auth'
-import { AuthorizationResponse, Policy } from '@elyvel/auth'
+import type { AuthUser } from '@elvel/auth'
+import { AuthorizationResponse, Policy } from '@elvel/auth'
 import type { Article } from '../Models/Article.ts'
 
 /**

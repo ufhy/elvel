@@ -46,7 +46,7 @@ export function withStacks<T>(run: () => Promise<T>): Promise<T> {
   )
 }
 
-const marker = (id: string, name: string) => `<!--elyvel:stack:${id}:${name}-->`
+const marker = (id: string, name: string) => `<!--elvel:stack:${id}:${name}-->`
 
 /**
  * Replace every marker with what was pushed to it.
@@ -61,7 +61,7 @@ export function resolveStacks(markup: string): string {
   if (!store) return markup
 
   return markup.replaceAll(
-    new RegExp(`<!--elyvel:stack:${store.id}:([^-]*)-->`, 'g'),
+    new RegExp(`<!--elvel:stack:${store.id}:([^-]*)-->`, 'g'),
     (_match, name: string) =>
       [...(store.prepends.get(name) ?? [])].reverse().join('') +
       (store.pushes.get(name) ?? []).join('')

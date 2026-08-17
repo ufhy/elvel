@@ -1,20 +1,20 @@
 {
-  "name": "@elyvel/concurrency",
+  "name": "@elvel/concurrency",
   "version": "1.0.0-alpha.1",
-  "description": "Concurrency for Elyvel — run callbacks on other cores, mirrors Laravel’s Concurrency",
+  "description": "Concurrency for Elvel — run callbacks on other cores, mirrors Laravel’s Concurrency",
   "keywords": [
     "bun",
     "concurrency",
-    "elyvel",
+    "elvel",
     "parallel",
     "worker"
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/concurrency"
   },
   "type": "module",
@@ -35,8 +35,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/core": "workspace:*"
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*"
   },
   "private": true
 }

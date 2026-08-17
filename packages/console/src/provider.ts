@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 import { AboutCommand } from './commands/about.ts'
 import { AppBuildCommand } from './commands/app-build.ts'
 import { ConfigCacheCommand } from './commands/config-cache.ts'
@@ -30,7 +30,7 @@ import { StubPublishCommand } from './commands/stub-publish.ts'
 import { UpCommand } from './commands/up.ts'
 import { Kernel } from './kernel.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     artisan: Kernel
   }

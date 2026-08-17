@@ -1,11 +1,11 @@
 {
-  "name": "@elyvel/http",
+  "name": "@elvel/http",
   "version": "1.0.0-alpha.1",
-  "description": "The HTTP layer for Elyvel — middleware, sessions, cookies, CSRF and rate limiting",
+  "description": "The HTTP layer for Elvel — middleware, sessions, cookies, CSRF and rate limiting",
   "keywords": [
     "bun",
     "csrf",
-    "elyvel",
+    "elvel",
     "http",
     "middleware",
     "rate-limit",
@@ -13,10 +13,10 @@
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/http"
   },
   "type": "module",
@@ -42,12 +42,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/cache": "workspace:*",
-    "@elyvel/console": "workspace:*",
-    "@elyvel/core": "workspace:*",
-    "@elyvel/database": "workspace:*",
-    "@elyvel/support": "workspace:*",
-    "@elyvel/validation": "workspace:*",
+    "@elvel/cache": "workspace:*",
+    "@elvel/console": "workspace:*",
+    "@elvel/core": "workspace:*",
+    "@elvel/database": "workspace:*",
+    "@elvel/support": "workspace:*",
+    "@elvel/validation": "workspace:*",
     "picocolors": "^1.1.1"
   },
   "peerDependencies": {

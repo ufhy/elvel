@@ -38,7 +38,7 @@ export class PendingCommand {
      * The `Output` prototype whose prompts get stubbed.
      *
      * Passed in rather than imported: this package must not depend on
-     * `@elyvel/console`, which depends on half the framework. `artisan()` has
+     * `@elvel/console`, which depends on half the framework. `artisan()` has
      * it in hand at the call site anyway.
      */
     private readonly outputPrototype?: Prompts

@@ -1,6 +1,6 @@
 # playground
 
-An [Elyvel](https://github.com/) application — Laravel's structure and DX on
+An [Elvel](https://github.com/) application — Laravel's structure and DX on
 Elysia + Bun.
 
 ## Getting started
@@ -62,7 +62,7 @@ Render it from a controller — the props are typechecked here, so a renamed pro
 is a compile error rather than a blank page:
 
 ```ts
-import { view } from '@elyvel/view'
+import { view } from '@elvel/view'
 import { About } from '../../../resources/views/pages/about.tsx'
 
 .get('/about', () => view(About, { title: 'About' }))
@@ -79,7 +79,7 @@ bun test test/http.test.ts
 ```
 
 `test/` is the answer to "how do I test an application built with this". Each
-file presses the booted application through `@elyvel/testing` rather than
+file presses the booted application through `@elvel/testing` rather than
 starting a server, so routing, middleware, the session, validation and the
 exception handler all run — the only thing skipped is the socket.
 
@@ -100,5 +100,5 @@ exception handler all run — the only thing skipped is the socket.
 Two things are deliberately **not** here. The HTTP client's retry, timeout and
 connection-failure paths need a real socket, so they are exercised by
 `bun run smoke` against a listening server. And the auth kit's pages live in
-`packages/create-elyvel/kits/auth`, so they are proved by the same smoke run
+`packages/create-elvel/kits/auth`, so they are proved by the same smoke run
 against a freshly scaffolded application.

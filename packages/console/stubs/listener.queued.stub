@@ -1,4 +1,4 @@
-import { QueuedListener } from '@elyvel/events'
+import { QueuedListener } from '@elvel/events'
 import type { {{ event }} } from '../Events/{{ event }}.ts'
 
 /**

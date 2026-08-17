@@ -1,4 +1,4 @@
-import type { ApplicationContract, EventDispatcher } from '@elyvel/contracts'
+import type { ApplicationContract, EventDispatcher } from '@elvel/contracts'
 import { QueryBuilder } from '../query/builder.ts'
 import { SchemaBuilder } from '../schema/builder.ts'
 import { BunSqlConnection, type ConnectionConfig } from './bun-sql.ts'
@@ -151,7 +151,7 @@ export class ConnectionManager {
     // One identifier for the whole thing, shared by every participant: that is
     // what makes an interrupted commit recognisable in `pg_prepared_xacts` or
     // `XA RECOVER` as belonging to the same piece of work.
-    const identifier = `elyvel_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`
+    const identifier = `elvel_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`
     const participants: Array<{ name: string; connection: DistributedConnection }> = []
 
     for (const name of names) {

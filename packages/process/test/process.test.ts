@@ -9,7 +9,7 @@ import { ProcessFailedError, ProcessManager } from '../src/index.ts'
  *
  * `pwd` is a POSIX command that prints a POSIX path, so the directory tests
  * used to assert both the shell and the path spelling of one platform — on
- * Windows the same `pwd` prints `/d/a/elyvel`, which is nothing `path()` was
+ * Windows the same `pwd` prints `/d/a/elvel`, which is nothing `path()` was
  * given and nothing `process.cwd()` returns. This runs without a shell and
  * prints the working directory the way the platform spells it.
  */
@@ -69,7 +69,7 @@ describe('running a command', () => {
 
 describe('configuration', () => {
   test('runs in a given directory', async () => {
-    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elyvel-process-')))
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elvel-process-')))
     const result = await run().path(directory).run(WHERE)
 
     expect(await realpath(result.output.trim())).toBe(directory)
@@ -90,7 +90,7 @@ describe('configuration', () => {
   })
 
   test('an immutable builder does not leak between calls', async () => {
-    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elyvel-process-')))
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'elvel-process-')))
     const base = run()
     const elsewhere = base.path(directory)
 
@@ -342,7 +342,7 @@ describe('binary output', () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])
 
   test('the bytes survive exactly, where the string does not', async () => {
-    const file = join(await mkdtemp(join(tmpdir(), 'elyvel-binary-')), 'probe.png')
+    const file = join(await mkdtemp(join(tmpdir(), 'elvel-binary-')), 'probe.png')
     await Bun.write(file, png)
 
     const result = await run().binary().run(['cat', file])

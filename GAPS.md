@@ -10,7 +10,7 @@ touches it, so a file listing its settings costs nothing but text.
 This framework is twenty-six packages. Here the cost is not the folder — it is
 the dependency list and the provider list, and both are the same for every kit.
 `--kit=none`, an application that serves one static page with no database and no
-auth, installs all twenty-six `@elyvel/*` packages plus `better-auth`, and its
+auth, installs all twenty-six `@elvel/*` packages plus `better-auth`, and its
 `config/app.ts` statically imports and registers twenty-three service providers.
 
 That is also why the `sideEffects` work does not help here. A bundler may drop a
@@ -24,24 +24,24 @@ Measured on `--kit=none` — a landing page with no auth and no database:
     kysely                                250   659.8 KB  12.4%
     nodemailer                             35   492.3 KB   9.3%
     @sinclair/typebox                     236   385.8 KB   7.3%
-    @elyvel/database                      55   347.9 KB   6.5%
+    @elvel/database                      55   347.9 KB   6.5%
     elysia                                 25   346.8 KB   6.5%
     better-auth                            59   331.5 KB   6.2%
     @opentelemetry/semantic-conventions     9   317.4 KB   6.0%
     zod                                    20   271.2 KB   5.1%
     @better-auth/core                      80   224.7 KB   4.2%
-    @elyvel/queue                         31   140.4 KB   2.6%
+    @elvel/queue                         31   140.4 KB   2.6%
 
 Three things that table settles.
 
-The expensive part is not our code. Every `@elyvel/*` package together is about
+The expensive part is not our code. Every `@elvel/*` package together is about
 1.6 MB of the 5.2; the rest is what they drag behind them — `kysely` through
-`@elyvel/database`, `nodemailer` through `@elyvel/mail`, and `better-auth`
+`@elvel/database`, `nodemailer` through `@elvel/mail`, and `better-auth`
 with `@better-auth/*`, `zod`, `jose` and `@noble/*` adding up to roughly 1.06 MB
-through `@elyvel/auth`, in an application that has no auth.
+through `@elvel/auth`, in an application that has no auth.
 
 The difference is exactly the provider list. What a landing page actually
-reaches is `@elyvel/core`, `view`, `support` and `scheduler` — 326 modules,
+reaches is `@elvel/core`, `view`, `support` and `scheduler` — 326 modules,
 1.0 MB. Adding `config/app.ts` takes it to 1165 modules and 5.2 MB.
 
 That 326-module figure is also what a bundle used to contain, and the reason the
@@ -61,7 +61,7 @@ hides all progress. One left.
 ## 1. Every package ships as source, and two things block changing it
 
 `main` and `exports` point at `./src/index.ts`, so an application installing
-`@elyvel/mail` gets sixteen TypeScript modules to transpile rather than one file
+`@elvel/mail` gets sixteen TypeScript modules to transpile rather than one file
 to parse. Across twenty-six packages that is about 311 of the thousand-odd
 modules a boot loads.
 

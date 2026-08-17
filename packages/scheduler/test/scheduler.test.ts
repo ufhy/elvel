@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import { CronExpression, partsIn } from '../src/cron.ts'
 import { ScheduledEvent, setPinger } from '../src/event.ts'
 import { type MutexStore, ScheduleRunner } from '../src/runner.ts'

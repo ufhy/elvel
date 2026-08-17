@@ -1,5 +1,5 @@
-import { ConsoleServiceProvider } from '@elyvel/console'
-import { ViewServiceProvider } from '@elyvel/view'
+import { ConsoleServiceProvider } from '@elvel/console'
+import { ViewServiceProvider } from '@elvel/view'
 
 export default {
   name: 'Fixture',

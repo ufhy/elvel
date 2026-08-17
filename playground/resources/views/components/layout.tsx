@@ -1,5 +1,5 @@
-import { config } from '@elyvel/core'
-import { stack } from '@elyvel/view'
+import { config } from '@elvel/core'
+import { stack } from '@elvel/view'
 import type { Children } from '@kitajs/html'
 
 export type LayoutProps = {
@@ -18,7 +18,7 @@ export type LayoutProps = {
  * `<!DOCTYPE html>` is prepended by `view()`, since JSX has no doctype node.
  */
 export function Layout({ title, children }: LayoutProps) {
-  const name = config<string>('app.name', 'Elyvel')
+  const name = config<string>('app.name', 'Elvel')
   const environment = config<string>('app.env', 'production')
 
   return (

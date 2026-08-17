@@ -1,12 +1,12 @@
 {
-  "name": "@elyvel/core",
+  "name": "@elvel/core",
   "version": "1.0.0-alpha.1",
-  "description": "Core kernel for the Elyvel framework — container, providers, config, and the root router",
+  "description": "Core kernel for the Elvel framework — container, providers, config, and the root router",
   "keywords": [
     "bun",
     "container",
     "elysia",
-    "elyvel",
+    "elvel",
     "framework",
     "middleware",
     "routing",
@@ -14,10 +14,10 @@
   ],
   "license": "MIT",
   "author": "ufhy",
-  "homepage": "https://github.com/ufhy/elyvel#readme",
+  "homepage": "https://github.com/ufhy/elvel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ufhy/elyvel.git",
+    "url": "git+https://github.com/ufhy/elvel.git",
     "directory": "packages/core"
   },
   "type": "module",
@@ -39,8 +39,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@elyvel/contracts": "workspace:*",
-    "@elyvel/support": "workspace:*"
+    "@elvel/contracts": "workspace:*",
+    "@elvel/support": "workspace:*"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"

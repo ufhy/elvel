@@ -1,4 +1,4 @@
-import type { ApplicationContract } from '@elyvel/contracts'
+import type { ApplicationContract } from '@elvel/contracts'
 import { ArrayBatchRepository, type BatchRepository, DatabaseBatchRepository } from './batch.ts'
 import { type BatchEntry, PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
@@ -520,6 +520,6 @@ export class QueueManager {
   }
 
   private uniqueKey(job: string, id: string): string {
-    return `elyvel:queue:unique:${job}${id === '' ? '' : `:${id}`}`
+    return `elvel:queue:unique:${job}${id === '' ? '' : `:${id}`}`
   }
 }

@@ -1,4 +1,4 @@
-import { Collection, Str } from '@elyvel/support'
+import { Collection, Str } from '@elvel/support'
 import type { Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import type { ModelBuilder } from './builder.ts'

@@ -1,4 +1,4 @@
-import { env } from '@elyvel/core'
+import { env } from '@elvel/core'
 
 /**
  * better-auth's options, plus the few keys the framework reads itself.

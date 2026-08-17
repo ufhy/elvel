@@ -1,4 +1,4 @@
-import type { EventDispatcher, EventSubscriber } from '@elyvel/events'
+import type { EventDispatcher, EventSubscriber } from '@elvel/events'
 
 /**
  * {{ class }}

@@ -1,4 +1,4 @@
-import { CARRIES_RESPONSE } from '@elyvel/core'
+import { CARRIES_RESPONSE } from '@elvel/core'
 
 /**
  * A redirect thrown rather than returned.

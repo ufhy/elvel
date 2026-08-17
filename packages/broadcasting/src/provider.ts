@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { Broadcaster, type Subscriber } from './broadcaster.ts'
 import { ChannelRegistry } from './channels.ts'
@@ -6,7 +6,7 @@ import { ChannelListCommand } from './console/channel-list.ts'
 import { MakeChannelCommand } from './console/make-channel.ts'
 import { RedisPubSub } from './redis.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     broadcaster: Broadcaster
     channels: ChannelRegistry
@@ -66,7 +66,7 @@ export class BroadcastServiceProvider extends ServiceProvider {
     const subscribers = new WeakMap<object, Subscriber>()
 
     this.use(
-      new Elysia({ name: 'elyvel:broadcasting' }).ws(path, {
+      new Elysia({ name: 'elvel:broadcasting' }).ws(path, {
         open: (socket) => {
           subscribers.set(socket.raw as object, {
             id: socket.id,
@@ -125,7 +125,7 @@ export class BroadcastServiceProvider extends ServiceProvider {
    * check at the moment it matters.
    *
    * A wildcard listener rather than a hook inside the dispatcher, for the same
-   * reason the queue installs its push from outside: `@elyvel/events` knows
+   * reason the queue installs its push from outside: `@elvel/events` knows
    * nothing about websockets and must keep working with no broadcaster at all.
    */
   private wireBroadcastableEvents(): void {

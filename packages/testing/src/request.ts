@@ -8,7 +8,7 @@ export type Pressable = {
 }
 
 /** The slice of `AuthManager` `actingAs` uses, kept structural so this package
- * does not depend on `@elyvel/auth` — the same way the notification manager
+ * does not depend on `@elvel/auth` — the same way the notification manager
  * reaches the translator. */
 type Impersonator = {
   impersonate(session: { user: unknown; session?: unknown } | null): void

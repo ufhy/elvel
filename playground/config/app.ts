@@ -1,33 +1,33 @@
-import { AuthServiceProvider } from '@elyvel/auth'
-import { BroadcastServiceProvider } from '@elyvel/broadcasting'
-import { CacheServiceProvider } from '@elyvel/cache'
-import { ConcurrencyServiceProvider } from '@elyvel/concurrency'
-import { ConsoleServiceProvider } from '@elyvel/console'
-import { Env, env } from '@elyvel/core'
-import { DatabaseServiceProvider } from '@elyvel/database'
-import { EncryptionServiceProvider } from '@elyvel/encryption'
-import { EventServiceProvider } from '@elyvel/events'
-import { HashServiceProvider } from '@elyvel/hashing'
-import { HttpServiceProvider } from '@elyvel/http'
-import { HttpClientServiceProvider } from '@elyvel/http-client'
-import { ImageServiceProvider } from '@elyvel/image'
-import { LogServiceProvider } from '@elyvel/log'
-import { MailServiceProvider } from '@elyvel/mail'
-import { NotificationServiceProvider } from '@elyvel/notifications'
-import { ProcessServiceProvider } from '@elyvel/process'
-import { QueueServiceProvider } from '@elyvel/queue'
-import { ScheduleServiceProvider } from '@elyvel/scheduler'
-import { StorageServiceProvider } from '@elyvel/storage'
-import { TranslationServiceProvider } from '@elyvel/translation'
-import { ValidationServiceProvider } from '@elyvel/validation'
-import { ViewServiceProvider } from '@elyvel/view'
+import { AuthServiceProvider } from '@elvel/auth'
+import { BroadcastServiceProvider } from '@elvel/broadcasting'
+import { CacheServiceProvider } from '@elvel/cache'
+import { ConcurrencyServiceProvider } from '@elvel/concurrency'
+import { ConsoleServiceProvider } from '@elvel/console'
+import { Env, env } from '@elvel/core'
+import { DatabaseServiceProvider } from '@elvel/database'
+import { EncryptionServiceProvider } from '@elvel/encryption'
+import { EventServiceProvider } from '@elvel/events'
+import { HashServiceProvider } from '@elvel/hashing'
+import { HttpServiceProvider } from '@elvel/http'
+import { HttpClientServiceProvider } from '@elvel/http-client'
+import { ImageServiceProvider } from '@elvel/image'
+import { LogServiceProvider } from '@elvel/log'
+import { MailServiceProvider } from '@elvel/mail'
+import { NotificationServiceProvider } from '@elvel/notifications'
+import { ProcessServiceProvider } from '@elvel/process'
+import { QueueServiceProvider } from '@elvel/queue'
+import { ScheduleServiceProvider } from '@elvel/scheduler'
+import { StorageServiceProvider } from '@elvel/storage'
+import { TranslationServiceProvider } from '@elvel/translation'
+import { ValidationServiceProvider } from '@elvel/validation'
+import { ViewServiceProvider } from '@elvel/view'
 
 export default {
   /** Default language, and what to fall back to when a key is missing. */
   locale: env('APP_LOCALE', 'en'),
   fallbackLocale: env('APP_FALLBACK_LOCALE', 'en'),
 
-  name: env('APP_NAME', 'Elyvel'),
+  name: env('APP_NAME', 'Elvel'),
 
   /**
    * Signs cookies and, through HKDF, derives the encryption key.

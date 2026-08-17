@@ -1,4 +1,4 @@
-import { ProcessManager } from '@elyvel/process'
+import { ProcessManager } from '@elvel/process'
 import { type Encoding, type ImageDriver, ImageError, type Transformation } from '../contracts.ts'
 import { probe } from '../probe.ts'
 import { throughFiles } from './files.ts'
@@ -12,7 +12,7 @@ import { throughFiles } from './files.ts'
  * because that is the part with decisions in it.
  *
  * Through temporary files rather than pipes, for the same reason as `sips`:
- * `@elyvel/process` hands back a command's output as text, and a PNG does not
+ * `@elvel/process` hands back a command's output as text, and a PNG does not
  * survive being decoded as UTF-8.
  */
 export class MagickDriver implements ImageDriver {

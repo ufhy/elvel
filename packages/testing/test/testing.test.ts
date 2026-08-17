@@ -1,5 +1,5 @@
 import { describe, expect, test as it } from 'bun:test'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { AssertionError, artisan, test } from '../src/index.ts'
 

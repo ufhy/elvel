@@ -2,11 +2,11 @@
 import { createHmac } from 'node:crypto'
 import { chmod, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { BunSqlConnection, MigrationRepository, Migrator } from '@elyvel/database'
-import { middlewareNamesOf, middlewares } from '@elyvel/http'
-import { ProcessManager } from '@elyvel/process'
-import { ScheduleRunner } from '@elyvel/scheduler'
-import { canonicalRequest, signingKey, stringToSign } from '@elyvel/support'
+import { BunSqlConnection, MigrationRepository, Migrator } from '@elvel/database'
+import { middlewareNamesOf, middlewares } from '@elvel/http'
+import { ProcessManager } from '@elvel/process'
+import { ScheduleRunner } from '@elvel/scheduler'
+import { canonicalRequest, signingKey, stringToSign } from '@elvel/support'
 import pc from 'picocolors'
 
 /**
@@ -76,7 +76,7 @@ function plain(value: string): string {
   return value.replace(ANSI_PATTERN, '')
 }
 
-console.log(pc.bold(pc.cyan('\nElyvel smoke test')))
+console.log(pc.bold(pc.cyan('\nElvel smoke test')))
 
 const app = (await import('../playground/bootstrap/app.ts')).default
 
@@ -121,7 +121,7 @@ check(
 )
 
 const asyncView = await app.handle(new Request('http://localhost/exercise/async'))
-check('async components resolve', (await asyncView.text()).includes('Hello Elyvel'))
+check('async components resolve', (await asyncView.text()).includes('Hello Elvel'))
 
 const raw = (await (await app.handle(new Request('http://localhost/exercise/render'))).json()) as {
   html: string
@@ -696,7 +696,7 @@ const tokenResponse = await app.handle(new Request('http://localhost/session/tok
 const tokenBody = (await tokenResponse.json()) as { token: string }
 const cookie = tokenResponse.headers.get('set-cookie') ?? ''
 
-check('a session cookie is issued', cookie.includes('elyvel_session='))
+check('a session cookie is issued', cookie.includes('elvel_session='))
 check(
   'the cookie is HttpOnly and SameSite=Lax',
   cookie.includes('HttpOnly') && cookie.includes('SameSite=Lax')
@@ -1119,7 +1119,7 @@ section('Queue: dispatch, work, retry, fail')
 const sqsReachable = await (async () => {
   const endpoint = process.env.SQS_ENDPOINT ?? 'http://127.0.0.1:9324'
   const account = process.env.SQS_ACCOUNT ?? '000000000000'
-  const name = `elyvel-smoke-${Date.now().toString(36)}`
+  const name = `elvel-smoke-${Date.now().toString(36)}`
 
   try {
     const created = await fetch(`${endpoint}/`, {
@@ -1714,7 +1714,7 @@ const temporary = (await (
 check('an S3 disk can sign a link that expires', temporary.supported === true)
 
 const signed = new URL(temporary.url)
-check('the link names the object', signed.pathname === '/elyvel-playground/invoices/7.pdf')
+check('the link names the object', signed.pathname === '/elvel-playground/invoices/7.pdf')
 check(
   'it carries an expiry and a signature',
   signed.searchParams.get('X-Amz-Expires') === '900' &&
@@ -2047,8 +2047,8 @@ await rm(dumpPath, { force: true })
 
 const isolated = plain(
   await captureOutput(async () => {
-    await app.make('cache').store().forget('elyvel:command:migrate')
-    await app.make('cache').store().add('elyvel:command:migrate', 'held', 60)
+    await app.make('cache').store().forget('elvel:command:migrate')
+    await app.make('cache').store().add('elvel:command:migrate', 'held', 60)
     await app.make('artisan').run(['migrate', '--isolated'])
   })
 )
@@ -2060,7 +2060,7 @@ check(
   isolated.includes('already running')
 )
 
-await app.make('cache').store().forget('elyvel:command:migrate')
+await app.make('cache').store().forget('elvel:command:migrate')
 
 // The overlap mutex, through the real cache store.
 let held: (() => void) | undefined
@@ -2204,7 +2204,7 @@ check('the playground runs on a single key', rotation.keys === 1)
 
 // A payload written by a key that is no longer primary. Configured through the
 // container rather than the environment, so the running app is left alone.
-const { Encrypter } = await import('@elyvel/encryption')
+const { Encrypter } = await import('@elvel/encryption')
 const retired = 'a-retired-application-key-32-chars!'
 const writtenBefore = new Encrypter(retired).encryptString('written before the rotation')
 
@@ -2288,11 +2288,9 @@ check(
 )
 check('application commands are discovered', commandNames.includes('ping'))
 
-const pingOutput = plain(
-  await captureOutput(() => artisan.run(['ping', 'elyvel', '--repeat', '2']))
-)
-check('signature arguments bind', pingOutput.includes('pong elyvel'))
-check('repeatable execution honours options', pingOutput.split('pong elyvel').length - 1 === 2)
+const pingOutput = plain(await captureOutput(() => artisan.run(['ping', 'elvel', '--repeat', '2'])))
+check('signature arguments bind', pingOutput.includes('pong elvel'))
+check('repeatable execution honours options', pingOutput.split('pong elvel').length - 1 === 2)
 
 const loudOutput = plain(await captureOutput(() => artisan.run(['ping', 'world', '--loud'])))
 check('boolean flags bind', loudOutput.includes('PONG WORLD'))
@@ -2562,20 +2560,20 @@ try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 
   const result = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elyvel/src/index.ts', '.smoke-scaffold', '--kit=none'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-scaffold', '--kit=none'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
   })
 
-  check('create-elyvel exits cleanly', result.exitCode === 0, `exit ${result.exitCode}`)
+  check('create-elvel exits cleanly', result.exitCode === 0, `exit ${result.exitCode}`)
 
   const manifest = await Bun.file(join(scaffoldTarget, 'package.json')).json()
   check('_package.json is renamed', manifest.name === '.smoke-scaffold')
   check(
     'workspace mode links the framework',
-    manifest.dependencies['@elyvel/core'] === 'workspace:*',
-    manifest.dependencies['@elyvel/core']
+    manifest.dependencies['@elvel/core'] === 'workspace:*',
+    manifest.dependencies['@elvel/core']
   )
   check('.gitignore is renamed', await Bun.file(join(scaffoldTarget, '.gitignore')).exists())
   check('.env is written from the example', await Bun.file(join(scaffoldTarget, '.env')).exists())
@@ -2681,7 +2679,7 @@ try {
   await rm(kitTarget, { recursive: true, force: true })
 
   const kitResult = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elyvel/src/index.ts', '.smoke-kit', '--kit=auth'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-kit', '--kit=auth'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2722,7 +2720,7 @@ try {
   await rm(apiTarget, { recursive: true, force: true })
 
   const apiResult = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elyvel/src/index.ts', '.smoke-api-kit', '--kit=api'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-api-kit', '--kit=api'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2739,7 +2737,7 @@ try {
   )
 
   const unknownKit = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elyvel/src/index.ts', '.smoke-kit-bad', '--kit=nope'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-kit-bad', '--kit=nope'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2762,7 +2760,7 @@ try {
   await rm(setupTarget, { recursive: true, force: true })
 
   const setUp = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elyvel/src/index.ts', '.smoke-setup', '--kit=auth', '--install'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-setup', '--kit=auth', '--install'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2908,7 +2906,7 @@ try {
 
     // A marker left behind would be an unsubstituted stack, which is worse than
     // an empty one: it ships an HTML comment naming the internals.
-    check('no marker survives into the page', !page.includes('elyvel:stack'), page.slice(0, 200))
+    check('no marker survives into the page', !page.includes('elvel:stack'), page.slice(0, 200))
 
     // Blade's @class / @style: the list is assembled from conditions, and a
     // false one contributes nothing rather than the word "false".
@@ -3285,7 +3283,7 @@ try {
   check('mail defaults to the log', scaffoldedEnv.includes('MAIL_MAILER=log'))
 
   check(
-    'better-auth is a dependency, since @elyvel/auth only peers on it',
+    'better-auth is a dependency, since @elvel/auth only peers on it',
     manifest.dependencies['better-auth'] !== undefined
   )
 } finally {
@@ -3539,7 +3537,7 @@ try {
   const cookie = unlocked.headers.get('set-cookie') ?? ''
 
   check('the secret URL redirects', unlocked.status === 302)
-  check('setting a bypass cookie', cookie.includes('elyvel_maintenance='))
+  check('setting a bypass cookie', cookie.includes('elvel_maintenance='))
   // What travels is a MAC over the expiry: a stolen cookie expires by itself.
   check('which does not contain the secret', !cookie.includes(secret))
 
@@ -3554,7 +3552,7 @@ try {
     forged = await app.handle(
       new Request('http://localhost/check/health', {
         headers: {
-          cookie: `elyvel_maintenance=${Buffer.from(
+          cookie: `elvel_maintenance=${Buffer.from(
             JSON.stringify({ expiresAt: 9_999_999_999, mac: 'deadbeef' })
           ).toString('base64url')}`
         }

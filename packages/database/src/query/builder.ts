@@ -1,4 +1,4 @@
-import { Collection } from '@elyvel/support'
+import { Collection } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { Expression, isExpression, raw } from './expression.ts'
 import type {

@@ -1,4 +1,4 @@
-import { Arr } from '@elyvel/support'
+import { Arr } from '@elvel/support'
 import { ErrorBag } from './error-bag.ts'
 import { FileRule } from './files.ts'
 import { humanizeAttribute, interpolate, resolveMessage, typeOf } from './messages.ts'

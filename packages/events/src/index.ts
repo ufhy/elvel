@@ -1,11 +1,11 @@
-import { app } from '@elyvel/core'
+import { app } from '@elvel/core'
 
 export type {
   EventDispatcher,
   EventSubscriber,
   Listener,
   WildcardListener
-} from '@elyvel/contracts'
+} from '@elvel/contracts'
 export { Dispatcher, eventName, type QueuedListenerPusher } from './dispatcher.ts'
 export { EventRegistry } from './event-registry.ts'
 export { EventFake, NullDispatcher } from './fake.ts'

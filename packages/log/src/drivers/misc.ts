@@ -1,4 +1,4 @@
-import type { LogDriver, LogRecord } from '@elyvel/contracts'
+import type { LogDriver, LogRecord } from '@elvel/contracts'
 
 /** Discards everything — Laravel's `null` driver, and the default under tests. */
 export class NullDriver implements LogDriver {
@@ -104,7 +104,7 @@ export class SlackDriver implements LogDriver {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        username: this.options.username ?? 'Elyvel',
+        username: this.options.username ?? 'Elvel',
         icon_emoji: this.options.emoji ?? ':boom:',
         text: `*${record.level.toUpperCase()}* [${record.channel}] ${record.message}${context}`
       })

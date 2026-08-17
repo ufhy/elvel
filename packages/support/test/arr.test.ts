@@ -2,11 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import { Arr } from '../src/arr.ts'
 
 describe('Arr dot access', () => {
-  const source = { app: { name: 'Elyvel', nested: { debug: false } }, list: [1, 2] }
+  const source = { app: { name: 'Elvel', nested: { debug: false } }, list: [1, 2] }
 
   test('get', () => {
     // Without a fallback the return type is `unknown`, so name the type here.
-    expect(Arr.get<string>(source, 'app.name')).toBe('Elyvel')
+    expect(Arr.get<string>(source, 'app.name')).toBe('Elvel')
     expect(Arr.get<boolean>(source, 'app.nested.debug')).toBe(false)
     expect(Arr.get(source, 'app.missing', 'fallback')).toBe('fallback')
     expect(Arr.get(source, 'app.name.deeper', 'fallback')).toBe('fallback')
@@ -30,7 +30,7 @@ describe('Arr dot access', () => {
 
   test('dot flattens', () => {
     expect(Arr.dot(source)).toEqual({
-      'app.name': 'Elyvel',
+      'app.name': 'Elvel',
       'app.nested.debug': false,
       list: [1, 2]
     })

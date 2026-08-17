@@ -1,13 +1,13 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 import { MakeNotificationCommand } from './console/make-notification.ts'
 import { NotificationsTableCommand } from './console/notifications-table.ts'
 import { NotificationManager } from './manager.ts'
 import type { NotificationClass } from './notification.ts'
 import { SendQueuedNotification } from './queued.ts'
 
-declare module '@elyvel/contracts' {
+declare module '@elvel/contracts' {
   interface ContainerBindings {
     notifications: NotificationManager
   }

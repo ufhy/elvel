@@ -1,4 +1,4 @@
-import { env } from '@elyvel/core'
+import { env } from '@elvel/core'
 
 export default {
   /** Channel used by `log().info(...)`. */

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test as it } from 'bun:test'
 import { rm } from 'node:fs/promises'
-import { Output } from '@elyvel/console'
-import { artisan } from '@elyvel/testing'
+import { Output } from '@elvel/console'
+import { artisan } from '@elvel/testing'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 

@@ -1,4 +1,4 @@
-import { Arr } from '@elyvel/support'
+import { Arr } from '@elvel/support'
 import type { Data } from './types.ts'
 
 /**

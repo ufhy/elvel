@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elyvel/core'
+import { ServiceProvider } from '@elvel/core'
 
 export class {{ class }} extends ServiceProvider {
   /**

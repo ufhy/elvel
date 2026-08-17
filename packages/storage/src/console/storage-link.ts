@@ -1,6 +1,6 @@
 import { lstat, mkdir, readlink, symlink, unlink } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
-import { Command } from '@elyvel/console'
+import { Command } from '@elvel/console'
 
 /**
  * `storage:link`

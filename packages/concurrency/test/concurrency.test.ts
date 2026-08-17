@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { Application } from '@elyvel/core'
+import { Application } from '@elvel/core'
 import {
   ConcurrencyManager,
   ConcurrencyServiceProvider,

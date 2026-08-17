@@ -1,0 +1,52 @@
+{
+  "name": "{{ name }}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch artisan.ts serve",
+    "build": "vite build",
+    "build:server": "bun artisan.ts app:build",
+    "start": "bun dist/artisan.js serve",
+    "dev:assets": "vite",
+    "serve": "bun artisan.ts serve",
+    "artisan": "bun artisan.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elvel/auth": "{{ dep_auth }}",
+    "@elvel/broadcasting": "{{ dep_broadcasting }}",
+    "@elvel/cache": "{{ dep_cache }}",
+    "@elvel/concurrency": "{{ dep_concurrency }}",
+    "@elvel/console": "{{ dep_console }}",
+    "@elvel/contracts": "{{ dep_contracts }}",
+    "@elvel/core": "{{ dep_core }}",
+    "@elvel/database": "{{ dep_database }}",
+    "@elvel/encryption": "{{ dep_encryption }}",
+    "@elvel/events": "{{ dep_events }}",
+    "@elvel/hashing": "{{ dep_hashing }}",
+    "@elvel/http": "{{ dep_http }}",
+    "@elvel/http-client": "{{ dep_http-client }}",
+    "@elvel/image": "{{ dep_image }}",
+    "@elvel/log": "{{ dep_log }}",
+    "@elvel/mail": "{{ dep_mail }}",
+    "@elvel/notifications": "{{ dep_notifications }}",
+    "@elvel/process": "{{ dep_process }}",
+    "@elvel/queue": "{{ dep_queue }}",
+    "@elvel/scheduler": "{{ dep_scheduler }}",
+    "@elvel/storage": "{{ dep_storage }}",
+    "@elvel/support": "{{ dep_support }}",
+    "@elvel/testing": "{{ dep_testing }}",
+    "@elvel/translation": "{{ dep_translation }}",
+    "@elvel/validation": "{{ dep_validation }}",
+    "@elvel/view": "{{ dep_view }}",
+    "@kitajs/html": "^4.2.13",
+    "better-auth": "1.6.27",
+    "elysia": "^1.4.29"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  }
+}

@@ -1,4 +1,4 @@
-import { app, config } from '@elyvel/core'
+import { app, config } from '@elvel/core'
 import { Vite } from './vite.ts'
 
 let instance: Vite | undefined

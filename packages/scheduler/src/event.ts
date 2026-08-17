@@ -560,7 +560,7 @@ export class ScheduledEvent {
       .update(`${this.expression}${this.summary}`)
       .digest('hex')
 
-    return `elyvel:schedule:${digest}`
+    return `elvel:schedule:${digest}`
   }
 
   get cronExpression(): string {

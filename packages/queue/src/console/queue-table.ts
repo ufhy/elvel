@@ -1,4 +1,4 @@
-import { MigrationGeneratorCommand } from '@elyvel/database'
+import { MigrationGeneratorCommand } from '@elvel/database'
 
 /** `queue:table` and `queue:failed-table` differ only in their stub and table. */
 export class QueueTableCommand extends MigrationGeneratorCommand {
