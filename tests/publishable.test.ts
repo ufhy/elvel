@@ -185,6 +185,20 @@ describe('every package is publishable', () => {
       ])
 
       for (const name of Object.keys(manifest.dependencies ?? {}).sort()) {
+        /**
+         * A `@types/*` package is used by the compiler, not by an import.
+         *
+         * And it has to be a real dependency rather than a development one,
+         * because these packages ship TypeScript source: a consumer's `tsc`
+         * compiles our internals, so whatever our source needs to typecheck must
+         * reach them too. `@elvel/mail` imports
+         * `nodemailer/lib/smtp-transport`, and with `@types/nodemailer` sitting in
+         * the repository root as a devDependency, our own typecheck passed while a
+         * freshly scaffolded application that installed the mailer failed on
+         * `Try \`npm i --save-dev @types/nodemailer\``.
+         */
+        if (name.startsWith('@types/')) continue
+
         if (!used.has(name)) spare.push(`${manifest.name} depends on unused ${name}`)
       }
     }

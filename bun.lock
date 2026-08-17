@@ -238,6 +238,7 @@
         "@elvel/core": "workspace:*",
         "@elvel/queue": "workspace:*",
         "@elvel/support": "workspace:*",
+        "@types/nodemailer": "^8.0.1",
         "nodemailer": "9.0.5",
       },
     },
