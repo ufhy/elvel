@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises'
 import { Command } from '../command.ts'
 
 /**
@@ -16,6 +17,11 @@ import { Command } from '../command.ts'
  *
  * So this runs `config:cache` and reports what it did rather than printing four
  * lines of which three are theatre.
+ *
+ * It also runs `app:build`, which has no Laravel counterpart at all. PHP keeps
+ * its compiled opcodes between requests; Bun re-transpiles every module in every
+ * process, and on the auth kit that is 3761 ms of a 4005 ms boot. Bundling is
+ * the cache PHP gets for free, and a deploy is exactly where to build it.
  */
 export class OptimizeCommand extends Command {
   static override signature = 'optimize {--except= : Comma-separated steps to skip}'
@@ -28,7 +34,7 @@ export class OptimizeCommand extends Command {
       .map((one) => one.trim())
       .filter(Boolean)
 
-    const steps = ['config:cache'].filter((step) => !except.includes(step))
+    const steps = ['config:cache', 'app:build'].filter((step) => !except.includes(step))
 
     for (const step of steps) {
       const code = await this.call(step)
@@ -69,6 +75,12 @@ export class OptimizeClearCommand extends Command {
       (step) => !except.includes(step)
     )
 
+    // Not a step, because there is no `app:build:clear` to call and inventing one
+    // would be a command nobody runs on its own.
+    if (!except.includes('app:build')) {
+      await rm(this.app.basePath('dist'), { recursive: true, force: true })
+    }
+
     let failed = 0
 
     for (const step of steps) {
@@ -81,7 +93,7 @@ export class OptimizeClearCommand extends Command {
       }
     }
 
-    this.output.tag('INFO', `Cleared: ${steps.join(', ')}.`)
+    this.output.tag('INFO', `Cleared: ${[...steps, 'dist/'].join(', ')}.`)
 
     return failed > 0 ? 1 : 0
   }

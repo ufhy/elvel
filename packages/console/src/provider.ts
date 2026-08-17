@@ -1,5 +1,6 @@
 import { ServiceProvider } from '@elysian/core'
 import { AboutCommand } from './commands/about.ts'
+import { AppBuildCommand } from './commands/app-build.ts'
 import { ConfigCacheCommand } from './commands/config-cache.ts'
 import { ConfigClearCommand } from './commands/config-clear.ts'
 import { ConfigPublishCommand } from './commands/config-publish.ts'
@@ -48,6 +49,7 @@ export class ConsoleServiceProvider extends ServiceProvider {
       DevCommand,
       RouteListCommand,
       AboutCommand,
+      AppBuildCommand,
       ConfigCacheCommand,
       ConfigPublishCommand,
       ConfigClearCommand,

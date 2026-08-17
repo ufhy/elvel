@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "bun --watch artisan.ts serve",
     "build": "vite build",
+    "build:server": "bun artisan.ts app:build",
+    "start": "bun dist/artisan.js serve",
     "dev:assets": "vite",
     "serve": "bun artisan.ts serve",
     "artisan": "bun artisan.ts",

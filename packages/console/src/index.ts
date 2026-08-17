@@ -1,5 +1,6 @@
 export { Command, type CommandRunner } from './command.ts'
 export { AboutCommand } from './commands/about.ts'
+export { AppBuildCommand } from './commands/app-build.ts'
 export { ConfigCacheCommand } from './commands/config-cache.ts'
 export { ConfigClearCommand } from './commands/config-clear.ts'
 export { ConfigPublishCommand } from './commands/config-publish.ts'
