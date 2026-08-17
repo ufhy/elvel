@@ -103,5 +103,5 @@ unusable: because the source imports carry extensions, every line comes out as
 `config.ts.d.ts`. So this needs a `.d.ts` bundler, or dropping `.ts` from every
 relative import in twenty-six packages.
 
-That is why `1.0.0-alpha.1` ships source, as `0.1.0-alpha.6` did. The release
-works and the types are exact; the boot cost stays.
+That is why `1.0.0-alpha.1` shipped source, as `0.1.0-alpha.6` did before it. The
+release works and the types are exact; the boot cost stays.

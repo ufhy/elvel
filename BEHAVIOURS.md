@@ -1113,6 +1113,45 @@ server that is already listening. `--watch` restarts the process instead and
 picks the change up in 2676 ms, which is why `bun run dev` uses it.
 
 
+## Publishing, and what it took to get right
+
+**A scope you no longer own answers 404, not 403.** The framework was `@elyvel`
+until a deletion request went to npm; npm then took the names —
+`npm owner ls @elyvel/core` answers `npm-support` — and the organisation went with
+them. Every `PUT` after that returned `404 Scope not found`, which reads like a
+missing package and is really a missing permission. Three differently-configured
+tokens were tried before anybody checked ownership, which should have been the
+first thing. It is now `@elvel`, an organisation this account owns.
+
+**`private: true` is why six packages were never published.** Eight package
+manifests carried it. `npm publish` answers `EPRIVATE` and stops; nothing else in
+a monorepo ever asks, so the packages simply never appeared while fifteen others
+depended on them. The root manifest keeps the flag; `tests/publishable.test.ts`
+now refuses it anywhere under `packages/`.
+
+**A granular token's "All packages" does not mean all packages.** Measured: with
+read-and-write on all packages, `create-elvel` published and every `@elyvel/*`
+returned 404. "All packages" covers what the account owns, not what an
+organisation owns — for an organisation scope the token needs that scope selected
+explicitly, and the scope only appears in the list while the organisation exists.
+
+**Checking a name for availability poisons it for five minutes.** `curl
+https://registry.npmjs.org/@elvel%2fcore` before publishing returns 404, and that
+404 is what the CDN then serves — so the first `bun add` after a successful
+publish fails, per package, on a URL somebody had already asked about. The
+packages were live and public throughout: `npm access get status` said `public`
+and the search index had all twenty-seven. Waiting is the fix; there is nothing
+to repair.
+
+**What the release script checks, and why each one is there.** Every tarball is
+opened before anything is uploaded: `LICENSE` and a generated `README.md` are
+present (neither is committed — twenty-six copies of each is noise), `test/` and
+`node_modules/` are not, the version inside matches, and no dependency still says
+`workspace:*`. That last one is only true because `bun pm pack` rewrites the
+protocol, and only when packing from inside the package directory — from a staging
+copy it would publish a range no installer can read.
+
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
