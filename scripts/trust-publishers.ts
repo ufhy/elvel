@@ -113,9 +113,22 @@ const run = (argv: string[], attached = false): { code: number; output: string }
 if (listing) {
   for (const name of packages) {
     const { output } = run(['npx', '-y', NPM, 'trust', 'list', name])
-    const summary = output.includes(WORKFLOW) ? `trusts ${WORKFLOW}` : output || 'nothing'
 
-    console.log(`${name.padEnd(24)} ${summary.split('\n')[0]}`)
+    /**
+     * `EOTP` while *reading* means unknown, not unregistered.
+     *
+     * npm asks for a second factor here too, and the session it hands out lasts
+     * minutes — so a listing of twenty-seven packages can start answering and
+     * then start refusing halfway, which reads exactly like the rest having
+     * failed to register. They may be registered; nothing here can tell.
+     */
+    const summary = output.includes(WORKFLOW)
+      ? `trusts ${WORKFLOW}`
+      : /EOTP|one-time password/.test(output)
+        ? 'unknown — npm wants authenticating again'
+        : output.split('\n')[0] || 'nothing'
+
+    console.log(`${name.padEnd(24)} ${summary}`)
   }
 
   process.exit(0)
