@@ -58,17 +58,7 @@ hides all progress.
 
 ---
 
-## 1. Dependencies per kit
-
-`_package.json` stops naming all twenty-six packages unconditionally. Each kit
-now registers only what it needs — eleven providers for `--kit=none`, seventeen
-for `auth`, sixteen for `api` — so the dependency list can follow the same
-shape, and `--kit=none` stops installing `better-auth` at all.
-
-This is the part no amount of tree-shaking can reach: an unused dependency is
-still downloaded, still resolved, still in the lockfile.
-
-## 2. `artisan config:publish`
+## 1. `artisan config:publish`
 
 Laravel's, whose signature is:
 
@@ -80,10 +70,10 @@ ships.
 
 Ours has to work the same way for every config file the template stops sending,
 which means each package keeps its defaults where the command can find them.
-Prerequisite for row 4: Laravel could slim its skeleton because it had this
+Prerequisite for row 2: Laravel could slim its skeleton because it had this
 first.
 
-## 3. Trim the template's `config/` to ten files
+## 2. Trim the template's `config/` to ten files
 
 Laravel 11 slimmed its skeleton deliberately, and ships:
 
@@ -98,18 +88,18 @@ Every config read in the framework already carries a default —
 `config.get<string>('queue.default', 'sync')` and its like — so a missing file
 is not a missing setting.
 
-## 4. Hold the number
+## 3. Hold the number
 
 Re-measure the `--kit=none` bundle and lock it with a test, the way
 `tests/side-effects.test.ts` locks the `sideEffects` claim. Today it is 1165
 modules and 5.2 MB of source with every provider registered, and 1.47 MB built
-once `--kit=none` registers only eleven; whatever row 1 brings it down to is the
-number to assert.
+once `--kit=none` registers only eleven; 1.47 MB now that a kit registers only what it
+needs; that is the number to assert.
 
 A number that is never asserted is a number that quietly goes back up, and
 nothing about a scaffolded application would break loudly when it does.
 
-## 5. The no-auth story
+## 4. The no-auth story
 
 Only after the rows above, because the answer moves. Three directions:
 
@@ -117,11 +107,11 @@ Only after the rows above, because the answer moves. Three directions:
 - have `none` ship one working data chain — model, migration, factory, seeder;
 - add a fourth kit and leave `none` as bare as it is.
 
-If row 1 concludes that `--kit=none` should not install `@elysian/database` at
+If the pruning concludes that `--kit=none` should not install `@elysian/database` at
 all, the second direction stops being a matter of taste and starts being a
 contradiction.
 
-## 6. Deferrable providers
+## 5. Deferrable providers
 
 Laravel's own answer to a long provider list, and one this framework has no
 version of. `Mail`, `Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation`
