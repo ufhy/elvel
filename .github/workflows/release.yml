@@ -162,7 +162,16 @@ jobs:
           cp ../../LICENSE .
           printf '# %s\n\nSee https://github.com/ufhy/elvel\n' "$(bun --print 'require("./package.json").name')" > README.md
 
-          npm publish --access public --tag experimental
+          # `--provenance` asked for outright.
+          #
+          # Publishing from a directory made no difference — neither form produced
+          # an attestation — and every documented prerequisite is met: npm 11, a
+          # public `repository` that matches, GitHub Actions, trusted publishing.
+          # npm's own words are that with trusted publishing provenance is
+          # "automatically generated ... without requiring the `--provenance`
+          # flag", and it was not. Asking outright turns silence into an error
+          # message that names what is missing.
+          npm publish --access public --tag experimental --provenance
 
       - name: Publish
         if: (github.event_name == 'push' || inputs.dry-run == false) && inputs.from-directory == ''
