@@ -34,6 +34,13 @@ on:
         description: Pack and check every tarball, publish nothing
         default: true
         type: boolean
+      from-directory:
+        description: >-
+          Publish one package from its directory instead of from a tarball, to
+          find out whether that is what npm needs to attach provenance. Names a
+          directory under packages/.
+        default: ''
+        type: string
 
 concurrency:
   group: release-${{ github.ref }}
@@ -124,8 +131,41 @@ jobs:
       - name: Pack and check
         run: bun scripts/release.ts
 
+      # An experiment, and deliberately narrow.
+      #
+      # `1.0.0-alpha.4` went out over OIDC and carries no provenance — the
+      # attestations endpoint answers `Not found` where a package with provenance
+      # returns two. npm's documentation says nothing about pre-packed tarballs
+      # versus package directories, so the only way to know whether that is the
+      # cause is to publish one of each and look.
+      #
+      # It publishes under the `experimental` dist-tag so `latest` does not move,
+      # and only a package with no dependencies at all can be named: publishing
+      # from a directory sends the manifest as it sits, and `workspace:*` in it
+      # would be a version no installer can read.
+      - name: Publish one package from its directory
+        if: inputs.from-directory != ''
+        env:
+          TARGET: ${{ inputs.from-directory }}
+        run: |
+          case "$TARGET" in
+            ''|*[!a-z0-9-]*) echo "refusing [$TARGET]"; exit 1 ;;
+          esac
+
+          cd "packages/$TARGET"
+
+          if grep -q 'workspace:' package.json; then
+            echo "packages/$TARGET has workspace: dependencies — it cannot go from its directory"
+            exit 1
+          fi
+
+          cp ../../LICENSE .
+          printf '# %s\n\nSee https://github.com/ufhy/elvel\n' "$(bun --print 'require("./package.json").name')" > README.md
+
+          npm publish --access public --tag experimental
+
       - name: Publish
-        if: github.event_name == 'push' || inputs.dry-run == false
+        if: (github.event_name == 'push' || inputs.dry-run == false) && inputs.from-directory == ''
         env:
           # Through the environment rather than interpolated into the command: a
           # dispatch input reaching a shell directly is a command injection, even

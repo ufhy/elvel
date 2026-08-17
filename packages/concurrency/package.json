@@ -1,6 +1,6 @@
 {
   "name": "@elvel/concurrency",
-  "version": "1.0.0-alpha.4",
+  "version": "1.0.0-alpha.5",
   "description": "Concurrency for Elvel — run callbacks on other cores, mirrors Laravel’s Concurrency",
   "keywords": [
     "bun",
