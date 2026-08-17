@@ -58,26 +58,40 @@ hides all progress. One left.
 
 ---
 
-## 1. Every package ships as a hundred files
+## 1. Every package ships as source, and two things block changing it
 
-What is left of the boot cost, after `app:build` and the fast path in
-`artisan.ts` took the repeated case from 4.019s to 0.285s.
+`main` and `exports` point at `./src/index.ts`, so an application installing
+`@elysian/mail` gets sixteen TypeScript modules to transpile rather than one file
+to parse. Across twenty-six packages that is about 311 of the thousand-odd
+modules a boot loads.
 
-Two cases still pay full price, and both are development: the first `artisan`
-after any edit, which correctly refuses a stale bundle, and `bun run dev`, which
-restarts on every save and takes 2676 ms to serve the change. A bundle is the
-wrong tool for either — rebuilding on each keystroke trades one wait for another.
+Measured rather than estimated, by building all twenty-six to single files and
+repointing `main` at them:
 
-The cause is that nothing here is packaged. `main` and `exports` point at
-`./src/index.ts`, so an application installing `@elysian/mail` gets sixteen
-TypeScript modules to transpile rather than one file to parse, and the twenty-six
-packages together contribute about 311 of the thousand-odd modules a boot loads.
-Building each package to a single file and pointing the published `exports` at
-it — source stays the workspace's own entry — would remove those 311 without
-touching how the framework is developed.
+    plain   2047 ms -> 1650 ms   (-19%)
+    auth    4121 ms -> 2293 ms   (-44%)
 
-It would not remove the rest. `@sinclair/typebox` is 236 modules and `kysely`
-250, and both arrive that way from npm. So the ceiling on this is roughly a third
-of the boot, and the work is a build step for twenty-six packages plus a publish
-story — worth doing, but worth measuring first on one package rather than
-assuming the third.
+Both applications still answered `/health` with 200 on the built packages, so
+the numbers are of something that works. The auth kit nearly halves, which is
+almost twice what the module count suggested — `@sinclair/typebox` at 236
+modules and `kysely` at 250 still arrive from npm as many small files and are
+untouched by any of this.
+
+Two obstacles, both verified rather than assumed.
+
+**`"sideEffects": false` makes `bun build` produce a broken bundle.** Given an
+entry that only re-exports — which every `src/index.ts` here is — Bun 1.3.14
+emits 0.55 KB containing an export list and nothing else, and importing it throws
+`SyntaxError: Exported binding 'CARRIES_RESPONSE' needs to refer to a top-level
+declared variable`. Removing the field from that package turns the same command
+into a correct 0.78 MB bundle. There is no `--ignore-annotations` to pass. So the
+build has to strip the field, build, and put it back — and the field cannot
+simply go, because it is what lets an *application's* bundler drop what it does
+not import.
+
+**`bun pm pack` ignores `publishConfig`.** The obvious way to publish `dist`
+while developing against `src` is `publishConfig.exports`, and the tarball comes
+out with `exports` still pointing at `./src/index.ts` and `publishConfig` left in
+the manifest unused. So the switch has to happen in a release script — and there
+is no release process here at all yet, which is what this row is really waiting
+on.

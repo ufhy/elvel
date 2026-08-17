@@ -1081,6 +1081,17 @@ Nothing happens until somebody builds one, and any edit makes it stale — a fas
 path that is used without being opted into is a fast path that eventually runs
 yesterday's code.
 
+**`"sideEffects": false` and `bun build` do not agree about barrel files.** The
+field is on every package, and `tests/side-effects.test.ts` keeps it true,
+because without it importing one helper from `@elysian/http` pulled 498 modules
+instead of five. What it also does, in Bun 1.3.14, is break `bun build` of the
+package itself: an entry that only re-exports comes out as 0.55 KB of export list
+with no implementation behind it, and throws `Exported binding ... needs to refer
+to a top-level declared variable` on import. Application bundles are unaffected —
+they import names, and reachable modules survive — so this only bites anyone
+building the packages themselves, which is why it is written down rather than
+worked around.
+
 **`bun --hot` looks like the answer and silently is not.** The process stays up,
 the routes do not change: a handler edited under `--hot` keeps answering with the
 old body, indefinitely, with no error and no reload line in the log. Elysia
