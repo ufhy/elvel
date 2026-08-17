@@ -533,8 +533,17 @@ describe('what a scaffolded application installs', () => {
     expect<string[]>(none).not.toContain('better-auth')
     expect<string[]>(none).not.toContain('@elysian/auth')
 
-    // Nor the packages behind the things it does not do.
-    for (const absent of ['mail', 'queue', 'notifications', 'storage', 'hashing']) {
+    /**
+     * Nor the packages behind the things it does not do — the database
+     * included.
+     *
+     * That one is the deliberate answer to "what does a landing page get?": no
+     * database at all, rather than an empty `database/` directory beside a
+     * config file for a connection nothing opens. `@elysian/database` brings
+     * `kysely`, some 660 KB, and adding it back is `bun add`, `config:publish
+     * database`, and one line in `bootstrap/providers.ts`.
+     */
+    for (const absent of ['database', 'mail', 'queue', 'notifications', 'storage', 'hashing']) {
       expect<string[]>(none).not.toContain(`@elysian/${absent}`)
     }
   })
@@ -596,12 +605,11 @@ describe('what a scaffolded application installs', () => {
  * what an application is configured with.
  */
 describe('the config files a kit ships', () => {
-  test('a landing page gets ten, and they are these ten', async () => {
+  test('a landing page gets nine, and they are these nine', async () => {
     expect<string[]>((await scaffold('none')).configs).toEqual([
       'app',
       'cache',
       'cors',
-      'database',
       'http',
       'logging',
       'services',
@@ -618,6 +626,7 @@ describe('the config files a kit ships', () => {
 
     expect<string[]>(added).toEqual([
       'auth',
+      'database',
       'filesystems',
       'hashing',
       'mail',

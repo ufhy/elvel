@@ -1,22 +1,36 @@
 import app from '../bootstrap/app.ts'
 
 /**
- * The template's test database, plus what this kit needs on top of it.
+ * Point the tests at a database of their own, and build it if it is not there.
  *
- * Import this from any test that touches the database. It points the tests at
- * `database/testing.sqlite` rather than the application's own file — one file
- * shared with a running `artisan serve` is a file two processes write at once,
- * and SQLite refuses the second — and builds it from the real migrations the
- * first time.
+ * Import this from any test that touches the database. Two reasons, and the
+ * second is the one that bites:
+ *
+ * A checked-out project has no `database/*.sqlite` — the database is its
+ * migrations, not a file somebody committed — so the first test run has nothing
+ * to query. This runs the real migrations and seeders once, at import, and only
+ * when the schema is missing.
+ *
+ * And a single file shared between the tests, a running `artisan serve` and
+ * whatever else is open is a file two processes write at once. SQLite lets one
+ * writer in and refuses the other, so a whole suite fails together with
+ * `database is locked` in a way that reads like a bug in every test. A database
+ * of its own is what stops it.
  */
 const connection = app.config.get<string>('database.default', 'sqlite')
 
 app.config.set(`database.connections.${connection}.database`, 'database/testing.sqlite')
 
+// Nothing has opened it at import time; this is belt and braces against a
+// provider that decides to connect during boot one day.
 await app.make('db').disconnectAll()
 
 const schema = await app.make('db').schema()
 
+/**
+ * `migrations` rather than a table of your own: it is the one table that exists
+ * in every application, and its absence is what "this database is empty" means.
+ */
 /**
  * Migrations run every time; seeders only on a database that was empty.
  *
@@ -35,18 +49,3 @@ const artisan = app.make('artisan')
 await artisan.run(['migrate', '--force'])
 
 if (fresh) await artisan.run(['db:seed'])
-
-/**
- * better-auth's tables are generated, not shipped.
- *
- * What they contain depends on the options and plugins in `config/auth.ts`, so
- * there is no migration to ship that would be right for every application. If
- * the migration has not been written yet, `migrate` above had nothing to apply
- * and every test here would fail on a missing table — which reads as a broken
- * kit rather than a step not taken.
- */
-if (!(await schema.hasTable('user'))) {
-  throw new Error(
-    'The auth tables do not exist yet. Run: bun artisan auth:schema && bun artisan migrate'
-  )
-}

@@ -25,6 +25,9 @@ LOG_CHANNEL=stack
 LOG_LEVEL=debug
 LOG_REQUESTS=false
 
+# Read only once @elysian/database is installed and its provider registered —
+# see bootstrap/providers.ts. Left here so adding one is not also a hunt for the
+# variable names.
 DB_CONNECTION=sqlite
 DB_DATABASE=database/database.sqlite
 DB_FOREIGN_KEYS=true

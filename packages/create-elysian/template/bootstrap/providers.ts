@@ -1,6 +1,5 @@
 import { CacheServiceProvider } from '@elysian/cache'
 import { ConsoleServiceProvider } from '@elysian/console'
-import { DatabaseServiceProvider } from '@elysian/database'
 import { EncryptionServiceProvider } from '@elysian/encryption'
 import { EventServiceProvider } from '@elysian/events'
 import { HttpServiceProvider } from '@elysian/http'
@@ -27,9 +26,24 @@ import { ViewServiceProvider } from '@elysian/view'
  * database, `nodemailer` behind mail, and better-auth behind auth.
  *
  * So this is the list a starter kit changes. `--kit=auth` ships its own version
- * of this file with what it needs added; the same is true of `--kit=api`. Add a
- * line here when you start using something, and the package it names is already
- * a dependency — nothing else has to happen.
+ * of this file with what it needs added; the same is true of `--kit=api`.
+ *
+ * There is no database here, which is the largest single thing this file leaves
+ * out. Measured, the saving is in the install rather than in the build:
+ * `@elysian/database` brings `kysely` with it, some 660 KB of packages an
+ * application may never open a connection with, while the bundle does not change
+ * at all — a driver is resolved by name at run time, so nothing static reaches
+ * it.
+ *
+ * Adding a database is three steps, and the framework has all three:
+ *
+ * ```
+ * bun add @elysian/database
+ * bun artisan config:publish database
+ * ```
+ *
+ * then a line here for `DatabaseServiceProvider`. After that `make:model`,
+ * `migrate` and the rest are registered and behave as they always have.
  *
  * Order matters in two places, both noted below. Everything else is grouped by
  * what it is rather than by what it needs.
@@ -43,7 +57,6 @@ export const providers = [
   TranslationServiceProvider,
   EncryptionServiceProvider,
   ConsoleServiceProvider,
-  DatabaseServiceProvider,
   // Wanted by more than it looks: `throttle` counts requests through it, and
   // `withoutOverlapping()` in `routes/console.ts` takes its lock there.
   CacheServiceProvider,
