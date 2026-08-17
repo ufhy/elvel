@@ -49,9 +49,12 @@ process.exit(await app.make('artisan').run())
  * runs, which would make every bundle stale the moment it served a request.
  */
 async function fresh(path: string): Promise<boolean> {
-  const built = await stat(path).catch(() => undefined)
+  const bundle = await stat(path).catch(() => undefined)
 
-  if (!built) return false
+  if (!bundle) return false
+
+  // Read out before the closure below, which cannot see the narrowing above.
+  const builtAt = bundle.mtimeMs
 
   const skip = new Set(['node_modules', 'storage', 'dist', '.git', 'public'])
 
@@ -71,7 +74,7 @@ async function fresh(path: string): Promise<boolean> {
 
       const info = await stat(full).catch(() => undefined)
 
-      if (info && info.mtimeMs > built.mtimeMs) return true
+      if (info && info.mtimeMs > builtAt) return true
     }
 
     return false

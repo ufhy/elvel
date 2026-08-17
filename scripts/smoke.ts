@@ -2621,10 +2621,22 @@ try {
     ['make:class', 'Support/Money', 'app/Support/Money.ts'],
     ['make:config', 'billing', 'config/billing.ts'],
     ['make:test', 'http/articles', 'test/http/articles.test.ts'],
+    ['make:rule', 'Uppercase', 'app/Rules/Uppercase.ts']
+  ]
+
+  /**
+   * Generators that belong to a package the base template does not register.
+   *
+   * `make:cast`, `make:observer` and `make:scope` come from `@elvel/database` and
+   * `make:job-middleware` from `@elvel/queue`, and `--kit=none` has neither — an
+   * application with no database has no casts to write. They are run against the
+   * auth kit further down, where both providers are registered, which is also the
+   * honest place for them: a command exists because a provider booted.
+   */
+  const ormGenerators: Array<[string, string, string]> = [
     ['make:cast', 'Money', 'app/Casts/Money.ts'],
     ['make:observer', 'ArticleObserver', 'app/Observers/ArticleObserver.ts'],
     ['make:scope', 'Published', 'app/Models/Scopes/Published.ts'],
-    ['make:rule', 'Uppercase', 'app/Rules/Uppercase.ts'],
     ['make:job-middleware', 'WithoutOverlapping', 'app/Jobs/Middleware/WithoutOverlapping.ts']
   ]
 
@@ -2689,6 +2701,67 @@ try {
   check(
     'its pages are written',
     await Bun.file(join(kitTarget, 'resources/views/pages/auth/sign-in.tsx')).exists()
+  )
+
+  for (const [command, name, path] of ormGenerators) {
+    const made = Bun.spawnSync({
+      cmd: ['bun', 'artisan.ts', command, name],
+      cwd: kitTarget,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    check(
+      `${command} writes ${path} in a kit that has the provider`,
+      made.exitCode === 0 && (await Bun.file(join(kitTarget, path)).exists()),
+      plain(made.stdout.toString() + made.stderr.toString()).slice(-200)
+    )
+  }
+
+  /**
+   * What the auth kit adds, checked where it is added.
+   *
+   * The counterpart to the template's "left out of" checks above. Between the two
+   * halves, a provider moving from one list to the other cannot pass unnoticed —
+   * which matters because moving one is a single line and the cost of the wrong
+   * choice is silent.
+   */
+  const kitListed = plain(
+    Bun.spawnSync({
+      cmd: ['bun', 'artisan.ts', 'list'],
+      cwd: kitTarget,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    }).stdout.toString()
+  )
+
+  for (const [command, provider] of [
+    ['migrate', 'database'],
+    ['queue:work', 'queue'],
+    ['make:mail', 'mail'],
+    ['notifications:table', 'notifications'],
+    ['storage:link', 'storage'],
+    ['auth:schema', 'auth']
+  ] as const) {
+    check(`${provider} is wired into the auth kit`, kitListed.includes(command))
+  }
+
+  for (const file of ['auth', 'database', 'mail', 'queue', 'filesystems', 'notifications']) {
+    check(
+      `the auth kit ships config/${file}.ts`,
+      await Bun.file(join(kitTarget, 'config', `${file}.ts`)).exists()
+    )
+  }
+
+  const kitManifest = (await Bun.file(join(kitTarget, 'package.json')).json()) as {
+    dependencies: Record<string, string>
+  }
+
+  // `@elvel/auth` only peers on better-auth, so the application has to depend on
+  // it directly — and this is the application that does.
+  check(
+    'and depends on better-auth, which @elvel/auth only peers on',
+    kitManifest.dependencies['better-auth'] !== undefined
   )
 
   const kitRoutes = await Bun.file(join(kitTarget, 'routes/web.ts')).text()
@@ -3228,39 +3301,73 @@ try {
   await rm(apiTarget, { recursive: true, force: true })
   await rm(join(app.basePath(), '..', '.smoke-kit-bad'), { recursive: true, force: true })
 
+  /**
+   * A command appears only if its provider booted — and a kit decides which do.
+   *
+   * This used to demand all eight from the base template, which was true when
+   * every application registered all twenty-two providers. It no longer does:
+   * `bootstrap/providers.ts` is what a kit replaces, and `--kit=none` leaves out
+   * the database, the mailer, the queue and auth. Registering them anyway is what
+   * took a landing page to 3.72 MB.
+   *
+   * So the base template is held to what it does register, and the rest is
+   * checked where it belongs — in the auth kit, further down.
+   *
+   * Only packages that contribute a command can be checked this way; `view`,
+   * `log`, `translation` and `support` register bindings and no artisan command,
+   * so their presence is proven by the pages that render rather than here.
+   */
   for (const [command, provider] of [
     ['key:generate', 'encryption'],
     ['cache:table', 'cache'],
-    ['queue:table', 'queue'],
-    ['make:mail', 'mail'],
-    ['notifications:table', 'notifications'],
     ['schedule:run', 'scheduler'],
-    ['storage:link', 'storage'],
-    ['auth:schema', 'auth']
+    ['make:rule', 'validation'],
+    ['event:list', 'events'],
+    ['middleware:list', 'http'],
+    ['about', 'console']
   ] as const) {
     check(`${provider} is wired into the template`, listed.includes(command))
   }
 
+  // And what the template must *not* carry, which is the half that regresses
+  // silently: adding a provider back is one line and costs megabytes.
+  for (const [command, provider] of [
+    ['migrate', 'database'],
+    ['queue:work', 'queue'],
+    ['make:mail', 'mail'],
+    ['storage:link', 'storage'],
+    ['auth:schema', 'auth']
+  ] as const) {
+    check(`${provider} is left out of the template`, !listed.includes(command))
+  }
+
   // Config and env have to arrive together: a provider that boots but reads an
   // absent config file is the failure this pair catches.
-  for (const file of [
-    'auth',
-    'cache',
-    'queue',
-    'mail',
-    'filesystems',
-    'notifications',
-    'cors',
-    'http'
-  ]) {
+  for (const file of ['app', 'cache', 'cors', 'http', 'logging', 'services', 'session', 'view']) {
     check(
       `config/${file}.ts ships`,
       await Bun.file(join(scaffoldTarget, 'config', `${file}.ts`)).exists()
     )
   }
 
+  // The other side of the same decision: a config file for a package this
+  // application does not install is settings nothing reads. `config:publish`
+  // fetches any of them back.
+  for (const file of ['auth', 'database', 'mail', 'queue', 'filesystems', 'notifications']) {
+    check(
+      `config/${file}.ts is left out`,
+      !(await Bun.file(join(scaffoldTarget, 'config', `${file}.ts`)).exists())
+    )
+  }
+
   const scaffoldedEnv = await Bun.file(join(scaffoldTarget, '.env')).text()
 
+  /**
+   * The environment still carries every key, even for packages a kit leaves out.
+   *
+   * Deliberate: `bun add @elvel/database` should not also be a hunt for the
+   * variable names, and an unread `DB_CONNECTION=sqlite` costs nothing.
+   */
   for (const key of [
     'CACHE_STORE',
     'QUEUE_CONNECTION',
@@ -3268,7 +3375,8 @@ try {
     'FILESYSTEM_DISK',
     'AUTH_SECRET',
     'APP_PREVIOUS_KEYS',
-    'SESSION_ENCRYPT'
+    'SESSION_ENCRYPT',
+    'DB_CONNECTION'
   ]) {
     check(`.env carries ${key}`, scaffoldedEnv.includes(`${key}=`))
   }
@@ -3282,9 +3390,16 @@ try {
   check('the cache defaults to files', scaffoldedEnv.includes('CACHE_STORE=file'))
   check('mail defaults to the log', scaffoldedEnv.includes('MAIL_MAILER=log'))
 
+  /**
+   * better-auth arrives with the kits that use it, and not otherwise.
+   *
+   * `@elvel/auth` only peers on it, so an application registering that provider
+   * must depend on it directly — and an application with no auth must not, since
+   * it and its tail are the single heaviest thing a landing page used to install.
+   */
   check(
-    'better-auth is a dependency, since @elvel/auth only peers on it',
-    manifest.dependencies['better-auth'] !== undefined
+    'better-auth is not a dependency of an application without auth',
+    manifest.dependencies['better-auth'] === undefined
   )
 } finally {
   await rm(scaffoldTarget, { recursive: true, force: true })
@@ -5354,7 +5469,10 @@ try {
    * counted in the cache itself, so it is the store's view and not this
    * script's.
    */
-  for (const store of ['array', 'file', 'redis']) {
+  // `redis` only when there is one — the funnel section had it hardcoded while
+  // every other cache section reads `stores`, so a machine without Redis failed
+  // two checks that were never about the code.
+  for (const store of stores) {
     await fetch(`http://127.0.0.1:${port}/check/cache/funnel?store=${store}`, { method: 'DELETE' })
 
     const attempts = await Promise.all(
