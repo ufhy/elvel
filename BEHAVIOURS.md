@@ -7,7 +7,7 @@ Everything below is behaviour that already exists and would otherwise have to be
 rediscovered — through a bug, usually, since none of it can be read back off the
 code. The code says what happens; this says why.
 
-It had a companion, `GAPS.md`, holding what was still missing. Three of them have
+It had a companion, `GAPS.md`, holding what was still missing. Four of them have
 now counted down to zero and been deleted, which is the only way their length ever
 meant anything — the third because the second measured the wrong thing: it
 compared Laravel *component by component* and found 30 of 38 covered, while the
@@ -1111,6 +1111,56 @@ old body, indefinitely, with no error and no reload line in the log. Elysia
 builds its route table once at boot, and re-evaluating a module does not rewire a
 server that is already listening. `--watch` restarts the process instead and
 picks the change up in 2676 ms, which is why `bun run dev` uses it.
+
+
+## Building the packages does not pay, and here are the numbers
+
+The last row of the fourth `GAPS.md` was to stop shipping TypeScript source.
+Packages point `main` at `./src/index.ts`, so an application installing
+`@elvel/mail` gets sixteen modules to transpile rather than one file to parse, and
+Bun re-transpiles every module in every process with nothing cached between runs
+— 3761 ms of the auth kit's 4005 ms boot. Collapsing twenty-six packages to
+twenty-six files should have removed a third of that.
+
+An early experiment said it removed nearly half: pointing `main` at built files
+inside the workspace took the auth kit from 4121 ms to 2293 ms and a landing page
+from 2047 ms to 1650 ms. That number does not survive being checked. Measured
+properly — real consumer installs outside any workspace, identical package sets,
+three runs each, importing eight packages:
+
+    source, 26 packages from npm      231, 234, 249 ms
+    built, dependencies external      319, 324, 334 ms
+    built, dependencies inlined       327, 333, 334 ms
+
+Building is **35 to 40 per cent slower**, and inlining the third-party
+dependencies — which is what the early experiment did, at 7.68 MB of output
+against 0.89 MB — changes nothing. Neither install had duplicate packages: both
+trees held thirty-nine at the top level.
+
+Why a single file loses to many is not explained, and that is the honest state of
+it. What is settled is that the reason for building was a measurement that did not
+hold, so `scripts/release.ts` publishes source and `--built` is a flag nobody
+needs to pass.
+
+**The build itself works, and is kept.** `scripts/build-packages.ts` produces
+correct output, and three things had to be solved to get there, each worth knowing
+before anybody tries again:
+
+- `"sideEffects": false` makes `bun build` emit a broken bundle from a re-export
+  entry — an export list with nothing behind it, which throws `Exported binding …
+  needs to refer to a top-level declared variable` on import. The field is removed
+  for the length of the build. It cannot go permanently: it is what lets an
+  application's bundler drop what it does not import.
+- Declarations come out naming `.ts` files, because the source imports carry
+  extensions, so a consumer resolving `./config.ts` looks for `config.ts.d.ts`.
+  The specifiers are rewritten after emit rather than dropping extensions from
+  twenty-six packages of source.
+- `noEmit` is set repository-wide, so the emit needs `--noEmit false` alongside
+  `--emitDeclarationOnly`, or `tsc` writes nothing and reports success.
+
+A types-only package is the one case where a near-empty bundle is correct:
+`@elvel/contracts` builds to Bun's own header comment and nothing else. The guard
+tells that apart from the broken case by content rather than by size.
 
 
 ## Publishing, and what it took to get right

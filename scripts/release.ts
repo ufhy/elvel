@@ -39,6 +39,26 @@ const OUT = join(ROOT, 'dist-release')
 const publish = Bun.argv.includes('--publish')
 
 /**
+ * Publish built packages instead of source — off by default, because measured it
+ * is slower.
+ *
+ * `scripts/build-packages.ts` collapses each package to one file, which ought to
+ * cut the cost of Bun re-transpiling a thousand small modules on every boot.
+ * Compared in real consumer installs with identical package sets, three runs
+ * each, importing eight of them:
+ *
+ *     source, 26 packages from npm      231, 234, 249 ms
+ *     built, dependencies external      319, 324, 334 ms
+ *     built, dependencies inlined       327, 333, 334 ms
+ *
+ * So the flag stays and the default does not use it. The build itself works and
+ * its output is correct — the declarations resolve, the bundles run — and it is
+ * kept for the next attempt, which should start by explaining these numbers
+ * rather than by trusting the earlier ones.
+ */
+const built = Bun.argv.includes('--built')
+
+/**
  * A one-time password, when the account requires one to publish.
  *
  * npm refuses with `EOTP` on an account set to "auth and writes", and one code
@@ -123,7 +143,19 @@ async function verify(tarball: string, manifest: Manifest): Promise<string[]> {
     if (!entries.includes(required)) problems.push(`missing ${required}`)
   }
 
-  if (!entries.some((entry) => entry.startsWith('package/src/'))) problems.push('no source')
+  const wants = manifest.name !== 'create-elvel' && built ? 'package/dist/' : 'package/src/'
+
+  if (!entries.some((entry) => entry.startsWith(wants))) problems.push(`nothing under ${wants}`)
+
+  // A built package shipping source as well would double its size and leave two
+  // answers to the same import.
+  if (wants === 'package/dist/' && entries.some((entry) => entry.startsWith('package/src/'))) {
+    problems.push('ships src/ as well as dist/')
+  }
+
+  if (wants === 'package/dist/' && !entries.includes('package/dist/index.d.ts')) {
+    problems.push('no dist/index.d.ts')
+  }
   if (entries.some((entry) => entry.startsWith('package/test/'))) problems.push('ships test/')
   if (entries.some((entry) => entry.startsWith('package/node_modules/'))) {
     problems.push('ships node_modules/')
@@ -161,6 +193,23 @@ const directories = (await readdir(join(ROOT, 'packages'), { withFileTypes: true
 
 await rm(OUT, { recursive: true, force: true })
 
+if (built) {
+  const built = Bun.spawnSync({
+    cmd: ['bun', join(ROOT, 'scripts', 'build-packages.ts')],
+    cwd: ROOT,
+    stdout: 'inherit',
+    stderr: 'inherit'
+  })
+
+  if (built.exitCode !== 0) {
+    console.log('\nThe build failed, so nothing was packed.')
+
+    process.exit(1)
+  }
+
+  console.log('')
+}
+
 const licence = await Bun.file(join(ROOT, 'LICENSE')).text()
 const packed: Array<{ manifest: Manifest; tarball: string; size: number }> = []
 const failures: string[] = []
@@ -174,6 +223,35 @@ for (const directory of directories) {
   // worth twenty-six copies in git.
   await writeFile(join(dir, 'LICENSE'), licence)
   await writeFile(join(dir, 'README.md'), readme(manifest))
+
+  /**
+   * The manifest is pointed at `dist/` for the length of the pack, and put back.
+   *
+   * `publishConfig.exports` would be the declared way to do this and `bun pm
+   * pack` ignores it — the tarball comes out with `exports` still naming
+   * `./src/index.ts` and `publishConfig` sitting unused in the manifest. So the
+   * swap happens here, on disk, for as long as it takes to write one tarball.
+   *
+   * Development keeps running from source: nothing outside this loop ever sees
+   * the rewritten manifest, and `create-elvel` has no `dist` to point at.
+   */
+  const manifestPath = join(dir, 'package.json')
+  const original = await Bun.file(manifestPath).text()
+  const rewire = directory !== 'create-elvel' && built
+
+  if (rewire) {
+    const pointed = JSON.parse(original) as Record<string, unknown>
+
+    pointed.main = './dist/index.js'
+    pointed.types = './dist/index.d.ts'
+    pointed.exports = {
+      ...(pointed.exports as Record<string, unknown>),
+      '.': { types: './dist/index.d.ts', default: './dist/index.js' }
+    }
+    pointed.files = ['dist', ...(pointed.files as string[]).filter((one) => one !== 'src')]
+
+    await writeFile(manifestPath, `${JSON.stringify(pointed, null, 2)}\n`)
+  }
 
   try {
     const run = Bun.spawnSync({
@@ -209,6 +287,8 @@ for (const directory of directories) {
   } finally {
     await rm(join(dir, 'LICENSE'), { force: true })
     await rm(join(dir, 'README.md'), { force: true })
+
+    if (rewire) await writeFile(manifestPath, original)
   }
 }
 
