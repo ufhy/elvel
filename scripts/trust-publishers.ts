@@ -33,6 +33,13 @@ import { join, resolve } from 'node:path'
  *
  * After that, run this script **yourself, in a terminal** — it cannot be driven
  * from a captured shell, for the reason `run()` explains below.
+ *
+ * Safe to re-run, and worth knowing why it has to be: npm's second-factor session
+ * lasts minutes, so twenty-seven calls outlive it and the run stops part way. A
+ * second pass reports the ones already done as `already configured` — npm answers
+ * `409 Conflict` for those, because a package may only have one trusted publisher
+ * and npm will not silently replace it. Changing one means `npm trust revoke`
+ * first.
  */
 
 const ROOT = resolve(import.meta.dir, '..')
@@ -93,9 +100,26 @@ packages.sort()
  */
 const run = (argv: string[], attached = false): { code: number; output: string } => {
   if (attached) {
-    const result = Bun.spawnSync({ cmd: argv, cwd: ROOT, stdio: ['inherit', 'inherit', 'inherit'] })
+    /**
+     * Attached to the terminal *and* captured, which needs a file.
+     *
+     * npm has to reach the terminal to ask for a second factor, and the exit code
+     * alone cannot tell "already configured" from "refused" — a re-run answers
+     * `409 Conflict` for every package that is already done, and treating that as
+     * a failure makes a finished job look broken. So stderr goes to a file and is
+     * read back afterwards, while stdout and stdin stay on the terminal.
+     */
+    const log = join(ROOT, 'node_modules', '.cache', 'trust.log')
 
-    return { code: result.exitCode ?? 1, output: '' }
+    const result = Bun.spawnSync({
+      cmd: argv,
+      cwd: ROOT,
+      stdio: ['inherit', 'inherit', Bun.file(log)]
+    })
+
+    const output = Bun.spawnSync({ cmd: ['cat', log], stdout: 'pipe' })
+
+    return { code: result.exitCode ?? 1, output: new TextDecoder().decode(output.stdout) }
   }
 
   const result = Bun.spawnSync({ cmd: argv, cwd: ROOT, stdout: 'pipe', stderr: 'pipe' })
@@ -148,11 +172,12 @@ if (!register) {
 }
 
 const failed: string[] = []
+let already = 0
 
 for (const name of packages) {
   console.log(`\n--- ${name}`)
 
-  const { code } = run(
+  const { code, output } = run(
     [
       'npx',
       '-y',
@@ -176,12 +201,31 @@ for (const name of packages) {
     continue
   }
 
+  /**
+   * A conflict is a package that already has one, and npm will not replace it.
+   *
+   * "Each package can only have one trusted publisher configured at a time" — so
+   * a second run over a half-finished job answers 409 for everything that
+   * succeeded first time round. That is the state this script is trying to reach,
+   * not a failure to reach it. `npm trust revoke` is the way to change one.
+   */
+  if (/409|Conflict/.test(output)) {
+    already += 1
+
+    console.log(`already configured ${name}`)
+
+    continue
+  }
+
   failed.push(name)
 
   console.log(`FAILED ${name}`)
 }
 
-console.log(`\n${packages.length - failed.length} of ${packages.length} registered`)
+console.log(
+  `\n${packages.length - failed.length - already} registered, ${already} already were, ` +
+    `${failed.length} left of ${packages.length}`
+)
 
 if (failed.length > 0) {
   console.log(`\nStill to do: ${failed.join(', ')}`)
