@@ -272,7 +272,35 @@ function forNpm(path: string): string {
   return new TextDecoder().decode(converted.stdout).trim() || path
 }
 
+/**
+ * Is this exact version already on npm?
+ *
+ * Asked before every upload so a run can be repeated. One OTP covers a handful
+ * of publishes and then expires, which used to mean a half-finished release and
+ * a second attempt that died on `EPUBLISHCONFLICT` at the first package that had
+ * made it — the very packages that succeeded were what blocked the retry. Now a
+ * repeat run picks up exactly where the last one stopped.
+ */
+async function alreadyPublished(name: string, version: string): Promise<boolean> {
+  const encoded = name.replace('/', '%2f')
+
+  const answer = await fetch(`https://registry.npmjs.org/${encoded}/${version}`, {
+    headers: { accept: 'application/json' }
+  }).catch(() => undefined)
+
+  return answer?.ok === true
+}
+
+let skipped = 0
+
 for (const { manifest, tarball } of order) {
+  if (await alreadyPublished(manifest.name, manifest.version)) {
+    console.log(`already published ${manifest.name}@${manifest.version}`)
+    skipped += 1
+
+    continue
+  }
+
   const run = Bun.spawnSync({
     cmd: [
       'npm',
@@ -298,4 +326,8 @@ for (const { manifest, tarball } of order) {
   console.log(`published ${manifest.name}@${manifest.version}`)
 }
 
-console.log(`\nAll ${order.length} published as \`${tag}\`.`)
+console.log(
+  skipped > 0
+    ? `\n${order.length - skipped} published as \`${tag}\`, ${skipped} were already there.`
+    : `\nAll ${order.length} published as \`${tag}\`.`
+)
