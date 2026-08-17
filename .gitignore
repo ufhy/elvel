@@ -6,6 +6,7 @@ dist
 # on purpose.
 apps/
 .smoke-scaffold/
+.bundle-check/
 .demo/
 
 *.tsbuildinfo
