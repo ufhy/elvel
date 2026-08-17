@@ -58,37 +58,7 @@ hides all progress.
 
 ---
 
-## 1. `artisan config:publish`
-
-Laravel's, whose signature is:
-
-    config:publish {name?} {--all} {--force}
-
-With no name it offers a choice; `--all` writes every one. Its source is the
-framework's own `config/` directory — the sixteen files the skeleton no longer
-ships.
-
-Ours has to work the same way for every config file the template stops sending,
-which means each package keeps its defaults where the command can find them.
-Prerequisite for row 2: Laravel could slim its skeleton because it had this
-first.
-
-## 2. Trim the template's `config/` to ten files
-
-Laravel 11 slimmed its skeleton deliberately, and ships:
-
-    app  auth  cache  database  filesystems  logging  mail  queue
-    services  session
-
-We send nineteen — those ten plus `broadcasting`, `concurrency`, `cors`,
-`hashing`, `http`, `image`, `notifications`, `view`, `vite`. For a landing page
-with no auth, not one of the nine is read.
-
-Every config read in the framework already carries a default —
-`config.get<string>('queue.default', 'sync')` and its like — so a missing file
-is not a missing setting.
-
-## 3. Hold the number
+## 1. Hold the number
 
 Re-measure the `--kit=none` bundle and lock it with a test, the way
 `tests/side-effects.test.ts` locks the `sideEffects` claim. Today it is 1165
@@ -99,7 +69,7 @@ needs; that is the number to assert.
 A number that is never asserted is a number that quietly goes back up, and
 nothing about a scaffolded application would break loudly when it does.
 
-## 4. The no-auth story
+## 2. The no-auth story
 
 Only after the rows above, because the answer moves. Three directions:
 
@@ -111,7 +81,7 @@ If the pruning concludes that `--kit=none` should not install `@elysian/database
 all, the second direction stops being a matter of taste and starts being a
 contradiction.
 
-## 5. Deferrable providers
+## 3. Deferrable providers
 
 Laravel's own answer to a long provider list, and one this framework has no
 version of. `Mail`, `Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation`
