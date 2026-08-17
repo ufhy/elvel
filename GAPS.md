@@ -54,23 +54,11 @@ And `file-type`, with `strtok3` and the tokenizer packages behind it, is not
 ours to remove: it is a peer dependency of Elysia itself.
 
 Rows are deleted as they are closed, never narrowed — a list that cannot shrink
-hides all progress.
+hides all progress. One left.
 
 ---
 
-## 1. The no-auth story
-
-Only after the rows above, because the answer moves. Three directions:
-
-- leave `--kit=none` empty, as Laravel leaves it;
-- have `none` ship one working data chain — model, migration, factory, seeder;
-- add a fourth kit and leave `none` as bare as it is.
-
-If the pruning concludes that `--kit=none` should not install `@elysian/database` at
-all, the second direction stops being a matter of taste and starts being a
-contradiction.
-
-## 2. Four seconds before anything happens
+## 1. Four seconds before anything happens
 
 Every `artisan` command and every `bun run dev` in the auth kit waits four
 seconds before doing any work. `artisan list` — which prints a table and exits —
@@ -98,7 +86,11 @@ about a fifth of the module loading — perhaps 700 ms of 4005, against real
 complexity: a container that can resolve a binding by loading a package, and a
 rule that a deferred provider's `register()` may not be async.
 
-Bundling saves 3470 ms and already works. So the question this row asks is not
-how to defer providers; it is why the development path pays a bundle's worth of
-work on every invocation when a build does not, and whether `artisan` and
-`serve` should be using one.
+Bundling saves 3470 ms and already works, so `artisan app:build` now exists and
+`optimize` runs it: a deploy gets `dist/artisan.js`, and `bun dist/artisan.js
+list` takes 0.604 s where `bun artisan.ts list` takes 4.019 s.
+
+What is left is development, where the bundle is the wrong tool — `bun run dev`
+watches source and rebuilding on every keystroke trades one wait for another.
+Four seconds per `artisan` invocation is still four seconds, and nothing here
+addresses it.
