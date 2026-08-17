@@ -70,17 +70,35 @@ If the pruning concludes that `--kit=none` should not install `@elysian/database
 all, the second direction stops being a matter of taste and starts being a
 contradiction.
 
-## 2. Deferrable providers
+## 2. Four seconds before anything happens
 
-Laravel's own answer to a long provider list, and one this framework has no
-version of. `Mail`, `Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation`
-and `Hashing` all implement `DeferrableProvider`: they declare what they provide,
-and the container registers them the first time one of those bindings is asked
-for. A manifest maps binding to provider, so the class is not even loaded before
-that.
+Every `artisan` command and every `bun run dev` in the auth kit waits four
+seconds before doing any work. `artisan list` — which prints a table and exits —
+takes 4.019s.
 
-It solves a different half of the problem than the rows above. Per-kit lists stop
-an application installing and bundling what it cannot use; deferring stops it
-*booting* what it has not used yet. Worth having once the lists are settled,
-because the two compose: a kit that legitimately needs the mailer still should
-not pay for it on a request that sends no mail.
+Measured, because the obvious culprit is the wrong one:
+
+    plain   2047 ms unbundled     221 ms bundled
+    auth    4005 ms unbundled     535 ms bundled
+
+    of the auth kit's 4005 ms:
+      3761 ms   loading the provider modules
+       244 ms   config, register, boot, routes
+
+So it is not the providers doing work at boot — that is six per cent of it. It
+is Bun transpiling something like a thousand small TypeScript files, every time,
+with nothing cached between runs. Bundling removes it almost entirely, which is
+what the two right-hand numbers are.
+
+This row is what remains of a row that read "deferrable providers", after the
+measurement disproved its premise. Laravel defers `Mail`, `Cache`, `Queue`,
+`Validation`, `Broadcasting`, `Translation` and `Hashing` through
+`DeferrableProvider`, and porting that here would have saved the 244 ms and
+about a fifth of the module loading — perhaps 700 ms of 4005, against real
+complexity: a container that can resolve a binding by loading a package, and a
+rule that a deferred provider's `register()` may not be async.
+
+Bundling saves 3470 ms and already works. So the question this row asks is not
+how to defer providers; it is why the development path pays a bundle's worth of
+work on every invocation when a build does not, and whether `artisan` and
+`serve` should be using one.
