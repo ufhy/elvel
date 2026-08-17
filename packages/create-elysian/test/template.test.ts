@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { readdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 const root = resolve(import.meta.dir, '..', '..', '..')
 const templateDir = resolve(import.meta.dir, '..', 'template')
@@ -40,6 +41,14 @@ describe('the template ships every package', () => {
     expect<string[]>(declared as string[]).toEqual(await workspacePackages())
   })
 
+  /**
+   * The template is the union, not what any one application installs.
+   *
+   * It has to name every package, because a kit is copied over it and cannot add
+   * a dependency the base never mentioned. What each kit actually keeps is
+   * decided after the copy, by reading the imports — see the scaffolding tests
+   * further down.
+   */
   test("the template's package.json depends on all of them", async () => {
     const manifest = await Bun.file(resolve(templateDir, '_package.json')).json()
     const depended = Object.keys(manifest.dependencies as Record<string, string>)
@@ -445,5 +454,110 @@ describe('the versions the template pins', () => {
     }
 
     expect<string[]>(mismatched).toEqual([])
+  })
+})
+
+/**
+ * What a scaffolded application ends up depending on.
+ *
+ * The template names all twenty-six framework packages; an application that
+ * serves a landing page imports thirteen of them. The difference is not
+ * cosmetic and not something a bundler can help with — an unused dependency is
+ * downloaded, resolved, and written into the lockfile whether or not a single
+ * line of it is ever reached.
+ *
+ * These scaffold for real, with `--no-install`, because the pruning happens
+ * after the kit is copied over the template and reads the files that land. A
+ * test against the template alone would be testing the wrong artefact.
+ */
+describe('what a scaffolded application installs', () => {
+  const scaffolds = new Map<string, Record<string, string>>()
+
+  async function dependencies(kit: string): Promise<Record<string, string>> {
+    const cached = scaffolds.get(kit)
+    if (cached) return cached
+
+    const target = join(tmpdir(), `elysian-deps-${kit}-${process.pid}`)
+
+    await rm(target, { recursive: true, force: true })
+
+    const scaffolded = Bun.spawnSync({
+      cmd: [
+        'bun',
+        resolve(import.meta.dir, '..', 'src', 'index.ts'),
+        target,
+        `--kit=${kit}`,
+        '--no-install',
+        '--force'
+      ],
+      cwd: root,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    expect<number>(scaffolded.exitCode).toBe(0)
+
+    const manifest = (await Bun.file(join(target, 'package.json')).json()) as {
+      dependencies: Record<string, string>
+    }
+
+    await rm(target, { recursive: true, force: true })
+
+    scaffolds.set(kit, manifest.dependencies)
+
+    return manifest.dependencies
+  }
+
+  test('an application with no auth does not install better-auth', async () => {
+    const none = Object.keys(await dependencies('none'))
+
+    expect<string[]>(none).not.toContain('better-auth')
+    expect<string[]>(none).not.toContain('@elysian/auth')
+
+    // Nor the packages behind the things it does not do.
+    for (const absent of ['mail', 'queue', 'notifications', 'storage', 'hashing']) {
+      expect<string[]>(none).not.toContain(`@elysian/${absent}`)
+    }
+  })
+
+  test('and the auth kits do', async () => {
+    for (const kit of ['auth', 'api']) {
+      const installed = Object.keys(await dependencies(kit))
+
+      expect<string[]>(installed).toContain('better-auth')
+      expect<string[]>(installed).toContain('@elysian/auth')
+      expect<string[]>(installed).toContain('@elysian/mail')
+    }
+  })
+
+  /**
+   * Two dependencies no import scan can see, and both would break the
+   * application quietly: `elysia` arrives through `@elysian/http` rather than
+   * through an import, and `@kitajs/html` is named by `tsconfig.json` as the JSX
+   * runtime, which is a reference no scan of the source will ever find.
+   */
+  test('the invisible dependencies survive pruning', async () => {
+    for (const kit of ['none', 'auth', 'api']) {
+      const installed = Object.keys(await dependencies(kit))
+
+      expect<string[]>(installed).toContain('elysia')
+      expect<string[]>(installed).toContain('@kitajs/html')
+    }
+  })
+
+  test('nothing is kept that the template did not offer', async () => {
+    const template = (await Bun.file(resolve(templateDir, '_package.json')).json()) as {
+      dependencies: Record<string, string>
+    }
+
+    const offered = new Set(Object.keys(template.dependencies))
+
+    for (const kit of ['none', 'auth', 'api']) {
+      for (const name of Object.keys(await dependencies(kit))) {
+        expect<string>(`${kit}: ${name}`).toBe(
+          offered.has(name) ? `${kit}: ${name}` : `${kit}: not offered by the template`
+        )
+      }
+    }
   })
 })

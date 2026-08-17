@@ -191,6 +191,8 @@ async function main(): Promise<number> {
     await registerKitRoutes(target, KITS[kit as string]?.routes ?? [])
   }
 
+  await pruneDependencies(target)
+
   // Ship a working .env, not just the example — with its secrets filled in.
   const exampleEnv = Bun.file(join(target, '.env.example'))
   if (await exampleEnv.exists()) {
@@ -436,6 +438,59 @@ async function copyTemplate(
   }
 
   return count
+}
+
+/**
+ * Dependencies a scaffolded application never mentions, and always needs.
+ *
+ * `elysia` is the server the framework is built on and reaches the application
+ * through `@elysian/http`, not through an import of its own. `@kitajs/html` is
+ * the JSX runtime `tsconfig.json` names in `jsxImportSource`, which is a
+ * reference no import scan can see.
+ */
+const ALWAYS_DEPENDED_ON = new Set(['elysia', '@kitajs/html'])
+
+/**
+ * Drop the dependencies this application does not import.
+ *
+ * The template lists every framework package, because it has to be the union of
+ * what any kit might use. What each kit *does* use is narrower — `--kit=none`
+ * has no auth, no mailer and no queue — and in a framework of twenty-six
+ * packages that difference is real: an unused dependency is still downloaded,
+ * still resolved, still in the lockfile, and no bundler can reach it.
+ *
+ * Read rather than declared, deliberately. A fourth kit gets this for free, and
+ * a kit that starts importing something gets the dependency the moment it does,
+ * which a hand-written list per kit would not survive.
+ *
+ * Only `dependencies` is touched. `devDependencies` is the toolchain, the same
+ * for every application whatever it imports.
+ */
+async function pruneDependencies(target: string): Promise<void> {
+  const imported = new Set<string>(ALWAYS_DEPENDED_ON)
+
+  for await (const path of new Bun.Glob('**/*.{ts,tsx}').scan({ cwd: target, absolute: true })) {
+    const source = await Bun.file(path).text()
+
+    for (const match of source.matchAll(/(?:from|import)\s*\(?\s*'([^'.][^']*)'/g)) {
+      const specifier = match[1] as string
+
+      // `@scope/name/sub` and `name/sub` both belong to the package in front.
+      const parts = specifier.split('/')
+      imported.add(specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] as string))
+    }
+  }
+
+  const path = join(target, 'package.json')
+  const manifest = (await Bun.file(path).json()) as {
+    dependencies?: Record<string, string>
+  }
+
+  manifest.dependencies = Object.fromEntries(
+    Object.entries(manifest.dependencies ?? {}).filter(([name]) => imported.has(name))
+  )
+
+  await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 
 function substitute(contents: string, replacements: Replacements): string {
