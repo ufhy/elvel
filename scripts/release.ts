@@ -342,18 +342,30 @@ const order = [
 /**
  * The path npm will actually be able to open.
  *
- * `npm` on this machine may be the Windows binary reached through WSL interop,
- * and it reads a POSIX path as a Windows one: `/mnt/e/…/x.tgz` became
+ * `npm` on a developer machine may be the Windows binary reached through WSL
+ * interop, and it reads a POSIX path as a Windows one: `/mnt/e/…/x.tgz` became
  * `E:\mnt\e\…\x.tgz` and the publish died with ENOENT before uploading
- * anything. `wslpath -w` gives the form that binary understands, and where it
- * does not exist the path is already right.
+ * anything. `wslpath -w` gives the form that binary understands.
+ *
+ * Everywhere else there is no `wslpath` and the path is already right — but
+ * asking for it has to be wrapped, not merely checked for a non-zero exit.
+ * `Bun.spawnSync` *throws* when the executable is missing, which took a release
+ * down on a Linux runner at the first tarball, after every check had passed.
  */
 function forNpm(path: string): string {
-  const converted = Bun.spawnSync({ cmd: ['wslpath', '-w', path], stdout: 'pipe', stderr: 'pipe' })
+  try {
+    const converted = Bun.spawnSync({
+      cmd: ['wslpath', '-w', path],
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
 
-  if (converted.exitCode !== 0) return path
+    if (converted.exitCode !== 0) return path
 
-  return new TextDecoder().decode(converted.stdout).trim() || path
+    return new TextDecoder().decode(converted.stdout).trim() || path
+  } catch {
+    return path
+  }
 }
 
 /**
