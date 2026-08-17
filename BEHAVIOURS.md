@@ -1054,6 +1054,41 @@ One thing worth knowing, and two worth remembering:
   that forgets the template fails there.
 
 
+## What boot costs, and what to do about it
+
+**A quarter of a second of that four seconds is the application.** The auth kit
+boots in 4005 ms, of which 3761 ms is Bun loading and transpiling modules and
+244 ms is config, provider registration, boot, and routes. There is no cache
+between processes: `BUN_RUNTIME_TRANSPILER_CACHE_PATH` holds only files above
+50 KB, and a framework of small modules has almost none — measured with it set,
+the cache took ten entries and the boot did not move.
+
+This is why there is no `DeferrableProvider` here. Laravel defers `Mail`,
+`Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation` and `Hashing`, and
+porting that would have bought some fraction of those 244 ms, against a container
+that resolves bindings by loading packages and a rule that a deferred provider's
+`register()` may not be async. The measurement is what decided against it.
+
+**Bundling is the cache PHP gets for free.**
+
+    plain   2047 ms from source     221 ms bundled
+    auth    4005 ms from source     535 ms bundled
+    artisan list    4.019 s from source    0.604 s bundled
+
+So `artisan app:build` writes `dist/artisan.js`, `optimize` runs it, and
+`artisan.ts` hands over to that bundle when it is newer than every source file.
+Nothing happens until somebody builds one, and any edit makes it stale — a fast
+path that is used without being opted into is a fast path that eventually runs
+yesterday's code.
+
+**`bun --hot` looks like the answer and silently is not.** The process stays up,
+the routes do not change: a handler edited under `--hot` keeps answering with the
+old body, indefinitely, with no error and no reload line in the log. Elysia
+builds its route table once at boot, and re-evaluating a module does not rewire a
+server that is already listening. `--watch` restarts the process instead and
+picks the change up in 2676 ms, which is why `bun run dev` uses it.
+
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

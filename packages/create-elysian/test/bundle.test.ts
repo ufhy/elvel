@@ -190,4 +190,45 @@ describe('building the application', () => {
     },
     PATIENCE
   )
+
+  /**
+   * And `artisan.ts` uses it, but only while it is true.
+   *
+   * The fast path is the part that could go wrong quietly: a bundle that keeps
+   * being used after the source changed runs code nobody wrote any more, and
+   * every symptom of that points somewhere else. So both directions are checked
+   * — the handover happens, and one edited file ends it.
+   */
+  test(
+    'and artisan hands over to it until a file changes',
+    async () => {
+      await application
+
+      const list = () =>
+        new TextDecoder().decode(
+          Bun.spawnSync({
+            cmd: ['bun', 'artisan.ts', 'list'],
+            cwd: target,
+            stdout: 'pipe',
+            stderr: 'pipe'
+          }).stdout
+        )
+
+      // Marked in the bundle rather than in the source, so its presence can only
+      // mean the bundle answered.
+      const bundle = join(target, 'dist', 'artisan.js')
+      const built = await Bun.file(bundle).text()
+
+      await Bun.write(bundle, built.replace('Serve the application', 'Serve the bundled one'))
+
+      expect<string>(list()).toContain('Serve the bundled one')
+
+      const controller = join(target, 'app', 'Http', 'Controllers', 'PageController.ts')
+
+      await Bun.write(controller, await Bun.file(controller).text())
+
+      expect<string>(list()).toContain('Serve the application')
+    },
+    PATIENCE
+  )
 })
