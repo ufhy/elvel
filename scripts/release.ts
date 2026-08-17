@@ -33,6 +33,18 @@ const ROOT = resolve(import.meta.dir, '..')
 const OUT = join(ROOT, 'dist-release')
 
 const publish = Bun.argv.includes('--publish')
+
+/**
+ * A one-time password, when the account requires one to publish.
+ *
+ * npm refuses with `EOTP` on an account set to "auth and writes", and one code
+ * has to cover all twenty-seven uploads — they run back to back inside its
+ * validity window, so this is passed to each of them rather than asked for again.
+ *
+ * An automation token avoids the whole question and is what CI would use: npm
+ * exempts those from 2FA, and then `NPM_CONFIG_TOKEN` is all this needs.
+ */
+const otp = Bun.argv.find((one) => one.startsWith('--otp='))?.slice('--otp='.length)
 /**
  * `latest`, deliberately, even though every version so far is a prerelease.
  *
@@ -243,9 +255,35 @@ const order = [
   ...packed.filter((one) => !first.includes(one.manifest.name))
 ].filter(Boolean) as typeof packed
 
+/**
+ * The path npm will actually be able to open.
+ *
+ * `npm` on this machine may be the Windows binary reached through WSL interop,
+ * and it reads a POSIX path as a Windows one: `/mnt/e/…/x.tgz` became
+ * `E:\mnt\e\…\x.tgz` and the publish died with ENOENT before uploading
+ * anything. `wslpath -w` gives the form that binary understands, and where it
+ * does not exist the path is already right.
+ */
+function forNpm(path: string): string {
+  const converted = Bun.spawnSync({ cmd: ['wslpath', '-w', path], stdout: 'pipe', stderr: 'pipe' })
+
+  if (converted.exitCode !== 0) return path
+
+  return new TextDecoder().decode(converted.stdout).trim() || path
+}
+
 for (const { manifest, tarball } of order) {
   const run = Bun.spawnSync({
-    cmd: ['npm', 'publish', tarball, '--access', 'public', '--tag', tag],
+    cmd: [
+      'npm',
+      'publish',
+      forNpm(tarball),
+      '--access',
+      'public',
+      '--tag',
+      tag,
+      ...(otp ? [`--otp=${otp}`] : [])
+    ],
     cwd: ROOT,
     stdout: 'inherit',
     stderr: 'inherit'
