@@ -1,6 +1,6 @@
 {
   "name": "@elvel/testing",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Test helpers for Elvel — an HTTP client, response assertions, and database refreshing",
   "keywords": [
     "assertions",

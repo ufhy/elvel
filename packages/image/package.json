@@ -1,6 +1,6 @@
 {
   "name": "@elvel/image",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Images for Elvel — dimensions everywhere, transformations where a backend exists",
   "keywords": [
     "bun",

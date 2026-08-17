@@ -180,7 +180,7 @@ async function main(): Promise<number> {
 
   const replacements: Replacements = {
     name: name.replace(/^.*\//, ''),
-    ...frameworkDependencies(workspaceMode)
+    ...(await frameworkDependencies(workspaceMode))
   }
 
   let written = await copyTemplate(TEMPLATE_DIR, target, replacements)
@@ -395,11 +395,30 @@ async function findMonorepoRoot(): Promise<string | undefined> {
   }
 }
 
-function frameworkDependencies(workspaceMode: boolean): Replacements {
-  const entries = FRAMEWORK_PACKAGES.map((name) => [
-    `dep_${name}`,
-    workspaceMode ? 'workspace:*' : '^0.0.1'
-  ])
+/**
+ * The version a scaffolded application asks for, outside this repository.
+ *
+ * This installer's own version, because every package is released in lockstep
+ * with it — `create-elvel@1.0.0-alpha.1` belongs with `@elvel/core@1.0.0-alpha.1`
+ * and nothing else. It used to be the literal `^0.0.1`, which no published
+ * package has ever carried: `bunx create-elvel` scaffolded an application whose
+ * `bun install` could not resolve a single framework package, and the failure
+ * arrived as a wall of 404s with no hint that the scaffolder had written a
+ * version out of thin air.
+ *
+ * Read from disk rather than compiled in, so a release cannot forget it.
+ */
+async function installerVersion(): Promise<string> {
+  const manifest = (await Bun.file(resolve(import.meta.dir, '..', 'package.json')).json()) as {
+    version?: string
+  }
+
+  return manifest.version ?? '*'
+}
+
+async function frameworkDependencies(workspaceMode: boolean): Promise<Replacements> {
+  const range = workspaceMode ? 'workspace:*' : `^${await installerVersion()}`
+  const entries = FRAMEWORK_PACKAGES.map((name) => [`dep_${name}`, range])
 
   return Object.fromEntries(entries) as Replacements
 }

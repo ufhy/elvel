@@ -662,3 +662,66 @@ describe('the config files a kit ships', () => {
     }
   })
 })
+
+/**
+ * The version a scaffolded application asks for.
+ *
+ * `create-elvel@1.0.0-alpha.1` wrote `^0.0.1` for every framework package —
+ * a version no `@elvel/*` package has ever carried — so `bunx create-elvel`
+ * produced an application whose `bun install` answered 404 twenty-six times. It
+ * could not fail here, because a scaffold inside this checkout is a workspace
+ * member and gets `workspace:*` instead, which is the one path the tests took.
+ *
+ * So this asserts the other path: the range written outside a workspace has to be
+ * the installer's own version, since the packages are released in lockstep with
+ * it.
+ */
+describe('what a scaffolded application asks npm for', () => {
+  test('the installer never invents a version', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+
+    // A literal range in the scaffolder is how `^0.0.1` survived: it read as a
+    // sensible default and was true of nothing.
+    const literal = source.match(
+      /dep_\$\{name\}`,\s*\n?\s*workspaceMode \? 'workspace:\*' : '([^']+)'/
+    )
+
+    expect(literal).toBeNull()
+  })
+
+  test('and asks for its own version', async () => {
+    const manifest = (await Bun.file(resolve(import.meta.dir, '..', 'package.json')).json()) as {
+      version: string
+    }
+
+    const target = join(tmpdir(), `elvel-range-${process.pid}`)
+
+    await rm(target, { recursive: true, force: true })
+
+    const scaffolded = Bun.spawnSync({
+      cmd: [
+        'bun',
+        resolve(import.meta.dir, '..', 'src', 'index.ts'),
+        target,
+        '--kit=none',
+        '--no-install',
+        '--force'
+      ],
+      cwd: tmpdir(),
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    expect<number>(scaffolded.exitCode).toBe(0)
+
+    const written = (await Bun.file(join(target, 'package.json')).json()) as {
+      dependencies: Record<string, string>
+    }
+
+    await rm(target, { recursive: true, force: true })
+
+    // Outside the checkout there is no workspace to link, so every framework
+    // package has to name a version npm can actually resolve.
+    expect<string>(written.dependencies['@elvel/core'] as string).toBe(`^${manifest.version}`)
+  })
+})

@@ -1,6 +1,6 @@
 {
   "name": "@elvel/console",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Artisan for Elvel — command signatures, generators, prompts, and the kernel that runs them",
   "keywords": [
     "artisan",
