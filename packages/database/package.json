@@ -1,6 +1,6 @@
 {
   "name": "@elvel/database",
-  "version": "1.0.0-alpha.5",
+  "version": "1.0.0-alpha.6",
   "description": "A Laravel Eloquent-style Active Record ORM for Bun — SQLite, Postgres and MySQL",
   "keywords": [
     "bun",
