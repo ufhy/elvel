@@ -3,33 +3,54 @@
 Laravel's structure and developer experience, built on [Elysia](https://elysiajs.com)
 and Bun.
 
-**Status: application core, CLI, views, events, logging and the database layer
-(query builder, models, migrations) are built.** Validation, HTTP form requests
-and auth are not — see the roadmap.
+**Status: alpha, published on npm.** Twenty-seven packages at `1.0.0-alpha.6`,
+each carrying a provenance attestation linking it to the commit and workflow that
+built it. Every package the roadmap named is built; the API is still free to
+change between alphas.
 
 ## Quick start
 
 ```bash
-bun install
-bun run create apps/blog   # scaffold
-bun install                # link the new workspace member
-cd apps/blog
-bun artisan key:generate   # per application; never a shipped default
-bun artisan auth:schema    # better-auth's tables, from your config/auth.ts
-bun artisan migrate
+bun create elvel my-app
+cd my-app
 bun run dev
 ```
 
-A scaffolded application registers **every** package, with the drivers that need
-nothing running: `cache=file`, `queue=sync`, `mail=log`, `disk=local`, SQLite. So
-`bun run dev` works before Docker does. Switching a driver to `database` is one
-env change plus the migration its command writes — `artisan cache:table`,
-`queue:table`, `queue:failed-table`, `notifications:table`.
+That is the whole of it: the scaffolder installs the packages, writes an `.env`
+with its own generated secrets, and runs the migrations, so there is no
+`key:generate` step and no placeholder key to rotate.
 
-`bun create elvel my-app` does **not** work yet. `bun create <name>` resolves
-only via `bunx create-<name>` on npm, a GitHub repo, or a template folder in
-`$HOME/.bun-create` / `./.bun-create` — never a workspace package. The short
-form starts working once `create-elvel` is published.
+Three starter kits, chosen with `--kit` or at the prompt:
+
+| | what it is | providers | dependencies |
+|---|---|---:|---:|
+| `none` | a landing page, no database | 10 | 14 |
+| `auth` | sign in, sign up, a dashboard, settings | 17 | 22 |
+| `api` | bearer-token auth, JSON, no views | 16 | 21 |
+
+**An application installs only what its kit uses.** This is the one place Elvel
+departs from Laravel by necessity: Laravel's components arrive inside a single
+Composer package whether or not you touch them, while these are twenty-seven npm
+packages, and registering all of them took a landing page from 1.0 MB to 3.7 MB.
+So `bootstrap/providers.ts` lists what an application registers, and the kit
+decides what goes in it.
+
+Adding something later is three steps and the framework has all three — a
+database, for instance, which `--kit=none` does not install:
+
+```bash
+bun add @elvel/database
+bun artisan config:publish database
+```
+
+then a line in `bootstrap/providers.ts`. After that `make:model`, `migrate` and
+the rest are registered.
+
+The drivers that ship need nothing running — `cache=file`, `queue=sync`,
+`mail=log`, `disk=local`, SQLite — so `bun run dev` works before Docker does.
+Switching one to `database` is an env change plus the migration its command
+writes: `artisan cache:table`, `queue:table`, `queue:failed-table`,
+`notifications:table`.
 
 Open <http://localhost:3000>.
 
@@ -393,17 +414,37 @@ events or write logs.
 
 ## Development
 
+Working on the framework itself rather than on an application built with it:
+
 ```bash
+git clone https://github.com/ufhy/elvel
+cd elvel
+bun install
 bun run verify   # lint -> typecheck -> test -> smoke. Run this on every change.
 ```
+
+To scaffold an application *inside* the checkout, against the packages you are
+editing rather than the published ones:
+
+```bash
+bun run create apps/blog
+bun install                # link the new workspace member
+cd apps/blog && bun run dev
+```
+
+A scaffold inside the checkout becomes a workspace member and resolves
+`@elvel/*` by symlink. That is convenient and it hides things: a manifest is only
+ever exercised by somebody else's install, which is how a published release once
+went out declaring none of the packages its own source imported.
+`tests/publishable.test.ts` checks the manifests directly for that reason.
 
 Individually:
 
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 692 tests, including 64 against real Postgres and MySQL
-bun run smoke    # 114 checks against the real playground app
+bun run test     # 2,462 tests, including those against real Postgres and MySQL
+bun run smoke    # 783 checks against the real playground app
 ```
 
 ### playground/
@@ -714,3 +755,18 @@ notifications, and the encryption package the last three items were waiting on
 
 Where each package stops — and why — is in
 [`BEHAVIOURS.md`](BEHAVIOURS.md).
+
+What is left is not features. Two things worth knowing before depending on this:
+
+**Packages ship TypeScript source**, so your `tsc` compiles their internals. That
+makes the types exact and it makes our problems yours: `@elvel/mail` imported an
+untyped subpath and applications that installed it failed their own typecheck
+while ours passed, because the types sat in this repository's root. Building each
+package to one file would end that class of bug, and measured, it also made boot
+35 to 40 per cent *slower* — so it is not done, and `BEHAVIOURS.md` has the
+numbers.
+
+**Nothing here has run in production.** The suite covers SQLite, Postgres and
+MySQL, the queue drivers, and both caches, and the smoke run drives a real
+application over a socket. None of that is the same as a year of somebody else's
+traffic.
