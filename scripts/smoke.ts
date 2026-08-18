@@ -78,6 +78,11 @@ function plain(value: string): string {
 
 console.log(pc.bold(pc.cyan('\nElvel smoke test')))
 
+// Writes `playground/.env` from the example when it is missing, and has to run
+// before the line below reads the configuration. `bunfig.toml` preloads the same
+// module for `bun test`.
+import './playground-env.ts'
+
 const app = (await import('../playground/bootstrap/app.ts')).default
 
 /**

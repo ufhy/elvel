@@ -1,0 +1,7 @@
+# Bun evaluates this before any test file, which is the only moment early enough
+# to matter: a playground test imports `bootstrap/app.ts` on its first line, and
+# the configuration is read there. The script writes `playground/.env` from the
+# example when it is missing — see the comment in it for why the file is not in
+# git.
+[test]
+preload = ["./scripts/playground-env.ts"]

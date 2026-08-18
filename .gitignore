@@ -22,6 +22,11 @@ apps/
 .env
 .env.local
 
+# The playground's too. It was committed so CI had one, and it is byte-identical
+# to `playground/.env.example` — so the copy is made where it is needed instead,
+# and this repository stops contradicting the advice it gives applications.
+playground/.env
+
 # bun.lock is committed on purpose so `bun run verify` is reproducible in CI.
 
 # A scaffolded application's database is built, never shipped — and the template
@@ -29,3 +34,7 @@ apps/
 **/database/*.sqlite
 **/database/*.sqlite-shm
 **/database/*.sqlite-wal
+
+# The smoke run builds one here to migrate from scratch, and SQLite's
+# write-ahead log outlives the process that made it.
+playground/storage/framework/*.sqlite*
