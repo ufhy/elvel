@@ -764,3 +764,106 @@ describe('the manifest a scaffold is given', () => {
     expect<string>(manifest.name as string).toBe(basename(target))
   })
 })
+
+/**
+ * What the scaffolded README promises, and what the application can actually do.
+ *
+ * The README it replaced had drifted into four falsehoods: it linked to
+ * `https://github.com/` with no path, told the reader to run `bun install` and
+ * copy `.env` when the scaffolder had already done both, and listed `make:model`,
+ * `migrate` and `db:seed` — none of which exist in an application with no
+ * database, which is what `--kit=none` is.
+ *
+ * Nothing about that fails a test or a boot. It fails a person, on their first
+ * five minutes. So the claims are checked here.
+ */
+describe('the README a scaffolded application is given', () => {
+  const readme = async (): Promise<string> =>
+    await Bun.file(resolve(templateDir, 'README.md')).text()
+
+  test('every command it shows exists in the kit that ships it', async () => {
+    const text = await readme()
+
+    /**
+     * Only the commands shown *before* `## Adding a database`.
+     *
+     * That section documents `make:model`, `migrate` and `db:seed` on purpose —
+     * behind an explicit `bun add @elvel/database`, which is the whole point of
+     * it. What must not happen is the earlier sections naming a command this
+     * application does not have, which is exactly how the previous README came to
+     * promise a database to a kit that has none.
+     */
+    const upfront = text.slice(0, text.indexOf('## Adding a database'))
+
+    // `bun run elvel <command>` — the form the README uses throughout.
+    const shown = [...upfront.matchAll(/bun run elvel ([a-z][\w:-]*)/g)]
+      .map((match) => match[1] as string)
+      .filter((name) => name !== 'elvel')
+
+    expect<number>(shown.length).toBeGreaterThan(8)
+
+    /**
+     * Read from the packages the base template registers rather than from a
+     * running application: a test that boots one would need an install, and the
+     * question here is only whether the command's provider is in the list.
+     */
+    const providers = await Bun.file(resolve(templateDir, 'bootstrap', 'providers.ts')).text()
+    const registered = new Set(
+      [...providers.matchAll(/from '@elvel\/([\w-]+)'/g)].map((match) => match[1] as string)
+    )
+
+    const commands = new Map<string, string>()
+
+    for (const pkg of [...registered, 'console']) {
+      const dir = resolve(root, 'packages', pkg, 'src')
+
+      for await (const path of new Bun.Glob('**/*.ts').scan({ cwd: dir, absolute: true })) {
+        for (const match of (await Bun.file(path).text()).matchAll(
+          /static override signature =\s*\n?\s*'([a-z][\w:-]*)/g
+        )) {
+          commands.set(match[1] as string, pkg)
+        }
+      }
+    }
+
+    const missing = shown.filter((name) => !commands.has(name))
+
+    expect<string[]>(missing).toEqual([])
+  })
+
+  test('and it does not tell the reader to install what is already installed', async () => {
+    const text = await readme()
+    const start = text.slice(text.indexOf('## Getting started'), text.indexOf('## Commands'))
+
+    // The scaffolder runs the install, writes the `.env` with its own secrets and
+    // migrates. Telling somebody to do it again is how `key:generate` came to be
+    // in a README while the scaffolder refused to run it.
+    expect<boolean>(start.includes('bun install')).toBe(false)
+    expect<boolean>(start.includes('cp .env.example')).toBe(false)
+    expect<boolean>(start.includes('key:generate')).toBe(false)
+  })
+
+  /**
+   * And the database section is the only place those commands may appear.
+   *
+   * The pairing matters: the check above trusts that section to be the exception,
+   * so this one holds it to being the exception.
+   */
+  test('and the database commands appear only where they are earned', async () => {
+    const text = await readme()
+    const upfront = text.slice(0, text.indexOf('## Adding a database'))
+
+    for (const command of ['make:model', 'migrate', 'db:seed', 'db:show']) {
+      expect<string>(`${command}: ${upfront.includes(command)}`).toBe(`${command}: false`)
+    }
+  })
+
+  test('and every link in it has somewhere to go', async () => {
+    const bare = [...(await readme()).matchAll(/\]\((https?:\/\/[^)]*)\)/g)]
+      .map((match) => match[1] as string)
+      .filter((url) => /^https?:\/\/[^/]+\/?$/.test(url))
+
+    // `[Elvel](https://github.com/)` shipped for weeks.
+    expect<string[]>(bare).toEqual([])
+  })
+})
