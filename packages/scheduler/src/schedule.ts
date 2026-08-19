@@ -9,7 +9,7 @@ type Dispatchable = { constructor: { name: string } }
  * The schedule — `Illuminate\Console\Scheduling\Schedule`.
  *
  * Four ways in, and they all produce the same kind of entry: a callback with a
- * cron expression. An artisan command becomes a callback that runs the command, a
+ * cron expression. An elvel command becomes a callback that runs the command, a
  * queued job becomes one that dispatches it. That is what keeps `schedule:run`
  * simple enough to trust.
  */
@@ -27,7 +27,7 @@ export class Schedule {
   }
 
   /**
-   * Run an artisan command.
+   * Run an elvel command.
    *
    * In this process, not a spawned one: there is no second runtime to start, and
    * the exit code comes back directly. The cost is that a slow command holds the
@@ -37,7 +37,7 @@ export class Schedule {
     const summary = [command, ...parameters].join(' ')
 
     const event = new ScheduledEvent(async () => {
-      const code = await this.app.make('artisan').run([command, ...parameters])
+      const code = await this.app.make('elvel').run([command, ...parameters])
 
       if (code !== 0) {
         throw new Error(`Scheduled command [${summary}] exited with code ${code}.`)

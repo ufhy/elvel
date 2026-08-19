@@ -49,10 +49,10 @@ export class DatabaseServiceProvider extends ServiceProvider {
 
     // Connections open lazily, so nothing is resolved here: a booted app with a
     // misconfigured database should still be able to run `migrate`.
-    if (!this.app.bound('artisan')) return
+    if (!this.app.bound('elvel')) return
 
     this.app
-      .make('artisan')
+      .make('elvel')
       .register(
         MigrateCommand,
         SchemaDumpCommand,

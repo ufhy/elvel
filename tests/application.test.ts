@@ -32,7 +32,7 @@ describe('bootstrap', () => {
 
   test('boots providers listed in config/app.ts', () => {
     expect(app.bound('view')).toBe(true)
-    expect(app.bound('artisan')).toBe(true)
+    expect(app.bound('elvel')).toBe(true)
   })
 
   test('container distinguishes bind from singleton', () => {
@@ -136,7 +136,7 @@ describe('http', () => {
 describe('console', () => {
   test('registers framework commands', () => {
     const names = app
-      .make('artisan')
+      .make('elvel')
       .all()
       .map((command) => command.signature.split(' ')[0])
 
@@ -147,10 +147,10 @@ describe('console', () => {
   })
 
   test('unknown commands exit non-zero', async () => {
-    expect(await app.make('artisan').run(['does:not-exist'])).toBe(1)
+    expect(await app.make('elvel').run(['does:not-exist'])).toBe(1)
   })
 
   test('route:list succeeds against the real route table', async () => {
-    expect(await app.make('artisan').run(['route:list', '--method', 'GET'])).toBe(0)
+    expect(await app.make('elvel').run(['route:list', '--method', 'GET'])).toBe(0)
   })
 })

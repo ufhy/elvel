@@ -20,7 +20,7 @@ export default {
    *
    * `file` is right for one machine and wrong for two: the session lives on
    * whichever container wrote it, so behind a load balancer people are logged out
-   * at random. `database` needs `artisan session:table && artisan migrate`.
+   * at random. `database` needs `elvel session:table && elvel migrate`.
    */
   table: env('SESSION_TABLE', 'sessions'),
 

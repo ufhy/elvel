@@ -6,7 +6,7 @@ import type { Spawner } from './runner.ts'
 /**
  * Run a console command in a child process — what `runInBackground()` needs.
  *
- * The child is this runtime running the application's own `artisan` entry point,
+ * The child is this runtime running the application's own `elvel` entry point,
  * which is the only thing a fresh process can be given: a closure cannot travel,
  * but a command name and its arguments can.
  *
@@ -21,7 +21,7 @@ import type { Spawner } from './runner.ts'
  */
 export function spawner(app: ApplicationContract): Spawner {
   return async ({ name, parameters }, capture) => {
-    const entry = app.config.get<string>('schedule.artisan', join(app.basePath(), 'artisan.ts'))
+    const entry = app.config.get<string>('schedule.elvel', join(app.basePath(), 'elvel.ts'))
 
     const runner = new ProcessManager().path(app.basePath())
     const configured = capture ? runner : runner.inherit()

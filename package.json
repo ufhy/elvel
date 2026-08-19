@@ -15,8 +15,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "smoke": "bun scripts/smoke.ts",
     "verify": "bun run lint && bun run typecheck && bun run test && bun run smoke",
-    "playground": "bun playground/artisan.ts",
-    "playground:dev": "bun --watch playground/artisan.ts serve",
+    "playground": "bun playground/elvel.ts",
+    "playground:dev": "bun --watch playground/elvel.ts serve",
     "playground:reset": "bun scripts/reset-playground.ts"
   },
   "devDependencies": {

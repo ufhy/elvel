@@ -5,7 +5,7 @@ export class MakeCommandCommand extends GeneratorCommand {
   static override signature =
     'make:command {name : Command class name, e.g. SendReports} {--force : Overwrite an existing file}'
 
-  static override description = 'Create a new Artisan command'
+  static override description = 'Create a new Elvel command'
 
   protected stub(): string {
     return 'command.stub'

@@ -4,7 +4,7 @@ import { log } from '@elvel/log'
 import type { OrderShipped } from '../Events/OrderShipped.ts'
 
 /**
- * Generated with `artisan make:listener NotifyWarehouse --event OrderShipped
+ * Generated with `elvel make:listener NotifyWarehouse --event OrderShipped
  * --queued`, then extended.
  *
  * Runs in a worker rather than in the request. It writes to the cache so a route

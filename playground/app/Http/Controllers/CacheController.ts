@@ -8,7 +8,7 @@ import { Article } from '../../Models/Article.ts'
  *
  * Every driver is reachable here: `?store=redis` (or `array`, `file`,
  * `database`) picks one, so the same routes exercise all four. Asserted by
- * `scripts/smoke.ts` and driven over the network with `artisan serve` + curl.
+ * `scripts/smoke.ts` and driven over the network with `elvel serve` + curl.
  */
 export default controller('cache')
   /** `remember` around a real query: the second call does not touch the database. */

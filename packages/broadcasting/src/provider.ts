@@ -52,8 +52,8 @@ export class BroadcastServiceProvider extends ServiceProvider {
   }
 
   override boot(): void {
-    if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(ChannelListCommand, MakeChannelCommand)
+    if (this.app.bound('elvel')) {
+      this.app.make('elvel').register(ChannelListCommand, MakeChannelCommand)
     }
 
     this.wireBroadcastableEvents()

@@ -2,7 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdir, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-/** What `artisan down` writes, and the middleware reads back. */
+/** What `elvel down` writes, and the middleware reads back. */
 export type MaintenancePayload = {
   /** Paths that answer normally anyway — a health check, a payment webhook. */
   except?: string[]
@@ -17,7 +17,7 @@ export type MaintenancePayload = {
   status?: number
   /** HTML rendered when `down` ran, not when the request arrived. */
   template?: string
-  /** When it went down, for `artisan about` and the log. */
+  /** When it went down, for `elvel about` and the log. */
   since: number
 }
 
@@ -145,7 +145,7 @@ export type MaintenanceStore = {
 /**
  * Maintenance mode kept in the **cache**, for a cluster.
  *
- * A file lives on one machine, so `artisan down` on a node behind a load
+ * A file lives on one machine, so `elvel down` on a node behind a load
  * balancer takes exactly that node down and leaves the rest serving. The cache
  * is shared, which is the whole reason to use it.
  *

@@ -1,7 +1,7 @@
 import { Model } from '@elvel/database'
 import { Article } from './Article.ts'
 
-/** Generated with `artisan make:model Tag -m`, then extended. */
+/** Generated with `elvel make:model Tag -m`, then extended. */
 export class Tag extends Model {
   static override fillable = ['label']
 

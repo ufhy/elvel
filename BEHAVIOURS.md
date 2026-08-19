@@ -91,7 +91,7 @@ Three things to know about pivots:
   the whole database for a write, so a second process is refused the instant it
   arrives: `database is locked`, with nothing to wait for. Write-ahead logging
   lets readers carry on while one writer works, which is what makes a test suite
-  and a running `artisan serve` able to share a file at all. `journalMode:
+  and a running `elvel serve` able to share a file at all. `journalMode:
   'delete'` restores the old behaviour for a filesystem where WAL cannot work —
   a network share, since WAL needs shared memory.
 - **`busy_timeout` is set before the journal mode, and the order is the point.**
@@ -113,7 +113,7 @@ Four things to know about a queued listener:
 
 - **It is a class, not a closure.** A worker is a different process, so only a name
   travels — the same constraint jobs have. `QueuedListener` is what a worker can
-  resolve; anything in `app/Listeners` is discovered, and `artisan make:listener X
+  resolve; anything in `app/Listeners` is discovered, and `elvel make:listener X
   --event Y --queued` writes one.
 - **The event is rebuilt from its class, not handed over as data.** `app/Events` is
   discovered into a registry, and the payload is poured into an instance without
@@ -613,7 +613,7 @@ Things worth knowing:
   that succeeds silently every night would otherwise send an empty mail every
   night, and mail nobody reads is mail nobody notices when it matters.
 
-## Artisan — the Laravel commands that have no counterpart
+## The CLI — the Laravel commands that have no counterpart
 
 Measured against `ArtisanServiceProvider` in Laravel 13.25.0. What is left after
 building everything that applies is not a backlog; each of these is absent
@@ -1048,7 +1048,7 @@ One thing worth knowing, and two worth remembering:
   `config/session.ts` also told a new application that cookies are signed "rather
   than encrypted" long after that stopped being true.
 - **What catches it now is registration.** The smoke run boots a scaffolded
-  application and asserts that a command from each package appears in `artisan
+  application and asserts that a command from each package appears in `elvel
   list` — a command only appears if its provider booted, which needs the
   dependency, the provider entry and the config file all present. A ninth package
   that forgets the template fails there.
@@ -1073,10 +1073,10 @@ that resolves bindings by loading packages and a rule that a deferred provider's
 
     plain   2047 ms from source     221 ms bundled
     auth    4005 ms from source     535 ms bundled
-    artisan list    4.019 s from source    0.604 s bundled
+    elvel list    4.019 s from source    0.604 s bundled
 
-So `artisan app:build` writes `dist/artisan.js`, `optimize` runs it, and
-`artisan.ts` hands over to that bundle when it is newer than every source file.
+So `elvel app:build` writes `dist/elvel.js`, `optimize` runs it, and
+`elvel.ts` hands over to that bundle when it is newer than every source file.
 Nothing happens until somebody builds one, and any edit makes it stale — a fast
 path that is used without being opted into is a fast path that eventually runs
 yesterday's code.

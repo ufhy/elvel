@@ -23,9 +23,7 @@ export class EncryptionServiceProvider extends ServiceProvider {
       const key = app.config.get<string>('app.key', '')
 
       if (key === '') {
-        throw new Error(
-          'APP_KEY is not set, so nothing can be encrypted. Run: artisan key:generate'
-        )
+        throw new Error('APP_KEY is not set, so nothing can be encrypted. Run: elvel key:generate')
       }
 
       return new Encrypter(key, {
@@ -40,9 +38,9 @@ export class EncryptionServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    if (this.app.bound('artisan')) {
+    if (this.app.bound('elvel')) {
       this.app
-        .make('artisan')
+        .make('elvel')
         .register(
           KeyGenerateCommand,
           EncryptionRotateCommand,
@@ -63,7 +61,7 @@ export class EncryptionServiceProvider extends ServiceProvider {
    *
    * What is handed over is a **deferred** encrypter, not a resolved one. The
    * binding above throws when `APP_KEY` is empty, and resolving it here meant the
-   * whole application refused to boot — including `artisan key:generate`, the one
+   * whole application refused to boot — including `elvel key:generate`, the one
    * command that fixes an empty key. The chicken-and-egg was hidden for as long
    * as the template shipped a placeholder key that counted as set.
    *

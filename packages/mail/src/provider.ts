@@ -25,8 +25,8 @@ export class MailServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(MakeMailCommand)
+    if (this.app.bound('elvel')) {
+      this.app.make('elvel').register(MakeMailCommand)
     }
 
     const manager = this.app.make('mail')

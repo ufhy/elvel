@@ -11,7 +11,7 @@ import app from '../bootstrap/app.ts'
  * to query. This runs the real migrations and seeders once, at import, and only
  * when the schema is missing.
  *
- * And a single file shared between the tests, a running `artisan serve` and
+ * And a single file shared between the tests, a running `elvel serve` and
  * whatever else is open is a file two processes write at once. SQLite lets one
  * writer in and refuses the other, so a whole suite fails together with
  * `database is locked` in a way that reads like a bug in every test. A database
@@ -44,8 +44,8 @@ const schema = await app.make('db').schema()
  * run would pile up rows until a unique index complained.
  */
 const fresh = !(await schema.hasTable('migrations'))
-const artisan = app.make('artisan')
+const elvel = app.make('elvel')
 
-await artisan.run(['migrate', '--force'])
+await elvel.run(['migrate', '--force'])
 
-if (fresh) await artisan.run(['db:seed'])
+if (fresh) await elvel.run(['db:seed'])

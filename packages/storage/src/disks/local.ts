@@ -319,7 +319,7 @@ export class LocalDisk implements Disk {
 
     if (!base) {
       throw new Error(
-        `Disk [${this.name}] has no URL. Set \`url\` in its configuration, and serve its root — \`artisan storage:link\` does that for the public disk.`
+        `Disk [${this.name}] has no URL. Set \`url\` in its configuration, and serve its root — \`elvel storage:link\` does that for the public disk.`
       )
     }
 

@@ -38,7 +38,7 @@ export type RunnerOptions = {
    * How to run an entry marked `runInBackground()`.
    *
    * Injected rather than built here: this file has no idea what a Bun process or
-   * an artisan binary is, and a test needs to watch what was started without
+   * an elvel binary is, and a test needs to watch what was started without
    * starting anything.
    */
   spawn?: Spawner

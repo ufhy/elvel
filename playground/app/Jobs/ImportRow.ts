@@ -2,7 +2,7 @@ import { cache } from '@elvel/cache'
 import { Job } from '@elvel/queue'
 
 /**
- * Generated with `artisan make:job ImportRow`, then extended.
+ * Generated with `elvel make:job ImportRow`, then extended.
  *
  * One row of a batch. `fail: true` makes it throw, so the batch's failure path
  * can be driven from a route.

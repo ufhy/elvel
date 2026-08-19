@@ -107,7 +107,7 @@ export class InstallBroadcastingCommand extends InstallCommand {
     await Bun.write(config, await this.readStub('config-broadcasting.stub'))
 
     this.output.tag('INFO', 'Created config/broadcasting.ts.')
-    this.comment('  Declare channels with: artisan make:channel <Name>')
+    this.comment('  Declare channels with: elvel make:channel <Name>')
 
     return 0
   }

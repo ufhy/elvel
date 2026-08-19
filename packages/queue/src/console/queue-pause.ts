@@ -30,7 +30,7 @@ export class QueuePauseCommand extends Command {
     await this.app.make('cache').store().forever(pauseKey(queue), true)
 
     this.output.tag('INFO', `Queue [${queue}] paused. Workers stay up and reserve nothing.`)
-    this.comment(`  Let it go again with: artisan queue:resume ${queue}`)
+    this.comment(`  Let it go again with: elvel queue:resume ${queue}`)
 
     return 0
   }

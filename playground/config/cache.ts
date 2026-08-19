@@ -20,7 +20,7 @@ export default {
     /** The default: no service to run, and it survives a restart. */
     file: { driver: 'file' },
 
-    /** Needs `artisan cache:table` and a migration. */
+    /** Needs `elvel cache:table` and a migration. */
     database: { driver: 'database', table: 'cache', lockTable: 'cache_locks' },
 
     redis: { driver: 'redis', url: env('REDIS_URL', 'redis://127.0.0.1:6379') }

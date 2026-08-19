@@ -13,7 +13,7 @@ import { Article } from '../../Models/Article.ts'
  *
  * `?mailer=array` keeps the message in memory so a route can read it back;
  * without it the configured mailer is used, which is `log` here. Asserted by
- * `scripts/smoke.ts` and driven over the network with `artisan serve` + curl.
+ * `scripts/smoke.ts` and driven over the network with `elvel serve` + curl.
  */
 export default controller('mail')
   /** Send now, and answer with what the transport reported. */

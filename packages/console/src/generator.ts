@@ -9,7 +9,7 @@ import type { CommandDefinition } from './signature.ts'
  *
  * Stubs are resolved from the application first (`stubs/<name>` in the project
  * root) and fall back to the ones shipped with this package — the same override
- * mechanism as Artisan's `stub:publish`.
+ * mechanism as Laravel's `stub:publish`.
  */
 export abstract class GeneratorCommand extends Command {
   /**

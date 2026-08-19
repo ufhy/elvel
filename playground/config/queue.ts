@@ -13,7 +13,7 @@ export default {
      */
     sync: { driver: 'sync' },
 
-    /** Needs `artisan queue:table` and a migration. */
+    /** Needs `elvel queue:table` and a migration. */
     database: {
       driver: 'database',
       table: 'jobs',

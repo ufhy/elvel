@@ -1,7 +1,7 @@
 import { Migration, type MigrationContext } from '@elvel/database'
 
 /**
- * Auth tables, generated from better-auth's schema by `artisan auth:schema`.
+ * Auth tables, generated from better-auth's schema by `elvel auth:schema`.
  *
  * The column names are better-auth's own (`emailVerified`, `userId`): every
  * plugin declares its fields that way, so renaming them here would break the

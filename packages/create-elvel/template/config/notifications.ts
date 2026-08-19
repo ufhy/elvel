@@ -5,7 +5,7 @@ export default {
   /**
    * Table the database channel writes to.
    *
-   * Run `artisan notifications:table` and `artisan migrate` before using that
+   * Run `elvel notifications:table` and `elvel migrate` before using that
    * channel; the mail and log channels need no table.
    */
   table: 'notifications'

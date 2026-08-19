@@ -11,7 +11,7 @@ import { ArticleResource } from '../Resources/ArticleResource.ts'
 /**
  * Where the packages meet: a form request validates, a model persists, and a
  * resource serialises. Asserted by `scripts/smoke.ts`, and exercised by hand
- * with `artisan serve` + curl.
+ * with `elvel serve` + curl.
  *
  * These routes sit under `/check/*`, which the playground exempts from CSRF; the
  * CSRF path itself is exercised by `/session/*` below.

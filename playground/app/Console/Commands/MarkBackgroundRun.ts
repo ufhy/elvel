@@ -2,7 +2,7 @@ import { cache } from '@elvel/cache'
 import { Command } from '@elvel/console'
 
 /**
- * Generated with `artisan make:command MarkBackgroundRun`, then extended.
+ * Generated with `elvel make:command MarkBackgroundRun`, then extended.
  *
  * Writes its own process id into the cache. That is what makes a forked
  * scheduled entry provable: if the pid it records differs from the scheduler's,

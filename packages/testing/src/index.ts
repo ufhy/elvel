@@ -34,7 +34,7 @@ export { type ResponseCookie, TestResponse } from './response.ts'
 import { PendingCommand, type Runnable } from './console.ts'
 
 /**
- * An artisan command under test.
+ * An elvel command under test.
  *
  * `outputPrototype` is `Output.prototype`, passed by the caller because this
  * package must not depend on `@elvel/console`:
@@ -42,7 +42,7 @@ import { PendingCommand, type Runnable } from './console.ts'
  * ```ts
  * import { Output } from '@elvel/console'
  *
- * await artisan(kernel, ['make:model', 'Post'], Output.prototype)
+ * await elvel(kernel, ['make:model', 'Post'], Output.prototype)
  *   .expectsConfirmation('Overwrite', true)
  *   .run()
  * ```
@@ -50,7 +50,7 @@ import { PendingCommand, type Runnable } from './console.ts'
  * Omit it and the command runs, but a prompt will reach for a stdin that is not
  * there — so omit it only for commands that do not ask anything.
  */
-export function artisan(
+export function elvel(
   kernel: Runnable,
   argv: string[],
   outputPrototype?: Record<string, unknown>

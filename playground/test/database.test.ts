@@ -135,7 +135,7 @@ describe('which database the tests use', () => {
   it('is the testing one, not the application’s', () => {
     /**
      * Not decoration. These tests migrate and seed, and the application's own
-     * database is also read by `bun run smoke` and by a running `artisan serve`
+     * database is also read by `bun run smoke` and by a running `elvel serve`
      * — two processes on one SQLite file, where the second is refused outright
      * and fifteen tests fail together with `database is locked`. That is how
      * this was found.

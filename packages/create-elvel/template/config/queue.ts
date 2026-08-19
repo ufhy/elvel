@@ -13,7 +13,7 @@ export default {
   connections: {
     sync: { driver: 'sync' },
 
-    /** Run `artisan queue:table` and `artisan migrate` before selecting this. */
+    /** Run `elvel queue:table` and `elvel migrate` before selecting this. */
     database: {
       driver: 'database',
       table: 'jobs',
@@ -36,7 +36,7 @@ export default {
   /**
    * Where failures are recorded, so `queue:retry` has something to work from.
    *
-   * `null` discards them; `database` needs `artisan queue:failed-table`.
+   * `null` discards them; `database` needs `elvel queue:failed-table`.
    */
   failed: {
     driver: env('QUEUE_FAILED_DRIVER', 'null'),

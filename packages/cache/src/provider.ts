@@ -33,9 +33,9 @@ export class CacheServiceProvider extends ServiceProvider {
   }
 
   override boot(): void {
-    if (this.app.bound('artisan')) {
+    if (this.app.bound('elvel')) {
       this.app
-        .make('artisan')
+        .make('elvel')
         .register(CacheClearCommand, CacheForgetCommand, CachePruneCommand, CacheTableCommand)
     }
   }

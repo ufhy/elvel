@@ -25,8 +25,8 @@ export class NotificationServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(MakeNotificationCommand, NotificationsTableCommand)
+    if (this.app.bound('elvel')) {
+      this.app.make('elvel').register(MakeNotificationCommand, NotificationsTableCommand)
     }
 
     const manager = this.app.make('notifications')

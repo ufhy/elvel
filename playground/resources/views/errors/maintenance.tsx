@@ -3,7 +3,7 @@ export type MaintenanceProps = {
 }
 
 /**
- * The page `artisan down --render=errors.maintenance` bakes into the down file.
+ * The page `elvel down --render=errors.maintenance` bakes into the down file.
  *
  * No layout import on purpose: this HTML is written to disk when `down` runs and
  * served without booting the application, so it cannot depend on anything the

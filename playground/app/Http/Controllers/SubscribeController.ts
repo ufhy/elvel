@@ -5,7 +5,7 @@ import { Subscribe } from '../../../resources/views/pages/subscribe.tsx'
 import { SubscribeRequest } from '../Requests/SubscribeRequest.ts'
 
 /**
- * Generated with `artisan make:controller SubscribeController`, then extended.
+ * Generated with `elvel make:controller SubscribeController`, then extended.
  *
  * The form-and-redirect loop: GET renders, POST validates, and a failure goes back
  * to the GET with the messages and the input flashed for exactly one request.

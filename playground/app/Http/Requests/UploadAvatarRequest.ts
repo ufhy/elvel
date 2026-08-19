@@ -1,7 +1,7 @@
 import { FormRequest } from '@elvel/http'
 
 /**
- * Generated with `artisan make:request UploadAvatarRequest`, then extended.
+ * Generated with `elvel make:request UploadAvatarRequest`, then extended.
  *
  * File rules against a real `multipart/form-data` body: Elysia hands the field
  * over as a web `File`, so there is no upload wrapper and no temporary path.

@@ -1,7 +1,7 @@
 import { describe, expect, test as it } from 'bun:test'
 import { Application } from '@elvel/core'
 import { Elysia } from 'elysia'
-import { AssertionError, artisan, test } from '../src/index.ts'
+import { AssertionError, elvel, test } from '../src/index.ts'
 
 /** The assertion failed, and said something useful about why. */
 function refuses(callback: () => unknown, matching: RegExp): void {
@@ -314,7 +314,7 @@ describe('actingAs', () => {
   })
 })
 
-describe('artisan commands', () => {
+describe('elvel commands', () => {
   it('captures output and the exit code', async () => {
     const kernel = {
       run: async (argv: string[]) => {
@@ -324,7 +324,7 @@ describe('artisan commands', () => {
       }
     }
 
-    const command = await artisan(kernel, ['migrate', '--force']).run()
+    const command = await elvel(kernel, ['migrate', '--force']).run()
 
     command.assertSuccessful().assertOutputContains('ran migrate --force')
   })
@@ -339,7 +339,7 @@ describe('artisan commands', () => {
       }
     }
 
-    const command = await artisan(kernel, ['x']).run()
+    const command = await elvel(kernel, ['x']).run()
 
     command.assertOutputContains('done')
   })
@@ -353,7 +353,7 @@ describe('artisan commands', () => {
       }
     }
 
-    const command = await artisan(kernel, ['x']).run()
+    const command = await elvel(kernel, ['x']).run()
 
     command.assertFailed()
     refuses(() => command.assertSuccessful(), /it went wrong/)
@@ -374,7 +374,7 @@ describe('artisan commands', () => {
       }
     }
 
-    const command = await artisan(kernel, ['make:thing'], prompts)
+    const command = await elvel(kernel, ['make:thing'], prompts)
       .expectsQuestion('Overwrite', true)
       .expectsQuestion('name', 'Post')
       .run()
@@ -393,7 +393,7 @@ describe('artisan commands', () => {
       }
     }
 
-    await expect(artisan(kernel, ['x'], prompts).run()).rejects.toThrow(/no answer was queued/)
+    await expect(elvel(kernel, ['x'], prompts).run()).rejects.toThrow(/no answer was queued/)
   })
 
   it('restores the prompts even when the command throws', async () => {
@@ -405,7 +405,7 @@ describe('artisan commands', () => {
       }
     }
 
-    await expect(artisan(kernel, ['x'], prompts).run()).rejects.toThrow('boom')
+    await expect(elvel(kernel, ['x'], prompts).run()).rejects.toThrow('boom')
     expect(prompts.ask).toBe(original)
   })
 })

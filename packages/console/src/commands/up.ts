@@ -1,6 +1,6 @@
 import { Command } from '../command.ts'
 
-/** `artisan up` — start answering requests again. */
+/** `elvel up` — start answering requests again. */
 export class UpCommand extends Command {
   static override signature = 'up'
 

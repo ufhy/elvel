@@ -39,9 +39,9 @@ export function Landing({ title }: LandingProps) {
           </article>
 
           <article class="card">
-            <h2>Artisan</h2>
+            <h2>Elvel</h2>
             <p>
-              Generate code and inspect the app: <code>bun run artisan make:controller Post</code>.
+              Generate code and inspect the app: <code>bun run elvel make:controller Post</code>.
             </p>
           </article>
         </div>
@@ -57,7 +57,7 @@ export function Landing({ title }: LandingProps) {
         </div>
 
         <p class="hint">
-          Try <code>bun run artisan route:list</code> and <code>bun run artisan about</code>.
+          Try <code>bun run elvel route:list</code> and <code>bun run elvel about</code>.
         </p>
       </section>
     </Layout>

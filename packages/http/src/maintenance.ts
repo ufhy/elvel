@@ -22,7 +22,7 @@ export class ServiceUnavailableException extends HttpException {
  * `PreventRequestsDuringMaintenance`.
  *
  * Registered before everything else, and reading the file per request, so
- * `artisan up` takes effect on the next request rather than the next deploy.
+ * `elvel up` takes effect on the next request rather than the next deploy.
  *
  * The order inside is Laravel's, and each step exists for a reason worth keeping:
  *

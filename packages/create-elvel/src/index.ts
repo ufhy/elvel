@@ -258,8 +258,8 @@ async function main(): Promise<number> {
   }
 
   const start = [
-    ...(kit === 'auth' || kit === 'api' ? ['bun artisan auth:schema'] : []),
-    'bun artisan migrate',
+    ...(kit === 'auth' || kit === 'api' ? ['bun elvel auth:schema'] : []),
+    'bun elvel migrate',
     // Once, so the manifest exists and the pages carry their assets. While
     // working on them, `bun run dev:assets` in a second terminal is the
     // hot-reloading version.
@@ -335,20 +335,20 @@ async function setUpProject(installRoot: string, target: string, kit: string): P
   // generated rather than shipping a migration: what the tables are depends on
   // the options and plugins in `config/auth.ts`.
   if (kit === 'auth' || kit === 'api') {
-    if (!(await run('Writing the auth tables', target, ['bun', 'artisan.ts', 'auth:schema']))) {
+    if (!(await run('Writing the auth tables', target, ['bun', 'elvel.ts', 'auth:schema']))) {
       return false
     }
   }
 
-  return await run('Migrating', target, ['bun', 'artisan.ts', 'migrate', '--force'])
+  return await run('Migrating', target, ['bun', 'elvel.ts', 'migrate', '--force'])
 }
 
 /**
  * Fill in the secrets the template deliberately leaves empty.
  *
- * Written here rather than by shelling out to `artisan key:generate`, which
+ * Written here rather than by shelling out to `elvel key:generate`, which
  * cannot run yet: in workspace mode the framework packages are not linked until
- * `bun install` runs at the repository root, so artisan would fail on its first
+ * `bun install` runs at the repository root, so elvel would fail on its first
  * import. `node:crypto` needs nothing.
  *
  * `APP_KEY` is 32 random bytes as base64url, matching what `generateKey()`

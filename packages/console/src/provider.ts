@@ -32,17 +32,17 @@ import { Kernel } from './kernel.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
-    artisan: Kernel
+    elvel: Kernel
   }
 }
 
 export class ConsoleServiceProvider extends ServiceProvider {
   register(): void {
-    this.app.singleton('artisan', (app) => new Kernel(app as never))
+    this.app.singleton('elvel', (app) => new Kernel(app as never))
   }
 
   override async boot(): Promise<void> {
-    const kernel = this.app.make('artisan')
+    const kernel = this.app.make('elvel')
 
     kernel.register(
       ServeCommand,

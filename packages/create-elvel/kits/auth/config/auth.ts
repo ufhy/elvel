@@ -11,7 +11,7 @@ import type { Auth } from 'better-auth'
  * the options and plugins here:
  *
  * ```
- * artisan auth:schema && artisan migrate
+ * elvel auth:schema && elvel migrate
  * ```
  */
 const config = {

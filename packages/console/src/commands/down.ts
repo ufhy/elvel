@@ -2,7 +2,7 @@ import { generateSecret, type MaintenancePayload } from '@elvel/core'
 import { Command } from '../command.ts'
 
 /**
- * `artisan down` — refuse requests while you deploy.
+ * `elvel down` — refuse requests while you deploy.
  *
  * Everything the middleware needs goes into one file, including a pre-rendered
  * page when `--render` names a view. Rendering **now** rather than per request is

@@ -42,7 +42,7 @@ export class Output {
     console.log(`${painted(pc.black(` ${label} `))} ${message}`)
   }
 
-  /** Two-column key/value list, as `artisan about` prints. */
+  /** Two-column key/value list, as `elvel about` prints. */
   pairs(rows: Array<[string, string]>, width = 28): void {
     for (const [key, value] of rows) {
       const dots = pc.dim('.'.repeat(Math.max(2, width - key.length)))

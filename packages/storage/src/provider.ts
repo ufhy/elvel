@@ -21,8 +21,8 @@ export class StorageServiceProvider extends ServiceProvider {
   }
 
   override boot(): void {
-    if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(StorageLinkCommand, StorageUnlinkCommand)
+    if (this.app.bound('elvel')) {
+      this.app.make('elvel').register(StorageLinkCommand, StorageUnlinkCommand)
     }
   }
 }

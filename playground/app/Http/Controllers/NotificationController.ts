@@ -10,7 +10,7 @@ import { ArticlePublished } from '../../Notifications/ArticlePublished.ts'
  *
  * A recipient here is a plain object with an `email` and a key, which is all the
  * `Notifiable` contract asks for. Asserted by `scripts/smoke.ts` and driven over
- * the network with `artisan serve` + curl.
+ * the network with `elvel serve` + curl.
  */
 
 /** Stands in for a user model: an id, an address, and nothing else. */

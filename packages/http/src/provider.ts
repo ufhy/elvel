@@ -147,7 +147,7 @@ export class HttpServiceProvider extends ServiceProvider {
       if (driver === 'database') {
         if (!app.bound('db')) {
           throw new Error(
-            'The database session driver needs DatabaseServiceProvider. Register it, then run: artisan session:table && artisan migrate'
+            'The database session driver needs DatabaseServiceProvider. Register it, then run: elvel session:table && elvel migrate'
           )
         }
 
@@ -209,9 +209,9 @@ export class HttpServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    if (this.app.bound('artisan')) {
+    if (this.app.bound('elvel')) {
       this.app
-        .make('artisan')
+        .make('elvel')
         .register(
           MakeRequestCommand,
           MakeResourceCommand,
@@ -265,7 +265,7 @@ export class HttpServiceProvider extends ServiceProvider {
      *
      * The session cookie is signed with `APP_KEY`, so an application without one
      * cannot have sessions. It used to throw here, which meant the whole
-     * application refused to boot, which meant `artisan key:generate` refused to
+     * application refused to boot, which meant `elvel key:generate` refused to
      * run: the command that sets the key needed the key. That was invisible while
      * the template shipped a placeholder key, and turned up the moment it shipped
      * an empty one.
@@ -278,7 +278,7 @@ export class HttpServiceProvider extends ServiceProvider {
     if (this.config<boolean>('session.enabled', true) !== false && signingKeySet) {
       this.use(await this.sessionPlugin())
     } else if (!signingKeySet) {
-      console.warn('[http] APP_KEY is not set, so sessions are off. Run: artisan key:generate')
+      console.warn('[http] APP_KEY is not set, so sessions are off. Run: elvel key:generate')
     }
 
     /**

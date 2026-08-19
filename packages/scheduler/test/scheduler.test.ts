@@ -571,10 +571,10 @@ describe('Schedule', () => {
     expect(ran).toBe(true)
   })
 
-  test('command runs through artisan and fails on a non-zero exit', async () => {
+  test('command runs through elvel and fails on a non-zero exit', async () => {
     const calls: Array<string[]> = []
 
-    app.instance('artisan', {
+    app.instance('elvel', {
       run: async (argv: string[]) => {
         calls.push(argv)
 

@@ -53,7 +53,7 @@ export abstract class MigrationGeneratorCommand extends Command {
     await Bun.write(destination, contents)
 
     this.output.tag('INFO', `Migration created: ${relative(this.app.basePath(), destination)}`)
-    this.info('Then run: artisan migrate')
+    this.info('Then run: elvel migrate')
 
     return 0
   }

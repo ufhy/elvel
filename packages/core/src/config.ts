@@ -81,7 +81,7 @@ export class Config implements ConfigRepository {
 
         throw new Error(
           `bootstrap/app.ts names config/${key}.ts, which is not there. ` +
-            `Publish it with \`artisan config:publish ${key}\`, or remove the \`${key}:\` line from withConfig.`,
+            `Publish it with \`elvel config:publish ${key}\`, or remove the \`${key}:\` line from withConfig.`,
           { cause: problem }
         )
       })

@@ -26,7 +26,7 @@ function key(): string {
   const secret = app().config.get<string>('app.key', '')
 
   if (secret === '') {
-    throw new Error('Signing a URL needs APP_KEY. Run: artisan key:generate')
+    throw new Error('Signing a URL needs APP_KEY. Run: elvel key:generate')
   }
 
   return secret

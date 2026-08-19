@@ -3,13 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch artisan.ts serve",
+    "dev": "bun --watch elvel.ts serve",
     "build": "vite build",
-    "build:server": "bun artisan.ts app:build",
-    "start": "bun dist/artisan.js serve",
+    "build:server": "bun elvel.ts app:build",
+    "start": "bun dist/elvel.js serve",
     "dev:assets": "vite",
-    "serve": "bun artisan.ts serve",
-    "artisan": "bun artisan.ts",
+    "serve": "bun elvel.ts serve",
+    "elvel": "bun elvel.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

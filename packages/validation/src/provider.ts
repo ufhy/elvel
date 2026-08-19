@@ -82,9 +82,9 @@ export class ValidationServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    if (!this.app.bound('artisan')) return
+    if (!this.app.bound('elvel')) return
 
-    this.app.make('artisan').register(MakeRuleCommand)
+    this.app.make('elvel').register(MakeRuleCommand)
   }
 }
 

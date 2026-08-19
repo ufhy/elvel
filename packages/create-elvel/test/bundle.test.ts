@@ -151,7 +151,7 @@ describe('what a landing page carries', () => {
 })
 
 /**
- * `artisan app:build`, end to end.
+ * `elvel app:build`, end to end.
  *
  * The command exists because loading a thousand small modules costs four
  * seconds on every invocation and a bundle costs half of one — so what has to be
@@ -166,17 +166,17 @@ describe('building the application', () => {
       await application
 
       const build = Bun.spawnSync({
-        cmd: ['bun', 'artisan.ts', 'app:build'],
+        cmd: ['bun', 'elvel.ts', 'app:build'],
         cwd: target,
         stdout: 'pipe',
         stderr: 'pipe'
       })
 
       expect<number>(build.exitCode).toBe(0)
-      expect<boolean>(await Bun.file(join(target, 'dist', 'artisan.js')).exists()).toBe(true)
+      expect<boolean>(await Bun.file(join(target, 'dist', 'elvel.js')).exists()).toBe(true)
 
       const ran = Bun.spawnSync({
-        cmd: ['bun', 'dist/artisan.js', 'list'],
+        cmd: ['bun', 'dist/elvel.js', 'list'],
         cwd: target,
         stdout: 'pipe',
         stderr: 'pipe'
@@ -192,7 +192,7 @@ describe('building the application', () => {
   )
 
   /**
-   * And `artisan.ts` uses it, but only while it is true.
+   * And `elvel.ts` uses it, but only while it is true.
    *
    * The fast path is the part that could go wrong quietly: a bundle that keeps
    * being used after the source changed runs code nobody wrote any more, and
@@ -200,14 +200,14 @@ describe('building the application', () => {
    * — the handover happens, and one edited file ends it.
    */
   test(
-    'and artisan hands over to it until a file changes',
+    'and elvel hands over to it until a file changes',
     async () => {
       await application
 
       const list = () =>
         new TextDecoder().decode(
           Bun.spawnSync({
-            cmd: ['bun', 'artisan.ts', 'list'],
+            cmd: ['bun', 'elvel.ts', 'list'],
             cwd: target,
             stdout: 'pipe',
             stderr: 'pipe'
@@ -216,7 +216,7 @@ describe('building the application', () => {
 
       // Marked in the bundle rather than in the source, so its presence can only
       // mean the bundle answered.
-      const bundle = join(target, 'dist', 'artisan.js')
+      const bundle = join(target, 'dist', 'elvel.js')
       const built = await Bun.file(bundle).text()
 
       await Bun.write(bundle, built.replace('Serve the application', 'Serve the bundled one'))

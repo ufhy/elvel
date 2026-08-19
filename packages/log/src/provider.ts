@@ -22,7 +22,7 @@ export class LogServiceProvider extends ServiceProvider {
   }
 
   override boot(): void {
-    if (this.app.bound('artisan')) this.app.make('artisan').register(LogTailCommand)
+    if (this.app.bound('elvel')) this.app.make('elvel').register(LogTailCommand)
 
     // Resolve now so a bad channel or level fails at boot, not on first write.
     this.app.make('log').channel()

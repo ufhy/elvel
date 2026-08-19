@@ -12,7 +12,7 @@ import { bearer } from 'better-auth/plugins'
  * the options and plugins here:
  *
  * ```
- * artisan auth:schema && artisan migrate
+ * elvel auth:schema && elvel migrate
  * ```
  *
  * This is the API kit's copy. It differs from the base template in one line —

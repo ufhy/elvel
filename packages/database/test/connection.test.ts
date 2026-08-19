@@ -74,7 +74,7 @@ describe('what a sqlite connection is opened with', () => {
       /**
        * The rollback journal locks the whole database for a write, so a second
        * process is refused outright — `database is locked`, with nothing to wait
-       * for. That is one test suite and one `artisan serve` on one machine.
+       * for. That is one test suite and one `elvel serve` on one machine.
        */
       expect<unknown>(await connection.select('PRAGMA journal_mode')).toEqual([
         { journal_mode: 'wal' }

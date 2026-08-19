@@ -3,7 +3,7 @@ import { Model } from '@elvel/database'
 /**
  * The account better-auth keeps, as a model you can query.
  *
- * better-auth owns this table: it writes the rows, and `artisan auth:schema`
+ * better-auth owns this table: it writes the rows, and `elvel auth:schema`
  * generates the migration from `config/auth.ts`, so the columns are whatever
  * that file's options and plugins make them. This model is the *reading* side —
  * a relation to point at, a place for scopes, and the way to load a user in a

@@ -4,7 +4,7 @@ import { join } from 'node:path'
  * Environment loading — the `LoadEnvironmentVariables` bootstrapper.
  *
  * Bun already loads `.env` from the current working directory, but the
- * application root is not always the cwd (an `artisan` run from a subfolder,
+ * application root is not always the cwd (an `elvel` run from a subfolder,
  * a test runner, a compiled binary). So we load explicitly from the app root
  * and never overwrite a variable the real environment already set.
  */

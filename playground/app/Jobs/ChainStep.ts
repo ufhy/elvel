@@ -2,7 +2,7 @@ import { cache } from '@elvel/cache'
 import { Job } from '@elvel/queue'
 
 /**
- * Generated with `artisan make:job ChainStep`, then extended.
+ * Generated with `elvel make:job ChainStep`, then extended.
  *
  * One step of one row, inside a batch of chains. Each step appends its name to
  * that row's record, so the order is readable afterwards — a chain that ran out

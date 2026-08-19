@@ -13,24 +13,24 @@ bun run dev
 
 Then open <http://localhost:3000>.
 
-## Artisan
+## Elvel
 
 ```bash
-bun run artisan                            # list commands
-bun run artisan about                      # app info
-bun run artisan route:list                 # registered routes
-bun run artisan make:controller Post -r    # resource controller
-bun run artisan make:view pages.about      # page component
-bun run artisan make:component Alert       # shared component
-bun run artisan make:provider Route        # service provider
-bun run artisan make:command SendReports   # console command
+bun run elvel                            # list commands
+bun run elvel about                      # app info
+bun run elvel route:list                 # registered routes
+bun run elvel make:controller Post -r    # resource controller
+bun run elvel make:view pages.about      # page component
+bun run elvel make:component Alert       # shared component
+bun run elvel make:provider Route        # service provider
+bun run elvel make:command SendReports   # console command
 ```
 
 ## Layout
 
 ```
 app/
-  Console/Commands/     auto-discovered Artisan commands
+  Console/Commands/     auto-discovered Elvel commands
   Http/Controllers/     controllers (each one is an Elysia instance)
   Providers/            service providers
 bootstrap/app.ts        env -> config -> exceptions -> providers -> routes
@@ -95,7 +95,7 @@ exception handler all run — the only thing skipped is the socket.
 | `services.test.ts` | storage, notifications, encryption, hashing, events |
 | `framework.test.ts` | the schedule, translation, channels, the support helpers |
 | `tooling.test.ts` | hashing, concurrency, process and image, over HTTP |
-| `console.test.ts` | artisan commands, their output and their exit codes |
+| `console.test.ts` | elvel commands, their output and their exit codes |
 
 Two things are deliberately **not** here. The HTTP client's retry, timeout and
 connection-failure paths need a real socket, so they are exercised by

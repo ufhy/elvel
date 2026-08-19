@@ -15,7 +15,7 @@ import { Article } from '../../Models/Article.ts'
  * Generated with `bun run playground make:controller QueueController`, then
  * extended.
  *
- * The request only ever *queues* work here; running it is `artisan queue:work`.
+ * The request only ever *queues* work here; running it is `elvel queue:work`.
  * Pass `?connection=redis` (or `sync`, `database`) to move the same routes onto
  * another driver. Asserted by `scripts/smoke.ts` and driven over the network.
  */

@@ -24,16 +24,16 @@ export class DevCommand extends Command {
     const processes: Process[] = [
       {
         name: 'server',
-        argv: ['bun', 'artisan.ts', 'serve', `--port=${this.stringOption('port', '3000')}`]
+        argv: ['bun', 'elvel.ts', 'serve', `--port=${this.stringOption('port', '3000')}`]
       }
     ]
 
     if (!this.flag('no-queue')) {
-      processes.push({ name: 'queue', argv: ['bun', 'artisan.ts', 'queue:work', '--tries=1'] })
+      processes.push({ name: 'queue', argv: ['bun', 'elvel.ts', 'queue:work', '--tries=1'] })
     }
 
     if (!this.flag('no-schedule')) {
-      processes.push({ name: 'schedule', argv: ['bun', 'artisan.ts', 'schedule:work'] })
+      processes.push({ name: 'schedule', argv: ['bun', 'elvel.ts', 'schedule:work'] })
     }
 
     this.info(`Running: ${processes.map((one) => one.name).join(', ')}. Ctrl+C stops all of them.`)

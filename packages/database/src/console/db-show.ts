@@ -46,7 +46,7 @@ export class DbShowCommand extends MigrationCommand {
 
     this.table(['TABLE', 'ROWS'], rows)
     this.line()
-    this.comment(`  ${pc.dim('bun run artisan db:table <name>')} for columns`)
+    this.comment(`  ${pc.dim('bun run elvel db:table <name>')} for columns`)
     this.line()
 
     return 0

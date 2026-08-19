@@ -23,7 +23,7 @@ async function workspacePackages(): Promise<string[]> {
  * It already had: `broadcasting` and `translation` were built, shipped, and
  * absent from the template, so a scaffolded application could not register
  * either provider — and nothing failed, because neither package contributes an
- * artisan command for the smoke test's registration check to miss.
+ * elvel command for the smoke test's registration check to miss.
  *
  * This is the check that catches the next one. It is deliberately a comparison
  * against the filesystem rather than a second list, because a second list drifts

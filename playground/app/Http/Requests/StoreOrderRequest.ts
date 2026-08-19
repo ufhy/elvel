@@ -1,7 +1,7 @@
 import { FormRequest } from '@elvel/http'
 
 /**
- * Generated with `artisan make:request StoreOrderRequest`, then extended.
+ * Generated with `elvel make:request StoreOrderRequest`, then extended.
  *
  * An order with a variable number of lines: the case wildcard rules exist for.
  * Every rule below names a *pattern*, and one rule per line is what actually

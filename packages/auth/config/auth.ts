@@ -10,7 +10,7 @@ import { env } from '@elvel/core'
  * the options and plugins here:
  *
  * ```
- * artisan auth:schema && artisan migrate
+ * elvel auth:schema && elvel migrate
  * ```
  */
 export default {

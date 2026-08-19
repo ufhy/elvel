@@ -67,7 +67,7 @@ export class Application implements ApplicationContract {
 
     this.instance('exception.handler', new ExceptionHandler(this))
 
-    // Bound in the constructor rather than a provider: `artisan down` has to work
+    // Bound in the constructor rather than a provider: `elvel down` has to work
     // when a provider cannot boot, which is one of the reasons to run it.
     this.instance('maintenance', new MaintenanceMode(this.storagePath('framework', 'down')))
 

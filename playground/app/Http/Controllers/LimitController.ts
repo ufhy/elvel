@@ -2,7 +2,7 @@ import { controller, routeGroup } from '@elvel/core'
 import { clientIp, limiters, throttle } from '@elvel/http'
 
 /**
- * Generated with `artisan make:controller LimitController`, then extended.
+ * Generated with `elvel make:controller LimitController`, then extended.
  *
  * Rate limiting, CORS and trusted proxies, asserted by `scripts/smoke.ts` and
  * driven over the network with curl.

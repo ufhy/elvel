@@ -12,7 +12,7 @@ export type CommandConstructor = (new () => Command) & {
 }
 
 /**
- * Console kernel — Artisan itself.
+ * Console kernel — the CLI itself.
  *
  * Commands are registered by service providers (framework commands) or
  * discovered from `app/Console/Commands` (application commands).
@@ -179,7 +179,7 @@ export class Kernel {
   /**
    * Ask for the required arguments that were not given.
    *
-   * `artisan make:model` with nothing after it used to fail with
+   * `elvel make:model` with nothing after it used to fail with
    * `missing: "name"`, which is correct and useless — the person already knows
    * they left it out. Asking is what every generator in every other framework
    * does, and it is the difference between reading the help and getting on with
@@ -225,7 +225,7 @@ export class Kernel {
     )
     this.output.line()
     this.output.line(pc.bold('Usage:'))
-    this.output.line('  bun artisan <command> [options]')
+    this.output.line('  bun elvel <command> [options]')
     this.output.line()
 
     const groups = new Map<string, CommandConstructor[]>()
@@ -262,7 +262,7 @@ export class Kernel {
     this.output.line(`  ${command.description}`)
     this.output.line()
     this.output.line(pc.bold('Usage:'))
-    this.output.line(`  bun artisan ${formatUsage(definition)}`)
+    this.output.line(`  bun elvel ${formatUsage(definition)}`)
 
     if (definition.arguments.length > 0) {
       this.output.line()

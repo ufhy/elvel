@@ -41,7 +41,7 @@ export function deriveKey(secret: string, purpose: string): Buffer {
 
   if (bytes.length < MINIMUM_SECRET_BYTES) {
     throw new Error(
-      `APP_KEY is too short (${bytes.length} bytes). Use at least ${MINIMUM_SECRET_BYTES}, or run: artisan key:generate`
+      `APP_KEY is too short (${bytes.length} bytes). Use at least ${MINIMUM_SECRET_BYTES}, or run: elvel key:generate`
     )
   }
 

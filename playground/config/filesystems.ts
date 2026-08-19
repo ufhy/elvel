@@ -13,7 +13,7 @@ export default {
     },
 
     /**
-     * Served directly once `artisan storage:link` has run.
+     * Served directly once `elvel storage:link` has run.
      *
      * `url` is configured rather than guessed — the framework has no way to know
      * what serves the directory.
@@ -45,7 +45,7 @@ export default {
     }
   },
 
-  /** What `artisan storage:link` links. */
+  /** What `elvel storage:link` links. */
   links: {
     [`${storage_path('..')}/public/storage`]: storage_path('app/public')
   }

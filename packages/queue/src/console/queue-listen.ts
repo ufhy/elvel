@@ -22,7 +22,7 @@ export class QueueListenCommand extends Command {
     const sleep = Math.max(0, Number(this.stringOption('sleep', '1')))
     const timeout = Math.max(1, Number(this.stringOption('timeout', '60')))
 
-    const argv = ['bun', 'artisan.ts', 'queue:work']
+    const argv = ['bun', 'elvel.ts', 'queue:work']
     if (connection !== '') argv.push(connection)
     if (this.stringOption('queue') !== '') argv.push(`--queue=${this.stringOption('queue')}`)
     argv.push('--once', `--tries=${this.stringOption('tries', '1')}`)

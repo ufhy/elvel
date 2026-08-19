@@ -63,7 +63,7 @@ export class AuthSchemaCommand extends Command {
     await Bun.write(destination, schema.code)
 
     this.output.tag('INFO', `Migration created: ${relative(this.app.basePath(), destination)}`)
-    this.info('Review it, then run: artisan migrate')
+    this.info('Review it, then run: elvel migrate')
 
     return 0
   }
@@ -129,7 +129,7 @@ export class AuthSchemaCommand extends Command {
     for (const { table, columns } of diff.missing) this.comment(`${table}: ${columns.join(', ')}`)
 
     this.output.tag('INFO', `Migration created: ${relative(this.app.basePath(), destination)}`)
-    this.info('Review it, then run: artisan migrate')
+    this.info('Review it, then run: elvel migrate')
 
     return 0
   }

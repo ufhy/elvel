@@ -39,7 +39,7 @@ import { ViewServiceProvider } from '@elvel/view'
  *
  * ```
  * bun add @elvel/database
- * bun artisan config:publish database
+ * bun elvel config:publish database
  * ```
  *
  * then a line here for `DatabaseServiceProvider`. After that `make:model`,

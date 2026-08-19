@@ -17,7 +17,7 @@ import { UploadAvatarRequest } from '../Requests/UploadAvatarRequest.ts'
  *
  * `?disk=memory` (or `local`, `public`, `s3`) picks a disk, so the same routes
  * exercise every driver. Asserted by `scripts/smoke.ts` and driven over the
- * network with `artisan serve` + curl.
+ * network with `elvel serve` + curl.
  */
 export default controller('file')
   /**

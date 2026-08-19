@@ -105,8 +105,8 @@ export class AuthServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    if (this.app.bound('artisan')) {
-      this.app.make('artisan').register(AuthSchemaCommand, AuthSecretCommand, MakePolicyCommand)
+    if (this.app.bound('elvel')) {
+      this.app.make('elvel').register(AuthSchemaCommand, AuthSecretCommand, MakePolicyCommand)
     }
 
     /**

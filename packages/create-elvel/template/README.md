@@ -13,21 +13,21 @@ bun run dev
 
 Then open <http://localhost:3000>.
 
-## Artisan
+## Elvel
 
 ```bash
-bun run artisan                            # list commands
-bun run artisan about                      # app info
-bun run artisan route:list                 # registered routes
-bun run artisan make:controller Post -r    # resource controller
-bun run artisan make:view pages.about      # page component
-bun run artisan make:component Alert       # shared component
-bun run artisan make:provider Route        # service provider
-bun run artisan make:command SendReports   # console command
-bun run artisan make:model Post -mfs       # model + migration + factory + seeder
-bun run artisan migrate                    # run migrations
-bun run artisan db:seed                    # run DatabaseSeeder
-bun run artisan db:show                    # tables and row counts
+bun run elvel                            # list commands
+bun run elvel about                      # app info
+bun run elvel route:list                 # registered routes
+bun run elvel make:controller Post -r    # resource controller
+bun run elvel make:view pages.about      # page component
+bun run elvel make:component Alert       # shared component
+bun run elvel make:provider Route        # service provider
+bun run elvel make:command SendReports   # console command
+bun run elvel make:model Post -mfs       # model + migration + factory + seeder
+bun run elvel migrate                    # run migrations
+bun run elvel db:seed                    # run DatabaseSeeder
+bun run elvel db:show                    # tables and row counts
 ```
 
 ## Adding a database
@@ -40,7 +40,7 @@ Three steps to change that:
 
 ```bash
 bun add @elvel/database
-bun artisan config:publish database
+bun elvel config:publish database
 ```
 
 then add `DatabaseServiceProvider` to `bootstrap/providers.ts`, importing it
@@ -50,7 +50,7 @@ the rest.
 From there:
 
 ```bash
-bun artisan make:model Post -mfs
+bun elvel make:model Post -mfs
 ```
 
 which writes a model, a migration, a factory and a seeder. The migration starts
@@ -58,8 +58,8 @@ with `id` and timestamps — add your columns there, and the matching lines to t
 factory's `definition()`, which starts empty for that reason. Then:
 
 ```bash
-bun artisan migrate
-bun artisan db:seed
+bun elvel migrate
+bun elvel db:seed
 ```
 
 And on a page:
@@ -79,7 +79,7 @@ export default controller('page').get('/', async () =>
 
 ```
 app/
-  Console/Commands/     auto-discovered Artisan commands
+  Console/Commands/     auto-discovered Elvel commands
   Http/Controllers/     controllers (each one is an Elysia instance)
   Providers/            service providers
 bootstrap/app.ts        env -> config -> exceptions -> providers -> routes

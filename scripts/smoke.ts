@@ -12,7 +12,7 @@ import pc from 'picocolors'
 /**
  * Smoke test — boots the real playground application and exercises the seams
  * that unit tests cannot reach: the bootstrap sequence end to end, Edge
- * rendering, static file serving, the exception handler, Artisan command
+ * rendering, static file serving, the exception handler, Elvel command
  * discovery, the code generators, and a real `listen()` on a socket.
  *
  * Run it on every framework change: `bun run smoke` (or `bun run verify`).
@@ -99,7 +99,7 @@ const app = (await import('../playground/bootstrap/app.ts')).default
  * passed — because the file was already sitting there with its tables in it.
  * Migrating it here is what makes the two the same.
  */
-await app.make('artisan').run(['migrate', '--force'])
+await app.make('elvel').run(['migrate', '--force'])
 
 // ---------------------------------------------------------------- bootstrap
 
@@ -109,7 +109,7 @@ check('view binding registered', app.bound('view'))
 check('events binding registered', app.bound('events'))
 check('log binding registered', app.bound('log'))
 check('db binding registered', app.bound('db'))
-check('artisan binding registered', app.bound('artisan'))
+check('elvel binding registered', app.bound('elvel'))
 check('routes mounted', app.router.routes.length >= 8, `${app.router.routes.length} routes`)
 
 // --------------------------------------------------------------------- http
@@ -255,7 +255,7 @@ const queuedListener = (await (await postJson('/signal/queued/42', {})).json()) 
 check('dispatching queues the listener instead of running it', queuedListener.queued === 1)
 check('and the request returns before it has run', queuedListener.warehouse === null)
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--queue', 'shipments', '--once']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--queue', 'shipments', '--once']))
 
 const afterWorker = (await (
   await app.handle(new Request('http://localhost/signal/queued/42'))
@@ -327,9 +327,9 @@ try {
 }
 check('the unique index is enforced', duplicateRejected)
 
-// `artisan` is resolved further down; use the container directly here.
+// `elvel` is resolved further down; use the container directly here.
 const statusOutput = plain(
-  await captureOutput(() => app.make('artisan').run(['migrate:status', '--database', 'smoke']))
+  await captureOutput(() => app.make('elvel').run(['migrate:status', '--database', 'smoke']))
 )
 check(
   'migrate:status works before the tracking table exists',
@@ -344,11 +344,11 @@ app.config.set('database.connections.smoke_default', { driver: 'sqlite', databas
 app.make('db').setDefaultConnection('smoke_default')
 
 const migrateOutput = plain(
-  await captureOutput(() => app.make('artisan').run(['migrate', '--force']))
+  await captureOutput(() => app.make('elvel').run(['migrate', '--force']))
 )
 check('the real migrations run on a fresh database', migrateOutput.includes('migration(s) applied'))
 
-const seedOutput = plain(await captureOutput(() => app.make('artisan').run(['db:seed'])))
+const seedOutput = plain(await captureOutput(() => app.make('elvel').run(['db:seed'])))
 check('the real seeders run', seedOutput.includes('Seeding finished'))
 
 section('Validation')
@@ -583,7 +583,7 @@ async function postJson(path: string, body: unknown, headers: Record<string, str
 
 // These routes run the whole stack: form request → model → resource, against the
 // migrated and seeded database above. Also exercised by hand over the network
-// with `artisan serve` + curl, which is what caught the two bugs this section
+// with `elvel serve` + curl, which is what caught the two bugs this section
 // now guards: `withCount()` lost by `clone()`, and `whenLoaded()` returning the
 // relation *method* instead of the loaded relation.
 
@@ -1092,17 +1092,17 @@ const limited = (await (
 check('with a retry-after the client can use', (limited.retryAfter ?? 0) > 0)
 
 // The commands, on the real store.
-const cleared = plain(await captureOutput(() => app.make('artisan').run(['cache:clear'])))
+const cleared = plain(await captureOutput(() => app.make('elvel').run(['cache:clear'])))
 check('cache:clear flushes the default store', cleared.includes('flushed'))
 
 await app.make('cache').store().put('smoke:key', 'value', 60)
 const forgotten = plain(
-  await captureOutput(() => app.make('artisan').run(['cache:forget', 'smoke:key']))
+  await captureOutput(() => app.make('elvel').run(['cache:forget', 'smoke:key']))
 )
 check('cache:forget removes one key', forgotten.includes('Forgotten: smoke:key'))
 
 const missing = plain(
-  await captureOutput(() => app.make('artisan').run(['cache:forget', 'smoke:never']))
+  await captureOutput(() => app.make('elvel').run(['cache:forget', 'smoke:never']))
 )
 check('and says so when the key was not cached', missing.includes('Not cached'))
 
@@ -1110,12 +1110,12 @@ await app.make('cache').store('database').put('smoke:pruned', 'value', 1)
 await Bun.sleep(1100)
 
 const pruned = plain(
-  await captureOutput(() => app.make('artisan').run(['cache:prune', '--store', 'database']))
+  await captureOutput(() => app.make('elvel').run(['cache:prune', '--store', 'database']))
 )
 check('cache:prune deletes expired rows', /Pruned [1-9]/.test(pruned))
 
 const nothingToPrune = plain(
-  await captureOutput(() => app.make('artisan').run(['cache:prune', '--store', 'array']))
+  await captureOutput(() => app.make('elvel').run(['cache:prune', '--store', 'array']))
 )
 check(
   'and explains itself on a store that expires its own entries',
@@ -1357,17 +1357,15 @@ check('a deferred callback has not run when the response is built', !deferred.ra
 // transmits one. Asserted in the Server section below.
 
 // The commands.
-const sized = plain(await captureOutput(() => app.make('artisan').run(['queue:size'])))
+const sized = plain(await captureOutput(() => app.make('elvel').run(['queue:size'])))
 check('queue:size reports the depth', /\d+ job\(s\) on \[default\]/.test(sized))
 
 await postJson('/check/queue/digest?connection=database', { label: 'once' })
 
-const once = plain(await captureOutput(() => app.make('artisan').run(['queue:work', '--once'])))
+const once = plain(await captureOutput(() => app.make('elvel').run(['queue:work', '--once'])))
 check('queue:work --once processes a single job', once.includes('Job processed'))
 
-const emptyOnce = plain(
-  await captureOutput(() => app.make('artisan').run(['queue:work', '--once']))
-)
+const emptyOnce = plain(await captureOutput(() => app.make('elvel').run(['queue:work', '--once'])))
 check('and says so when nothing is waiting', emptyOnce.includes('No job was waiting'))
 
 await postJson('/check/queue/flaky?connection=database', { label: 'listed', failTimes: 5 })
@@ -1375,15 +1373,15 @@ await app.handle(
   new Request('http://localhost/check/queue/work?connection=database', { method: 'POST' })
 )
 
-const listed = plain(await captureOutput(() => app.make('artisan').run(['queue:failed'])))
+const listed = plain(await captureOutput(() => app.make('elvel').run(['queue:failed'])))
 check('queue:failed lists what failed', listed.includes('FlakyProbe'))
 
-const flushed = plain(await captureOutput(() => app.make('artisan').run(['queue:flush'])))
+const flushed = plain(await captureOutput(() => app.make('elvel').run(['queue:flush'])))
 check('queue:flush empties the failed table', /Deleted [1-9]/.test(flushed))
 
 await postJson('/check/queue/digest?connection=database', { label: 'cleared' })
 
-const clearedQueue = plain(await captureOutput(() => app.make('artisan').run(['queue:clear'])))
+const clearedQueue = plain(await captureOutput(() => app.make('elvel').run(['queue:clear'])))
 check('queue:clear deletes pending work', /Deleted [1-9]/.test(clearedQueue))
 
 // Leave the queue and the shared Redis as they were found.
@@ -1498,7 +1496,7 @@ check(
  */
 await postJson('/check/notifications/queued/1', { locale: 'id' })
 await captureOutput(() =>
-  app.make('artisan').run(['queue:work', '--queue=notifications', '--stop-when-empty'])
+  app.make('elvel').run(['queue:work', '--queue=notifications', '--stop-when-empty'])
 )
 
 const queuedInbox = await inbox('9')
@@ -1514,7 +1512,7 @@ check(
 
 await postJson('/check/notifications/queued/1', { locale: 'en' })
 await captureOutput(() =>
-  app.make('artisan').run(['queue:work', '--queue=notifications', '--stop-when-empty'])
+  app.make('elvel').run(['queue:work', '--queue=notifications', '--stop-when-empty'])
 )
 
 const englishInbox = await inbox('9')
@@ -1752,7 +1750,7 @@ check(
 )
 
 // `storage:link` is what makes the public disk reachable without a route.
-const linked = plain(await captureOutput(() => app.make('artisan').run(['storage:link'])))
+const linked = plain(await captureOutput(() => app.make('elvel').run(['storage:link'])))
 check('storage:link reports the link it made or found', /Linked|already links/.test(linked))
 
 const publicUpload = (await (
@@ -1919,7 +1917,7 @@ check(
   scheduled.every((event) => event.zone === app.config.get<string>('app.timezone', 'UTC'))
 )
 
-const scheduleList = plain(await captureOutput(() => app.make('artisan').run(['schedule:list'])))
+const scheduleList = plain(await captureOutput(() => app.make('elvel').run(['schedule:list'])))
 check('schedule:list shows the expression and the next run', scheduleList.includes('NEXT RUN'))
 check('and describes each entry', scheduleList.includes('Delete expired rows'))
 
@@ -1956,7 +1954,7 @@ check(
   due.some((event) => event.label === 'smoke:filtered')
 )
 
-const runOutput = plain(await captureOutput(() => app.make('artisan').run(['schedule:run'])))
+const runOutput = plain(await captureOutput(() => app.make('elvel').run(['schedule:run'])))
 
 check('schedule:run runs what is due', ran.includes('due'))
 check('and skips what a filter refused', !ran.includes('filtered'))
@@ -1972,7 +1970,7 @@ check('reporting each outcome', runOutput.includes('smoke:due') && runOutput.inc
  */
 await app.make('cache').store().forget('schedule:background')
 
-const backgroundOutput = plain(await captureOutput(() => app.make('artisan').run(['schedule:run'])))
+const backgroundOutput = plain(await captureOutput(() => app.make('elvel').run(['schedule:run'])))
 
 const marked = (await app.make('cache').store().get('schedule:background')) as {
   pid: number
@@ -2005,7 +2003,7 @@ section('Schema: dump and load')
 
 const dumpPath = join(app.storagePath('framework'), 'smoke-schema.sql')
 
-await captureOutput(() => app.make('artisan').run(['schema:dump', `--path=${dumpPath}`]))
+await captureOutput(() => app.make('elvel').run(['schema:dump', `--path=${dumpPath}`]))
 
 const dumped = await Bun.file(dumpPath).text()
 
@@ -2029,7 +2027,7 @@ const freshDatabase = join(app.storagePath('framework'), 'smoke-squashed.sqlite'
 await rm(freshDatabase, { force: true })
 
 const squashRun = Bun.spawnSync(
-  [process.execPath, 'artisan.ts', 'migrate', `--schema-path=${dumpPath}`],
+  [process.execPath, 'elvel.ts', 'migrate', `--schema-path=${dumpPath}`],
   {
     cwd: join(import.meta.dir, '..', 'playground'),
     env: { ...process.env, DB_CONNECTION: 'sqlite', DB_DATABASE: freshDatabase }
@@ -2070,7 +2068,7 @@ const isolated = plain(
   await captureOutput(async () => {
     await app.make('cache').store().forget('elvel:command:migrate')
     await app.make('cache').store().add('elvel:command:migrate', 'held', 60)
-    await app.make('artisan').run(['migrate', '--isolated'])
+    await app.make('elvel').run(['migrate', '--isolated'])
   })
 )
 
@@ -2117,13 +2115,13 @@ check(
 // `schedule:test` ignores the expression on purpose.
 ran.length = 0
 const tested = plain(
-  await captureOutput(() => app.make('artisan').run(['schedule:test', 'smoke:yearly']))
+  await captureOutput(() => app.make('elvel').run(['schedule:test', 'smoke:yearly']))
 )
 check('schedule:test runs an entry whose window is nowhere near', ran.includes('not-due'))
 check('and says which entry it ran', tested.includes('smoke:yearly'))
 
 const unknownEntry = plain(
-  await captureOutput(() => app.make('artisan').run(['schedule:test', 'nothing:here']))
+  await captureOutput(() => app.make('elvel').run(['schedule:test', 'nothing:here']))
 )
 check('an unknown entry lists what is registered', unknownEntry.includes('Registered:'))
 
@@ -2206,7 +2204,7 @@ const secretJob = (await (
 check('a queued payload is marked encrypted', secretJob.encrypted === true)
 check('and the stored row does not carry the token', secretJob.payloadContainsToken === false)
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--once']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--once']))
 
 const workerSaw = (await (
   await app.handle(new Request('http://localhost/check/secret/jobs/smoke'))
@@ -2289,8 +2287,8 @@ check(
 
 section('Console')
 
-const artisan = app.make('artisan')
-const commandNames = artisan.all().map((command) => command.signature.split(' ')[0])
+const elvel = app.make('elvel')
+const commandNames = elvel.all().map((command) => command.signature.split(' ')[0])
 
 check(
   'framework commands registered',
@@ -2298,7 +2296,7 @@ check(
 )
 check('generators registered', commandNames.filter((name) => name?.startsWith('make:')).length >= 7)
 
-const stubList = plain(await captureOutput(() => artisan.run(['stub:publish', '--list'])))
+const stubList = plain(await captureOutput(() => elvel.run(['stub:publish', '--list'])))
 
 // The stubs live beside the package that owns them, spread across node_modules;
 // finding one by hand is why people give up and edit the generated file instead.
@@ -2309,17 +2307,17 @@ check(
 )
 check('application commands are discovered', commandNames.includes('ping'))
 
-const pingOutput = plain(await captureOutput(() => artisan.run(['ping', 'elvel', '--repeat', '2'])))
+const pingOutput = plain(await captureOutput(() => elvel.run(['ping', 'elvel', '--repeat', '2'])))
 check('signature arguments bind', pingOutput.includes('pong elvel'))
 check('repeatable execution honours options', pingOutput.split('pong elvel').length - 1 === 2)
 
-const loudOutput = plain(await captureOutput(() => artisan.run(['ping', 'world', '--loud'])))
+const loudOutput = plain(await captureOutput(() => elvel.run(['ping', 'world', '--loud'])))
 check('boolean flags bind', loudOutput.includes('PONG WORLD'))
 
 let unknownCommandStatus = 0
 const unknownCommandOutput = plain(
   await captureOutput(async () => {
-    unknownCommandStatus = await artisan.run(['nope:nope'])
+    unknownCommandStatus = await elvel.run(['nope:nope'])
   })
 )
 check(
@@ -2327,13 +2325,13 @@ check(
   unknownCommandStatus === 1 && unknownCommandOutput.includes('is not defined')
 )
 
-const aboutOutput = plain(await captureOutput(() => artisan.run(['about'])))
+const aboutOutput = plain(await captureOutput(() => elvel.run(['about'])))
 check('about reports the environment', aboutOutput.includes('Application Name'))
 
 let routeListStatus = 1
 const routeListOutput = plain(
   await captureOutput(async () => {
-    routeListStatus = await artisan.run(['route:list'])
+    routeListStatus = await elvel.run(['route:list'])
   })
 )
 check(
@@ -2341,7 +2339,7 @@ check(
   routeListStatus === 0 && routeListOutput.includes('/exercise/view')
 )
 
-const help = plain(await captureOutput(() => artisan.run(['make:controller', '--help'])))
+const help = plain(await captureOutput(() => elvel.run(['make:controller', '--help'])))
 check(
   '--help documents arguments and options',
   help.includes('<name>') && help.includes('--resource')
@@ -2370,7 +2368,7 @@ try {
    * written is not satisfied by a file that simply has not been made yet.
    */
   const pretended = plain(
-    await captureOutput(() => artisan.run(['make:controller', 'SmokePretend', '--pretend']))
+    await captureOutput(() => elvel.run(['make:controller', 'SmokePretend', '--pretend']))
   )
 
   check('a generator can be asked what it would do', pretended.includes('would be created'))
@@ -2380,7 +2378,7 @@ try {
     !(await Bun.file(app.appPath('Http', 'Controllers', 'SmokePretendController.ts')).exists())
   )
 
-  await captureOutput(() => artisan.run(['make:controller', 'SmokeThing', '--resource']))
+  await captureOutput(() => elvel.run(['make:controller', 'SmokeThing', '--resource']))
   const controllerSource = await Bun.file(generated[0] as string).text()
   check('make:controller --resource writes a file', controllerSource.length > 0)
   check(
@@ -2389,10 +2387,10 @@ try {
   )
   check('resource stub pluralises the prefix', controllerSource.includes("'/smoke-things'"))
 
-  await captureOutput(() => artisan.run(['make:controller', 'nested/SmokeNested']))
+  await captureOutput(() => elvel.run(['make:controller', 'nested/SmokeNested']))
   check('nested names create subdirectories', await Bun.file(generated[1] as string).exists())
 
-  await captureOutput(() => artisan.run(['make:view', 'smoke.probe']))
+  await captureOutput(() => elvel.run(['make:view', 'smoke.probe']))
   const viewSource = await Bun.file(generated[2] as string).text()
   check('make:view writes a .tsx component', viewSource.includes('export function Probe('))
   check('view class name uses the last segment only', viewSource.includes('ProbeProps'))
@@ -2401,44 +2399,42 @@ try {
     viewSource.includes("from '../components/layout.tsx'")
   )
 
-  await captureOutput(() => artisan.run(['make:component', 'SmokeAlert']))
+  await captureOutput(() => elvel.run(['make:component', 'SmokeAlert']))
   const componentSource = await Bun.file(generated[5] as string).text()
   check(
     'make:component writes a component',
     componentSource.includes('export function SmokeAlert(')
   )
 
-  await captureOutput(() => artisan.run(['make:provider', 'Smoke']))
+  await captureOutput(() => elvel.run(['make:provider', 'Smoke']))
   const providerSource = await Bun.file(generated[3] as string).text()
   check(
     'make:provider suffixes the class name',
     providerSource.includes('class SmokeServiceProvider')
   )
 
-  await captureOutput(() => artisan.run(['make:command', 'SmokeJob']))
+  await captureOutput(() => elvel.run(['make:command', 'SmokeJob']))
   const commandSource = await Bun.file(generated[4] as string).text()
   check('make:command derives a signature', commandSource.includes("signature = 'smoke:job"))
 
-  await captureOutput(() => artisan.run(['make:event', 'SmokeHappened']))
+  await captureOutput(() => elvel.run(['make:event', 'SmokeHappened']))
   const eventSource = await Bun.file(generated[6] as string).text()
   check(
     'make:event writes a class with a stable eventName',
     eventSource.includes("eventName = 'smoke.happened'")
   )
 
-  await captureOutput(() =>
-    artisan.run(['make:listener', 'RecordSmoke', '--event', 'SmokeHappened'])
-  )
+  await captureOutput(() => elvel.run(['make:listener', 'RecordSmoke', '--event', 'SmokeHappened']))
   const listenerSource = await Bun.file(generated[7] as string).text()
   check(
     'make:listener subscribes to the given event',
     listenerSource.includes("listen('smoke.happened'")
   )
 
-  const refused = plain(await captureOutput(() => artisan.run(['make:view', 'smoke.probe'])))
+  const refused = plain(await captureOutput(() => elvel.run(['make:view', 'smoke.probe'])))
   check('existing files are not overwritten', refused.includes('already exists'))
 
-  const forced = await captureOutput(() => artisan.run(['make:view', 'smoke.probe', '--force']))
+  const forced = await captureOutput(() => elvel.run(['make:view', 'smoke.probe', '--force']))
   check('--force overwrites', plain(forced).includes('View created'))
 } finally {
   await Promise.all(generated.map((path) => rm(path, { force: true })))
@@ -2478,15 +2474,15 @@ const collectGenerated = async (table: string) => {
 try {
   // Names nothing in the playground owns, so the existing migrations are left alone.
   const written = plain(
-    await captureOutput(() => artisan.run(['queue:table', '--table', 'smoke_jobs']))
+    await captureOutput(() => elvel.run(['queue:table', '--table', 'smoke_jobs']))
   )
   await collectGenerated('smoke_jobs')
 
   check('queue:table writes a migration', written.includes('Migration created'))
-  check('and says what to run next', written.includes('artisan migrate'))
+  check('and says what to run next', written.includes('elvel migrate'))
 
   const refused = plain(
-    await captureOutput(() => artisan.run(['queue:table', '--table', 'smoke_jobs']))
+    await captureOutput(() => elvel.run(['queue:table', '--table', 'smoke_jobs']))
   )
 
   // The bug this catches: a timestamped name makes every run unique, so without
@@ -2495,7 +2491,7 @@ try {
   check('and names the migration that already has it', refused.includes('create_smoke_jobs_table'))
 
   const forced = plain(
-    await captureOutput(() => artisan.run(['queue:table', '--table', 'smoke_jobs', '--force']))
+    await captureOutput(() => elvel.run(['queue:table', '--table', 'smoke_jobs', '--force']))
   )
   await collectGenerated('smoke_jobs')
   check('--force writes one anyway', forced.includes('Migration created'))
@@ -2507,7 +2503,7 @@ try {
     ['cache:table', 'cache'],
     ['notifications:table', 'notifications']
   ] as const) {
-    const output = plain(await captureOutput(() => artisan.run([command])))
+    const output = plain(await captureOutput(() => elvel.run([command])))
 
     check(`${command} sees the migration the playground already has`, output.includes(table))
   }
@@ -2520,9 +2516,9 @@ try {
   await Promise.all(generatedTables.slice(1).map((path) => rm(path, { force: true })))
   generatedTables.length = 1
 
-  await captureOutput(() => artisan.run(['cache:table', '--table', 'smoke_cache']))
+  await captureOutput(() => elvel.run(['cache:table', '--table', 'smoke_cache']))
   await collectGenerated('smoke_cache')
-  await captureOutput(() => artisan.run(['notifications:table', '--table', 'smoke_notes']))
+  await captureOutput(() => elvel.run(['notifications:table', '--table', 'smoke_notes']))
   await collectGenerated('smoke_notes')
 
   const staging = join(app.basePath(), 'storage', 'framework', 'smoke-migrations')
@@ -2611,20 +2607,20 @@ try {
    *
    * The template used to lag the packages by eight of them, and nothing noticed
    * because these checks only asserted that a scaffold *scaffolds*. Registration
-   * is the proxy that catches it: a command only appears in `artisan list` if its
+   * is the proxy that catches it: a command only appears in `elvel list` if its
    * provider booted, which needs the dependency, the provider entry and the
    * config file to all be present.
    */
-  const scaffoldedArtisan = Bun.spawnSync({
-    cmd: ['bun', 'artisan.ts', 'list'],
+  const scaffoldedElvel = Bun.spawnSync({
+    cmd: ['bun', 'elvel.ts', 'list'],
     cwd: scaffoldTarget,
     stdout: 'pipe',
     stderr: 'pipe'
   })
 
-  const listed = plain(scaffoldedArtisan.stdout.toString())
+  const listed = plain(scaffoldedElvel.stdout.toString())
 
-  check('a scaffolded application boots', scaffoldedArtisan.exitCode === 0, listed.slice(-400))
+  check('a scaffolded application boots', scaffoldedElvel.exitCode === 0, listed.slice(-400))
 
   /**
    * Every generator, run in a real application, and the result typechecked.
@@ -2663,7 +2659,7 @@ try {
 
   for (const [command, name, path] of generators) {
     const made = Bun.spawnSync({
-      cmd: ['bun', 'artisan.ts', command, name],
+      cmd: ['bun', 'elvel.ts', command, name],
       cwd: scaffoldTarget,
       stdout: 'pipe',
       stderr: 'pipe'
@@ -2679,7 +2675,7 @@ try {
   // Refusing to overwrite is the behaviour that keeps a generator safe to
   // re-run; a second `make:enum` must not quietly replace the one being used.
   const twice = Bun.spawnSync({
-    cmd: ['bun', 'artisan.ts', 'make:enum', 'ArticleStatus'],
+    cmd: ['bun', 'elvel.ts', 'make:enum', 'ArticleStatus'],
     cwd: scaffoldTarget,
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2726,7 +2722,7 @@ try {
 
   for (const [command, name, path] of ormGenerators) {
     const made = Bun.spawnSync({
-      cmd: ['bun', 'artisan.ts', command, name],
+      cmd: ['bun', 'elvel.ts', command, name],
       cwd: kitTarget,
       stdout: 'pipe',
       stderr: 'pipe'
@@ -2749,7 +2745,7 @@ try {
    */
   const kitListed = plain(
     Bun.spawnSync({
-      cmd: ['bun', 'artisan.ts', 'list'],
+      cmd: ['bun', 'elvel.ts', 'list'],
       cwd: kitTarget,
       stdout: 'pipe',
       stderr: 'pipe'
@@ -2863,7 +2859,7 @@ try {
   check('--install scaffolds and sets up in one go', setUp.exitCode === 0, `exit ${setUp.exitCode}`)
 
   const setUpTables = Bun.spawnSync({
-    cmd: ['bun', 'artisan.ts', 'db:show'],
+    cmd: ['bun', 'elvel.ts', 'db:show'],
     cwd: setupTarget,
     stdout: 'pipe',
     stderr: 'pipe'
@@ -3335,7 +3331,7 @@ try {
    * checked where it belongs — in the auth kit, further down.
    *
    * Only packages that contribute a command can be checked this way; `view`,
-   * `log`, `translation` and `support` register bindings and no artisan command,
+   * `log`, `translation` and `support` register bindings and no elvel command,
    * so their presence is proven by the pages that render rather than here.
    */
   for (const [command, provider] of [
@@ -3437,7 +3433,7 @@ const startedBatch = (await (await postJson('/check/queue/batch', { rows: 3 })).
 check('a batch records every job before queueing them', startedBatch.batch.totalJobs === 3)
 check('and starts with all of them pending', startedBatch.batch.pendingJobs === 3)
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--stop-when-empty']))
 
 const finishedBatch = (await (
   await app.handle(new Request(`http://localhost/check/queue/batch/${startedBatch.batch.id}`))
@@ -3466,7 +3462,7 @@ const abortedBatch = (await (
   await postJson('/check/queue/batch', { rows: 3, abortRow: 1 })
 ).json()) as { batch: { id: string } }
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--stop-when-empty']))
 
 const afterAbort = (await (
   await app.handle(new Request(`http://localhost/check/queue/batch/${abortedBatch.batch.id}`))
@@ -3497,7 +3493,7 @@ const chained = (await (await postJson('/check/queue/batch-chain', { rows: 2 }))
 // four of its jobs were still queued.
 check('a chain inside a batch counts all of its links', chained.batch.totalJobs === 6)
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--stop-when-empty']))
 
 const chainResult = (await (
   await app.handle(new Request(`http://localhost/check/queue/batch-chain/${chained.batch.id}`))
@@ -3520,7 +3516,7 @@ const failing = (await (await postJson('/check/queue/batch', { rows: 3, failRow:
   batch: { id: string }
 }
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--stop-when-empty']))
 
 const cancelled = (await (
   await app.handle(new Request(`http://localhost/check/queue/batch/${failing.batch.id}`))
@@ -3536,7 +3532,7 @@ const lenient = (await (
   await postJson('/check/queue/batch', { rows: 3, failRow: 1, allowFailures: true })
 ).json()) as { batch: { id: string } }
 
-await captureOutput(() => app.make('artisan').run(['queue:work', '--stop-when-empty']))
+await captureOutput(() => app.make('elvel').run(['queue:work', '--stop-when-empty']))
 
 const tolerated = (await (
   await app.handle(new Request(`http://localhost/check/queue/batch/${lenient.batch.id}`))
@@ -3641,11 +3637,11 @@ check('the inverse finds the article', inverse.articles.length > 0)
 section('Maintenance mode')
 
 const maintenance = app.make('maintenance')
-const artisanForDown = app.make('artisan')
+const elvelForDown = app.make('elvel')
 
 try {
   await captureOutput(() =>
-    artisanForDown.run(['down', '--retry', '60', '--except', '/health', '--with-secret'])
+    elvelForDown.run(['down', '--retry', '60', '--except', '/health', '--with-secret'])
   )
 
   const payload = await maintenance.data()
@@ -3702,7 +3698,7 @@ try {
   await app.make('cache').store().forget('beat:normal')
   await app.make('cache').store().forget('beat:always')
 
-  await captureOutput(() => artisanForDown.run(['schedule:run']))
+  await captureOutput(() => elvelForDown.run(['schedule:run']))
 
   check(
     'a scheduled entry is skipped while down',
@@ -3713,7 +3709,7 @@ try {
     (await app.make('cache').store().get('beat:always')) !== null
   )
 } finally {
-  await captureOutput(() => artisanForDown.run(['up']))
+  await captureOutput(() => elvelForDown.run(['up']))
 }
 
 check('up brings it back', (await maintenance.active()) === false)
@@ -4141,8 +4137,8 @@ async function proveTheApiKitWorks(target: string): Promise<void> {
 
   const runner = new ProcessManager().path(target).timeout(120_000)
 
-  await runner.run(['bun', 'artisan.ts', 'auth:schema'])
-  const migrated = await runner.run(['bun', 'artisan.ts', 'migrate', '--force'])
+  await runner.run(['bun', 'elvel.ts', 'auth:schema'])
+  const migrated = await runner.run(['bun', 'elvel.ts', 'migrate', '--force'])
 
   check('the api kit migrates', migrated.successful(), migrated.all().slice(-300))
 
@@ -4153,7 +4149,7 @@ async function proveTheApiKitWorks(target: string): Promise<void> {
   const server = new ProcessManager()
     .path(target)
     .forever()
-    .start(['bun', 'artisan.ts', 'serve', `--port=${port}`])
+    .start(['bun', 'elvel.ts', 'serve', `--port=${port}`])
 
   /** Every call is JSON in and JSON out; nothing here has a cookie jar. */
   const call = async (
@@ -4303,10 +4299,10 @@ async function proveTheKitWorks(target: string): Promise<void> {
 
   const runner = new ProcessManager().path(target).timeout(120_000)
 
-  const schema = await runner.run(['bun', 'artisan.ts', 'auth:schema'])
+  const schema = await runner.run(['bun', 'elvel.ts', 'auth:schema'])
   check('auth:schema writes the migration', schema.successful(), schema.all().slice(-200))
 
-  const migrated = await runner.run(['bun', 'artisan.ts', 'migrate', '--force'])
+  const migrated = await runner.run(['bun', 'elvel.ts', 'migrate', '--force'])
   check('migrate creates better-auth’s tables', migrated.successful(), migrated.all().slice(-300))
 
   // Its own process group, so a server that ignores SIGTERM still dies with the
@@ -4322,7 +4318,7 @@ async function proveTheKitWorks(target: string): Promise<void> {
   const server = new ProcessManager()
     .path(target)
     .forever()
-    .start(['bun', 'artisan.ts', 'serve', `--port=${port}`])
+    .start(['bun', 'elvel.ts', 'serve', `--port=${port}`])
 
   try {
     await server.waitUntil((output) => output.includes('Server running'))
@@ -5551,7 +5547,7 @@ section('Bundling')
   const bundle = join(app.basePath(), 'storage', 'framework', `smoke-bundle-${process.pid}.js`)
 
   const built = Bun.spawnSync({
-    cmd: ['bun', 'build', 'playground/artisan-bundle.ts', '--target=bun', '--outfile', bundle],
+    cmd: ['bun', 'build', 'playground/elvel-bundle.ts', '--target=bun', '--outfile', bundle],
     cwd: repository,
     stdout: 'pipe',
     stderr: 'pipe'

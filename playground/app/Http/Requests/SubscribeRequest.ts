@@ -1,7 +1,7 @@
 import { FormRequest } from '@elvel/http'
 
 /**
- * Generated with `artisan make:request SubscribeRequest`, then extended.
+ * Generated with `elvel make:request SubscribeRequest`, then extended.
  *
  * Nothing here says anything about redirecting: a browser posting this form is
  * sent back to it with the messages and its input, and an API client asking for

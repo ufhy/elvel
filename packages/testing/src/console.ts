@@ -14,7 +14,7 @@ type Prompts = {
 }
 
 /**
- * An artisan command run under test — Laravel's `PendingCommand`.
+ * An elvel command run under test — Laravel's `PendingCommand`.
  *
  * Output is captured by replacing `console.log` and `console.error` for the
  * duration. That is blunt, and it is also the only thing that works: `Output`
@@ -38,7 +38,7 @@ export class PendingCommand {
      * The `Output` prototype whose prompts get stubbed.
      *
      * Passed in rather than imported: this package must not depend on
-     * `@elvel/console`, which depends on half the framework. `artisan()` has
+     * `@elvel/console`, which depends on half the framework. `elvel()` has
      * it in hand at the call site anyway.
      */
     private readonly outputPrototype?: Prompts

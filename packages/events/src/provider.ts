@@ -33,7 +33,7 @@ export class EventServiceProvider extends ServiceProvider {
   override async boot(): Promise<void> {
     const dispatcher = this.app.make('events')
 
-    if (this.app.bound('artisan')) this.app.make('artisan').register(EventListCommand)
+    if (this.app.bound('elvel')) this.app.make('elvel').register(EventListCommand)
 
     // Events first: a subscriber's `listen()` may register a queued listener, and
     // the worker that runs it has to be able to rebuild the event.

@@ -7,7 +7,7 @@ export default {
   /**
    * Signs cookies and, through HKDF, derives the encryption key.
    *
-   * At least 32 characters. `artisan key:generate` writes one.
+   * At least 32 characters. `elvel key:generate` writes one.
    */
   key: env('APP_KEY', ''),
 

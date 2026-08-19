@@ -4,7 +4,7 @@ APP_DEBUG=true
 APP_URL=http://localhost:3000
 APP_TIMEZONE=UTC
 
-# Empty on purpose. `create-elvel` fills it in, and `artisan key:generate`
+# Empty on purpose. `create-elvel` fills it in, and `elvel key:generate`
 # writes one for a checkout that starts from this file.
 #
 # A shipped default would be a shared secret: it lives in the framework's own
@@ -32,7 +32,7 @@ DB_CONNECTION=sqlite
 DB_DATABASE=database/database.sqlite
 DB_FOREIGN_KEYS=true
 
-# file works on one machine. database needs: artisan session:table && artisan migrate
+# file works on one machine. database needs: elvel session:table && elvel migrate
 SESSION_DRIVER=file
 SESSION_CSRF=true
 # Encrypt the session cookie instead of only signing it.
@@ -40,18 +40,18 @@ SESSION_ENCRYPT=false
 
 # Signs better-auth's tokens. Never reuse APP_KEY: one key for both means a leak
 # of either is a leak of both. Filled in by `create-elvel`, or by:
-#   artisan auth:secret
+#   elvel auth:secret
 #
 # Empty is worse than wrong here — better-auth signs with an empty string and
 # says nothing — so it is generated rather than defaulted.
-# The tables come from: artisan auth:schema && artisan migrate
+# The tables come from: elvel auth:schema && elvel migrate
 AUTH_SECRET=
 AUTH_MOUNT=true
 
-# file needs no service. database needs: artisan cache:table && artisan migrate
+# file needs no service. database needs: elvel cache:table && elvel migrate
 CACHE_STORE=file
 
-# sync runs the job in the request. database needs: artisan queue:table
+# sync runs the job in the request. database needs: elvel queue:table
 QUEUE_CONNECTION=sync
 QUEUE_FAILED_DRIVER=null
 

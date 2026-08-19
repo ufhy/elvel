@@ -1,6 +1,6 @@
 node_modules
 
-# `artisan app:build` writes here. Built on deploy, never committed.
+# `elvel app:build` writes here. Built on deploy, never committed.
 dist
 .env
 .env.local

@@ -40,7 +40,7 @@ database, for instance, which `--kit=none` does not install:
 
 ```bash
 bun add @elvel/database
-bun artisan config:publish database
+bun elvel config:publish database
 ```
 
 then a line in `bootstrap/providers.ts`. After that `make:model`, `migrate` and
@@ -49,30 +49,30 @@ the rest are registered.
 The drivers that ship need nothing running — `cache=file`, `queue=sync`,
 `mail=log`, `disk=local`, SQLite — so `bun run dev` works before Docker does.
 Switching one to `database` is an env change plus the migration its command
-writes: `artisan cache:table`, `queue:table`, `queue:failed-table`,
+writes: `elvel cache:table`, `queue:table`, `queue:failed-table`,
 `notifications:table`.
 
 Open <http://localhost:3000>.
 
 ```bash
-bun run artisan                            # list commands
-bun run artisan about
-bun run artisan route:list
-bun run artisan make:controller Post -r
-bun run artisan make:view pages.about
-bun run artisan make:component Alert
-bun run artisan make:provider Route
-bun run artisan make:command SendReports
-bun run artisan migrate
-bun run artisan migrate:rollback --step=2
-bun run artisan migrate:status
-bun run artisan make:migration create_posts_table
-bun run artisan make:model Post -mfs        # model + migration + factory + seeder
-bun run artisan db:seed
-bun run artisan db:show
-bun run artisan db:table users
-bun run artisan make:event OrderShipped
-bun run artisan make:listener RecordShipments --event OrderShipped
+bun run elvel                            # list commands
+bun run elvel about
+bun run elvel route:list
+bun run elvel make:controller Post -r
+bun run elvel make:view pages.about
+bun run elvel make:component Alert
+bun run elvel make:provider Route
+bun run elvel make:command SendReports
+bun run elvel migrate
+bun run elvel migrate:rollback --step=2
+bun run elvel migrate:status
+bun run elvel make:migration create_posts_table
+bun run elvel make:model Post -mfs        # model + migration + factory + seeder
+bun run elvel db:seed
+bun run elvel db:show
+bun run elvel db:table users
+bun run elvel make:event OrderShipped
+bun run elvel make:listener RecordShipments --event OrderShipped
 ```
 
 ## Packages
@@ -87,7 +87,7 @@ bun run artisan make:listener RecordShipments --event OrderShipped
 | `@elvel/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
 | `@elvel/events` | Dispatcher with wildcards, halting, subscribers, `EventFake`. |
 | `@elvel/log` | Channels and drivers (console, json, single, daily, stack, null). |
-| `@elvel/console` | Artisan: signature parser, command base, kernel, stub generators. |
+| `@elvel/console` | The CLI: signature parser, command base, kernel, stub generators. |
 | `@elvel/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. |
 | `@elvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
@@ -207,7 +207,7 @@ events().listen(OrderShipped, NotifyWarehouse)   // pushed, not called
 - the dispatcher knows nothing about queues — the push is a hook installed by
   `QueueServiceProvider`, and a queued listener with no queue registered **throws**
   rather than quietly running in the request
-- `artisan make:listener NotifyWarehouse --event OrderShipped --queued` writes one
+- `elvel make:listener NotifyWarehouse --event OrderShipped --queued` writes one
 
 ```ts
 log().info('User {id} signed in', { id: 7 })    // {placeholders} interpolate
@@ -456,7 +456,7 @@ exist purely to give the smoke test something real to assert against.
 
 ```bash
 bun run playground:dev              # serve it with --watch
-bun run playground route:list       # any Artisan command
+bun run playground route:list       # any Elvel command
 bun run playground:reset --force    # regenerate from the template (destructive)
 ```
 
@@ -611,9 +611,9 @@ turning encryption on does not log everybody out. An encrypted `X-XSRF-TOKEN` is
 still *rejected* rather than waved through.
 
 ```bash
-bun artisan down --retry=60 --except=/health --with-secret   # 503, but /health still answers
-bun artisan down --render=errors.maintenance                 # bake the page now, serve it later
-bun artisan up
+bun elvel down --retry=60 --except=/health --with-secret   # 503, but /health still answers
+bun elvel down --render=errors.maintenance                 # bake the page now, serve it later
+bun elvel up
 ```
 
 Maintenance mode keeps its payload in **a file**, because the reason to need it is
@@ -712,7 +712,7 @@ Three things worth stating:
 
 **Keys are derived, never used raw.** `APP_KEY` goes through HKDF with a purpose
 string, so the cookie *signer* and the *encrypter* share an origin but no key
-material. `artisan key:generate` writes one and refuses to overwrite an existing
+material. `elvel key:generate` writes one and refuses to overwrite an existing
 key without `--force`, printing the `APP_PREVIOUS_KEYS=` line that keeps old
 payloads readable through the rotation.
 

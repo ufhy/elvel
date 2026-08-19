@@ -7,7 +7,7 @@ import app from '../bootstrap/app.ts'
  * committed — it is its migrations plus its seeders, and a binary that changes
  * on every run had put itself into 76 commits before anybody looked — so a fresh
  * clone has nothing to query. And a single file shared between the tests, a
- * running `artisan serve` and `bun run smoke` is a file two processes write at
+ * running `elvel serve` and `bun run smoke` is a file two processes write at
  * once: SQLite refuses the second outright, and fifteen tests fail together with
  * `database is locked` in a way that reads like fifteen separate bugs.
  *
@@ -28,8 +28,8 @@ await app.make('db').disconnectAll()
 const schema = await app.make('db').schema()
 
 if (!(await schema.hasTable('articles'))) {
-  const artisan = app.make('artisan')
+  const elvel = app.make('elvel')
 
-  await artisan.run(['migrate', '--force'])
-  await artisan.run(['db:seed'])
+  await elvel.run(['migrate', '--force'])
+  await elvel.run(['db:seed'])
 }

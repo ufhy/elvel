@@ -87,7 +87,7 @@ export class SchemaDumpCommand extends MigrationCommand {
 
     const lines = [
       '-- Elvel schema dump.',
-      '-- Load it with `artisan migrate`, which uses it when no migration has run yet.',
+      '-- Load it with `elvel migrate`, which uses it when no migration has run yet.',
       '',
       ...objects.map((object) => `${object.sql};`),
       ''

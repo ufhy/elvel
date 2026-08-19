@@ -102,8 +102,8 @@ export class AppServiceProvider extends ServiceProvider {
   /**
    * The schedule, in one readable place.
    *
-   * Nothing here runs on its own: a crontab calls `artisan schedule:run` every
-   * minute, or a long-lived process runs `artisan schedule:work`.
+   * Nothing here runs on its own: a crontab calls `elvel schedule:run` every
+   * minute, or a long-lived process runs `elvel schedule:work`.
    */
   /**
    * Who may listen to what.
@@ -158,7 +158,7 @@ export class AppServiceProvider extends ServiceProvider {
      *
      * Everything else here runs in the scheduler's own process, one after
      * another. This one is spawned as a child running the application's own
-     * `artisan`, which is why only a command can do it — a closure cannot be
+     * `elvel`, which is why only a command can do it — a closure cannot be
      * handed to a fresh process.
      */
     schedule
@@ -171,7 +171,7 @@ export class AppServiceProvider extends ServiceProvider {
     /**
      * Two entries a minute apart in behaviour, not in timing.
      *
-     * Both are due every minute; while `artisan down` is in force only the second
+     * Both are due every minute; while `elvel down` is in force only the second
      * runs. That is the useful default: maintenance usually means something is
      * being migrated, and a task that keeps writing through it is how a
      * half-finished migration acquires new rows — while a heartbeat is exactly what

@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch artisan.ts serve",
-    "serve": "bun artisan.ts serve",
-    "artisan": "bun artisan.ts",
+    "dev": "bun --watch elvel.ts serve",
+    "serve": "bun elvel.ts serve",
+    "elvel": "bun elvel.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
