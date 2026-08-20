@@ -10,7 +10,7 @@ beforeEach(async () => {
   await new SchemaBuilder(connection).create('sessions', (table) => {
     table.string('id').primary()
     table.text('payload')
-    table.integer('last_activity')
+    table.bigInteger('last_activity')
   })
 })
 
