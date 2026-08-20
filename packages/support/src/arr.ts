@@ -1,6 +1,32 @@
 type Dict = Record<string, any>
 
 /**
+ * Refuse a segment that would reach the prototype chain, and hand back the rest.
+ *
+ * `Arr.set(target, '__proto__.isAdmin', true)` does not write a property called
+ * `__proto__`; it walks into `Object.prototype` and writes *there*, and from
+ * that moment every object in the process answers `isAdmin` — including ones
+ * built long before, and ones the attacker never touched. PHP arrays have no
+ * prototype, so Laravel's `data_set` never had to decide this; the port inherits
+ * the API and the hazard with it.
+ *
+ * It returns the segment rather than returning nothing, so that every write
+ * below reads `current[refusePrototypeWalk(...)]` and there is no way to add a
+ * new one that forgets to ask.
+ *
+ * Refused loudly rather than ignored: a key of that shape is an attack or a bug,
+ * and dropping the write in silence leaves the caller believing it stored
+ * something.
+ */
+function refusePrototypeWalk(key: string, segment: string): string {
+  if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
+    throw new Error(`[${key}] walks through [${segment}], which would reach the prototype chain.`)
+  }
+
+  return segment
+}
+
+/**
  * Read a nested value using dot notation.
  *
  * Declared as a standalone function because object literals cannot carry
@@ -59,18 +85,8 @@ export const Arr = {
     const segments = key.split('.')
     let current: Dict = target
 
-    // Spelled out here rather than in a helper: three comparisons a reader can
-    // see beside the write they protect, and a barrier the analysis can follow.
-    for (const segment of segments) {
-      if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
-        throw new Error(
-          `[${key}] walks through [${segment}], which would reach the prototype chain.`
-        )
-      }
-    }
-
     for (let index = 0; index < segments.length - 1; index += 1) {
-      const segment = segments[index] as string
+      const segment = refusePrototypeWalk(key, segments[index] as string)
       const next = current[segment]
 
       if (next === null || typeof next !== 'object') {
@@ -80,7 +96,7 @@ export const Arr = {
       current = current[segment] as Dict
     }
 
-    current[segments[segments.length - 1] as string] = value
+    current[refusePrototypeWalk(key, segments[segments.length - 1] as string)] = value
     return target
   },
 
@@ -93,24 +109,14 @@ export const Arr = {
     const segments = key.split('.')
     let current: Dict = target
 
-    // `delete Object.prototype.toString` is the same hole pointing the other
-    // way. Spelled out again rather than shared with `set`: a barrier only counts
-    // if it dominates the write in the same function.
-    for (const segment of segments) {
-      if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
-        throw new Error(
-          `[${key}] walks through [${segment}], which would reach the prototype chain.`
-        )
-      }
-    }
-
     for (let index = 0; index < segments.length - 1; index += 1) {
-      const next = current[segments[index] as string]
+      const next = current[refusePrototypeWalk(key, segments[index] as string)]
       if (next === null || typeof next !== 'object') return target
       current = next as Dict
     }
 
-    delete current[segments[segments.length - 1] as string]
+    // `delete Object.prototype.toString` is the same hole pointing the other way.
+    delete current[refusePrototypeWalk(key, segments[segments.length - 1] as string)]
     return target
   },
 
