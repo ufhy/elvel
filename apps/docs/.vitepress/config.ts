@@ -83,6 +83,7 @@ export default defineConfig({
           { text: 'Mail', link: '/digging-deeper/mail' },
           { text: 'File storage', link: '/digging-deeper/storage' },
           { text: 'Queues', link: '/digging-deeper/queues' },
+          { text: 'Notifications', link: '/digging-deeper/notifications' },
           { text: 'Task scheduling', link: '/digging-deeper/scheduling' }
         ]
       },
