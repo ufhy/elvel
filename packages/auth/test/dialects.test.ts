@@ -6,6 +6,7 @@ import {
   SchemaBuilder
 } from '@elvel/database'
 import { betterAuth } from 'better-auth'
+import { reachable } from '../../../tests/support/dialects.ts'
 import { type Dialect, elvelAdapter } from '../src/adapter.ts'
 
 /**
@@ -24,50 +25,13 @@ import { type Dialect, elvelAdapter } from '../src/adapter.ts'
 type Candidate = { name: Dialect; config: ConnectionConfig }
 
 const PREFIX = `auth_t${Date.now().toString(36)}`
-const TEST_DATABASE = 'elvel_test'
 
-const candidates: Candidate[] = [
-  { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },
-  {
-    name: 'postgres',
-    config: process.env.TEST_POSTGRES_URL
-      ? { driver: 'postgres', url: process.env.TEST_POSTGRES_URL }
-      : {
-          driver: 'postgres',
-          host: '127.0.0.1',
-          port: 5432,
-          username: 'postgres',
-          database: TEST_DATABASE
-        }
-  },
-  {
-    name: 'mysql',
-    config: process.env.TEST_MYSQL_URL
-      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
-      : {
-          driver: 'mysql',
-          host: '127.0.0.1',
-          port: 3309,
-          username: 'root',
-          database: TEST_DATABASE
-        }
-  }
-]
-
-const available: Candidate[] = []
-
-for (const candidate of candidates) {
-  try {
-    const connection = await BunSqlConnection.make(candidate.name, candidate.config)
-    await connection.select('select 1 as one')
-    await connection.disconnect()
-    available.push(candidate)
-  } catch (error) {
-    console.log(
-      `  skipping auth on ${candidate.name}: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`
-    )
-  }
-}
+// `name` is a `Dialect` here rather than a string, because the adapter takes one;
+// the shared matrix hands back the same three names.
+const available = (await reachable('auth')).map((candidate) => ({
+  ...candidate,
+  name: candidate.name as Dialect
+})) satisfies Candidate[]
 
 test('sqlite is always part of the matrix', () => {
   expect(available.map((candidate) => candidate.name)).toContain('sqlite')

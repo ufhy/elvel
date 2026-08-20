@@ -1469,6 +1469,28 @@ that hold it there are described further up.
   within one module instance. Worth collapsing if plugin registration ever gets
   strange.
 
+### One dialect matrix, not four
+
+`tests/support/dialects.ts` decides which servers a run can reach, creates
+`elvel_test` on each, and hands back the list. Four suites share it — database,
+queue, auth and sessions — and the sharing is the fix, not the tidying.
+
+Each had its own copy, and two of them were subtly wrong in the same way: they
+asked to connect *to* `elvel_test` instead of creating it. That works whenever the
+one suite that does create it runs first, and `bun test` gave no such promise. In
+CI it ran second, so `queue on postgres`, `queue on mysql`, `auth on postgres` and
+`auth on mysql` skipped silently — the exact coverage those files exist for,
+reported as a skip nobody read. Locally they passed, which is worse.
+
+It surfaced only because a new sessions suite was written the same way and its
+skip line was read: `skipping sessions on postgres: database "elvel_test" does not
+exist`. Coverage that depends on file order is not coverage, and a matrix defined
+once cannot drift in one copy.
+
+The other half of that copy is why the test database exists at all: MySQL's system
+schema `mysql` does not enforce InnoDB foreign keys, so a suite pointed there
+silently passed rows a real application database rejects.
+
 ### What the tests do not reach
 
 `bun test --coverage` reports roughly three quarters of functions. Known
