@@ -2596,9 +2596,21 @@ try {
   check('.env is written from the example', await Bun.file(join(scaffoldTarget, '.env')).exists())
 
   const scaffoldedView = await Bun.file(
-    join(scaffoldTarget, 'resources/views/pages/landing.tsx')
+    join(scaffoldTarget, 'resources/views/pages/welcome.tsx')
   ).text()
-  check('view components are copied verbatim', scaffoldedView.includes('export function Landing('))
+  check('view components are copied verbatim', scaffoldedView.includes('export function Welcome('))
+
+  /**
+   * The welcome page has to look finished before anything is built.
+   *
+   * `vite()` renders nothing until a manifest exists, so a page relying on
+   * `app.css` alone arrives as naked markup — 1,295 bytes of it, measured before
+   * this page carried its own styles.
+   */
+  check(
+    'and the welcome page carries its own styles',
+    scaffoldedView.includes('<style>{styles}</style>')
+  )
   const scaffoldedTsconfig = await Bun.file(join(scaffoldTarget, 'tsconfig.json')).text()
   check('scaffolded tsconfig wires the JSX runtime', scaffoldedTsconfig.includes('@kitajs/html'))
 

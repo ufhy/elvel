@@ -18,7 +18,7 @@ import app from '../../bootstrap/app.ts'
  * Delete this file once you have tests of your own; it is here to show the
  * shape and to give `bun test` something to find on the first day.
  */
-describe('the landing page', () => {
+describe('the welcome page', () => {
   test('renders', async () => {
     const response = await press(app).get('/')
 

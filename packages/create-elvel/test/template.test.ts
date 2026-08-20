@@ -867,3 +867,86 @@ describe('the README a scaffolded application is given', () => {
     expect<string[]>(bare).toEqual([])
   })
 })
+
+/**
+ * The page a new application answers with.
+ *
+ * Laravel's `welcome.blade.php` inlines its stylesheet so the first thing anybody
+ * sees is finished rather than unstyled, and ours has to do the same for a
+ * sharper reason: `vite()` renders nothing until `bun run build` has run, so
+ * before that a scaffolded application served 1,295 bytes of naked markup.
+ */
+describe('the welcome page', () => {
+  const welcome = async (): Promise<string> =>
+    await Bun.file(resolve(templateDir, 'resources', 'views', 'pages', 'welcome.tsx')).text()
+
+  test('carries its own styles, so it looks right before any build', async () => {
+    const source = await welcome()
+
+    expect<boolean>(source.includes('<style>{styles}</style>')).toBe(true)
+
+    // The page-level basics too. `app.css` says the same things and arrives only
+    // through the build, so without these the body keeps the browser's margin.
+    expect<boolean>(/body \{[^}]*margin: 0/.test(source)).toBe(true)
+    expect<boolean>(source.includes('prefers-color-scheme: dark')).toBe(true)
+    expect<boolean>(source.includes('prefers-reduced-motion')).toBe(true)
+  })
+
+  /**
+   * A grid item does not shrink below its content unless told to, and the
+   * terminal block is `white-space: pre`. Without `min-width: 0` the column
+   * holds itself open, `overflow-x` never engages, and the whole page scrolled
+   * sideways on a phone — 414 pixels inside a 390-pixel viewport, measured in a
+   * browser.
+   */
+  test('and does not push the page sideways on a phone', async () => {
+    expect<boolean>((await welcome()).includes('.welcome .col { min-width: 0; }')).toBe(true)
+  })
+
+  /**
+   * The header offers only what the application has.
+   *
+   * `--kit=none` names no auth routes and it stays empty; a kit that ships
+   * sign-in names them and it fills in — the same question Laravel's welcome page
+   * asks with `Route::has('login')`, and the same reason: a starter page must not
+   * link to a page that answers 404.
+   */
+  test('and links to auth pages only where they exist', async () => {
+    const controller = await Bun.file(
+      resolve(templateDir, 'app', 'Http', 'Controllers', 'PageController.ts')
+    ).text()
+
+    for (const name of ['login', 'register', 'dashboard']) {
+      expect<string>(`${name}: ${controller.includes(`routes().path('${name}')`)}`).toBe(
+        `${name}: true`
+      )
+    }
+
+    // And the kit that has those pages names them, or the header stays empty in
+    // the one application that should show it.
+    const named = await Promise.all(
+      [
+        ['Auth/SignInController.ts', 'login'],
+        ['Auth/RegisterController.ts', 'register'],
+        ['DashboardController.ts', 'dashboard']
+      ].map(async ([file, name]) => {
+        const source = await Bun.file(
+          resolve(
+            import.meta.dir,
+            '..',
+            'kits',
+            'auth',
+            'app',
+            'Http',
+            'Controllers',
+            file as string
+          )
+        ).text()
+
+        return `${name}: ${source.includes(`${name}:`) && source.includes('routes().names(')}`
+      })
+    )
+
+    expect<string[]>(named).toEqual(['login: true', 'register: true', 'dashboard: true'])
+  })
+})

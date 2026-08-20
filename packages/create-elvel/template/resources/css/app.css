@@ -1,300 +1,53 @@
+/*
+ * Your stylesheet.
+ *
+ * Deliberately close to empty: the welcome page carries its own styles inline so
+ * that a new application looks finished before the first `bun run build`, and
+ * deleting that page takes them with it. What is left here is the little that
+ * every page wants.
+ *
+ * Built by Vite — `bun run dev:assets` while you work, `bun run build` to ship.
+ */
+
 :root {
-  --bg: #fbfbfd;
-  --panel: #ffffff;
-  --border: #e6e6ec;
-  --text: #16161d;
-  --muted: #6b6b7b;
-  --accent: #6b4dff;
-  --code-bg: #f2f2f7;
   color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0c0c11;
-    --panel: #14141c;
-    --border: #262633;
-    --text: #f2f2f7;
-    --muted: #9a9aae;
-    --accent: #9d8bff;
-    --code-bg: #1c1c26;
-  }
-}
-
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html,
 body {
   margin: 0;
-  padding: 0;
+  background: #fbf9f5;
+  color: #17150f;
+  font-family: system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.6;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #121110;
+    color: #ece7dc;
+  }
 }
 
 .shell {
-  flex: 1;
-  width: 100%;
-  max-width: 62rem;
-  margin: 0 auto;
-  padding: clamp(2.5rem, 8vw, 6rem) 1.5rem 3rem;
-}
-
-.eyebrow {
-  margin: 0 0 1rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(2rem, 5.5vw, 3.25rem);
-  line-height: 1.12;
-  letter-spacing: -0.02em;
-  font-weight: 700;
-}
-
-.accent {
-  color: var(--accent);
-}
-
-.lede {
-  margin: 1.25rem 0 0;
-  max-width: 38rem;
-  font-size: 1.0625rem;
-  color: var(--muted);
-}
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 1rem;
-  margin: 2.75rem 0 0;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 0.875rem;
-  padding: 1.25rem 1.25rem 1.4rem;
-}
-
-.card h2 {
-  margin: 0 0 0.5rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.card p {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--muted);
-}
-
-code {
-  background: var(--code-bg);
-  border-radius: 0.375rem;
-  padding: 0.1rem 0.35rem;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  font-size: 0.8125em;
-}
-
-.hint {
-  margin: 2.25rem 0 0;
-  font-size: 0.875rem;
-  color: var(--muted);
-}
-
-.footer {
-  border-top: 1px solid var(--border);
-  padding: 1.25rem 1.5rem;
-  font-size: 0.8125rem;
-  color: var(--muted);
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-}
-
-.dot {
-  opacity: 0.5;
-}
-
-/* -------------------------------------------------------------- auth kit
- *
- * These live in the base stylesheet rather than in the kit, even though only
- * the kit uses them today. A kit is a folder copied over the template, so
- * shipping its own CSS would mean either a second stylesheet the layout has to
- * know about or a copy of this file that drifts from it. They are ordinary UI
- * primitives; the landing page is welcome to them.
- */
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.panel h1 {
-  margin-top: 0;
-}
-
-.panel.danger {
-  border-color: color-mix(in srgb, #d94848 45%, var(--border));
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  margin-top: 1.25rem;
-}
-
-.form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.form label > span {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.form input {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  color: var(--text);
-  font: inherit;
-  padding: 0.6rem 0.75rem;
-  width: 100%;
-}
-
-.form input:focus-visible {
-  border-color: var(--accent);
-  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  outline-offset: 1px;
-}
-
-.form button,
-.inline button {
-  align-self: flex-start;
-  background: var(--accent);
-  border: 0;
-  border-radius: 9px;
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  padding: 0.6rem 1.1rem;
-}
-
-.form button.destructive {
-  background: #d94848;
-}
-
-.form button.link,
-.inline button.link {
-  background: none;
-  color: var(--accent);
-  padding: 0;
-  text-decoration: underline;
-}
-
-.error,
-.notice {
-  border-radius: 9px;
-  font-size: 0.95rem;
-  margin: 0.75rem 0 0;
-  padding: 0.7rem 0.9rem;
-}
-
-.error {
-  background: color-mix(in srgb, #d94848 12%, transparent);
-  color: #b23434;
-}
-
-.notice {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-}
-
-.muted {
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-/* The settings tabs, which without this run together as one word. */
-.tabs {
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 1.25rem;
-  margin: 0 0 0.5rem;
-}
-
-.tab {
-  color: var(--muted);
-  padding: 0.5rem 0;
-  text-decoration: none;
-}
-
-.tab.current {
-  border-bottom: 2px solid var(--accent);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.sessions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 1.25rem 0;
-  padding: 0;
-}
-
-.session {
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  padding: 0.75rem 0.9rem;
-}
-
-.session.current {
-  border-color: var(--accent);
-}
-
-.session small {
   display: block;
 }
 
-.badge {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-radius: 999px;
-  color: var(--accent);
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem 3rem;
   font-size: 0.75rem;
-  margin-left: 0.5rem;
-  padding: 0.1rem 0.5rem;
+  color: #6f6a5d;
 }
 
-.inline {
-  display: inline;
+.footer .dot {
+  opacity: 0.5;
 }

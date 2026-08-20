@@ -1,6 +1,6 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
 import { controller } from '@elvel/core'
-import { errors, middleware, redirect } from '@elvel/http'
+import { errors, middleware, redirect, routes } from '@elvel/http'
 import { view } from '@elvel/view'
 import { t } from 'elysia'
 import { SignUp } from '../../../../resources/views/pages/auth/sign-up.tsx'
@@ -13,6 +13,8 @@ import { SignUp } from '../../../../resources/views/pages/auth/sign-up.tsx'
  * the policy rejects — comes back to the form with its message through the
  * session, the same way a validation failure does anywhere else.
  */
+routes().names({ register: '/sign-up' })
+
 export default controller('auth-register')
   .get(
     '/sign-up',

@@ -1,6 +1,6 @@
 import { userOf } from '@elvel/auth'
 import { controller } from '@elvel/core'
-import { middleware } from '@elvel/http'
+import { middleware, routes } from '@elvel/http'
 import { view } from '@elvel/view'
 import { Dashboard } from '../../../resources/views/pages/dashboard.tsx'
 
@@ -10,6 +10,8 @@ import { Dashboard } from '../../../resources/views/pages/dashboard.tsx'
  * It is here to prove the session survives the redirect and that `auth` lets a
  * signed-in visitor through; an application puts its own landing page here.
  */
+routes().names({ dashboard: '/dashboard' })
+
 export default controller('dashboard').get(
   '/dashboard',
   // `auth` has already sent a guest to sign in, remembering where they were

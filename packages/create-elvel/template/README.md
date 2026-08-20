@@ -41,10 +41,10 @@ inside handlers. `routes/web.ts` mounts them.
 // app/Http/Controllers/PageController.ts
 import { controller } from '@elvel/core'
 import { view } from '@elvel/view'
-import { Landing } from '../../../resources/views/pages/landing.tsx'
+import { Welcome } from '../../../resources/views/pages/welcome.tsx'
 
 export default controller('page')
-  .get('/', () => view(Landing, { title: 'Welcome' }))
+  .get('/', () => view(Welcome, { title: 'Welcome' }))
   .get('/health', () => ({ status: 'ok' }))
 ```
 
@@ -188,7 +188,7 @@ And on a page:
 
 ```ts
 export default controller('page').get('/', async () =>
-  view(Landing, { title: 'Welcome', posts: await Post.query().latest().get() })
+  view(Welcome, { title: 'Welcome', posts: await Post.query().latest().get() })
 )
 ```
 

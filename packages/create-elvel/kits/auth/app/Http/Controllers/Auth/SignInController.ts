@@ -1,6 +1,6 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
 import { controller } from '@elvel/core'
-import { errors, middleware, redirect } from '@elvel/http'
+import { errors, middleware, redirect, routes } from '@elvel/http'
 import { view } from '@elvel/view'
 import { t } from 'elysia'
 import { SignIn } from '../../../../resources/views/pages/auth/sign-in.tsx'
@@ -14,6 +14,8 @@ import { SignIn } from '../../../../resources/views/pages/auth/sign-in.tsx'
  * is the whole trick, and it is what keeps this a plain HTML application: no
  * token to store, no fetch wrapper to keep in step.
  */
+routes().names({ login: '/sign-in' })
+
 export default controller('auth-sign-in')
   .get(
     '/sign-in',

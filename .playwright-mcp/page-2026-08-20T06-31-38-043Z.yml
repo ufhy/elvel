@@ -1,0 +1,48 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: Elvel
+        - navigation [ref=e6]:
+          - link "Log in" [ref=e7] [cursor=pointer]:
+            - /url: /sign-in
+          - link "Register" [ref=e8] [cursor=pointer]:
+            - /url: /sign-up
+      - generic [ref=e9]:
+        - heading [level=1] [ref=e10]:
+          - text: Laravel's shape,
+          - emphasis [ref=e11]: on Bun.
+        - paragraph [ref=e12]: Service providers, a CLI, migrations and typed JSX views — over Elysia's HTTP server, with its type inference intact all the way into your handlers.
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - paragraph [ref=e15]: Let's get started
+          - list [ref=e16]:
+            - listitem [ref=e17]:
+              - generic [ref=e19]:
+                - text: Edit the route that served this page
+                - code [ref=e20]: app/Http/Controllers/PageController.ts
+            - listitem [ref=e21]:
+              - generic [ref=e23]:
+                - text: Edit this page itself
+                - code [ref=e24]: resources/views/pages/welcome.tsx
+            - listitem [ref=e25]:
+              - generic [ref=e27]:
+                - text: Decide what the application registers
+                - code [ref=e28]: bootstrap/providers.ts
+            - listitem [ref=e29]:
+              - generic [ref=e31]:
+                - text: Then read the rest
+                - link "github.com/ufhy/elvel" [ref=e32] [cursor=pointer]:
+                  - /url: https://github.com/ufhy/elvel
+        - generic [ref=e33]:
+          - paragraph [ref=e34]: From here
+          - generic [ref=e35]:
+            - generic [ref=e36]: $ bun run elvel# everything this app can do
+            - generic [ref=e37]: $ bun run elvel route:list
+            - generic [ref=e38]: $ bun run elvel make:controller Post -r
+            - generic [ref=e39]: $ bun run dev:assets# styles, hot
+          - paragraph [ref=e40]: A command exists only if its package is registered, so that first line is the honest list — not the framework's.
+  - contentinfo [ref=e41]:
+    - generic [ref=e42]: welcome-demo
+    - generic [ref=e43]: ·
+    - generic [ref=e44]: local
