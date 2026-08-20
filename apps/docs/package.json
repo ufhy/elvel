@@ -1,0 +1,15 @@
+{
+  "name": "@elvel/docs",
+  "version": "1.0.0-alpha.9",
+  "private": true,
+  "description": "The documentation site for Elvel",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}

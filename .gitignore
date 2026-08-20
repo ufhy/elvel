@@ -11,13 +11,21 @@ dist-release/
 # Scratch apps: `bun run create apps/<name>` targets, the throwaway project the
 # smoke test scaffolds, and a demo scaffolded to look at. playground/ is tracked
 # on purpose.
-apps/
+#
+# `apps/*` rather than `apps/`, because git does not descend into an excluded
+# directory and the negation below would never be read. `apps/docs` is the
+# documentation site and is tracked.
+apps/*
+!apps/docs
 .smoke-scaffold/
 .bundle-check/
 .demo/
 
 *.tsbuildinfo
 .DS_Store
+
+# What the Playwright MCP server leaves behind when a page is opened to look at.
+.playwright-mcp/
 
 .env
 .env.local
@@ -38,3 +46,7 @@ playground/.env
 # The smoke run builds one here to migrate from scratch, and SQLite's
 # write-ahead log outlives the process that made it.
 playground/storage/framework/*.sqlite*
+
+# The documentation site's build output and its cache. `dist` above already
+# covers `.vitepress/dist`; the cache is separate and large.
+apps/docs/.vitepress/cache/

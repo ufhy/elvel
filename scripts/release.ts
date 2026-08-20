@@ -98,7 +98,30 @@ type Manifest = {
  * package page with nothing on it is worse than a short one. This is the middle:
  * the description, how to install it, and where the real documentation is.
  */
+/**
+ * Where each package's own documentation lives.
+ *
+ * Only the pages that exist: linking a package to a page that was never written
+ * sends somebody to a 404 from the one place they were sure to look. Everything
+ * else lands on the site's front page, which says plainly which packages are
+ * documented and which are not.
+ */
+const PAGES: Record<string, string> = {
+  'create-elvel': 'getting-started/installation',
+  '@elvel/core': 'architecture/packages',
+  '@elvel/http': 'basics/routing',
+  '@elvel/view': 'basics/routing',
+  '@elvel/validation': 'basics/validation',
+  '@elvel/events': 'basics/events-and-logging',
+  '@elvel/log': 'basics/events-and-logging',
+  '@elvel/database': 'database/getting-started',
+  '@elvel/encryption': 'security/encryption'
+}
+
 function readme(manifest: Manifest): string {
+  const page = PAGES[manifest.name]
+  const docs = page ? `https://ufhy.github.io/elvel/${page}` : 'https://ufhy.github.io/elvel/'
+
   return `# ${manifest.name}
 
 ${manifest.description}
@@ -122,9 +145,13 @@ bun create elvel my-app
 
 ## Documentation
 
-See the [repository](https://github.com/ufhy/elvel#readme). \`BEHAVIOURS.md\`
-there records the decisions behind this package that the code cannot state on its
-own.
+**${docs}**
+
+${
+  page
+    ? 'The site is built from the same commit as this package, so it describes this\nversion rather than a later one.'
+    : 'This package does not have its own page yet — the site says which do. Its\nbehaviour is covered by tests in the repository, and `BEHAVIOURS.md` there\nrecords the decisions the code cannot state on its own.'
+}
 
 ## Licence
 
