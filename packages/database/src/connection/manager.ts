@@ -284,6 +284,11 @@ export function pickHost(entry: unknown): Record<string, unknown> {
     return Number.isFinite(weight) && weight > 0 ? weight : 0
   })
 
+  // `Math.random` on purpose. This picks *which replica to read from*, not a
+  // secret: spreading reads over the pool wants speed and an even spread, and
+  // nothing is weakened by the choice being predictable. Static analysis flags it
+  // because the host it returns carries a password field — the password is read
+  // from configuration, not generated here.
   const total = weights.reduce((sum, weight) => sum + weight, 0)
 
   // Every host drained: fall back to uniform rather than never reading, because

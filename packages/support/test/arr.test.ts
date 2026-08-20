@@ -17,7 +17,7 @@ describe('Arr dot access', () => {
   })
 
   test('set creates intermediate objects', () => {
-    const target: Record<string, unknown> = {}
+    const target: Record<string, any> = {}
     Arr.set(target, 'view.cache.enabled', true)
 
     expect(target).toEqual({ view: { cache: { enabled: true } } })
@@ -136,5 +136,20 @@ describe('Arr.set with numeric segments', () => {
     Arr.set(target, 'items.0.tax', 2)
 
     expect(target.items[0]).toEqual({ price: 1, tax: 2 })
+  })
+
+  test('set and forget refuse a key that reaches the prototype chain', () => {
+    const target: Record<string, any> = {}
+
+    expect(() => Arr.set(target, '__proto__.isAdmin', true)).toThrow(/prototype chain/)
+    expect(() => Arr.set(target, 'a.constructor.prototype.x', 1)).toThrow(/prototype chain/)
+    expect(() => Arr.forget(target, '__proto__.toString')).toThrow(/prototype chain/)
+
+    // The point of the guard: nothing leaked out onto every other object.
+    expect(({} as Record<string, unknown>).isAdmin).toBeUndefined()
+    expect({}.toString).toBeDefined()
+
+    // And an ordinary nested write still works.
+    expect(Arr.get<string>(Arr.set(target, 'user.name', 'Ada'), 'user.name')).toBe('Ada')
   })
 })

@@ -167,7 +167,7 @@ export function markdownContent(source: string): Content {
  * as one grey box.
  */
 function dedent(source: string): string {
-  const lines = source.replace(/^\n/, '').replace(/\s+$/, '').split('\n')
+  const lines = source.replace(/^\n/, '').trimEnd().split('\n')
   const indents = lines
     .filter((line) => line.trim() !== '')
     .map((line) => (/^(\s*)/.exec(line)?.[1] ?? '').length)

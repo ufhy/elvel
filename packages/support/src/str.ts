@@ -178,11 +178,40 @@ export const Str = {
     return value
   },
 
+  /**
+   * A random string, drawn evenly.
+   *
+   * The obvious `byte % alphabet.length` is *not* even. 256 does not divide by
+   * 62: bytes 0–7 wrap round to a fifth chance at 'a'–'h', so those eight letters
+   * turn up 5 times in 256 where the other fifty-four turn up 4. It sounds
+   * academic, and it is worth fixing anyway, because this is what mints session
+   * identifiers and CSRF tokens — the two strings in the framework that an
+   * attacker most wants to guess.
+   *
+   * So: reject the bytes that would wrap. 256 - (256 % 62) = 248, and anything
+   * at or above it is thrown away and redrawn. Roughly 3% of bytes are
+   * discarded, which is why the loop asks for more than it needs and comes back
+   * for another handful if it runs short.
+   */
   random(length = 16): string {
     const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    const bytes = crypto.getRandomValues(new Uint8Array(length))
+    const ceiling = 256 - (256 % alphabet.length)
+
     let result = ''
-    for (const byte of bytes) result += alphabet[byte % alphabet.length]
+
+    while (result.length < length) {
+      // A tenth over, so the usual case finishes in one pass.
+      const bytes = crypto.getRandomValues(
+        new Uint8Array(Math.ceil((length - result.length) * 1.1) + 1)
+      )
+
+      for (const byte of bytes) {
+        if (byte >= ceiling) continue
+        result += alphabet[byte % alphabet.length]
+        if (result.length === length) break
+      }
+    }
+
     return result
   },
 

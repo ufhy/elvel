@@ -1,6 +1,28 @@
 type Dict = Record<string, any>
 
 /**
+ * Segments that must never be walked into on the way to a write.
+ *
+ * `Arr.set(target, '__proto__.isAdmin', true)` does not write a key called
+ * `__proto__`; it walks into `Object.prototype` and writes there, and from that
+ * moment *every* object in the process answers `isAdmin` with `true` —
+ * including ones built long before, and ones the attacker never touched. PHP
+ * arrays have no prototype, so Laravel's `data_set` never had to think about
+ * this; the port inherits the API and the hazard along with it.
+ *
+ * The three names are refused rather than ignored, and loudly. A key of this
+ * shape is either an attack or a bug, and both are worth interrupting: silently
+ * dropping the write leaves a caller believing it stored something.
+ */
+const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype'])
+
+function guard(key: string, segment: string): void {
+  if (FORBIDDEN.has(segment)) {
+    throw new Error(`[${key}] walks through [${segment}], which would reach the prototype chain.`)
+  }
+}
+
+/**
  * Read a nested value using dot notation.
  *
  * Declared as a standalone function because object literals cannot carry
@@ -48,6 +70,8 @@ export const Arr = {
     const segments = key.split('.')
     let current: Dict = target
 
+    for (const segment of segments) guard(key, segment)
+
     for (let index = 0; index < segments.length - 1; index += 1) {
       const segment = segments[index] as string
       const next = current[segment]
@@ -71,6 +95,9 @@ export const Arr = {
   forget(target: Dict, key: string): Dict {
     const segments = key.split('.')
     let current: Dict = target
+
+    // `delete Object.prototype.toString` is the same hole pointing the other way.
+    for (const segment of segments) guard(key, segment)
 
     for (let index = 0; index < segments.length - 1; index += 1) {
       const next = current[segments[index] as string]
