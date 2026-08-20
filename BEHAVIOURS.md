@@ -1256,6 +1256,75 @@ or later. The version check is three numbers compared in Node, rather than `npx
 semver`, which would download a package in the middle of a release to answer it.
 
 
+## What static analysis found, and what it got wrong
+
+The repository went public, and with it came the security machinery GitHub gives
+public repositories for nothing: secret scanning with push protection, Dependabot
+alerts, private vulnerability reporting, and CodeQL. None of it had been on. The
+first CodeQL run raised eighteen alerts. Nine were real enough to fix, nine were
+not, and the split is worth writing down because the same queries will fire again.
+
+**`Str.random` was biased, and it mints session identifiers.** The alphabet is 62
+characters and a byte holds 256 values; `byte % 62` folds 248–255 back onto
+`a`–`h`, so those eight letters turned up five times in 256 where the other
+fifty-four turned up four. About 0.02 bits of entropy per character, which sounds
+academic until you notice `Str.random(40)` is what `@elvel/http` calls for both
+the session id and the CSRF token. It now rejects the bytes that would wrap and
+redraws — roughly 3% of them — and a test feeds it a fixed byte sequence to prove
+the rejection happens rather than sampling the output and hoping.
+
+**`Arr.set` would write to `Object.prototype`.** `Arr.set(target, '__proto__.isAdmin',
+true)` does not create a property called `__proto__`; it walks into the prototype
+and writes there, after which every object in the process answers `isAdmin`.
+Laravel's `data_set` has the same API and no such hazard, because PHP arrays have
+no prototype — a place where copying the interface faithfully copies a hole that
+was not in the original. Inside the framework the keys come from validation rules
+rather than from request data, so nothing shipped was exploitable; `@elvel/support`
+is a published package and somebody will pass it a key from a form.
+
+Getting CodeQL to *agree* took three attempts, and the failures are instructive:
+a guard in a helper function was not recognised, and neither was a guard in a loop
+of its own preceding the loop that writes. What worked was `current[refusePrototypeWalk(key, segment)] = value`
+— the check on the very expression that indexes the assignment. That is better
+code regardless of the analyser: a new write cannot be added without going
+through it.
+
+**An unbounded DNS lookup inside request validation.** Not a CodeQL finding at
+all — the macOS runner found it by taking longer than five seconds to report that
+a reserved `.invalid` name does not exist, which failed the `active_url` test.
+The rule called `dns.lookup` with no timeout, so a resolver that stops answering
+holds the request open for as long as it likes. Three seconds now, and running out
+of time fails closed like every other unanswered lookup. A flaky test was telling
+the truth.
+
+Three smaller ones: `/\s+$/` in the mail dedenter is quadratic on trailing
+whitespace where `trimEnd()` is not; the console signature parser's `\{\s*(.*?)\s*\}`
+backtracks where `\{([^{}]*)\}` cannot; and the release script escaped one slash
+by hand where `encodeURIComponent` was the honest answer.
+
+The nine dismissed alerts came in four flavours, all of them the analyser being
+right about the shape and wrong about the context. `Math.random` in the read-replica
+picker is load balancing, not key generation — it was flagged because the host it
+returns carries a password field, and that password comes from configuration.
+`worker-entry.ts` is a dedicated Bun Worker, not a browser window: `onmessage`
+can only hear from the parent that spawned it, so there is no origin to check.
+Two ReDoS reports point at strings the framework generated itself moments earlier.
+And the two "incomplete hostname regexp" hits are test fixtures handed to a matcher
+that escapes every metacharacter before compiling. Each is dismissed with that
+reason recorded on the alert, so the next person does not re-derive it.
+
+**Dependabot cannot cover the dependencies.** It supports Bun for version updates
+and explicitly not for security updates, so nothing would ever open a pull request
+to say a package became vulnerable. `bun audit --audit-level=high` runs as its own
+job in `verify.yml` instead. The gate is high-and-above on purpose: `release.yml`
+waits on `verify.yml`, and a low advisory in some dev dependency blocking a release
+is bad when a release is often how a fix ships.
+
+**Every action is pinned to a commit.** `release.yml` runs with `id-token: write`,
+which is permission to publish twenty-seven packages to npm as us. A tag is a label
+somebody else can move; a SHA is not. Dependabot bumps them and keeps the version
+comments beside them honest.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

@@ -746,6 +746,16 @@ why, two things that are correct today and will not always be, and the one
 feature that was attempted and could not be made to work (compile-time XSS
 checking, blocked by a TypeScript 7 incompatibility in `@kitajs/ts-html-plugin`).
 
+## Security
+
+Found a hole? **Do not open an issue.** Report it privately through
+[GitHub's advisory form](https://github.com/ufhy/elvel/security/advisories/new),
+or by email to `the maintainers`. [SECURITY.md](SECURITY.md) says what
+is in scope and what to include.
+
+Every push runs CodeQL and `bun audit`; secret scanning with push protection is
+on. `BEHAVIOURS.md` records what the first CodeQL run found.
+
 ## Roadmap
 
 The roadmap agreed at the start is complete: core, console, view, events, log,
