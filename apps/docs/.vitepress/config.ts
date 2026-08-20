@@ -91,6 +91,10 @@ export default defineConfig({
         ]
       },
       {
+        text: 'Testing',
+        items: [{ text: 'Getting started', link: '/testing/getting-started' }]
+      },
+      {
         text: 'Security',
         items: [
           { text: 'Encryption', link: '/security/encryption' },

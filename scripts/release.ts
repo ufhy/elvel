@@ -117,7 +117,8 @@ const PAGES: Record<string, string> = {
   '@elvel/database': 'database/getting-started',
   '@elvel/encryption': 'security/encryption',
   '@elvel/queue': 'digging-deeper/queues',
-  '@elvel/cache': 'digging-deeper/cache'
+  '@elvel/cache': 'digging-deeper/cache',
+  '@elvel/testing': 'testing/getting-started'
 }
 
 function readme(manifest: Manifest): string {
