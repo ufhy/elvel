@@ -37,7 +37,7 @@ EXPRESSION  TASK                                                       NEXT RUN
 
 Two ways to make the schedule tick, and you need exactly one of them:
 
-```cron
+```bash
 * * * * * cd /path/to/app && bun elvel schedule:run >> /dev/null 2>&1
 ```
 

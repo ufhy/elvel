@@ -78,12 +78,19 @@ export default defineConfig({
       {
         text: 'Digging deeper',
         items: [
+          { text: 'Broadcasting', link: '/digging-deeper/broadcasting' },
           { text: 'Cache', link: '/digging-deeper/cache' },
+          { text: 'Collections and helpers', link: '/digging-deeper/collections' },
+          { text: 'Concurrency', link: '/digging-deeper/concurrency' },
           { text: 'Console', link: '/digging-deeper/console' },
-          { text: 'Mail', link: '/digging-deeper/mail' },
           { text: 'File storage', link: '/digging-deeper/storage' },
-          { text: 'Queues', link: '/digging-deeper/queues' },
+          { text: 'HTTP client', link: '/digging-deeper/http-client' },
+          { text: 'Images', link: '/digging-deeper/images' },
+          { text: 'Localization', link: '/digging-deeper/localization' },
+          { text: 'Mail', link: '/digging-deeper/mail' },
           { text: 'Notifications', link: '/digging-deeper/notifications' },
+          { text: 'Processes', link: '/digging-deeper/processes' },
+          { text: 'Queues', link: '/digging-deeper/queues' },
           { text: 'Task scheduling', link: '/digging-deeper/scheduling' }
         ]
       },
@@ -103,6 +110,7 @@ export default defineConfig({
         text: 'Security',
         items: [
           { text: 'Encryption', link: '/security/encryption' },
+          { text: 'Hashing', link: '/digging-deeper/hashing' },
           { text: 'Reporting a vulnerability', link: '/security/reporting' }
         ]
       },
