@@ -742,9 +742,13 @@ inside a disk is allowed, why the day-of-month rule is POSIX's and not the
 obvious one.
 
 Its last section is where the framework stops: what the tests do not reach and
-why, two things that are correct today and will not always be, and the one
-feature that was attempted and could not be made to work (compile-time XSS
-checking, blocked by a TypeScript 7 incompatibility in `@kitajs/ts-html-plugin`).
+why, and the one feature that was attempted and could not be made to work
+(compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
+`@kitajs/ts-html-plugin`).
+
+[`GAPS.md`](GAPS.md) is the other half, and deliberately a separate file: only
+what must still be built, with each row deleted as the work lands so its length
+means something. Two rows stand there today.
 
 ## Security
 

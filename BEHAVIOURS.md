@@ -1437,13 +1437,10 @@ from the default export, so it crashes under both Bun and Node. `safe` remains a
 runtime guarantee and a review responsibility. This is the one thing that was
 tried and could not be made to work, as opposed to deliberately left out.
 
-Two things that are correct today and will not always be:
+One thing that is correct today and will not always be. The other — a
+`sessions.last_activity` that runs out in 2038 — moved to `GAPS.md`, because
+there is something to build and this file is for what merely surprises.
 
-- **`sessions.last_activity` is a 32-bit integer**, like Laravel's. It holds a
-  unix timestamp, so it is correct until 2038 and then it is not — the same shape
-  as the cache's `expiration` bug that Postgres and MySQL caught. Left alone
-  because nothing writes a value beyond the range today; worth widening the next
-  time that table changes.
 - `node_modules/.bun` holds **two copies of elysia 1.4.29** under different peer
   hashes. Nothing misbehaves today, but dual module identity is exactly what the
   `file:`-dependency episode was about, and Elysia deduplicates plugins by name
@@ -1462,8 +1459,9 @@ uncovered, and why:
   real socket instead
 - `create-elvel` — covered end to end by the smoke test rather than by units:
   it scaffolds, boots, and every package's commands are registered in what it
-  wrote. Not covered is a scaffold installed *from npm* rather than resolved
-  through the workspace
+  wrote. A scaffold installed *from npm* is a different matter and is not
+  covered at all; that one is a row in `GAPS.md` rather than a note here,
+  because `alpha.1` shipped broken through exactly that hole
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
 - the S3 disk against AWS itself — the round trip is covered against MinIO
