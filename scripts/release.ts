@@ -378,7 +378,7 @@ function forNpm(path: string): string {
  * repeat run picks up exactly where the last one stopped.
  */
 async function alreadyPublished(name: string, version: string): Promise<boolean> {
-  const encoded = name.replace('/', '%2f')
+  const encoded = encodeURIComponent(name)
 
   const answer = await fetch(`https://registry.npmjs.org/${encoded}/${version}`, {
     headers: { accept: 'application/json' }

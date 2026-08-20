@@ -74,4 +74,38 @@ describe('Str utilities', () => {
       'class Foo extends Bar // {{ unknown }}'
     )
   })
+
+  test('random draws evenly, throwing away the bytes that would not', () => {
+    // The alphabet is 62 long and a byte holds 256 values, so 248 and above have
+    // no even home: `byte % 62` would fold them back onto 'a'–'h' and make those
+    // eight letters a quarter more likely than the rest. This is what mints
+    // session identifiers and CSRF tokens, so it redraws instead.
+    //
+    // Fed one wrapping byte per candidate followed by 0, 1, 2, an even draw can
+    // only answer 'abc'; a modulo would have answered 'aab' — 248 % 62 is 0.
+    const real = crypto.getRandomValues
+    const feed = [248, 0, 255, 1, 250, 2]
+    let next = 0
+
+    crypto.getRandomValues = (<T extends ArrayBufferView>(into: T) => {
+      const bytes = new Uint8Array(into.buffer, into.byteOffset, into.byteLength)
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = feed[next % feed.length] as number
+        next += 1
+      }
+      return into
+    }) as typeof crypto.getRandomValues
+
+    try {
+      expect(Str.random(3)).toBe('abc')
+    } finally {
+      crypto.getRandomValues = real
+    }
+  })
+
+  test('random is the length asked for, out of the alphabet promised', () => {
+    expect(Str.random(40)).toHaveLength(40)
+    expect(Str.random(1)).toHaveLength(1)
+    expect(Str.random(64)).toMatch(/^[a-zA-Z0-9]{64}$/)
+  })
 })

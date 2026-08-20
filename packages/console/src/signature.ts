@@ -35,7 +35,9 @@ export type ParsedInput = {
   options: Record<string, string | string[] | boolean | undefined>
 }
 
-const TOKEN_PATTERN = /\{\s*(.*?)\s*\}/g
+// `[^{}]*` rather than `\s*(.*?)\s*`: a token holds no braces, and spelling that
+// out leaves the engine nothing to backtrack over. The trim moved into the code.
+const TOKEN_PATTERN = /\{([^{}]*)\}/g
 
 export function parseSignature(signature: string): CommandDefinition {
   const name = signature.replace(TOKEN_PATTERN, '').trim().split(/\s+/)[0] ?? ''
