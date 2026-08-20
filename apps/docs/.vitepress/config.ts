@@ -70,6 +70,7 @@ export default defineConfig({
         text: 'The basics',
         items: [
           { text: 'Routing and controllers', link: '/basics/routing' },
+          { text: 'Views', link: '/basics/views' },
           { text: 'Validation', link: '/basics/validation' },
           { text: 'Events and logging', link: '/basics/events-and-logging' }
         ]

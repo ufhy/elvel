@@ -12,11 +12,11 @@ change between alphas.
 ## Documentation
 
 **[ufhy.github.io/elvel](https://ufhy.github.io/elvel/)** — installation, the
-starter kits, configuration, routing, the database, validation, the cache,
-queues, encryption, and how to work on the framework itself.
+starter kits, configuration, routing, views, the database, validation, the
+cache, queues, encryption, and how to work on the framework itself.
 
 It is built from `apps/docs`, so it ships in the same commit as the code it
-describes and cannot drift into describing a version that never existed. Twelve
+describes and cannot drift into describing a version that never existed. Thirteen
 of the twenty-seven packages have a page; the rest arrive one at a time, and a page
 appears only once it has something true to say.
 

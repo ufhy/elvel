@@ -110,7 +110,7 @@ const PAGES: Record<string, string> = {
   'create-elvel': 'getting-started/installation',
   '@elvel/core': 'architecture/packages',
   '@elvel/http': 'basics/routing',
-  '@elvel/view': 'basics/routing',
+  '@elvel/view': 'basics/views',
   '@elvel/validation': 'basics/validation',
   '@elvel/events': 'basics/events-and-logging',
   '@elvel/log': 'basics/events-and-logging',
