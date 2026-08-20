@@ -13,11 +13,11 @@ change between alphas.
 
 **[ufhy.github.io/elvel](https://ufhy.github.io/elvel/)** — installation, the
 starter kits, configuration, routing, views, the database, validation, the
-cache, queues, the console, encryption, testing, and how to work on the
+cache, queues, the console, mail, encryption, testing, and how to work on the
 framework itself.
 
 It is built from `apps/docs`, so it ships in the same commit as the code it
-describes and cannot drift into describing a version that never existed. Fifteen
+describes and cannot drift into describing a version that never existed. Sixteen
 of the twenty-seven packages have a page; the rest arrive one at a time, and a page
 appears only once it has something true to say.
 
