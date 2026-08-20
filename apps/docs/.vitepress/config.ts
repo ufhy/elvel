@@ -32,11 +32,21 @@ export default defineConfig({
   ignoreDeadLinks: false,
 
   head: [
-    ['meta', { name: 'theme-color', content: '#b8410f' }],
+    ['meta', { name: 'theme-color', content: '#FF2D20' }],
     ['link', { rel: 'icon', href: '/elvel/favicon.svg' }]
   ],
 
   themeConfig: {
+    /**
+     * The full logo, not `mark.svg`.
+     *
+     * VitePress renders this as an `<img>`, and an image cannot inherit
+     * `currentColor` — the mark came out black in both themes, which is how this
+     * was found. The logo carries its own red and its own white glyph, so one
+     * file is right in either theme.
+     */
+    logo: '/logo.svg',
+
     nav: [
       { text: 'Docs', link: '/getting-started/installation' },
       { text: 'Packages', link: '/architecture/packages' },

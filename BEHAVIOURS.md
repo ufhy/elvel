@@ -1350,6 +1350,33 @@ which is permission to publish twenty-seven packages to npm as us. A tag is a la
 somebody else can move; a SHA is not. Dependabot bumps them and keeps the version
 comments beside them honest.
 
+## The brand red is a shape colour, not a text colour
+
+`art/logo.svg` and `art/mark.svg` are the branding, and `#FF2D20` is the red in
+them. It is used exactly as given wherever it is a shape — the favicon, the nav
+logo, a filled button — and **nowhere as small text**, because it does not
+survive a light background.
+
+Measured, not judged by eye:
+
+| pair | ratio |
+| --- | --- |
+| `#FF2D20` on the light paper `#fbf9f5` | 3.54:1 |
+| `#FF2D20` on the dark paper `#121110` | 5.07:1 |
+| `#c9241a` on light — the text tint | 5.32:1 |
+| `#ff5c50` on dark — the text tint | 6.20:1 |
+
+WCAG asks 3:1 of a graphic and 4.5:1 of normal text, so the raw red passes as a
+logo and fails as a wordmark. The scaffolded welcome page's `--accent` is
+therefore `#c9241a` on light and `#ff5c50` on dark, and the documentation site's
+`--vp-c-brand-1` matches. Laravel does the same thing: its logo is this red and
+its body copy is not.
+
+`mark.svg` is drawn in `currentColor` so one file serves both themes — but
+VitePress renders a nav logo as an `<img>`, and an image cannot inherit
+`currentColor`. The mark came out black in both themes, which is how that was
+found; the nav uses the full `logo.svg`, which carries its own colours.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

@@ -11,4 +11,4 @@
  * Importing it from this file works too — `env.d.ts` declares the module — and
  * is the right move once the styles belong to a component.
  */
-console.debug('%c⚡ Elvel', 'color: #7c3aed; font-weight: bold')
+console.debug('%c⚡ Elvel', 'color: #FF2D20; font-weight: bold')

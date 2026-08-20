@@ -1008,3 +1008,49 @@ describe('reloading the browser', () => {
     expect(source).toContain("'--hot'")
   })
 })
+
+/**
+ * The brand, from `art/`.
+ *
+ * `#FF2D20` is the mark's red and stays exactly that wherever it is a shape. As
+ * text on the page's light paper it measures 3.54:1 — enough for a graphic, not
+ * enough for small text — so the accents are deliberately darkened and
+ * brightened, and these tests are what stops somebody "fixing" them back.
+ */
+describe('branding', () => {
+  test('the favicon is the logo, in the brand red', async () => {
+    const favicon = await Bun.file(join(templateDir, 'public', 'favicon.svg')).text()
+
+    expect(favicon).toContain('#FF2D20')
+    expect(favicon).toContain('<title>Elvel</title>')
+    // The mark itself: an open ring and a bar, as `art/logo.svg` draws them.
+    expect(favicon).toContain('stroke-dasharray="63 19"')
+  })
+
+  test('the welcome page carries the mark and the measured accents', async () => {
+    const page = await Bun.file(
+      join(templateDir, 'resources', 'views', 'pages', 'welcome.tsx')
+    ).text()
+
+    expect(page).toContain('class="glyph"')
+    expect(page).toContain('stroke="currentColor"')
+
+    // 5.32:1 on the light paper, 6.20:1 on the dark. The raw #FF2D20 is 3.54:1
+    // and belongs to the logo, not to text.
+    expect(page).toContain('--accent: #c9241a')
+    expect(page).toContain('--accent: #ff5c50')
+    expect(page).not.toContain('#FF2D20')
+  })
+
+  test('the art the branding comes from is in the repository', async () => {
+    for (const file of ['logo.svg', 'mark.svg']) {
+      expect(await Bun.file(join(root, 'art', file)).exists()).toBe(true)
+    }
+
+    // `mark.svg` is the colourless one, so a page can put it in `currentColor`.
+    const mark = await Bun.file(join(root, 'art', 'mark.svg')).text()
+
+    expect(mark).toContain('currentColor')
+    expect(mark).not.toContain('#FF2D20')
+  })
+})
