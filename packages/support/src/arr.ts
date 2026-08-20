@@ -1,28 +1,6 @@
 type Dict = Record<string, any>
 
 /**
- * Segments that must never be walked into on the way to a write.
- *
- * `Arr.set(target, '__proto__.isAdmin', true)` does not write a key called
- * `__proto__`; it walks into `Object.prototype` and writes there, and from that
- * moment *every* object in the process answers `isAdmin` with `true` —
- * including ones built long before, and ones the attacker never touched. PHP
- * arrays have no prototype, so Laravel's `data_set` never had to think about
- * this; the port inherits the API and the hazard along with it.
- *
- * The three names are refused rather than ignored, and loudly. A key of this
- * shape is either an attack or a bug, and both are worth interrupting: silently
- * dropping the write leaves a caller believing it stored something.
- */
-const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype'])
-
-function guard(key: string, segment: string): void {
-  if (FORBIDDEN.has(segment)) {
-    throw new Error(`[${key}] walks through [${segment}], which would reach the prototype chain.`)
-  }
-}
-
-/**
  * Read a nested value using dot notation.
  *
  * Declared as a standalone function because object literals cannot carry
@@ -65,12 +43,31 @@ export const Arr = {
    * that serialises as an object, and a validated payload that reaches a database
    * write or a JSON response in that shape is wrong in a way nothing catches
    * until it is in front of a user.
+   *
+   * A segment of `__proto__`, `constructor` or `prototype` is refused. Such a key
+   * does not write a property of that name; it walks into `Object.prototype` and
+   * writes *there*, and from that moment every object in the process answers
+   * `isAdmin` — including ones built long before, and ones the attacker never
+   * touched. PHP arrays have no prototype, so Laravel's `data_set` never had to
+   * decide this either; the port inherits the API and the hazard with it.
+   *
+   * Refused loudly rather than ignored: a key of that shape is an attack or a
+   * bug, and dropping the write in silence leaves the caller believing it stored
+   * something.
    */
   set(target: Dict, key: string, value: unknown): Dict {
     const segments = key.split('.')
     let current: Dict = target
 
-    for (const segment of segments) guard(key, segment)
+    // Spelled out here rather than in a helper: three comparisons a reader can
+    // see beside the write they protect, and a barrier the analysis can follow.
+    for (const segment of segments) {
+      if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
+        throw new Error(
+          `[${key}] walks through [${segment}], which would reach the prototype chain.`
+        )
+      }
+    }
 
     for (let index = 0; index < segments.length - 1; index += 1) {
       const segment = segments[index] as string
@@ -96,8 +93,16 @@ export const Arr = {
     const segments = key.split('.')
     let current: Dict = target
 
-    // `delete Object.prototype.toString` is the same hole pointing the other way.
-    for (const segment of segments) guard(key, segment)
+    // `delete Object.prototype.toString` is the same hole pointing the other
+    // way. Spelled out again rather than shared with `set`: a barrier only counts
+    // if it dominates the write in the same function.
+    for (const segment of segments) {
+      if (segment === '__proto__' || segment === 'constructor' || segment === 'prototype') {
+        throw new Error(
+          `[${key}] walks through [${segment}], which would reach the prototype chain.`
+        )
+      }
+    }
 
     for (let index = 0; index < segments.length - 1; index += 1) {
       const next = current[segments[index] as string]
