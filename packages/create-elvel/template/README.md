@@ -14,6 +14,12 @@ bun run dev
 
 Then open <http://localhost:3000>.
 
+That one command runs the server, the Vite dev server, and — if this application
+has them — a queue worker and the scheduler. Edit a `.tsx` view and the browser
+reloads itself: the server re-evaluates the changed module under `bun --hot`, and
+a plugin in `vite.config.ts` pushes a reload down the socket Vite already holds.
+Neither Bun nor Elysia can do that second half, which is why it lives there.
+
 ## Commands
 
 ```bash

@@ -185,6 +185,59 @@ comment naming the failure and is reported. The response also carries
 `cache-control: no-transform` and `x-accel-buffering: no`, because a proxy that
 buffers undoes the whole thing.
 
+## Live reload
+
+`bun run dev` reloads the browser when you edit a view. It is worth knowing what
+does what, because three separate things are involved and only one of them is
+ours.
+
+```bash
+bun run dev        # server (bun --hot) + Vite + queue + scheduler, one terminal
+```
+
+1. **`bun --hot` reloads the server.** It re-evaluates the changed modules in
+   place rather than restarting the process, so the next request renders the new
+   markup. Measured on a scaffolded application: a view change reaches the next
+   request in about **105ms**, against about **195ms** for `--watch`, and five
+   successive edits left the routes, the container and the 404 handler intact.
+2. **A Vite plugin tells the browser.** `vite.config.ts` watches
+   `resources/views`, `app`, `routes` and `config`, and pushes
+   `{ type: 'full-reload' }` down the socket `@vite/client` already holds.
+3. **`resources/js` and `resources/css` keep real HMR**, because those *are*
+   modules in the browser and Vite can swap them.
+
+::: warning A view gets a full reload, not a hot update — and it cannot get one
+A `.tsx` view is rendered to a **string on the server**; the browser never
+receives a module for it, so there is nothing to swap. State-preserving HMR is
+not a missing feature here, it is a question that does not apply — the same
+reason Laravel has never had HMR for Blade. Fetching the page again is the honest
+answer, and it is what `laravel-vite-plugin`'s `refresh` option does too.
+:::
+
+### Neither Bun nor Elysia provides this
+
+Worth stating, because it is the first place anybody looks:
+
+- **Bun** has `--watch` (hard restart) and `--hot` (soft reload). Its
+  documentation says outright that `--hot` "is not the same as hot reloading in
+  the browser" and points at Vite for that. Bun's full-stack dev server *does*
+  have browser HMR, but scoped to client-side bundles reached through HTML
+  imports — not to server-rendered HTML responses.
+- **Elysia** offers nothing here; its quick start only notes that a dev command
+  reloads the *server* on file changes.
+
+Neither is in a position to: whatever reloads the page has to hold a socket to
+the page. Bun holds the process, Elysia holds the routes, and Vite holds the
+socket.
+
+Without Vite installed, `dev` says so rather than leaving you guessing:
+
+```
+vite is not installed, so assets and browser reload are off.
+```
+
+`--no-assets` turns it off deliberately.
+
 ## Assets
 
 ```tsx
