@@ -26,9 +26,19 @@ name: release
 # real cost of this approach — and the alternative has a deadline: bypass-2FA
 # tokens lose the ability to publish directly around January 2027.
 
+# Started by hand, from the tag.
+#
+# It used to fire on `push: tags: ['v*']`, which meant the act of *naming* a
+# release was also the act of shipping it — and the two want different moments.
+# A tag pushed to fix a typo, or moved after a failed attempt, published on its
+# own; recovering from a half-finished release meant force-pushing a tag, which
+# is a poor thing to have in the loop.
+#
+# So: push the tag whenever, then run this workflow **against that tag** — the
+# ref picker in the Actions UI takes tags, and `gh workflow run release.yml --ref
+# v1.2.3` does the same. Everything downstream still reads `github.ref`, so the
+# tag is what gets verified, packed and published.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       dist-tag:
@@ -116,6 +126,8 @@ jobs:
       # labelled one thing and containing another.
       - name: The tag matches the version every package carries
         if: startsWith(github.ref, 'refs/tags/v')
+        # Skipped on a branch so a dry run from `main` still checks the packing;
+        # publishing from a branch is refused outright further down.
         run: |
           tagged="${GITHUB_REF_NAME#v}"
           declared="$(bun --print 'require("./package.json").version')"
@@ -129,8 +141,17 @@ jobs:
       - name: Pack and check
         run: bun scripts/release.ts
 
+      # Publishing from a branch would put whatever `main` happens to hold behind
+      # a version number nothing can point at afterwards.
+      - name: Refuse to publish anything that is not a tag
+        if: inputs.dry-run == false && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "This ran against ${GITHUB_REF}, which is not a v* tag."
+          echo "Re-run it with the tag selected — gh workflow run release.yml --ref v1.2.3"
+          exit 1
+
       - name: Publish
-        if: github.event_name == 'push' || inputs.dry-run == false
+        if: inputs.dry-run == false
         env:
           # Through the environment rather than interpolated into the command: a
           # dispatch input reaching a shell directly is a command injection, even
@@ -150,7 +171,7 @@ jobs:
       # release is cut, by whoever cut it, and repeating it here by hand is how
       # the two end up saying different things.
       - name: Announce it
-        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/v') && inputs.dry-run == false
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
