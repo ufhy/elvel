@@ -1459,9 +1459,9 @@ from the default export, so it crashes under both Bun and Node. `safe` remains a
 runtime guarantee and a review responsibility. This is the one thing that was
 tried and could not be made to work, as opposed to deliberately left out.
 
-One thing that is correct today and will not always be. The other — a
-`sessions.last_activity` that runs out in 2038 — moved to `GAPS.md`, because
-there is something to build and this file is for what merely surprises.
+One thing that is correct today and will not always be. The other used to be a
+`sessions.last_activity` that ran out in 2038; it is 64-bit now, and the tests
+that hold it there are described further up.
 
 - `node_modules/.bun` holds **two copies of elysia 1.4.29** under different peer
   hashes. Nothing misbehaves today, but dual module identity is exactly what the
