@@ -1,0 +1,47 @@
+# What Dependabot can and cannot do for a Bun monorepo.
+#
+# `bun` is a supported ecosystem, but only for *version* updates. Security
+# updates are not supported for `bun.lock`, which means Dependabot will never
+# open a pull request because something we depend on turned out to be
+# vulnerable. That job belongs to `bun audit`, which runs in `verify.yml`.
+#
+# So this file is for staying current, and the audit step is for staying safe.
+# Neither covers the other.
+version: 2
+
+updates:
+  # One pull request a week for the lot, rather than twenty-seven packages'
+  # worth of separate ones. `directory: /` is the workspace root: Bun resolves
+  # every member from the single root lockfile, so there is one place to update.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Patch and minor together and unattended; a major gets its own pull
+      # request because it is the one that needs reading.
+      routine:
+        patterns: ['*']
+        update-types: [minor, patch]
+    commit-message:
+      prefix: Update
+    labels: [dependencies]
+
+  # The reason this entry matters more than it looks: `release.yml` runs with
+  # `id-token: write`, so every action in it can publish to npm as us. Keeping
+  # them current is part of protecting that, and the pinned SHAs in the
+  # workflows are what Dependabot bumps here — it rewrites the SHA and leaves
+  # the version comment correct.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: Update
+    labels: [dependencies]

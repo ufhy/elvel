@@ -1,0 +1,53 @@
+name: codeql
+
+# Static analysis, looking for the class of bug a test suite is bad at finding.
+#
+# `verify.yml` proves the framework does what it says on three platforms. It
+# cannot tell us that a value reaches `eval`, or that a path built from a request
+# escapes the directory it was meant to stay in, because nothing in the suite
+# thinks to try. CodeQL follows data from where it enters to where it lands, and
+# that is the shape of nearly every hole a web framework has.
+#
+# It is free on public repositories, which this now is.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Advisories arrive after the code is written. A weekly run catches the ones
+  # whose query did not exist when the pull request was merged.
+  schedule:
+    - cron: '31 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      # Writing the findings to the Security tab. Everything else stays read-only.
+      security-events: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # `security-and-quality` rather than the default suite: the default is
+      # tuned for a low false-positive rate on an application, and this is a
+      # framework — the extra queries are the ones about unsafe defaults handed
+      # to somebody else's code.
+      - uses: github/codeql-action/init@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3.37.7
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      # No build step. CodeQL extracts TypeScript directly, and a compile here
+      # would only analyse whatever the bundler chose to keep.
+      - uses: github/codeql-action/analyze@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3.37.7
+        with:
+          category: /language:javascript-typescript
