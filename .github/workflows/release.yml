@@ -78,7 +78,7 @@ jobs:
       # The whole history and every tag: the release notes are read out of the
       # tag's own annotation, and a shallow checkout may have the ref without the
       # object that carries the message.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -89,7 +89,7 @@ jobs:
       # npm does the publishing even though everything else here is Bun: trusted
       # publishing is an npm CLI feature, and it needs 11.5.1 or later on Node
       # 22.14 or later. Node 24 satisfies both.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
