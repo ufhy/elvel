@@ -123,7 +123,16 @@ const PAGES: Record<string, string> = {
   '@elvel/mail': 'digging-deeper/mail',
   '@elvel/storage': 'digging-deeper/storage',
   '@elvel/scheduler': 'digging-deeper/scheduling',
-  '@elvel/notifications': 'digging-deeper/notifications'
+  '@elvel/notifications': 'digging-deeper/notifications',
+  '@elvel/broadcasting': 'digging-deeper/broadcasting',
+  '@elvel/concurrency': 'digging-deeper/concurrency',
+  '@elvel/http-client': 'digging-deeper/http-client',
+  '@elvel/image': 'digging-deeper/images',
+  '@elvel/process': 'digging-deeper/processes',
+  '@elvel/hashing': 'digging-deeper/hashing',
+  '@elvel/translation': 'digging-deeper/localization',
+  '@elvel/support': 'digging-deeper/collections',
+  '@elvel/contracts': 'architecture/packages'
 }
 
 function readme(manifest: Manifest): string {
