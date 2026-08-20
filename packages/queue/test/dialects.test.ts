@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
-import { type ConnectionConfig, ConnectionManager } from '@elvel/database'
+import { ConnectionManager } from '@elvel/database'
+import { reachable } from '../../../tests/support/dialects.ts'
 import { DatabaseBatchRepository } from '../src/batch.ts'
 import type { JobPayload } from '../src/contracts.ts'
 import { DatabaseQueue } from '../src/drivers/database.ts'
@@ -18,56 +19,8 @@ import { DatabaseQueue } from '../src/drivers/database.ts'
  */
 
 const PREFIX = `queue_t${Date.now().toString(36)}`
-const TEST_DATABASE = 'elvel_test'
 
-const candidates: Array<{ name: string; config: ConnectionConfig }> = [
-  { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },
-  {
-    name: 'postgres',
-    config: process.env.TEST_POSTGRES_URL
-      ? { driver: 'postgres', url: process.env.TEST_POSTGRES_URL }
-      : {
-          driver: 'postgres',
-          host: '127.0.0.1',
-          port: 5432,
-          username: 'postgres',
-          database: TEST_DATABASE
-        }
-  },
-  {
-    name: 'mysql',
-    config: process.env.TEST_MYSQL_URL
-      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
-      : {
-          driver: 'mysql',
-          host: '127.0.0.1',
-          port: 3309,
-          username: 'root',
-          database: TEST_DATABASE
-        }
-  }
-]
-
-const available: Array<{ name: string; config: ConnectionConfig }> = []
-
-for (const candidate of candidates) {
-  const app = new Application(process.cwd())
-  app.config.set('database.default', candidate.name)
-  app.config.set(`database.connections.${candidate.name}`, candidate.config)
-
-  const db = new ConnectionManager(app)
-
-  try {
-    await (await db.connection()).select('select 1 as one')
-    available.push(candidate)
-  } catch (error) {
-    console.log(
-      `  skipping queue on ${candidate.name}: ${(error instanceof Error ? error.message : String(error)).slice(0, 70)}`
-    )
-  } finally {
-    await db.disconnectAll()
-  }
-}
+const available = await reachable('queue')
 
 test('sqlite is always part of the matrix', () => {
   expect(available.map((candidate) => candidate.name)).toContain('sqlite')

@@ -1,11 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
-import {
-  BunSqlConnection,
-  type ConnectionConfig,
-  ConnectionManager,
-  QueryBuilder
-} from '@elvel/database'
+import { ConnectionManager, QueryBuilder } from '@elvel/database'
+import { reachable } from '../../../tests/support/dialects.ts'
 import { DatabaseSessionDriver } from '../src/session-drivers.ts'
 
 /**
@@ -20,85 +16,15 @@ import { DatabaseSessionDriver } from '../src/session-drivers.ts'
  *
  * The cache's `expiration` column was the same mistake and was caught this way.
  *
- * A server that is unreachable drops out with a note. Override with
- * TEST_POSTGRES_URL / TEST_MYSQL_URL.
+ * The matrix itself — reachability, and creating the test database rather than
+ * assuming it — is `tests/support/dialects.ts`.
  */
 
 const PREFIX = `sessions_t${Date.now().toString(36)}`
-const TEST_DATABASE = 'elvel_test'
-
 /** Well past 2038, and past what a signed 32-bit column can hold. */
 const AFTER_2038 = 2 ** 31 + 86_400
 
-type Candidate = { name: string; config: ConnectionConfig }
-
-// No `database` for the servers: `provision` creates ours and fills it in. Asking
-// for it up front is what made an earlier version of this file pass only when
-// `database/test/dialects.test.ts` happened to run first and create it — coverage
-// that depends on file order is not coverage.
-const candidates: Candidate[] = [
-  { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },
-  {
-    name: 'postgres',
-    config: process.env.TEST_POSTGRES_URL
-      ? { driver: 'postgres', url: process.env.TEST_POSTGRES_URL }
-      : { driver: 'postgres', host: '127.0.0.1', port: 5432, username: 'postgres' }
-  },
-  {
-    name: 'mysql',
-    config: process.env.TEST_MYSQL_URL
-      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
-      : { driver: 'mysql', host: '127.0.0.1', port: 3309, username: 'root' }
-  }
-]
-
-/** Our own database on each server, created through the maintenance one. */
-async function provision(candidate: Candidate): Promise<Candidate> {
-  if (candidate.config.driver === 'sqlite' || candidate.config.url) return candidate
-
-  const admin = await BunSqlConnection.make(candidate.name, candidate.config)
-
-  try {
-    if (candidate.config.driver === 'postgres') {
-      // Postgres has no CREATE DATABASE IF NOT EXISTS.
-      const existing = await admin.select('select 1 as found from pg_database where datname = $1', [
-        TEST_DATABASE
-      ])
-      if (existing.length === 0) await admin.unprepared(`create database ${TEST_DATABASE}`)
-    } else {
-      await admin.unprepared(`create database if not exists ${TEST_DATABASE}`)
-    }
-  } finally {
-    await admin.disconnect()
-  }
-
-  return { name: candidate.name, config: { ...candidate.config, database: TEST_DATABASE } }
-}
-
-const available: Candidate[] = []
-
-for (const candidate of candidates) {
-  try {
-    const ready = await provision(candidate)
-
-    const app = new Application(process.cwd())
-    app.config.set('database.default', ready.name)
-    app.config.set(`database.connections.${ready.name}`, ready.config)
-
-    const db = new ConnectionManager(app)
-
-    try {
-      await (await db.connection()).select('select 1 as one')
-      available.push(ready)
-    } finally {
-      await db.disconnectAll()
-    }
-  } catch (error) {
-    console.log(
-      `  skipping sessions on ${candidate.name}: ${(error instanceof Error ? error.message : String(error)).slice(0, 70)}`
-    )
-  }
-}
+const available = await reachable('sessions')
 
 test('sqlite is always part of the matrix', () => {
   expect(available.map((candidate) => candidate.name)).toContain('sqlite')

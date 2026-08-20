@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Application } from '@elvel/core'
-import { BunSqlConnection, type ConnectionConfig } from '../src/connection/bun-sql.ts'
+import { reachable } from '../../../tests/support/dialects.ts'
+import { BunSqlConnection } from '../src/connection/bun-sql.ts'
 import { ConnectionManager } from '../src/connection/manager.ts'
 import { ReadWriteConnection } from '../src/connection/read-write.ts'
 import { Migrator } from '../src/migrations/migrator.ts'
@@ -29,80 +30,16 @@ import { SchemaBuilder } from '../src/schema/builder.ts'
  * defaults with TEST_POSTGRES_URL / TEST_MYSQL_URL.
  */
 
-type Candidate = { name: string; config: ConnectionConfig }
-
 const PREFIX = `elvel_t${Date.now().toString(36)}`
 
-const candidates: Candidate[] = [
-  { name: 'sqlite', config: { driver: 'sqlite', database: ':memory:' } },
-  {
-    name: 'postgres',
-    config: process.env.TEST_POSTGRES_URL
-      ? { driver: 'postgres', url: process.env.TEST_POSTGRES_URL }
-      : {
-          driver: 'postgres',
-          host: '127.0.0.1',
-          port: 5432,
-          username: 'postgres',
-          database: 'postgres'
-        }
-  },
-  {
-    name: 'mysql',
-    config: process.env.TEST_MYSQL_URL
-      ? { driver: 'mysql', url: process.env.TEST_MYSQL_URL }
-      : { driver: 'mysql', host: '127.0.0.1', port: 3309, username: 'root', database: 'mysql' }
-  }
-]
-
-const TEST_DATABASE = 'elvel_test'
-
 /**
- * Give each server its own database.
- *
- * This is not tidiness: MySQL's system schema `mysql` does not enforce InnoDB
- * foreign keys, so running the suite there silently passed rows that a real
- * application database rejects. Connecting to the maintenance database only to
- * create ours avoids testing against a special case.
+ * The matrix, provisioning and reachability all come from
+ * `tests/support/dialects.ts`, which four suites now share. It used to live here,
+ * and living here was the problem: two other suites asked to connect *to*
+ * `elvel_test` rather than create it, so they only reached Postgres and MySQL
+ * when this file happened to run first.
  */
-async function provision(candidate: Candidate): Promise<Candidate> {
-  if (candidate.config.driver === 'sqlite' || candidate.config.url) return candidate
-
-  const admin = await BunSqlConnection.make(candidate.name, candidate.config)
-
-  try {
-    if (candidate.config.driver === 'postgres') {
-      // Postgres has no CREATE DATABASE IF NOT EXISTS.
-      const existing = await admin.select('select 1 as found from pg_database where datname = $1', [
-        TEST_DATABASE
-      ])
-      if (existing.length === 0) await admin.unprepared(`create database ${TEST_DATABASE}`)
-    } else {
-      await admin.unprepared(`create database if not exists ${TEST_DATABASE}`)
-    }
-  } finally {
-    await admin.disconnect()
-  }
-
-  return { name: candidate.name, config: { ...candidate.config, database: TEST_DATABASE } }
-}
-
-/** Open each server once; anything unreachable drops out of the matrix. */
-const available: Candidate[] = []
-
-for (const candidate of candidates) {
-  try {
-    const provisioned = await provision(candidate)
-    const connection = await BunSqlConnection.make(provisioned.name, provisioned.config)
-    await connection.select('select 1 as one')
-    await connection.disconnect()
-    available.push(provisioned)
-  } catch (error) {
-    console.log(
-      `  skipping ${candidate.name}: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`
-    )
-  }
-}
+const available = await reachable('dialect')
 
 test('sqlite is always part of the matrix', () => {
   expect(available.map((candidate) => candidate.name)).toContain('sqlite')
