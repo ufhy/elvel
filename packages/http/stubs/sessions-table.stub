@@ -7,6 +7,13 @@ import { Migration, type MigrationContext } from '@elvel/database'
  * arithmetic on an integer, which every dialect agrees about, and the sweep is
  * one indexed comparison.
  *
+ * 64-bit, unlike Laravel's. A 32-bit column holding seconds runs out in January
+ * 2038, and this table's whole job is to be swept by comparison against that
+ * column — Postgres refuses the insert outright once the value passes 2^31, so
+ * the failure would arrive as sessions that cannot be written rather than as a
+ * date nobody was watching. The cache's `expiration` column was the same shape
+ * and was found by a test; this one is widened before it can be.
+ *
  * `user_id` is nullable and indexed so "sign this person out everywhere" is a
  * query rather than a scan — nothing writes it yet, but the column is free now
  * and a migration later.
@@ -19,7 +26,7 @@ export default class extends Migration {
       table.string('ip_address', 45).nullable()
       table.text('user_agent').nullable()
       table.text('payload')
-      table.integer('last_activity').index()
+      table.bigInteger('last_activity').index()
     })
   }
 

@@ -918,6 +918,28 @@ between a suite you run on every save and one you run before pushing.
 
 What is still deliberately different, and why:
 
+- **`sessions.last_activity` is 64-bit, where Laravel's is 32.** The column holds
+  seconds, so a 32-bit one stops working in January 2038 — and this table's whole
+  job is to be swept by comparing against that column. It is not a distant
+  problem in the way it sounds: Postgres refuses an `integer` insert above `2^31`
+  outright, so the failure arrives as sessions that cannot be written, on a
+  machine whose clock is merely wrong. The cache's `expiration` column was the
+  same shape and was caught by a test rather than by a date; this one was widened
+  before it could be, and `session-dialects.test.ts` holds it there against real
+  Postgres and MySQL — SQLite cannot answer the question, because it stores
+  integers dynamically and a 32-bit *declaration* holds a 2040 timestamp there
+  perfectly well.
+
+  An application scaffolded before this only gets it by running the change
+  itself; a stub is copied once, not applied twice:
+
+  ```sql
+  -- postgres
+  alter table sessions alter column last_activity type bigint;
+  -- mysql
+  alter table sessions modify last_activity bigint not null;
+  -- sqlite needs nothing: it never stored the width
+  ```
 - **No migrations.** Laravel ships three because its defaults put session, cache
   and the queue in the database. Ours default to `file`, `file` and `sync`, so a
   new application needs no table at all on day one; `cache:table`, `queue:table`
