@@ -1,6 +1,6 @@
 {
   "name": "@elvel/hashing",
-  "version": "1.0.0-alpha.7",
+  "version": "1.0.0-alpha.8",
   "description": "Password hashing for Elvel — bcrypt and argon2 through Bun, with rehash detection",
   "keywords": [
     "argon2",
