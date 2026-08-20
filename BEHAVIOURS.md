@@ -1459,9 +1459,10 @@ uncovered, and why:
   real socket instead
 - `create-elvel` — covered end to end by the smoke test rather than by units:
   it scaffolds, boots, and every package's commands are registered in what it
-  wrote. A scaffold installed *from npm* is a different matter and is not
-  covered at all; that one is a row in `GAPS.md` rather than a note here,
-  because `alpha.1` shipped broken through exactly that hole
+  wrote. A scaffold installed *from npm* is covered separately and later, by
+  `scripts/verify-published.ts` in `release.yml` after the publish, because a
+  workspace member never resolves a published version and that is the hole
+  `alpha.1` shipped through
 - MySQL/Postgres **grammar** paths that the dialect suite does not reach, such as
   `insertGetId` on MariaDB
 - the S3 disk against AWS itself — the round trip is covered against MinIO

@@ -340,6 +340,24 @@ async function setUpProject(installRoot: string, target: string, kit: string): P
     }
   }
 
+  /**
+   * Only when the application has a database at all.
+   *
+   * `--kit=none` prunes `@elvel/database`, so `migrate` is not registered, and
+   * running it printed `Command "migrate" is not defined` under a step called
+   * "Migrating failed" — the scaffolder reporting its own success as a failure,
+   * on the very first thing a new application does. Exactly the trap the
+   * `auth:schema` guard above exists to avoid; this line was missing it.
+   *
+   * Decided from the manifest rather than from the kit's name, so a kit added
+   * later is covered without anybody remembering to come back here.
+   */
+  const manifest = (await Bun.file(join(target, 'package.json')).json()) as {
+    dependencies?: Record<string, string>
+  }
+
+  if (manifest.dependencies?.['@elvel/database'] === undefined) return true
+
   return await run('Migrating', target, ['bun', 'elvel.ts', 'migrate', '--force'])
 }
 
