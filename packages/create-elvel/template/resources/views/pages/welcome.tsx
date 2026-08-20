@@ -30,7 +30,35 @@ export function Welcome({ title, user, links }: WelcomeProps) {
 
       <div class="welcome">
         <header class="rule">
-          <span class="mark">Elvel</span>
+          <span class="brand">
+            {/* `art/mark.svg`, inline rather than an <img>: drawn in
+                currentColor, it follows the accent into dark mode without a
+                second file, and needs no request of its own. */}
+            <svg
+              class="glyph"
+              viewBox="0 0 48 48"
+              fill="none"
+              role="img"
+              aria-label="Elvel"
+              width="20"
+              height="20"
+            >
+              <title>Elvel</title>
+              <circle
+                cx="24"
+                cy="24"
+                r="13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="5"
+                stroke-linecap="round"
+                stroke-dasharray="63 19"
+                transform="rotate(28 24 24)"
+              />
+              <rect x="15" y="21.5" width="18" height="5" rx="2.5" fill="currentColor" />
+            </svg>
+            <span class="mark">Elvel</span>
+          </span>
 
           {hasAuth ? (
             <nav class="nav">
@@ -188,7 +216,7 @@ body {
   --ink: #17150f;
   --faint: #6f6a5d;
   --line: #ddd7c9;
-  --accent: #b8410f;
+  --accent: #c9241a;
   --raise: #ffffff;
 
   font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
@@ -204,7 +232,7 @@ body {
     --ink: #ece7dc;
     --faint: #9a9285;
     --line: #2e2b26;
-    --accent: #ff7a45;
+    --accent: #ff5c50;
     --raise: #1a1815;
   }
 }
@@ -220,6 +248,17 @@ body {
   gap: 1rem;
   padding-bottom: 0.9rem;
   border-bottom: 1px solid var(--line);
+}
+
+.welcome .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+}
+
+.welcome .glyph {
+  flex: none;
 }
 
 .welcome .mark {

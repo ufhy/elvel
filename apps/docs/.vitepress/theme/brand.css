@@ -1,16 +1,22 @@
 /*
- * The same accent a scaffolded application arrives with.
+ * The brand, from `art/logo.svg`.
  *
- * VitePress ships an indigo that every VitePress site shares, and the welcome
- * screen `bun create elvel` writes uses a burnt orange — #b8410f on paper,
- * #ff7a45 where the background is dark. A documentation site whose colour has
- * nothing to do with the thing it documents is a small lie told on every page.
+ * `#FF2D20` is the mark's own red and it stays exactly that wherever it is a
+ * *shape* — the logo, the favicon, a filled button. As **text** it does not
+ * survive a light background: measured against the page's paper it comes out at
+ * 3.54:1, which clears the 3:1 that graphics need and misses the 4.5:1 that
+ * small text does.
+ *
+ * So the text tints are darkened and brightened deliberately, and both were
+ * measured rather than eyeballed: #c9241a on light is 5.32:1, #ff5c50 on dark is
+ * 6.20:1. Laravel does the same thing — its logo is this red and its body copy
+ * is not.
  */
 :root {
-  --vp-c-brand-1: #b8410f;
-  --vp-c-brand-2: #a13a0d;
-  --vp-c-brand-3: #8f330b;
-  --vp-c-brand-soft: rgb(184 65 15 / 14%);
+  --vp-c-brand-1: #c9241a;
+  --vp-c-brand-2: #b31f16;
+  --vp-c-brand-3: #9c1b13;
+  --vp-c-brand-soft: rgb(255 45 32 / 14%);
 
   --vp-button-brand-bg: var(--vp-c-brand-1);
   --vp-button-brand-hover-bg: var(--vp-c-brand-2);
@@ -18,10 +24,16 @@
 }
 
 .dark {
-  --vp-c-brand-1: #ff7a45;
-  --vp-c-brand-2: #ff9166;
-  --vp-c-brand-3: #e2632f;
-  --vp-c-brand-soft: rgb(255 122 69 / 16%);
+  --vp-c-brand-1: #ff5c50;
+  --vp-c-brand-2: #ff7a70;
+  --vp-c-brand-3: #e63d31;
+  --vp-c-brand-soft: rgb(255 45 32 / 18%);
+}
+
+/* Sized to the wordmark beside it; the logo carries its own colours. */
+.VPNavBarTitle .logo {
+  width: 22px;
+  height: 22px;
 }
 
 /* The hero name inherits the brand, which at this size reads as a shout. */
