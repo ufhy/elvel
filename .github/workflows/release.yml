@@ -167,6 +167,19 @@ jobs:
 
           bun scripts/release.ts --publish "--tag=$DIST_TAG"
 
+      # The check that `alpha.1` needed and nothing had.
+      #
+      # It installs the scaffolder from the registry, so it is the first thing in
+      # the pipeline that resolves a *published* version rather than a workspace
+      # member — which is why the ranges `create-elvel` writes were wrong for a
+      # whole release without one check going red. It has to run after the
+      # publish, because there is nothing to install before it; it still lands
+      # before the announcement, so a broken release is not one anybody was told
+      # about.
+      - name: A scaffold installed from npm actually works
+        if: inputs.dry-run == false
+        run: bun scripts/verify-published.ts
+
       # The tag's own annotation is the release notes: it is written when the
       # release is cut, by whoever cut it, and repeating it here by hand is how
       # the two end up saying different things.

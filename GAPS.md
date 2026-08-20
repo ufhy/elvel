@@ -10,32 +10,12 @@ deliberately stops. The test to apply when something turns up: *is there
 something to build?* If no, it is not a row here. Mixing the two is what once
 kept a gap list from ever shortening while dozens of features shipped.
 
-Both rows below came out of `BEHAVIOURS.md`, which had been quietly carrying them
-as prose.
+The row below came out of `BEHAVIOURS.md`, which had been quietly carrying it as
+prose. The one that stood beside it — no test for a scaffold installed from npm —
+is gone, because `scripts/verify-published.ts` now runs in `release.yml` after
+the publish and found a real bug on its first run.
 
 ---
-
-## A scaffold installed from npm is not tested at all
-
-`bun run smoke` scaffolds an application and boots it, and `packages/create-elvel/test`
-covers what the scaffolder writes — but both resolve `@elvel/*` through the
-workspace. A workspace member never resolves a published version, so an entire
-class of error is invisible to every check that runs.
-
-That is not hypothetical. `1.0.0-alpha.1` went out with `create-elvel` writing
-`^0.0.1` as the dependency range for every framework package. Nothing caught it,
-and it took a second release the same day to fix. Since then the check has lived
-in a habit: after each release I run `bunx create-elvel@<version>` by hand,
-confirm the ranges name the version just published, migrate, and fetch the
-welcome page. A check that exists only in somebody's habit is not a check.
-
-**Done when** a test installs the scaffolder from the registry rather than the
-workspace, scaffolds with it, and asserts the dependency ranges resolve to real
-published versions — then boots what it wrote. It cannot run on every push, since
-it needs a published version to point at, so it belongs after the publish step in
-`release.yml`, where a failure still precedes the announcement. `--dry-run` needs
-an answer too: with nothing published there is nothing to install, and the honest
-move is to skip loudly rather than pass quietly.
 
 ## `sessions.last_activity` runs out in 2038
 
