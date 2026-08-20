@@ -13,6 +13,12 @@ import { defineConfig } from 'vitepress'
  *
  * A page appears in the sidebar when it has real content. Fifty empty pages are
  * worse than eight true ones, so "coming soon" is not a page.
+ *
+ * VitePress 2 while it is still an alpha, deliberately. The 1.6 line pins vite
+ * `^5.4.14`, which carries a high-severity advisory — a `server.fs.deny` bypass
+ * on Windows — and `bun audit` runs as a gate in CI. The choice was to mute the
+ * finding or to move; 2.0 builds on vite 8, the same major the scaffolded
+ * template already uses, and the audit comes back clean.
  */
 export default defineConfig({
   title: 'Elvel',
