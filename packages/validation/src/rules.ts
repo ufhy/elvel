@@ -959,12 +959,38 @@ export const RULES: Record<string, RuleHandler> = {
     try {
       const { lookup } = await import('node:dns/promises')
 
-      return (await lookup(host, { all: true })).length > 0
+      // Bounded, because `lookup` is not. A resolver that has stopped answering
+      // does not fail — it waits, and this runs inside request validation, so
+      // the request waits with it. macOS CI found this by taking longer than
+      // five seconds to say that a reserved `.invalid` name does not exist.
+      //
+      // Running out of time counts as "could not check", which fails closed for
+      // the reason above.
+      // The handle is cleared either way: a pending timer holds the event loop
+      // open, which would leave a process that answered in milliseconds waiting
+      // three seconds to exit.
+      let handle: ReturnType<typeof setTimeout> | undefined
+
+      const timeout = new Promise<never>((_, reject) => {
+        handle = setTimeout(
+          () => reject(new Error(`[${host}] did not resolve within ${DNS_TIMEOUT}ms.`)),
+          DNS_TIMEOUT
+        )
+      })
+
+      try {
+        return (await Promise.race([lookup(host, { all: true }), timeout])).length > 0
+      } finally {
+        clearTimeout(handle)
+      }
     } catch {
       return false
     }
   }
 }
+
+/** How long `active_url` waits on a resolver before calling it a failure. */
+const DNS_TIMEOUT = 3000
 
 function requireVerifier(context: RuleContext, rule: string) {
   if (!context.verifier) {
