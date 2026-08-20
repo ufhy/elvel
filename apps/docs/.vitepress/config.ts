@@ -76,7 +76,10 @@ export default defineConfig({
       },
       {
         text: 'Digging deeper',
-        items: [{ text: 'Queues', link: '/digging-deeper/queues' }]
+        items: [
+          { text: 'Cache', link: '/digging-deeper/cache' },
+          { text: 'Queues', link: '/digging-deeper/queues' }
+        ]
       },
       {
         text: 'Database',
