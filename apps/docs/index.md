@@ -47,11 +47,10 @@ features:
 token stored anywhere. The shape is settled; the surface still moves, and a
 release can rename something.
 
-What is **not** in these pages yet is most of it. Sixteen of the twenty-seven
-packages are documented here; the other eleven — storage, scheduler,
-notifications, broadcasting, concurrency, image, process, http-client, hashing,
-translation and collections — have working code, tests against real servers, and
-no page. They arrive one at a time.
+What is **not** in these pages yet is most of it. Seventeen of the twenty-seven
+packages are documented here; the other ten — scheduler, notifications,
+broadcasting, concurrency, image, process, http-client, hashing, translation and
+collections — have working code, tests against real servers, and no page. They arrive one at a time.
 
 A page appears in the sidebar when it has something true to say. Fifty
 placeholders would make this site look finished and be useless.

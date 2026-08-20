@@ -120,7 +120,8 @@ const PAGES: Record<string, string> = {
   '@elvel/cache': 'digging-deeper/cache',
   '@elvel/testing': 'testing/getting-started',
   '@elvel/console': 'digging-deeper/console',
-  '@elvel/mail': 'digging-deeper/mail'
+  '@elvel/mail': 'digging-deeper/mail',
+  '@elvel/storage': 'digging-deeper/storage'
 }
 
 function readme(manifest: Manifest): string {

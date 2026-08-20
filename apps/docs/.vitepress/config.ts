@@ -81,6 +81,7 @@ export default defineConfig({
           { text: 'Cache', link: '/digging-deeper/cache' },
           { text: 'Console', link: '/digging-deeper/console' },
           { text: 'Mail', link: '/digging-deeper/mail' },
+          { text: 'File storage', link: '/digging-deeper/storage' },
           { text: 'Queues', link: '/digging-deeper/queues' }
         ]
       },
