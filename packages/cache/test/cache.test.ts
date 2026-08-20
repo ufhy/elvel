@@ -708,13 +708,26 @@ for (const candidate of candidates) {
     test('and starts again once the window closes', async () => {
       const limiter = new RateLimiter(cache)
 
+      /**
+       * Nothing is asserted about being refused *inside* the window, on purpose.
+       *
+       * It used to be, and it failed a release: two round trips to the store took
+       * longer than the one-second window on a loaded runner, so the second
+       * attempt was allowed — the limiter working correctly and the assertion
+       * lying about why. Refusal is proved by the test above, whose window is long
+       * enough not to race.
+       *
+       * What is left here is the one thing that genuinely needs a short window,
+       * and it needs only a single comparison: the counter is spent, and once the
+       * window lapses it is gone and the next attempt runs.
+       */
       expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe('ok')
-      expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe(false)
+      expect(await limiter.attempts('sms')).toBe(1)
 
-      // Only one call stands between the hit and the wait, so the window cannot
-      // close before the refusal is observed.
       await Bun.sleep(1100)
 
+      expect(await limiter.attempts('sms')).toBe(0)
+      expect(await limiter.availableIn('sms')).toBe(0)
       expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe('ok')
     })
 
