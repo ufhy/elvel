@@ -1,0 +1,30 @@
+/*
+ * The same accent a scaffolded application arrives with.
+ *
+ * VitePress ships an indigo that every VitePress site shares, and the welcome
+ * screen `bun create elvel` writes uses a burnt orange — #b8410f on paper,
+ * #ff7a45 where the background is dark. A documentation site whose colour has
+ * nothing to do with the thing it documents is a small lie told on every page.
+ */
+:root {
+  --vp-c-brand-1: #b8410f;
+  --vp-c-brand-2: #a13a0d;
+  --vp-c-brand-3: #8f330b;
+  --vp-c-brand-soft: rgb(184 65 15 / 14%);
+
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-3);
+}
+
+.dark {
+  --vp-c-brand-1: #ff7a45;
+  --vp-c-brand-2: #ff9166;
+  --vp-c-brand-3: #e2632f;
+  --vp-c-brand-soft: rgb(255 122 69 / 16%);
+}
+
+/* The hero name inherits the brand, which at this size reads as a shout. */
+.VPHero .name {
+  --vp-home-hero-name-color: var(--vp-c-brand-1);
+}

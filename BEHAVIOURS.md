@@ -1007,7 +1007,10 @@ same one — which is the only reason a second kit is worth its weight.
   driven over HTTP in the smoke run, inbox included: a reset link is read out of
   the log the `log` mailer writes to, followed to the form, used once, and refused
   the second time.
-- **`api`** has no views at all. Identity is better-auth's session token, handed
+- **`api`** has no *pages* — one welcome view and its layout, and nothing else;
+  it gained those the day every kit with views gained a welcome screen, and the
+  claim here said "no views at all" until writing the documentation caught it.
+  Identity is better-auth's session token, handed
   out through the `bearer` plugin's `set-auth-token` header and sent back as
   `Authorization: Bearer …`. There is no second identity table and no second
   notion of a session; a personal-access-token store — Sanctum's shape — is a
