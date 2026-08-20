@@ -47,8 +47,8 @@ features:
 token stored anywhere. The shape is settled; the surface still moves, and a
 release can rename something.
 
-What is **not** in these pages yet is most of it. Fifteen of the twenty-seven
-packages are documented here; the other twelve — mail, storage, scheduler,
+What is **not** in these pages yet is most of it. Sixteen of the twenty-seven
+packages are documented here; the other eleven — storage, scheduler,
 notifications, broadcasting, concurrency, image, process, http-client, hashing,
 translation and collections — have working code, tests against real servers, and
 no page. They arrive one at a time.

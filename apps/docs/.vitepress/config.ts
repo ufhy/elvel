@@ -80,6 +80,7 @@ export default defineConfig({
         items: [
           { text: 'Cache', link: '/digging-deeper/cache' },
           { text: 'Console', link: '/digging-deeper/console' },
+          { text: 'Mail', link: '/digging-deeper/mail' },
           { text: 'Queues', link: '/digging-deeper/queues' }
         ]
       },
