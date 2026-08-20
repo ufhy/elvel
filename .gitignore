@@ -20,6 +20,7 @@ apps/*
 .smoke-scaffold/
 .bundle-check/
 .demo/
+.playonline/
 
 *.tsbuildinfo
 .DS_Store

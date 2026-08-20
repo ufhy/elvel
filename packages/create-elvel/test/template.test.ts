@@ -950,3 +950,61 @@ describe('the welcome page', () => {
     expect<string[]>(named).toEqual(['login: true', 'register: true', 'dashboard: true'])
   })
 })
+
+/**
+ * Live reload, which nothing underneath provides.
+ *
+ * Bun's `--hot` re-evaluates the server's modules and its own documentation says
+ * plainly that it "is not the same as hot reloading in the browser"; Elysia has
+ * no equivalent. The only socket a browser is already listening on belongs to
+ * Vite, so a plugin in the template pushes a full reload down it — and these
+ * tests exist because that arrangement is easy to take apart by accident.
+ */
+describe('reloading the browser', () => {
+  test('the template watches what produces HTML and pushes a full reload', async () => {
+    const config = await Bun.file(join(templateDir, 'vite.config.ts')).text()
+
+    expect(config).toContain("name: 'elvel:refresh'")
+    // `server.hot`, not `server.ws`: Vite 8 removed the latter.
+    expect(config).toContain('server.hot.send')
+    expect(config).toContain("type: 'full-reload'")
+    expect(config).not.toContain('server.ws.send')
+
+    for (const watched of ['./resources/views', './app', './routes', './config']) {
+      expect(config).toContain(watched)
+    }
+  })
+
+  test('the plugin only runs while a dev server is up', async () => {
+    const config = await Bun.file(join(templateDir, 'vite.config.ts')).text()
+
+    // Both plugins are `apply: 'serve'`. A production build must not carry a
+    // file watcher, and the hot file must not survive the server that wrote it.
+    expect(config.match(/apply: 'serve'/g)?.length).toBe(2)
+  })
+
+  test('dev runs the asset server, and serve stays a plain server', async () => {
+    const manifest = (await Bun.file(join(templateDir, '_package.json')).json()) as {
+      scripts: Record<string, string>
+    }
+
+    expect(manifest.scripts.dev).toBe('bun elvel.ts dev')
+
+    // `--hot` belongs to `dev`, not here: `serve` is what production runs.
+    expect(manifest.scripts.serve).toBe('bun elvel.ts serve')
+    expect(manifest.scripts.serve).not.toContain('--hot')
+  })
+
+  test('dev skips the workers an application does not have', async () => {
+    const source = await Bun.file(
+      join(root, 'packages', 'console', 'src', 'commands', 'dev.ts')
+    ).text()
+
+    // `--kit=none` has neither. Starting them anyway failed with
+    // `Command "queue:work" is not defined` and took the server down with it,
+    // because the first process to exit stops the rest.
+    expect(source).toContain("kernel.has('queue:work')")
+    expect(source).toContain("kernel.has('schedule:work')")
+    expect(source).toContain("'--hot'")
+  })
+})

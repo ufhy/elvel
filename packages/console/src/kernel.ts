@@ -59,6 +59,19 @@ export class Kernel {
     return [...this.commands.values()]
   }
 
+  /**
+   * Is this command registered at all?
+   *
+   * Asked by commands that orchestrate others — `dev` runs a queue worker and the
+   * scheduler, and neither exists in an application scaffolded with `--kit=none`,
+   * which prunes those packages. Without this it started them anyway and the
+   * first one to exit took the server down with it, reporting
+   * `Command "queue:work" is not defined` as though the developer had typed it.
+   */
+  has(name: string): boolean {
+    return this.commands.has(name)
+  }
+
   async run(argv: string[] = Bun.argv.slice(2)): Promise<number> {
     const [name, ...rest] = argv
 

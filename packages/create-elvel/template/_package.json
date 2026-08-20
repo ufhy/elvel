@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch elvel.ts serve",
+    "dev": "bun elvel.ts dev",
     "build": "vite build",
     "build:server": "bun elvel.ts app:build",
     "start": "bun dist/elvel.js serve",

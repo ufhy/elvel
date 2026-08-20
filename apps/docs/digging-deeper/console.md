@@ -219,10 +219,17 @@ config/app.ts holds a function at [app.providers.0] — read live.
 
 ```bash
 bun elvel serve          # the Bun development server
-bun elvel dev            # server, a queue worker and the scheduler together
+bun elvel dev            # server (--hot), Vite, a queue worker and the scheduler
 bun elvel route:list     # every route, with its middleware
 bun elvel app:build      # bundle to dist/elvel.js
 ```
+
+`dev` runs the server under `bun --hot` and starts Vite alongside it, which is
+what makes the browser reload when a view changes — see
+[live reload](/basics/views#live-reload). It skips a worker the application does
+not have: `--kit=none` prunes the queue and the scheduler, and starting them
+there failed with `Command "queue:work" is not defined`, taking the server down
+with it.
 
 `route:list` prints what Elysia actually registered, including the routes a
 package added:
