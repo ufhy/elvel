@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { Command } from '../command.ts'
 
 type Process = { name: string; argv: string[] }
@@ -34,6 +33,17 @@ export class DevCommand extends Command {
 
   static override description = 'Run the server, a queue worker and the scheduler together'
 
+  /** Can this application import the package, wherever it was hoisted to? */
+  private canResolve(name: string): boolean {
+    try {
+      Bun.resolveSync(`${name}/package.json`, this.app.basePath())
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async handle(): Promise<number> {
     const processes: Process[] = [
       {
@@ -51,7 +61,20 @@ export class DevCommand extends Command {
      * browser that stops refreshing is otherwise a mystery.
      */
     if (!this.flag('no-assets')) {
-      if (existsSync(this.app.basePath('node_modules', 'vite'))) {
+      /**
+       * Resolved, not stat'd.
+       *
+       * This looked for `<app>/node_modules/vite`, which is only one of the
+       * places a package manager may put it: inside a workspace, or wherever a
+       * version is shared, it is hoisted to a parent `node_modules` and the
+       * directory check finds nothing while `vite` is perfectly usable. The
+       * report was `vite is not installed` in an application that had installed
+       * it — and then a page with no stylesheet.
+       *
+       * `Bun.resolveSync` walks the same chain an import would, which is the
+       * question actually being asked.
+       */
+      if (this.canResolve('vite')) {
         processes.push({ name: 'assets', argv: ['bun', 'x', 'vite'] })
       } else {
         this.comment('vite is not installed, so assets and browser reload are off.')

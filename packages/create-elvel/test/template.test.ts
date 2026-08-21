@@ -975,6 +975,80 @@ describe('reloading the browser', () => {
     }
   })
 
+  /**
+   * Executed, not string-matched.
+   *
+   * The predicate here was `file.includes('app')` and read fine: every watched
+   * directory appeared in the file. It was also wrong for two paths that matter
+   * — an application living in `apps/demo` matched every file it owns, and
+   * `resources/css/app.css` turned a CSS hot update into a full page reload —
+   * and no amount of reading the string would have said so. So this loads the
+   * real config, hands the real plugin a fake server, and watches what it sends.
+   */
+  test('the refresh plugin sends a reload for views and for nothing else', async () => {
+    const config = (await import(join(templateDir, 'vite.config.ts'))) as {
+      default: {
+        plugins: Array<{
+          name: string
+          configureServer?(server: unknown): void
+        }>
+      }
+    }
+
+    const plugin = config.default.plugins.find((candidate) => candidate.name === 'elvel:refresh')
+    const handlers: Array<(file: string) => void> = []
+    let sent = 0
+
+    plugin?.configureServer?.({
+      watcher: {
+        add: () => undefined,
+        on: (_event: string, handler: (file: string) => void) => handlers.push(handler)
+      },
+      hot: { send: () => sent++ }
+    })
+
+    const reloads = (file: string): number => {
+      sent = 0
+      for (const handler of handlers) handler(join(templateDir, file))
+
+      return sent
+    }
+
+    // Rendered on the server, so the browser has no module to swap.
+    expect(reloads('resources/views/pages/welcome.tsx')).toBeGreaterThan(0)
+    expect(reloads('app/Http/Controllers/PageController.ts')).toBeGreaterThan(0)
+
+    // Real client modules, which keep their own HMR.
+    expect(reloads('resources/css/app.css')).toBe(0)
+    expect(reloads('resources/js/app.ts')).toBe(0)
+
+    // Written by the running application, and not the browser's business.
+    expect(reloads('storage/framework/sessions/abc.json')).toBe(0)
+    expect(reloads('database/database.sqlite')).toBe(0)
+    expect(reloads('public/build/manifest.json')).toBe(0)
+  })
+
+  /**
+   * The other half of the same loop.
+   *
+   * Rejecting those paths in the plugin is not enough, because Vite watches the
+   * project root itself. A request writes a session file, the watcher wakes, and
+   * the page reloads — which is another request. Six reloads in ten idle seconds,
+   * measured, before these patterns were in place.
+   */
+  test('the watcher ignores what a running application writes', async () => {
+    const config = (await import(join(templateDir, 'vite.config.ts'))) as {
+      default: { server?: { watch?: { ignored?: string[] } } }
+    }
+
+    expect(config.default.server?.watch?.ignored).toEqual([
+      '**/storage/**',
+      '**/database/**',
+      '**/public/build/**',
+      '**/public/hot'
+    ])
+  })
+
   test('the plugin only runs while a dev server is up', async () => {
     const config = await Bun.file(join(templateDir, 'vite.config.ts')).text()
 
