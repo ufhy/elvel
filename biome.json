@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/storage", "!**/*.edge"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/storage",
+      "!**/*.edge",
+      "!**/public/build",
+      "!apps/*/public"
+    ]
   },
   "formatter": {
     "enabled": true,

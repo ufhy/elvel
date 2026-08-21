@@ -93,11 +93,31 @@ them. So there is no content list to keep in step with where your views live.
 The brand colours are `@theme` tokens in `resources/css/app.css`, and the note
 there explains why the text tint is not the logo's red.
 
-::: warning Tailwind skips anything `.gitignore` covers
-An application scaffolded **inside the Elvel repository** lands under an ignored
-directory, so its own views are invisible to Tailwind and the stylesheet comes out
-nearly empty. Outside the repository — which is every real application — there is
-nothing to do.
+::: warning Inside a monorepo, pin what Tailwind scans
+Tailwind skips anything `.gitignore` covers and otherwise scans from the project
+root — which for an application inside a larger repository is the wrong answer in
+both directions at once: its own views can be invisible, and everything else in
+the repository is not.
+
+Measured on the same application, built inside the Elvel checkout and outside it:
+
+| | stylesheet | build |
+| --- | --- | --- |
+| outside a repository | 19.9 kB | 0.4 s |
+| inside, scanning from the root | 54.6 kB | 10.8 s |
+| inside, with the sources named | 19.9 kB | 0.13 s |
+
+Naming them is two lines:
+
+```css
+@import "tailwindcss" source(none);
+@source "../views";
+@source "../../app";
+```
+
+`source(none)` turns automatic detection off, and each `@source` is relative to
+the stylesheet. Outside a repository — which is every real application — the
+default is right and there is nothing to do.
 :::
 
 ## `auth` — sign in, sign up, a dashboard

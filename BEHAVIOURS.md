@@ -1617,6 +1617,53 @@ field keep their alert.
 `css.parser.tailwindDirectives`, or `bun run lint` goes red on a stylesheet that
 is correct.
 
+## Inside the checkout is not the same as inside a workspace
+
+The scaffolder treated any target under the framework checkout as a workspace
+member and wrote `workspace:*` for every framework package. That only resolves for
+a directory one of the root manifest's `workspaces` globs matches — `packages/*`,
+`playground`, `apps/*` — so a scaffold in a scratch directory like `.demo/` ended
+up in a state where nothing worked:
+
+```
+error: @elvel/view@workspace:* failed to resolve
+```
+
+The root install ignored it, so it had no `node_modules` of its own, so nothing
+could be added to it either.
+
+What made it hard to see is that **the server still ran**. Module resolution walks
+up and finds the root's `node_modules`, which really does hold the framework
+packages, so `elvel serve` behaved perfectly. The break only surfaced at
+`bun run build`, which needs a local `node_modules/.bin` for `vite`.
+
+Checked against the globs now, and said out loud when it is not true: *"Inside the
+checkout, but not one of its workspaces — so the published packages will be
+required."* Which is a working application, just not a linked one.
+
+## Tailwind scans from the project root, which a monorepo makes wrong twice
+
+Tailwind v4 needs no `content` list because it scans every text file it can find.
+Inside a larger repository that is wrong in both directions at once: it skips
+anything `.gitignore` covers — so an application in an ignored directory has
+invisible views — and it walks *up*, so everything else in the repository is
+scanned instead.
+
+Measured on the same application, three ways:
+
+| | stylesheet | build |
+| --- | --- | --- |
+| outside a repository | 19.9 kB | 0.4 s |
+| inside, scanning from the root | 54.6 kB | 10.8 s |
+| inside, with `source(none)` and `@source` | 19.9 kB | 0.13 s |
+
+The middle row is the one to notice: it built, it looked fine, and it shipped
+34 kB of classes belonging to the documentation site and the other kits. Nothing
+failed — which is why the number is the only way to find it.
+
+Not something the kit ships, because the default is right for every application
+outside a repository. It is in the documentation for the case that is not.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

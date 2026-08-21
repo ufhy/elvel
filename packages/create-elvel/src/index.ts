@@ -217,12 +217,31 @@ async function main(): Promise<number> {
     return step !== '' && !step.startsWith('..') && !isAbsolute(step)
   })()
 
-  const workspaceMode = inside
+  /**
+   * Inside the checkout is not the same as inside a **workspace**.
+   *
+   * `workspace:*` only resolves for a directory one of the root manifest's
+   * `workspaces` globs matches. Being anywhere under the checkout was treated as
+   * enough, so a scaffold in a scratch directory like `.demo/` declared
+   * `workspace:*`, was ignored by the root install, got no `node_modules` of its
+   * own, and could not run `bun install` at all:
+   *
+   *     error: @elvel/view@workspace:* failed to resolve
+   *
+   * The server still started, because module resolution walks up to the root's
+   * `node_modules` — so the break only showed up at `bun run build`, which needs
+   * a local `node_modules/.bin`. Checked properly now, and said out loud when it
+   * is not true.
+   */
+  const workspaceMode = inside && (await isWorkspaceMember(monorepoRoot as string, target))
 
   if (monorepoRoot !== undefined && !workspaceMode) {
     prompts.log.warn(
-      `Target is outside the framework checkout, so the published packages will be required.\n` +
-        `For local development scaffold inside it, e.g. ${pc.cyan(`apps/${name}`)}.`
+      inside
+        ? `Inside the checkout, but not one of its workspaces — so the published packages will be required.\n` +
+            `To link the packages being edited, scaffold under one, e.g. ${pc.cyan(`apps/${basename(target)}`)}.`
+        : `Target is outside the framework checkout, so the published packages will be required.\n` +
+            `For local development scaffold inside it, e.g. ${pc.cyan(`apps/${name}`)}.`
     )
   }
 
@@ -650,6 +669,25 @@ async function pruneConfig(target: string, present: Set<string>): Promise<void> 
       .filter((line) => !removed.some((name) => line.includes(`import('../config/${name}.ts')`)))
       .join('\n')
   )
+}
+
+/**
+ * Does one of the root manifest's `workspaces` globs match this directory?
+ *
+ * `workspace:*` resolves for a workspace member and nowhere else, so this is the
+ * question that decides whether linking the local packages can work at all.
+ * Matched with `Bun.Glob` against the path relative to the root, since that is
+ * what the globs are written against.
+ */
+async function isWorkspaceMember(root: string, target: string): Promise<boolean> {
+  const manifest = (await Bun.file(join(root, 'package.json'))
+    .json()
+    .catch(() => undefined)) as { workspaces?: string[] } | undefined
+
+  const globs = manifest?.workspaces ?? []
+  const step = relative(root, target).replaceAll('\\', '/')
+
+  return globs.some((pattern) => new Bun.Glob(pattern).match(step))
 }
 
 /**
