@@ -19,7 +19,7 @@ apps/*
 !apps/docs
 .bundle-check/
 .demo/
-.playonline/
+.demo-online/
 
 # Where `packages/auth/test/dialects.test.ts` writes a generated migration so it
 # can be imported with real module resolution. Removed by the test; ignored in

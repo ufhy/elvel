@@ -626,7 +626,15 @@ describe('reading an S3 ACL document', () => {
 describe('the ?acl request itself', () => {
   let server: ReturnType<typeof Bun.serve>
   let seen: { method: string; url: string; acl?: string; authorization?: string } | undefined
-  let answer: Response | undefined
+  /**
+   * A factory, not a `Response`.
+   *
+   * It held the instance, and a test that makes two requests handed the same one
+   * to the server twice — which bun 1.4 refuses with `ERR_BODY_ALREADY_USED`,
+   * because a body can only be sent once. Building a fresh one per request is
+   * what the server would do anyway.
+   */
+  let answer: (() => Response) | undefined
 
   beforeEach(() => {
     seen = undefined
@@ -647,7 +655,7 @@ describe('the ?acl request itself', () => {
               : { authorization: request.headers.get('authorization') as string })
           }
 
-          return answer ?? new Response('<AccessControlPolicy/>')
+          return answer?.() ?? new Response('<AccessControlPolicy/>')
         }
 
         return new Response(null, { status: 404 })
@@ -693,7 +701,7 @@ describe('the ?acl request itself', () => {
   })
 
   test('a bucket that refuses the ACL falls back to the default', async () => {
-    answer = new Response('<Error><Code>AccessDenied</Code></Error>', { status: 403 })
+    answer = () => new Response('<Error><Code>AccessDenied</Code></Error>', { status: 403 })
 
     // Buckets with ACLs disabled entirely are the common modern setup; throwing
     // there would make visibility unusable rather than merely unknown.

@@ -29,7 +29,7 @@ defaults:
 env:
   # Pinned rather than "latest": a runtime that changes under us turns a red
   # build into a mystery. Bump it deliberately.
-  BUN_VERSION: 1.3.14
+  BUN_VERSION: 1.4.0
 
 # Every action is pinned to a commit, with the version beside it. A tag is a
 # label somebody else can move: `@v4` today and `@v4` tomorrow need not be the
