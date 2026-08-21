@@ -1377,6 +1377,39 @@ VitePress renders a nav logo as an `<img>`, and an image cannot inherit
 `currentColor`. The mark came out black in both themes, which is how that was
 found; the nav uses the full `logo.svg`, which carries its own colours.
 
+## A stub that disagreed with the dispatcher hid every model event
+
+`Model.observe()` did nothing, silently, in every alpha up to `alpha.9`. The
+lifecycle events fired, the listeners were registered, and they never met.
+
+`ModelEvent` carried `static eventName = 'model'`, and the dispatcher names a
+class-based event from its **constructor's statics** — that is what makes
+`dispatch(new UserRegistered(user))` work without naming a string. So every
+lifecycle event was dispatched as `model`, while `observe()` subscribed to
+`article.created`, `article.saving` and the rest. Nothing matched, and nothing
+complained: a dispatch with no listeners is the ordinary case.
+
+The reason it survived a test suite is the part worth keeping. There *was* a test
+for `observe()`, and it passed. `@elvel/database` does not depend on
+`@elvel/events`, so the test stubbed the dispatcher — and the stub dispatched by
+reading the event object's own `name` field, which is the intention rather than
+the behaviour. It agreed with what the code meant and disagreed with what the
+dispatcher does, which is the one thing a fake must never do.
+
+Two changes, because one would have left the hole open:
+
+- `fireEvent` dispatches the **string** name with the event as payload, and
+  `ModelEvent` no longer carries a shared `eventName`. A wildcard covers what the
+  shared name was reaching for: `listen('article.*')`, or `listen('*.created')`
+  across every model.
+- The stub now keys on the dispatched name, and `playground/test` runs the same
+  assertions against the **real** dispatcher, where both packages are registered.
+
+That second half is the general lesson, and it is the reason `playground/test`
+exists at all: the framework's own suites build a small application per package
+and must fake what they do not depend on, so an agreement between two packages can
+only be checked where both are really present.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

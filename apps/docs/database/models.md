@@ -1,115 +1,246 @@
 # Models
 
-The model layer has no brand name — it is `Model`, and the docs call them models.
-Laravel needs "Eloquent" because its ecosystem has a marketing surface; a
-descriptive name costs nothing to explain.
-
 ```ts
-class User extends Model {
-  static override table = 'users'
-  static override fillable = ['name', 'email']
-  static override casts = { active: 'boolean', meta: 'json' }
+import { Model } from '@elvel/database'
+
+export class Article extends Model {
+  static override table = 'articles'
+  static override fillable = ['title', 'body', 'status']
+  static override casts = { published_at: 'datetime', meta: 'json', views: 'int' }
+  static override hidden = ['internal_notes']
 
   declare id: number
-  declare name: string
-
-  posts() { return this.hasMany(Post) }
+  declare title: string
 }
-
-const user = await User.create({ name: 'Ada' })
-await User.where('votes', '>', 10).orderByDesc('votes').paginate(1, 15)
 ```
 
-Attribute access goes through a Proxy, so `user.name` reads an attribute while
-`user.save()` stays a method; `declare` gives the columns types without
-shadowing it at runtime. Casts matter more here than in PHP — SQLite has no
-boolean, so `active` arrives as `0`, and `'0'` is truthy in JavaScript.
-
-**Relations are methods, and there is no synchronous lazy loading.** Reaching the
-database is asynchronous on Bun, so `user.posts` cannot return rows the way
-`$user->posts` does; it is `await user.posts().get()`. `with()` is what keeps
-that from becoming an N+1 — it uses the two-query strategy from Laravel's
-`addEagerConstraints`/`match`: collect the parents' keys, fetch every child in
-one `where in`, build a dictionary, assign. Parents with a null key are skipped
-rather than matched against null. `hasMany`, `hasOne`, `belongsTo` and
-`belongsToMany` are covered, including `attach`/`detach`/`sync` and nested
-`with('posts.comments')`.
-
-Saving follows `performUpdate`: only dirty columns are sent, and a clean model
-issues **no query at all**. Dirty comparison tolerates driver type drift, so a
-column that comes back as `5` and is reassigned `'5'` is not reported as changed.
-
-Also present: global scopes (`addGlobalScope` / `withoutGlobalScope`),
-`whereHas`/`has`/`doesntHave` as correlated `exists` subqueries so the parent
-rows are never multiplied, `withCount`/`withSum`/`withMax` as select subqueries,
-accessors and mutators (`getFullNameAttribute`), `appends`, `getChanges` /
-`wasChanged`, `replicate`, `is`/`isNot`, `only`/`except`, `withoutTimestamps`,
-`sole`, `firstWhere`, `lazy()`, morph relations (`morphTo`/`morphOne`/`morphMany`),
-`hasManyThrough`, and the full pivot surface (`attach`/`detach`/`sync`/
-`syncWithoutDetaching`/`toggle`/`updateExistingPivot`).
-
-`morphTo` eager loading issues one query per distinct type, which is the floor
-rather than a shortcoming: the rows point at different tables. Asking `whereHas`
-of a `morphTo` throws with an explanation instead of guessing a table.
-
-## Factories and seeders
+`bun elvel make:model Article` writes one. `declare` rather than a real field:
+attribute access goes through a Proxy, so `article.title` reads an attribute
+while the class stays typed.
 
 ```ts
-class UserFactory extends Factory<User> {
-  readonly model = User
-
-  definition(index: number) {
-    return { name: `User ${index}`, email: `user${index}@example.com` }
-  }
-}
-
-await new UserFactory().count(3).state({ active: false }).create()
+await Article.find(1)
+await Article.findOrFail(1)          // throws ModelNotFoundError
+await Article.all()
+await Article.create({ title: 'Hi' })
+await Article.query().where('status', 'published').get()
 ```
 
-No fake-data generator is bundled. `definition()` receives a 0-based index, so
-unique values are derived from it rather than from a random source that collides
-with a unique index roughly one run in fifty. Factories bypass `fillable`, as
-Laravel's do.
+`get()` resolves to a **`Collection`**, not an array — `.all()`, `.count()`,
+`.first()`. See [collections](/digging-deeper/collections).
 
-Seeders are composed explicitly with `call()` — there is no auto-discovery,
-because seed order matters and a directory listing is a poor way to express it. A
-seeder pulled in by two others still runs once.
-
-## Relations across a pivot
+## Casts
 
 ```ts
-article.tags()            // morphToMany: the pivot stores this model's type
-  .withPivot('added_by')  // read the extra column back, onto `tag.pivot`
-  .withTimestamps()       // and stamp it on attach
+static override casts = {
+  views: 'int',
+  meta: 'json',
+  published_at: 'datetime',
+  editor_note: 'encrypted'        // ciphertext at rest, the value on the model
+}
+```
 
-tag.articles()            // morphedByMany: the pivot names the *related* type
+A cast round-trips: `typeof article.views` is `number` even though SQLite handed
+back a string. `encrypted` and `encrypted:json` need `@elvel/encryption`; no
+`where` on the plaintext will ever match, which is the price — see
+[encryption](/security/encryption).
+
+`hidden` keeps a column out of `toJSON()`, and `appends` puts a computed value
+in. Measured on a model with `hidden = ['secret']`:
+
+```
+toJSON keys → ["id","title","views","meta","deleted_at","created_at","updated_at"]
+```
+
+## Soft deletes
+
+```ts
+export class Article extends Model {
+  static override softDeletes = true
+}
+```
+
+```ts
+await article.delete()        // sets deleted_at
+article.trashed()             // true
+await article.restore()
+await article.forceDelete()   // actually gone
+```
+
+Queries then exclude them by default, and three scopes reach past that. With
+seven rows and one deleted:
+
+```
+Article.query().get()               → 6
+Article.withTrashed().get()         → 7
+Article.query().onlyTrashed().get() → 1
+```
+
+## Pagination
+
+```ts
+const page = await Article.query().paginate(1, 3)
+```
+
+```
+{ rows: 3, total: 7, currentPage: 1, lastPage: 3 }
+```
+
+`simplePaginate` skips the `count(*)` when you only need next/previous.
+
+### Cursor pagination
+
+```ts
+const first = await Article.query().cursorPaginate(3)
+const next = await Article.query().cursorPaginate(3, first.nextCursor)
+
+next.data.all().map((a) => a.id)   // [4, 5, 6]
+```
+
+**No `total` and no `lastPage`, on purpose** — knowing them costs a `count(*)`
+over the whole set, which is the expense cursor pagination exists to avoid. What
+it buys is stability: an offset page silently repeats or skips rows when something
+is inserted while somebody is paging.
+
+The cursor carries the last row's key, base64url-encoded as Laravel's is, so it
+travels in a URL. `previousCursor` points *backwards* from the first row of the
+page, which is what makes paging back work without counting.
+
+Pass columns to page by something other than the key:
+
+```ts
+await Article.query().cursorPaginate(15, cursor, ['created_at', 'id'])
+```
+
+Several columns page like a phone book — surname first, given name only breaking
+ties — so that compiles to `created_at > ? OR (created_at = ? AND id > ?)`. **The
+key at the end should almost always be there**: without it, two rows sharing a
+timestamp make a page boundary ambiguous.
+
+## Lifecycle events
+
+Eight of them: `saving`, `saved`, `creating`, `created`, `updating`, `updated`,
+`deleting`, `deleted`.
+
+```ts
+events().listen('article.created', ({ model }) => index(model))
+events().listen('article.*', (name) => audit(name))
+events().listen('*.deleted', (name) => …)          // every model
+```
+
+The name is `<snake_case model>.<event>`. A wildcard is how you hear a whole
+model's lifecycle, or one event across every model.
+
+### Observers
+
+```ts
+Article.observe({
+  creating: (article) => { article.slug ||= slugify(article.title) },
+  created: (article) => index(article),
+  deleted: (article) => unindex(article)
+})
+```
+
+Sugar over those listeners, so one model's handlers live in one class instead of
+six `listen()` calls. It needs an event dispatcher, and **says so** rather than
+silently doing nothing:
+
+```
+Article.observe() needs an event dispatcher.
+Register EventServiceProvider (or call Model.setEventDispatcher) first.
+```
+
+`bun elvel make:observer ArticleObserver` writes the class.
+
+```ts
+await article.saveQuietly()    // no events at all
+```
+
+::: tip This was broken in every alpha up to and including `alpha.9`
+`ModelEvent` carried a `static eventName`, and the dispatcher names a class-based
+event from its constructor's statics — so every lifecycle event went out as
+`model` and `listen('article.created')` matched nothing, in silence. `observe()`
+had a test, but the test stubbed the dispatcher and keyed on a different field, so
+it agreed with the intention and disagreed with the real dispatcher. Writing this
+page is what found it.
+:::
+
+## Relations
+
+```ts
+class Article extends Model {
+  author() { return this.belongsTo(User) }
+  comments() { return this.hasMany(Comment) }
+  tags() { return this.morphToMany(Tag, 'taggable') }
+}
+```
+
+```ts
+await Article.query().with('author', 'comments').get()   // eager, no N+1
+await article.comments().where('approved', true).get()
+await article.load('author')
+```
+
+### Across a pivot
+
+```ts
+article.tags()
+  .withPivot('added_by')   // read the extra column back, onto `tag.pivot`
+  .withTimestamps()        // and stamp it on attach
+
+tag.articles()             // morphedByMany: the pivot names the *related* type
 ```
 
 Pivot columns are selected as `pivot_<column>` and moved onto the accessor after
 hydration, so a pivot's own `created_at` cannot overwrite the model's. `using()`
-hydrates them as a `Pivot` subclass of yours, and `as()` renames the accessor.
+hydrates them as a `Pivot` subclass of yours; `as()` renames the accessor.
 
-## One row across an intermediate table
+### One row, across many or through another table
 
 ```ts
-user.latestOfMany(Post, 'created_at')     // one per parent, even eagerly loaded
+user.latestOfMany(Post, 'created_at')
 country.hasOneThrough(Post, User)
 ```
 
-`latestOfMany` joins a grouped subquery rather than ordering and limiting. A
-limit is right for one parent and **wrong for an eager load**, where it answers
-the whole set once — so ten users would share one post between them. The key is
-aggregated alongside the column, so a tie on `created_at` cannot make a "one"
-relation return two rows.
+`latestOfMany` joins a grouped subquery rather than ordering and limiting. A limit
+is right for one parent and **wrong for an eager load**, where it answers the whole
+set once and ten users would share one post between them. The key is aggregated
+alongside the column, so a tie on `created_at` cannot make a "one" relation return
+two rows.
 
 ## Walking a large table
 
 ```ts
-Article.query().chunkById(500, handle)     // by key: safe to delete while walking
-Article.query().cursorPaginate(15, cursor)
-await user.saveQuietly()                   // no model events
+await Article.query().chunkById(500, handle)
 ```
 
-`chunkById` pages by primary key rather than by offset, which is what makes it
-safe to delete or update rows as you go — an offset shifts under you and skips
-records.
+Pages by primary key rather than by offset, which is what makes it safe to delete
+or update rows as you go — an offset shifts under you and skips records.
+
+## Scopes
+
+```ts
+class Article extends Model {
+  static scopePublished(query) { query.where('status', 'published') }
+}
+
+await Article.query().scope('published').get()
+```
+
+A scope declared as `scopeUnread(query)` is reached through **`.scope('unread')`**,
+not as a method of its own. `addGlobalScope(name, fn)` applies one to every query,
+and soft deletes are implemented as exactly that.
+
+`bun elvel make:scope PublishedScope` writes a class-shaped one.
+
+## Other statics
+
+| Static | Default | What it is |
+| --- | --- | --- |
+| `table` | snake plural of the class | |
+| `primaryKey` / `incrementing` / `keyType` | `id` / `true` / `'int'` | A uuid key is `incrementing = false`, `keyType = 'string'` |
+| `timestamps` | `true` | |
+| `fillable` / `guarded` | `[]` / `['*']` | Mass-assignment |
+| `touches` | `[]` | Relations whose parent gets a fresh `updated_at` |
+| `routeKey` | the primary key | What route model binding matches on |
+| `morphMap` | — | Stable strings for polymorphic types, so renaming a class does not orphan rows |

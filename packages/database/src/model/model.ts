@@ -52,8 +52,6 @@ export class ModelEvent {
     readonly name: string,
     readonly model: Model
   ) {}
-
-  static readonly eventName = 'model'
 }
 
 /**
@@ -1491,10 +1489,25 @@ export class Model {
     return this.toObject()
   }
 
+  /**
+   * Dispatched **by name**, with the event object as the payload.
+   *
+   * Passing the object alone does not work, and the reason took finding: the
+   * dispatcher names a class-based event from its constructor's statics, so a
+   * `static eventName` on `ModelEvent` renamed every one of these to `model` and
+   * `listen('article.created')` never matched. `observe()` had a test, and the
+   * test used a stub that dispatched by the instance's own `name` field — so it
+   * passed against a dispatcher that behaved differently from the real one.
+   *
+   * A wildcard covers what the shared name was reaching for:
+   * `listen('article.*')`, or `listen('*.created')` across every model.
+   */
   private async fireEvent(name: string): Promise<void> {
     if (Model.muted) return
 
-    await Model.dispatcher?.dispatch(new ModelEvent(`${Model.snake(this.self.name)}.${name}`, this))
+    const event = `${Model.snake(this.self.name)}.${name}`
+
+    await Model.dispatcher?.dispatch(event, new ModelEvent(event, this))
   }
 }
 

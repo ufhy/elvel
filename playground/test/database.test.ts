@@ -150,3 +150,59 @@ describe('which database the tests use', () => {
     expect(path).not.toContain('playground.sqlite')
   })
 })
+
+/**
+ * Lifecycle events, against the **real** dispatcher.
+ *
+ * `@elvel/database` does not depend on `@elvel/events`, so its own suite stubs
+ * the dispatcher — and a stub is exactly how this broke. `ModelEvent` carried a
+ * `static eventName`, the real dispatcher names a class-based event from its
+ * constructor's statics, and every lifecycle event was therefore dispatched as
+ * `model`. `observe()` subscribed to `article.created` and heard nothing, in
+ * silence, while the stubbed test went green.
+ *
+ * This is the shape of test that catches it: one application, every provider
+ * registered, nothing faked.
+ */
+describe('model lifecycle events', () => {
+  it('dispatches under the model and event name, not a shared one', async () => {
+    const events = app.make('events')
+    const heard: string[] = []
+
+    // `listen()` returns void, so cleanup is `forget()` rather than an
+    // unsubscriber — a leaked listener here would fire in every later test.
+    events.listen('article.created', () => heard.push('created'))
+    events.listen('article.*', (name: string) => heard.push(`wildcard:${name}`))
+
+    try {
+      await Article.create({
+        title: 'Lifecycle',
+        slug: `lifecycle-${slug}`,
+        body: 'Long enough to be a body, comfortably past any minimum.'
+      })
+
+      expect(heard).toContain('created')
+      // The wildcard is what the shared `model` name was reaching for, and it
+      // works per model rather than across all of them at once.
+      expect(heard).toContain('wildcard:article.created')
+      expect(heard).toContain('wildcard:article.saving')
+    } finally {
+      events.forget('article.created')
+      events.forget('article.*')
+    }
+  })
+
+  it('observe() subscribes a class of handlers to those names', async () => {
+    const seen: string[] = []
+
+    Article.observe({ creating: () => seen.push('creating'), created: () => seen.push('created') })
+
+    await Article.create({
+      title: 'Observed',
+      slug: `observed-${slug}`,
+      body: 'Long enough to be a body, comfortably past any minimum.'
+    })
+
+    expect(seen).toEqual(['creating', 'created'])
+  })
+})
