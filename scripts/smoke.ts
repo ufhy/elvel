@@ -2571,6 +2571,34 @@ try {
 
 section('Scaffolder')
 
+/**
+ * Install a freshly scaffolded target, from the repository root.
+ *
+ * These live under `apps/`, one of the root manifest's `workspaces` globs, so
+ * their `@elvel/*` dependencies are written as `workspace:*` and only a root
+ * install resolves them. It is what the scaffolder prints for an application
+ * created inside the checkout.
+ *
+ * It has to happen before *anything* runs in the target, not merely before the
+ * typecheck. `config/auth.ts` in the auth kits imports `@better-auth/passkey`,
+ * so without its dependencies the application cannot boot at all — and the way
+ * that surfaced was `elvel make:cast` reporting the config file as missing.
+ */
+function installScaffold(label: string): void {
+  const installed = Bun.spawnSync({
+    cmd: ['bun', 'install'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    `${label} installs from the workspace root`,
+    installed.exitCode === 0,
+    plain(installed.stderr.toString()).slice(-400)
+  )
+}
+
 const scaffoldTarget = join(app.basePath(), '..', 'apps', 'smoke-scaffold')
 
 try {
@@ -2584,6 +2612,8 @@ try {
   })
 
   check('create-elvel exits cleanly', result.exitCode === 0, `exit ${result.exitCode}`)
+
+  installScaffold('the template')
 
   const manifest = await Bun.file(join(scaffoldTarget, 'package.json')).json()
   check('_package.json is renamed', manifest.name === 'smoke-scaffold')
@@ -2727,6 +2757,8 @@ try {
   })
 
   check('the auth kit scaffolds', kitResult.exitCode === 0, `exit ${kitResult.exitCode}`)
+
+  installScaffold('the auth kit')
   check(
     'its pages are written',
     await Bun.file(join(kitTarget, 'resources/views/pages/auth/sign-in.tsx')).exists()
@@ -2856,28 +2888,7 @@ try {
       jsxManifest.devDependencies['@tailwindcss/vite'] !== undefined
   )
 
-  /**
-   * Installed from the repository root, not from the scaffold.
-   *
-   * These targets live under `apps/`, which is one of the root manifest's
-   * `workspaces` globs — so their `@elvel/*` dependencies are written as
-   * `workspace:*` and only a root install can resolve them. It is also what the
-   * scaffolder prints for an application created inside the checkout.
-   *
-   * They used to be `.smoke-*` at the repository root, matching no glob at all:
-   * the framework was pinned to a published range instead of linked, and this
-   * kit's own dependencies — `uqr`, `@better-auth/passkey` — were never installed
-   * anywhere, so `bun run typecheck` failed on four missing modules in a
-   * scaffold that was otherwise correct.
-   */
-  const jsxInstall = Bun.spawnSync({
-    cmd: ['bun', 'install'],
-    cwd: join(import.meta.dir, '..'),
-    stdout: 'pipe',
-    stderr: 'pipe'
-  })
-
-  check('it installs', jsxInstall.exitCode === 0, plain(jsxInstall.stderr.toString()).slice(-400))
+  installScaffold('the jsx kit')
 
   /**
    * The auth tables, which the kit's tests need and which nothing has generated.
@@ -3012,6 +3023,8 @@ try {
   })
 
   check('the api kit scaffolds', apiResult.exitCode === 0, `exit ${apiResult.exitCode}`)
+
+  installScaffold('the api kit')
   check(
     'it ships no views of its own',
     !(await Bun.file(join(apiTarget, 'resources/views/pages/sign-in.tsx')).exists())
@@ -3084,24 +3097,12 @@ try {
    * had **eleven** type errors and six lint errors on the day it was generated,
    * in a file nobody using it had written.
    *
-   * The check has to run in the scaffold, which is why it lives here — and it
-   * needs an install first: a kit may depend on something the framework does not,
-   * which is how `uqr` and `@better-auth/passkey` arrived with the two-factor and
-   * passkey pages, and `tsc` cannot check an import it cannot resolve.
+   * The check has to run in the scaffold, which is why it lives here. Each target
+   * was installed as it was created — a kit may depend on something the framework
+   * does not, which is how `uqr` and `@better-auth/passkey` arrived with the
+   * two-factor and passkey pages, and `tsc` cannot check an import it cannot
+   * resolve.
    */
-  const scaffoldInstall = Bun.spawnSync({
-    cmd: ['bun', 'install'],
-    cwd: join(import.meta.dir, '..'),
-    stdout: 'pipe',
-    stderr: 'pipe'
-  })
-
-  check(
-    'the scaffolds install from the workspace root',
-    scaffoldInstall.exitCode === 0,
-    plain(scaffoldInstall.stderr.toString()).slice(-400)
-  )
-
   for (const target of [scaffoldTarget, kitTarget, apiTarget]) {
     const label = target.endsWith('smoke-kit')
       ? 'the kit'
