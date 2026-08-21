@@ -180,7 +180,7 @@ describe('model:prune', () => {
       const command = await elvel(
         kernel,
         ['model:prune', '--pretend', '--chunk=2'],
-        Output.prototype
+        Output.prototype as never
       ).run()
 
       command.assertSuccessful().assertOutputContains('4 row(s) would be pruned')
@@ -195,7 +195,11 @@ describe('model:prune', () => {
   it('deletes what prunable() returns, in chunks', async () => {
     const Comment = await spam(3)
 
-    const command = await elvel(kernel, ['model:prune', '--chunk=2'], Output.prototype).run()
+    const command = await elvel(
+      kernel,
+      ['model:prune', '--chunk=2'],
+      Output.prototype as never
+    ).run()
 
     command.assertSuccessful().assertOutputContains('3 row(s) pruned')
 
@@ -209,7 +213,7 @@ describe('model:prune', () => {
       const only = await elvel(
         kernel,
         ['model:prune', '--pretend', '--model=Comment'],
-        Output.prototype
+        Output.prototype as never
       ).run()
 
       only.assertSuccessful().assertOutputContains('2 row(s) would be pruned')
@@ -217,7 +221,7 @@ describe('model:prune', () => {
       const none = await elvel(
         kernel,
         ['model:prune', '--pretend', '--model=Article'],
-        Output.prototype
+        Output.prototype as never
       ).run()
 
       // Article defines no prunable(), so naming it prunes nothing.
