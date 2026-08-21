@@ -95,7 +95,27 @@ export async function reachable(label: string): Promise<Candidate[]> {
       const db = new ConnectionManager(app)
 
       try {
-        await (await db.connection()).select('select 1 as one')
+        /**
+         * Bounded, because an unreachable server is not the only failure.
+         *
+         * MySQL from Bun on Windows does not refuse and does not answer — it
+         * hangs, and an unbounded `await` here took the whole suite with it: no
+         * summary, no exit, nothing to read. A refusal is a sentence; a hang is
+         * a mystery, and this file is the one place that can tell them apart.
+         *
+         * Five seconds is far longer than any of these probes needs — the same
+         * three servers answer in milliseconds when they answer at all.
+         */
+        await Promise.race([
+          (await db.connection()).select('select 1 as one'),
+          new Promise((_, reject) => {
+            setTimeout(
+              () => reject(new Error('no answer in 5s — it did not refuse, it hung')),
+              5_000
+            )
+          })
+        ])
+
         available.push(ready)
       } finally {
         await db.disconnectAll()
