@@ -181,11 +181,37 @@ describe('Logger', () => {
 })
 
 describe('StackDriver', () => {
+  test('a member keeps its own level', async () => {
+    const quiet = new MemoryDriver()
+    const loud = new MemoryDriver()
+
+    /**
+     * A level is enforced by the `Logger`, not by the driver beneath it, so a
+     * stack handed bare drivers applied only its own threshold and every member's
+     * was discarded. `stack` is the default channel in a scaffolded application,
+     * which made that the ordinary path: a `json` channel configured at
+     * `warning` still wrote the `info` lines the stack was reached with.
+     */
+    const stack = new StackDriver([{ level: 'warning', driver: quiet }, { driver: loud }])
+
+    await stack.write({ level: 'info', message: 'low', context: {}, channel: 'stack', time: FIXED })
+    await stack.write({
+      level: 'error',
+      message: 'high',
+      context: {},
+      channel: 'stack',
+      time: FIXED
+    })
+
+    expect(quiet.records.map((one) => one.message)).toEqual(['high'])
+    expect(loud.records.map((one) => one.message)).toEqual(['low', 'high'])
+  })
+
   test('fans one record out to every driver', async () => {
     const first = new MemoryDriver()
     const second = new MemoryDriver()
 
-    await new StackDriver([first, second]).write({
+    await new StackDriver([{ driver: first }, { driver: second }]).write({
       level: 'info',
       message: 'fanned',
       context: {},

@@ -1410,6 +1410,23 @@ exists at all: the framework's own suites build a small application per package
 and must fake what they do not depend on, so an agreement between two packages can
 only be checked where both are really present.
 
+## A log stack discarded every member's level
+
+`config/logging.ts` gives each channel a `level`, and the default channel is a
+`stack`. Reached through that stack, every member's level was ignored and only the
+stack's own applied — so a `json` channel set to `warning` still wrote the `info`
+lines it was handed. Since `stack` is the default, that was the ordinary path: the
+levels in a scaffolded application's configuration did nothing wherever anybody
+had actually set one.
+
+The cause is a boundary. **A level is enforced by the `Logger`, not by the driver
+beneath it**, and `LogManager.stack()` composed bare *drivers* — so the thresholds,
+which live one layer up, were never part of what it built. Each member now carries
+its own level and `StackDriver` checks it before writing.
+
+Found by writing the documentation for it: the page claimed per-channel levels
+work, and running the example showed they did not.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
