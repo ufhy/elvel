@@ -138,3 +138,92 @@ describe('the exit code', () => {
     run.assertFailed()
   })
 })
+
+/**
+ * `model:prune`, which reads `prunable()` off models on disk.
+ *
+ * It can only be exercised in an application, and until this test existed it had
+ * none — while being able to delete rows. Two bugs came out of writing it:
+ *
+ * - `{--model=*}` is Laravel's spelling for a repeatable option and was read as a
+ *   default of `"*"`, so every model was filtered out and the command reported
+ *   `No model defines prunable()` against an application whose model defined one.
+ * - `--pretend` returned after the first batch, so it reported the chunk size
+ *   rather than the total: `--chunk=2` against four expired rows said two, and
+ *   deleting removed four. Under-reporting on the flag whose purpose is deciding
+ *   whether to run the real thing is the wrong direction to be wrong in.
+ */
+describe('model:prune', () => {
+  const kernel = app.make('elvel')
+
+  const spam = async (count: number) => {
+    const { Article } = await import('../app/Models/Article.ts')
+    const { Comment } = await import('../app/Models/Comment.ts')
+
+    const article = await Article.create({
+      title: 'Prunable',
+      slug: `prunable-${Date.now()}-${Math.round(performance.now() * 1000)}`,
+      body: 'Long enough to be a body, comfortably past any minimum.'
+    })
+
+    for (let n = 0; n < count; n += 1) {
+      await Comment.create({ article_id: article.id, author: 'spam', body: `spam ${n}` })
+    }
+
+    return Comment
+  }
+
+  it('pretends the whole total, whatever the chunk size', async () => {
+    const Comment = await spam(4)
+
+    try {
+      const command = await elvel(
+        kernel,
+        ['model:prune', '--pretend', '--chunk=2'],
+        Output.prototype
+      ).run()
+
+      command.assertSuccessful().assertOutputContains('4 row(s) would be pruned')
+
+      // And pretending really pretended.
+      expect(await Comment.query().where('author', 'spam').count()).toBe(4)
+    } finally {
+      await Comment.query().where('author', 'spam').delete()
+    }
+  })
+
+  it('deletes what prunable() returns, in chunks', async () => {
+    const Comment = await spam(3)
+
+    const command = await elvel(kernel, ['model:prune', '--chunk=2'], Output.prototype).run()
+
+    command.assertSuccessful().assertOutputContains('3 row(s) pruned')
+
+    expect(await Comment.query().where('author', 'spam').count()).toBe(0)
+  })
+
+  it('--model names one, and the name has to match', async () => {
+    const Comment = await spam(2)
+
+    try {
+      const only = await elvel(
+        kernel,
+        ['model:prune', '--pretend', '--model=Comment'],
+        Output.prototype
+      ).run()
+
+      only.assertSuccessful().assertOutputContains('2 row(s) would be pruned')
+
+      const none = await elvel(
+        kernel,
+        ['model:prune', '--pretend', '--model=Article'],
+        Output.prototype
+      ).run()
+
+      // Article defines no prunable(), so naming it prunes nothing.
+      none.assertSuccessful().assertOutputContains('No model defines prunable()')
+    } finally {
+      await Comment.query().where('author', 'spam').delete()
+    }
+  })
+})

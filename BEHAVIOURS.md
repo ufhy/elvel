@@ -1490,6 +1490,52 @@ Two things this makes plain, both worth keeping:
   prefixed table names exist so runs do not collide on a shared Postgres, and they
   are what turned a silent fallback into a failure.
 
+## `{--model=*}` was read as a default of `"*"`
+
+Laravel's spelling for a repeatable option puts the star after the equals —
+`mail:send {--id=*}`, invoked as `--id=1 --id=2`. The signature parser handled
+`{--tag*}`, the star *before* the equals, and read the canonical form as an
+option whose default value is the string `"*"`.
+
+One command used it, and that command was broken outright. `model:prune` filtered
+its models against `only = ['*']`, matched none, and reported
+
+```
+No model defines prunable()
+```
+
+against an application whose model defined one. The command was right; its own
+signature was being misread. Both spellings work now.
+
+Writing the test that found it found a second bug in the same command.
+`--pretend` returned after the first batch, so it reported the **chunk size**
+rather than the total: `--chunk=2` against four expired rows said "2 row(s) would
+be pruned", and running it for real deleted four. It counts instead of walking
+now — under-reporting on the flag whose only purpose is deciding whether to run the
+real thing is the wrong direction to be wrong in.
+
+`model:prune` reads `prunable()` off models **on disk**, so an application is the
+only place it can be exercised at all — which is why it had no test while being
+able to delete rows, and why the one it has now lives in `playground/test` with a
+`prunable()` on `Comment`.
+
+## What a dialect genuinely cannot index
+
+Not a framework bug — a map, so the next person does not have to find it the hard
+way. Every blueprint column type was created against all three servers, with no
+key, with `.index()`, and with `.unique()`:
+
+| Dialect | Refuses |
+| --- | --- |
+| sqlite | nothing |
+| postgres | `json` with an index — *"data type json has no default operator class for access method btree"*. `jsonb` is fine. |
+| mysql | `text`, `mediumText`, `longText`, `binary` — *"BLOB/TEXT column used in key specification without a key length"*. `json`/`jsonb` cannot be indexed at all: *"supports indexing only via generated columns on a specified JSON path"*. |
+
+Laravel has the same limits, because they are the databases'. What this framework
+adds is the reason the auth generator now picks `varchar` for any keyed string: a
+generator choosing `text` for something it also indexes produces a migration that
+cannot run, and unlike a hand-written blueprint there is nobody to notice.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
