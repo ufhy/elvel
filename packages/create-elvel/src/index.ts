@@ -58,11 +58,13 @@ const KITS: Record<
       '  .use(Auth/PasswordResetController)',
       '  .use(Auth/RegisterController)',
       '  .use(Auth/SignInController)',
+      '  .use(Auth/TwoFactorChallengeController)',
       '  .use(Auth/VerifyEmailController)',
       '  .use(DashboardController)',
       '  .use(Settings/PasswordController)',
       '  .use(Settings/ProfileController)',
-      '  .use(Settings/SecurityController)'
+      '  .use(Settings/SecurityController)',
+      '  .use(Settings/TwoFactorController)'
     ]
   },
   jsx: {
@@ -79,6 +81,7 @@ const KITS: Record<
       '  .use(Auth/PasswordResetController)',
       '  .use(Auth/RegisterController)',
       '  .use(Auth/SignInController)',
+      '  .use(Auth/TwoFactorChallengeController)',
       '  .use(Auth/VerifyEmailController)',
       '  .use(DashboardController)',
       // This kit's own, and the only route the auth kit has no use for: a theme
@@ -86,7 +89,8 @@ const KITS: Record<
       '  .use(Settings/AppearanceController)',
       '  .use(Settings/PasswordController)',
       '  .use(Settings/ProfileController)',
-      '  .use(Settings/SecurityController)'
+      '  .use(Settings/SecurityController)',
+      '  .use(Settings/TwoFactorController)'
     ],
     layers: ['auth', 'jsx']
   },
@@ -118,6 +122,7 @@ const RENAMES: Record<string, string> = {
   '_api.ts': 'api.test.ts',
   '_authentication.ts': 'authentication.test.ts',
   '_registration.ts': 'registration.test.ts',
+  '_two-factor.ts': 'two-factor.test.ts',
   '_profile.ts': 'profile.test.ts'
 }
 
@@ -739,8 +744,11 @@ async function isWorkspaceMember(root: string, target: string): Promise<boolean>
  * has to remember to update.
  */
 async function mergeKitManifest(target: string, layers: string[]): Promise<boolean> {
-  const additions: { devDependencies?: Record<string, string>; scripts?: Record<string, string> } =
-    {}
+  const additions: {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+    scripts?: Record<string, string>
+  } = {}
 
   for (const layer of layers) {
     const file = Bun.file(join(KITS_DIR, layer, 'manifest.json'))
@@ -749,11 +757,13 @@ async function mergeKitManifest(target: string, layers: string[]): Promise<boole
 
     const partial = (await file.json()) as typeof additions
 
+    additions.dependencies = { ...additions.dependencies, ...partial.dependencies }
     additions.devDependencies = { ...additions.devDependencies, ...partial.devDependencies }
     additions.scripts = { ...additions.scripts, ...partial.scripts }
   }
 
   const nothing =
+    Object.keys(additions.dependencies ?? {}).length === 0 &&
     Object.keys(additions.devDependencies ?? {}).length === 0 &&
     Object.keys(additions.scripts ?? {}).length === 0
 
@@ -761,6 +771,7 @@ async function mergeKitManifest(target: string, layers: string[]): Promise<boole
 
   const path = join(target, 'package.json')
   const manifest = (await Bun.file(path).json()) as {
+    dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
     scripts?: Record<string, string>
   }
@@ -769,6 +780,19 @@ async function mergeKitManifest(target: string, layers: string[]): Promise<boole
   // next time anything is added.
   const sort = (values: Record<string, string>) =>
     Object.fromEntries(Object.entries(values).sort(([a], [b]) => a.localeCompare(b)))
+
+  /**
+   * A runtime dependency the template cannot carry.
+   *
+   * `pruneDependencies` filters the template's list by what the application
+   * imports; it never adds. So a kit needing a package no other kit does — the
+   * auth kits render a QR code with `uqr` — has to say so here. It runs before
+   * the prune, which then keeps it because the kit's own page imports it.
+   */
+  manifest.dependencies = sort({
+    ...manifest.dependencies,
+    ...additions.dependencies
+  })
 
   manifest.devDependencies = sort({
     ...manifest.devDependencies,

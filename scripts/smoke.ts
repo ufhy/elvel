@@ -2865,6 +2865,59 @@ try {
 
   check('it installs', jsxInstall.exitCode === 0, plain(jsxInstall.stderr.toString()).slice(-400))
 
+  /**
+   * The auth tables, which the kit's tests need and which nothing has generated.
+   *
+   * `tests/database.ts` migrates before the suite runs, but a migration for
+   * better-auth's tables only exists once `auth:schema` has read `config/auth.ts`
+   * — and with `twoFactor()` in there, that is where the `twoFactor` table comes
+   * from too. Without this the tests fail on a missing table, which says nothing
+   * about the kit.
+   */
+  const jsxSchema = Bun.spawnSync({
+    cmd: ['bun', 'elvel.ts', 'auth:schema'],
+    cwd: jsxTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    'auth:schema writes its migration, two-factor table included',
+    jsxSchema.exitCode === 0 &&
+      (await Array.fromAsync(
+        new Bun.Glob('*create_auth_tables.ts').scan({ cwd: join(jsxTarget, 'database/migrations') })
+      ).then(
+        async (files) =>
+          files.length === 1 &&
+          (
+            await Bun.file(join(jsxTarget, 'database/migrations', files[0] as string)).text()
+          ).includes("schema.create('twoFactor'")
+      )),
+    plain(jsxSchema.stderr.toString()).slice(-300)
+  )
+
+  /**
+   * The kit's own tests, run in the kit's own application.
+   *
+   * These ship with the auth kits — `tests/Feature/**` — and the two-factor file
+   * is the one that matters most here: it is the only place the whole flow is
+   * exercised end to end, and every bug found while writing it was a step that
+   * looked right on its own. Running them here means a change to the kit that
+   * breaks the flow fails in CI rather than in somebody's application.
+   */
+  const jsxTests = Bun.spawnSync({
+    cmd: ['bun', 'test'],
+    cwd: jsxTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    'the tests it ships pass in it',
+    jsxTests.exitCode === 0,
+    plain(jsxTests.stderr.toString()).slice(-600)
+  )
+
   const jsxTypecheck = Bun.spawnSync({
     // The scaffold's own script, so this is exactly what a developer runs.
     cmd: ['bun', 'run', 'typecheck'],

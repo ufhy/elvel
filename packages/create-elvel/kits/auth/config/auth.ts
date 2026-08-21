@@ -1,5 +1,6 @@
 import { env } from '@elvel/core'
 import type { Auth } from 'better-auth'
+import { twoFactor } from 'better-auth/plugins'
 
 /**
  * better-auth's options, plus the few keys the framework reads itself.
@@ -70,6 +71,33 @@ const config = {
 
   /** Trusted origins for better-auth's own CSRF checks. */
   trustedOrigins: [env('APP_URL', 'http://localhost:3000')],
+
+  /**
+   * The TOTP issuer — the name an authenticator app files the code under.
+   *
+   * Without it every account added from this application shows up as
+   * "localhost:3000", which is unhelpful with one and unusable with two.
+   */
+  appName: env('APP_NAME', 'Elvel'),
+
+  /**
+   * Two-factor authentication, over TOTP with recovery codes.
+   *
+   * The kit ships the pages for it: `/settings/two-factor` turns it on and shows
+   * the QR code, and `/two-factor-challenge` is where a sign-in lands when the
+   * account has it enabled. Nobody is forced into it — it is off per account
+   * until somebody turns it on.
+   *
+   * Enabling this plugin adds a `twoFactor` table and a `twoFactorEnabled`
+   * column, so it wants a migration:
+   *
+   * ```
+   * elvel auth:schema --diff && elvel migrate
+   * ```
+   *
+   * Remove the plugin and the pages stop working — the endpoints go with it.
+   */
+  plugins: [twoFactor()],
 
   // ------------------------------------------------------- framework middleware
   /** Where the `auth` middleware sends a guest. Laravel's `redirectGuestsTo`. */

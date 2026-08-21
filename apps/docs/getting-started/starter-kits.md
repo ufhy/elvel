@@ -5,9 +5,8 @@ Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and ea
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
 `auth` is the same pages without Tailwind; `none` and `api` are closer to
-variants of one template. No teams, and no two-factor page — though the
-[plugin](/security/authentication#adding-a-better-auth-plugin) that provides
-two-factor is two lines away.
+variants of one template. Two-factor authentication is here — TOTP with recovery
+codes, on by account, in both auth kits. No teams, and no passkeys yet.
 :::
 
 A kit is a folder copied **over** the base template, not a fork of it. Everything
@@ -32,8 +31,8 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 | --- | --- | --- | --- |
 | `none` | 41 | 9 | 1 |
 | `api` | 54 | 15 | 1 |
-| `auth` | 76 | 16 | 12 |
-| `jsx` | 90 | 16 | 13 |
+| `auth` | 82 | 16 | 14 |
+| `jsx` | 95 | 16 | 15 |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -71,7 +70,7 @@ resources/js/
     app.ts            the appearance choice, and closing a menu
 ```
 
-A component set, not a component library. These are the pieces these thirteen
+A component set, not a component library. These are the pieces these fifteen
 pages actually use, they live in your application, and you edit them — there is
 no `npx shadcn add` and nothing to eject from.
 
@@ -83,6 +82,32 @@ Laravel's kits reach for a hook:
   never repopulated.
 - `AppSidebar` reads `user()` for the account menu and the request's own path for
   the active link, so no page has to remember to hand either over.
+
+### Two-factor authentication
+
+On in `config/auth.ts` — `plugins: [twoFactor()]` — and off per account until
+somebody turns it on at `/settings/two-factor`. Three pages carry it:
+
+- **Enrolment** shows a QR code rendered on the server with `uqr`, the base32 key
+  for typing in by hand, and ten recovery codes. The codes are flashed rather than
+  stored, so a reload does not show them again.
+- **The challenge**, `/two-factor-challenge`, is where a sign-in lands when the
+  account has it on. It is a `guest` route with its own throttle: no session
+  exists yet, only better-auth's short-lived `two_factor` cookie.
+- **The recovery form**, behind a `<details>` on the same page, posts to its own
+  route — a recovery code and a TOTP code are different endpoints, and telling
+  them apart by shape is a rule that breaks when either format changes.
+
+Enrolment is deliberately two steps: `enableTwoFactor` hands out a secret and
+leaves the account alone, and only a correct code from the app turns it on. A
+mistyped setup therefore cannot lock anybody out of their own account.
+
+Whichever kit you use, run the migration after scaffolding — the plugin adds a
+`twoFactor` table and a column on `user`:
+
+```bash
+bun elvel auth:schema && bun elvel migrate
+```
 
 ### Colours are roles, not greys
 

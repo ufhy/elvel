@@ -41,7 +41,7 @@
     "@elvel/validation": "{{ dep_validation }}",
     "@elvel/view": "{{ dep_view }}",
     "@kitajs/html": "^4.2.13",
-    "better-auth": "1.6.27",
+    "better-auth": "1.7.1",
     "elysia": "^1.4.29"
   },
   "devDependencies": {
