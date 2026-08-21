@@ -1,6 +1,6 @@
 {
   "name": "@elvel/queue",
-  "version": "1.0.0-alpha.10",
+  "version": "1.0.0-alpha.11",
   "description": "Laravel-style queues for Elvel — jobs, workers, batches, and sync, database, Redis and SQS drivers",
   "keywords": [
     "bun",

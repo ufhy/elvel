@@ -1,6 +1,6 @@
 {
   "name": "@elvel/storage",
-  "version": "1.0.0-alpha.10",
+  "version": "1.0.0-alpha.11",
   "description": "Laravel-style file storage for Elvel — local and S3 disks, Bun-native",
   "keywords": [
     "bun",
