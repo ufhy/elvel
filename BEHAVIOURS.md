@@ -1427,6 +1427,39 @@ its own level and `StackDriver` checks it before writing.
 Found by writing the documentation for it: the page claimed per-channel levels
 work, and running the example showed they did not.
 
+## `auth:schema` wrote a migration MySQL refuses
+
+Every application on MySQL, not an edge case. `session.token` is `unique` and not
+`sortable`, so the generator emitted `table.text('token').unique()` — and MySQL
+answers:
+
+```
+BLOB/TEXT column 'token' used in key specification without a key length
+```
+
+The whole migration therefore failed on the second table. `verification.identifier`
+was the same shape with `.index()`.
+
+The generator chose `varchar` only when better-auth called a field `sortable`, and
+the comment beside that choice said why: sortable is the hint that a column is
+*compared* rather than merely stored. Being part of a key is the same statement
+made a different way, and it was not being read that way. A keyed string is now
+`varchar` whether or not it is sortable.
+
+**How it hid for so long.** The adapter's dialect suite built its tables by hand
+with `blueprint.text('token')` and no unique constraint, so the generated
+migration had never been executed against MySQL at all — only rendered and
+string-matched. `BEHAVIOURS` even recorded the gap: the adapter was covered on
+three dialects for the four core tables, and plugin schemas were not covered.
+Adding the plugin test meant running a real generated migration on a real MySQL
+for the first time, and it failed on a core table before it ever reached the
+plugin's.
+
+That is the general shape of it, twice over now: a suite that constructs the
+schema it wants to test proves the query layer and nothing about the generator.
+The test that found this writes the generated file to disk, imports it, runs
+`up()` and then `down()`.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
