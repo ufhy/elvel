@@ -1178,3 +1178,42 @@ describe('workspace mode', () => {
     expect(manifest.workspaces).not.toContain('.demo/*')
   })
 })
+
+/**
+ * The steps a scaffold prints, and the setup it runs.
+ *
+ * Both used to compare `kit === 'auth' || kit === 'api'` to decide whether
+ * `auth:schema` was needed. Adding a third kit that needs it skipped both in
+ * silence: the printed steps said `bun elvel migrate` first, which answers
+ * `Nothing to migrate` — the auth tables are generated rather than shipped — and
+ * the automatic setup never generated them at all.
+ *
+ * Asked of the manifest now, so a fourth kit gets it without anybody remembering.
+ */
+describe('what a scaffold tells you to run', () => {
+  test('the decision comes from the dependencies, not the kit name', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+
+    expect(source).toContain("dependsOn(target, '@elvel/auth')")
+    expect(source).toContain("dependsOn(target, '@elvel/database')")
+
+    // The comparison that caused it must be gone from the code — the only place
+    // the old form may still appear is the comment explaining why.
+    const code = source
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('*'))
+      .join('\n')
+
+    expect(code).not.toContain("kit === 'auth'")
+  })
+
+  test('auth:schema comes before migrate wherever auth is installed', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+
+    const schema = source.indexOf("dependsOn(target, '@elvel/auth')) ? ['bun elvel auth:schema']")
+    const migrate = source.indexOf("dependsOn(target, '@elvel/database')) ? ['bun elvel migrate']")
+
+    expect(schema).toBeGreaterThan(-1)
+    expect(migrate).toBeGreaterThan(schema)
+  })
+})
