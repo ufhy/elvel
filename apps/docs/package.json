@@ -1,6 +1,6 @@
 {
   "name": "@elvel/docs",
-  "version": "1.0.0-alpha.9",
+  "version": "1.0.0-alpha.10",
   "private": true,
   "description": "The documentation site for Elvel",
   "type": "module",
