@@ -2,8 +2,8 @@
 
 ## Boot, in order
 
-`bootstrap/app.ts` runs five steps, and the order is fixed by the framework
-because each one needs the last:
+`bootstrap/app.ts` runs seven steps, and the order is fixed by the framework
+because each one needs the last. It mirrors `Illuminate\Foundation\Http\Kernel`:
 
 ```
 1. env          → .env is read
@@ -11,16 +11,56 @@ because each one needs the last:
 3. exceptions   → the handler is installed
 4. register     → every provider's register()
 5. boot         → every provider's boot()
+6. console      → schedules and commands
+7. routes       → mounted last
 ```
 
-**Framework providers come from `config/app.ts`; your own are listed in
-`bootstrap/providers.ts`** and register last, so an application provider can
-override a framework binding rather than fighting it.
+Steps 6 and 7 are last for the same reason: a scheduled entry and a route handler
+both need the container already populated, so they are collected after every
+provider has booted rather than while they are still booting.
 
-`register` and `boot` are separate for one reason: **`register` may not resolve
-anything.** A provider that reads another binding during `register` depends on
-registration order, which is exactly the bug the two phases prevent. Declare in
-`register`, use in `boot`.
+### Two lists of providers, and they are not the same list
+
+**`bootstrap/providers.ts` holds the framework's**, one line per package:
+
+```ts
+export const providers = [
+  EventServiceProvider,
+  LogServiceProvider,
+  HttpServiceProvider
+  // …
+]
+```
+
+`config/app.ts` reads that list, and **`withProviders()` in `bootstrap/app.ts`
+takes your own**:
+
+```ts
+Application.configure(root)
+  .withConfig({ … })
+  .withProviders([AppServiceProvider])
+```
+
+Yours register **last**, so an application provider can override a framework
+binding rather than fighting it.
+
+Laravel keeps a `bootstrap/providers.php` too, for a different reason: there,
+`laravel/framework` registers its own and the file lists only the application's.
+Here every provider is named, because every one lives in a package of its own —
+and that is the whole point of the file. **A provider named there is a package
+imported, installed and bundled; one left out is a package the application never
+pays for.** Measured, registering all twenty-two took a landing page from 1.0 MB
+to 3.7 MB, most of it `kysely` behind the database, `nodemailer` behind mail, and
+better-auth behind auth. It is the list a starter kit changes.
+
+Events and logging come first, as Laravel's base providers do, because everything
+booting after them may emit an event or write a line.
+
+### Why `register` and `boot` are separate
+
+**`register` may not resolve anything.** A provider that reads another binding
+during `register` depends on registration order, which is exactly the bug the two
+phases prevent. Declare in `register`, use in `boot`.
 
 ## The container resolves by token, not by reflection
 
@@ -85,6 +125,17 @@ export class ReportServiceProvider extends ServiceProvider {
 
 `this.config('reports.disk', 'local')` reads configuration with a fallback, and
 `this.app` is the application.
+
+## Providers a package leaves out
+
+`HttpServiceProvider` is the one worth naming. **Routing lives in `@elvel/core`** —
+the root Elysia instance and `controller()` are there — so an application that
+leaves the http provider out still serves pages, and loses sessions, cookies,
+CSRF, the rate limiters and the middleware registry.
+
+That is why `middleware('auth')` fails per request rather than at boot in such an
+application, with a message that says which provider is missing instead of
+`Target [middleware] is not bound in the container`.
 
 ## A request, once booted
 

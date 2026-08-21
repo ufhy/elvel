@@ -74,8 +74,7 @@ export default defineConfig({
         text: 'Architecture',
         items: [
           { text: 'The 27 packages', link: '/architecture/packages' },
-          { text: 'Request lifecycle and the container', link: '/architecture/lifecycle' },
-          { text: 'Bootstrap order', link: '/architecture/bootstrap' }
+          { text: 'Request lifecycle and the container', link: '/architecture/lifecycle' }
         ]
       },
       {
