@@ -436,10 +436,27 @@ function columnFor(name: string, field: AuthField): string {
       case 'number[]':
         parts.push(`table.text('${name}')`)
         break
-      default:
-        // `sortable` is better-auth's hint that the column is compared and
-        // indexed rather than merely stored, which is what varchar is for.
-        parts.push(field.sortable ? `table.string('${name}')` : `table.text('${name}')`)
+      default: {
+        /**
+         * `varchar` whenever the column is part of a key, not only when
+         * better-auth calls it `sortable`.
+         *
+         * MySQL refuses `BLOB/TEXT column 'token' used in key specification
+         * without a key length`, so a `text` column carrying `.unique()` or
+         * `.index()` makes the whole migration unrunnable there. `session.token`
+         * is unique and not sortable, which meant `auth:schema` had been emitting
+         * a migration MySQL rejects — for every application, core tables
+         * included, not only for plugins.
+         *
+         * `sortable` is better-auth's hint that a column is compared rather than
+         * merely stored, and being indexed is the same statement made a different
+         * way; both want varchar.
+         */
+        const keyed = field.sortable === true || field.unique === true || field.index === true
+
+        parts.push(keyed ? `table.string('${name}')` : `table.text('${name}')`)
+        break
+      }
     }
   }
 

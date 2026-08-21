@@ -573,6 +573,19 @@ describe('migrationFor', () => {
     expect(code).toContain("table.boolean('emailVerified')")
   })
 
+  /**
+   * MySQL refuses `BLOB/TEXT column 'token' used in key specification without a
+   * key length`, so a `text` column carrying `.unique()` or `.index()` makes the
+   * whole migration unrunnable there — and `session.token` is unique without
+   * being `sortable`, so that was every application's migration, not an edge
+   * case. Found by running a generated migration against a real MySQL for the
+   * first time, in `dialects.test.ts`.
+   */
+  test('a keyed string is varchar, not text, whatever sortable says', () => {
+    expect(code).toContain("table.string('token').unique()")
+    expect(code).not.toMatch(/table\.text\('[A-Za-z]+'\)(\.nullable\(\))?\.(unique|index)\(\)/)
+  })
+
   test('a reference targets the table its schema key resolves to', () => {
     // `references.model` is the schema key `user`; the FK must name the table.
     expect(code).toContain("table.foreign(['userId']).references(['id']).on('user')")
