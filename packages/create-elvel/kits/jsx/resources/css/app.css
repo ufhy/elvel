@@ -1,0 +1,40 @@
+/*
+ * Your stylesheet.
+ *
+ * Tailwind, plus the handful of tokens the pages share. Built by Vite —
+ * `bun run dev` runs it alongside the server, `bun run build` ships it.
+ *
+ * There is no `tailwind.config.js`: v4 configures itself from CSS, and finds
+ * class names by scanning every text file in the project. `.tsx` views are
+ * included, because it reads files as text rather than parsing them.
+ */
+
+@import "tailwindcss";
+
+/*
+ * The brand, as tokens.
+ *
+ * `#FF2D20` is the mark's own red and stays exactly that wherever it is a
+ * *shape* — a filled button, the logo. As small **text** on light paper it
+ * measures 3.54:1, which clears the 3:1 a graphic needs and misses the 4.5:1
+ * text needs, so the text tint is darkened, and brightened again for dark mode.
+ * Both were measured rather than judged by eye: 5.32:1 and 6.20:1.
+ */
+@theme {
+  --color-brand: #c9241a;
+  --color-brand-strong: #ff2d20;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  /* Form controls and scrollbars follow the theme, which no utility class can do. */
+  :root {
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-brand: #ff5c50;
+    }
+  }
+}

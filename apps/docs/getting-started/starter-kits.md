@@ -1,13 +1,13 @@
 # Starter kits
 
-::: tip These are scaffolding, not Laravel's starter kits
-Worth saying plainly. Laravel's kits ship a whole frontend — React, Vue, Svelte or
-Livewire, a component library, a dashboard, team management, two-factor screens,
-and two layouts with three variants each. These are thinner: `auth` ships
-server-rendered auth pages and a dashboard, and `none` and `api` are closer to
-variants of one template. There is no component library, no teams, and no
-two-factor page — though the [plugin](/security/authentication#adding-a-better-auth-plugin)
-that provides two-factor is two lines away.
+::: tip How these compare to Laravel's
+Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and each
+ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
+is the closest equivalent, with Tailwind, a component set and a dashboard shell;
+`auth` is the same pages without Tailwind; `none` and `api` are closer to
+variants of one template. No teams, and no two-factor page — though the
+[plugin](/security/authentication#adding-a-better-auth-plugin) that provides
+two-factor is two lines away.
 :::
 
 A kit is a folder copied **over** the base template, not a fork of it. Everything
@@ -20,6 +20,7 @@ Pick one when scaffolding:
 ```bash
 bun create elvel my-app --kit=none
 bun create elvel my-app --kit=auth
+bun create elvel my-app --kit=jsx
 bun create elvel my-app --kit=api
 ```
 
@@ -27,11 +28,12 @@ bun create elvel my-app --kit=api
 
 The numbers below are counted from a real scaffold of each kit, not estimated:
 
-| Kit | `@elvel/*` packages | Config files | Controllers |
+| Kit | Files | Config files | Pages |
 | --- | --- | --- | --- |
-| `none` | 12 | 9 | `PageController` |
-| `api` | 18 | 15 | `PageController`, `ApiAuthController` |
-| `auth` | 19 | 16 | `PageController`, `DashboardController`, `Auth/*`, `Settings/*` |
+| `none` | 41 | 9 | 1 |
+| `api` | 54 | 15 | 1 |
+| `auth` | 76 | 16 | 12 |
+| `jsx` | 84 | 16 | 12 |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -44,6 +46,59 @@ that is not there.
 The base template and nothing else: one controller, a welcome page, a health
 endpoint, sessions, CSRF, views and Vite. No database. This is the honest
 starting point for something whose shape you do not know yet.
+
+## `jsx` — the one with Tailwind
+
+The auth kit's pages, styled with Tailwind, plus a component set and a dashboard
+shell:
+
+```
+resources/views/
+  components/
+    layout.tsx        the document
+    auth-layout.tsx   what a signed-out page sits in
+    app-shell.tsx     sidebar + header, for signed-in pages
+    ui/
+      alert.tsx  button.tsx  card.tsx  input.tsx  mark.tsx
+  pages/
+    welcome.tsx  dashboard.tsx  auth/*  settings/*
+```
+
+Five components, not a library. They are the pieces these twelve pages actually
+use, they live in your application, and you edit them.
+
+`Input` is the one worth looking at: it reads `errors()` and `old()` itself, so a
+rejected form keeps what was typed and shows why without the page threading
+anything through — and a password is never repopulated.
+
+### It is the auth kit, layered
+
+```ts
+layers: ['auth', 'jsx']
+```
+
+`jsx` carries only `resources/` and `vite.config.ts`. Controllers, models,
+factories, the auth config and the tests all come from the `auth` layer
+underneath, and a file this kit ships replaces the one below it. Copying those
+thirty-one files instead would have guaranteed the two drift apart the first time
+either changed.
+
+### Tailwind
+
+v4, through its own Vite plugin. There is **no `tailwind.config.js`**: it
+configures itself from CSS, and finds class names by scanning every text file in
+the project — `.tsx` included, since it reads them as text rather than parsing
+them. So there is no content list to keep in step with where your views live.
+
+The brand colours are `@theme` tokens in `resources/css/app.css`, and the note
+there explains why the text tint is not the logo's red.
+
+::: warning Tailwind skips anything `.gitignore` covers
+An application scaffolded **inside the Elvel repository** lands under an ignored
+directory, so its own views are invisible to Tailwind and the stylesheet comes out
+nearly empty. Outside the repository — which is every real application — there is
+nothing to do.
+:::
 
 ## `auth` — sign in, sign up, a dashboard
 

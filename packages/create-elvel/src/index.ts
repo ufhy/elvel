@@ -28,7 +28,19 @@ const KITS_DIR = resolve(import.meta.dir, '..', 'kits')
  * way two full templates would. Laravel's Breeze installs into an existing
  * application for the same reason.
  */
-const KITS: Record<string, { label: string; describe: string; routes: string[] }> = {
+/**
+ * A kit's `layers` are the folders copied over the template, in order.
+ *
+ * Most kits are one folder. `jsx` is two — `auth` and then its own — because it
+ * *is* the auth kit with a different front end, and duplicating thirty-one files
+ * to say so would guarantee the two drift. The later layer wins per file, so a
+ * page it ships replaces the one underneath and everything it does not mention
+ * it inherits.
+ */
+const KITS: Record<
+  string,
+  { label: string; describe: string; routes: string[]; layers?: string[] }
+> = {
   none: { label: 'None — a landing page', describe: '', routes: [] },
   auth: {
     label: 'Auth — sign in, sign up, a dashboard',
@@ -53,6 +65,29 @@ const KITS: Record<string, { label: string; describe: string; routes: string[] }
       '  .use(Settings/SecurityController)'
     ]
   },
+  jsx: {
+    label: 'JSX — the auth kit, with Tailwind and a component set',
+    describe: 'server-rendered JSX styled with Tailwind, over better-auth',
+    /**
+     * The auth kit's routes, because this *is* the auth kit with a different
+     * front end. Listed rather than derived: `registerKitRoutes` writes them into
+     * `routes/web.ts`, and a layer that inherited a controller still has to
+     * mount it.
+     */
+    routes: [
+      '  .use(Auth/ConfirmPasswordController)',
+      '  .use(Auth/PasswordResetController)',
+      '  .use(Auth/RegisterController)',
+      '  .use(Auth/SignInController)',
+      '  .use(Auth/VerifyEmailController)',
+      '  .use(DashboardController)',
+      '  .use(Settings/PasswordController)',
+      '  .use(Settings/ProfileController)',
+      '  .use(Settings/SecurityController)'
+    ],
+    layers: ['auth', 'jsx']
+  },
+
   api: {
     label: 'API — token auth, JSON, no views',
     describe: 'bearer-token auth over better-auth, answering JSON',
@@ -211,9 +246,16 @@ async function main(): Promise<number> {
   let written = await copyTemplate(TEMPLATE_DIR, target, replacements)
 
   if (kit !== 'none') {
-    // Copied over the template, so a kit only carries what it changes.
-    written += await copyTemplate(join(KITS_DIR, kit as string), target, replacements)
-    await registerKitRoutes(target, KITS[kit as string]?.routes ?? [])
+    const entry = KITS[kit as string]
+
+    // Copied over the template, so a kit only carries what it changes — and a
+    // kit built on another copies that one first.
+    for (const layer of entry?.layers ?? [kit as string]) {
+      written += await copyTemplate(join(KITS_DIR, layer), target, replacements)
+    }
+
+    await registerKitRoutes(target, entry?.routes ?? [])
+    written += (await mergeKitManifest(target, entry?.layers ?? [kit as string])) ? 1 : 0
   }
 
   await pruneConfig(target, await pruneDependencies(target))
@@ -608,6 +650,70 @@ async function pruneConfig(target: string, present: Set<string>): Promise<void> 
       .filter((line) => !removed.some((name) => line.includes(`import('../config/${name}.ts')`)))
       .join('\n')
   )
+}
+
+/**
+ * Fold a kit's `manifest.json` into the application's `package.json`.
+ *
+ * A kit is a folder copied over the template, and that is enough for source
+ * files: the later copy wins. It is not enough for `package.json`, because a kit
+ * shipping a whole one would duplicate the template's manifest and the two would
+ * drift the first time either changed.
+ *
+ * `pruneDependencies` deliberately leaves `devDependencies` alone — it is the
+ * toolchain, the same for every application whatever it imports — so a kit that
+ * needs a *build-time* dependency has nowhere to put it. Tailwind is exactly
+ * that, and this is the smallest thing that gives it somewhere: a partial
+ * manifest, merged rather than copied.
+ *
+ * Only `devDependencies` and `scripts` are read. Runtime `dependencies` come from
+ * what the code actually imports, which is a better answer than a list somebody
+ * has to remember to update.
+ */
+async function mergeKitManifest(target: string, layers: string[]): Promise<boolean> {
+  const additions: { devDependencies?: Record<string, string>; scripts?: Record<string, string> } =
+    {}
+
+  for (const layer of layers) {
+    const file = Bun.file(join(KITS_DIR, layer, 'manifest.json'))
+
+    if (!(await file.exists())) continue
+
+    const partial = (await file.json()) as typeof additions
+
+    additions.devDependencies = { ...additions.devDependencies, ...partial.devDependencies }
+    additions.scripts = { ...additions.scripts, ...partial.scripts }
+  }
+
+  const nothing =
+    Object.keys(additions.devDependencies ?? {}).length === 0 &&
+    Object.keys(additions.scripts ?? {}).length === 0
+
+  if (nothing) return false
+
+  const path = join(target, 'package.json')
+  const manifest = (await Bun.file(path).json()) as {
+    devDependencies?: Record<string, string>
+    scripts?: Record<string, string>
+  }
+
+  // Sorted, because an unsorted manifest produces a diff nobody can read the
+  // next time anything is added.
+  const sort = (values: Record<string, string>) =>
+    Object.fromEntries(Object.entries(values).sort(([a], [b]) => a.localeCompare(b)))
+
+  manifest.devDependencies = sort({
+    ...manifest.devDependencies,
+    ...additions.devDependencies
+  })
+
+  // Scripts keep the template's order: it reads as a sequence — dev, build,
+  // start — rather than as an index.
+  manifest.scripts = { ...manifest.scripts, ...additions.scripts }
+
+  await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  return true
 }
 
 /**
