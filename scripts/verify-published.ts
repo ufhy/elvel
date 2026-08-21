@@ -53,12 +53,31 @@ async function readJson<T>(path: string): Promise<T> {
  * that never happened.
  */
 async function published(name: string, wanted: string): Promise<boolean> {
-  const answer = await fetch(
-    `https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(wanted)}`,
-    { headers: { accept: 'application/json' } }
-  ).catch(() => undefined)
+  /**
+   * The **packument**, not the per-version endpoint.
+   *
+   * `GET /pkg/1.0.0-alpha.11` answered 200 while `bun install` still said
+   * `No version matching "^1.0.0-alpha.11" found for specifier "@elvel/view"
+   * (but package exists)`. They are different documents with different caches,
+   * and a *range* is resolved against the packument's `versions` map — so that
+   * is the thing to wait for. Checking the other one made this wait for something
+   * that was already true and then fail on something that was not.
+   *
+   * `no-store`, because a CDN copy that satisfied the first call would satisfy
+   * every retry and the loop would never see the update it is waiting for.
+   */
+  const answer = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
+    headers: { accept: 'application/json' },
+    cache: 'no-store'
+  }).catch(() => undefined)
 
-  return answer?.ok === true
+  if (!answer?.ok) return false
+
+  const packument = (await answer.json().catch(() => undefined)) as
+    | { versions?: Record<string, unknown> }
+    | undefined
+
+  return packument?.versions?.[wanted] !== undefined
 }
 
 /**
