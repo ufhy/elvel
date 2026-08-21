@@ -66,13 +66,15 @@ export default defineConfig({
         items: [
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Starter kits', link: '/getting-started/starter-kits' },
-          { text: 'Configuration', link: '/getting-started/configuration' }
+          { text: 'Configuration', link: '/getting-started/configuration' },
+          { text: 'Deployment', link: '/getting-started/deployment' }
         ]
       },
       {
         text: 'Architecture',
         items: [
           { text: 'The 27 packages', link: '/architecture/packages' },
+          { text: 'Request lifecycle and the container', link: '/architecture/lifecycle' },
           { text: 'Bootstrap order', link: '/architecture/bootstrap' }
         ]
       },
@@ -128,6 +130,10 @@ export default defineConfig({
           { text: 'Hashing', link: '/digging-deeper/hashing' },
           { text: 'Reporting a vulnerability', link: '/security/reporting' }
         ]
+      },
+      {
+        text: 'Reference',
+        items: [{ text: 'Every command', link: '/reference/commands' }]
       },
       {
         text: 'Contributing',

@@ -113,6 +113,7 @@ const PAGES: Record<string, string> = {
   '@elvel/auth': 'security/authentication',
   '@elvel/view': 'basics/views',
   '@elvel/validation': 'basics/validation',
+  '@elvel/contracts': 'architecture/lifecycle',
   '@elvel/events': 'basics/events-and-logging',
   '@elvel/log': 'basics/events-and-logging',
   '@elvel/database': 'database/getting-started',
@@ -132,8 +133,7 @@ const PAGES: Record<string, string> = {
   '@elvel/process': 'digging-deeper/processes',
   '@elvel/hashing': 'digging-deeper/hashing',
   '@elvel/translation': 'digging-deeper/localization',
-  '@elvel/support': 'digging-deeper/collections',
-  '@elvel/contracts': 'architecture/packages'
+  '@elvel/support': 'digging-deeper/collections'
 }
 
 function readme(manifest: Manifest): string {
