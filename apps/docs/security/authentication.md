@@ -92,8 +92,8 @@ bun elvel migrate
 ```
 
 `auth:schema` asks the built better-auth instance for its schema rather than
-carrying a list of tables, so a plugin's contribution arrives on its own. Both
-shapes it can take are handled:
+carrying a list of tables, so a plugin's contribution arrives on its own. All
+three shapes it can take are handled:
 
 ```ts
 await schema.create('user', (table) => {
@@ -101,14 +101,25 @@ await schema.create('user', (table) => {
   table.boolean('twoFactorEnabled').nullable()   // a column on a table it does not own
 })
 
-await schema.create('twoFactor', (table) => {    // and a table of its own
+await schema.create('twoFactor', (table) => {    // a table of its own
   table.string('id').primary()
   table.string('secret').index()
   table.text('backupCodes')
   table.string('userId').index()
   // …
 })
+
+await schema.create('account', (table) => {
+  // …
+  table.unique(['issuer', 'accountId'])          // and an index no column can declare
+})
 ```
+
+That last one is a **compound** index, declared on the table rather than on any
+one field. better-auth 1.7 scopes an account's identity to `(issuer, accountId)`
+that way, and plugins use the same shape. A column named in one is emitted as
+`varchar` rather than `text`, for the reason `session.token` is: MySQL will not
+key a `TEXT` column.
 
 Then the plugin's endpoints are live under `basePath`:
 
