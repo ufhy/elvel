@@ -58,18 +58,27 @@ export class ModelPruneCommand extends MigrationCommand {
   }
 
   private async prune(model: typeof Model, chunk: number): Promise<number> {
+    const prunable = model.prunable as () => ReturnType<typeof model.query>
+
+    /**
+     * Counted, not walked, when pretending.
+     *
+     * `--pretend` used to return after the first batch, so it reported the chunk
+     * size rather than the total: `--chunk=2` against four expired rows said
+     * "2 row(s) would be pruned", and then deleting removed four. Under-reporting
+     * on the flag whose whole purpose is deciding whether to run the real thing is
+     * the wrong direction to be wrong in.
+     */
+    if (this.flag('pretend')) return prunable().count()
+
     let pruned = 0
 
     for (;;) {
       // A fresh query each round: the previous one's rows are gone, so an offset
       // would step over the rows that moved into its place.
-      const batch = await (model.prunable as () => ReturnType<typeof model.query>)()
-        .limit(chunk)
-        .get()
+      const batch = await prunable().limit(chunk).get()
 
       if (batch.count() === 0) return pruned
-
-      if (this.flag('pretend')) return pruned + batch.count()
 
       for (const row of batch.all()) await (row as Model).delete()
 

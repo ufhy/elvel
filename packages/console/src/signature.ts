@@ -105,7 +105,26 @@ function parseOption(expression: string, description: string): OptionDefinition 
   if (equals !== -1) {
     acceptsValue = true
     const raw = name.slice(equals + 1)
-    defaultValue = raw === '' ? undefined : raw
+
+    /**
+     * `{--id=*}` is a **repeatable** option, not a default of `"*"`.
+     *
+     * That is Laravel's spelling — `mail:send {--id=*}`, invoked as
+     * `--id=1 --id=2` — and reading the star as a default broke the one command
+     * that used it. `model:prune` filtered its models against `only = ['*']`,
+     * matched none, and reported `No model defines prunable()` against an
+     * application whose model defined one. The command was right; its signature
+     * was being misread.
+     *
+     * `{--tag*}` is still accepted below, since it was here first.
+     */
+    if (raw === '*') {
+      isArray = true
+      defaultValue = undefined
+    } else {
+      defaultValue = raw === '' ? undefined : raw
+    }
+
     name = name.slice(0, equals)
   }
 

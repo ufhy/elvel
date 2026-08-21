@@ -158,3 +158,34 @@ describe('what an invocation left out', () => {
     expect<number>(missingArguments(definition, ['Widget']).length).toBe(0)
   })
 })
+
+/**
+ * `{--id=*}` is Laravel's spelling for a repeatable option, and it was being read
+ * as a default value of `"*"`.
+ *
+ * One command used it, and it was broken outright: `model:prune` filtered its
+ * models against `only = ['*']`, matched none, and reported
+ * `No model defines prunable()` against an application whose model defined one.
+ * `{--tag*}` — the star before the equals — worked, and is kept.
+ */
+describe('a repeatable option', () => {
+  const definition = parseSignature('mail:send {--id=* : Ids} {--tag* : Tags} {--path=x : A path}')
+
+  test('=* means an array, not a default of "*"', () => {
+    const id = definition.options.find((option) => option.name === 'id')
+
+    expect(id?.isArray).toBe(true)
+    expect(id?.default).toBeUndefined()
+    expect(id?.acceptsValue).toBe(true)
+  })
+
+  test('the older spelling still works, and a real default is untouched', () => {
+    expect(definition.options.find((option) => option.name === 'tag')?.isArray).toBe(true)
+    expect(definition.options.find((option) => option.name === 'path')?.default).toBe('x')
+  })
+
+  test('absent is an empty array; repeated collects', () => {
+    expect(parseInput([], definition).options.id).toEqual([])
+    expect(parseInput(['--id=1', '--id=2'], definition).options.id).toEqual(['1', '2'])
+  })
+})
