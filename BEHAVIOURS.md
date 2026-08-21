@@ -1572,6 +1572,51 @@ themselves were checked: `db:wipe`, `migrate:fresh`, `migrate:reset`,
 and `storage:unlink` refuses a real directory rather than deleting the uploads
 somebody put where the symlink used to be — both verified by running them.
 
+## A kit can be built on another kit
+
+`--kit=jsx` is the auth kit with Tailwind and a component set, and it is the first
+kit that does not stand alone:
+
+```ts
+jsx: { layers: ['auth', 'jsx'] }
+```
+
+The scaffolder copies each layer in order over the template, so a file the later
+one ships replaces the one below and everything it does not mention it inherits.
+`jsx` therefore carries twenty-three files — `resources/` and `vite.config.ts` —
+while controllers, models, factories, the auth config and the feature tests all
+come from `auth`.
+
+The alternative was copying thirty-one files, and the two would have drifted the
+first time either changed. That is not hypothetical: the field name in the
+password form is `current`, not `current_password`, because the controller reads
+`body.current` — a copy that guessed would fail in a way no type checks.
+
+**A kit can now add a devDependency**, through a `manifest.json` beside its files
+whose `devDependencies` and `scripts` are merged rather than copied.
+`pruneDependencies` deliberately leaves devDependencies alone — it is the
+toolchain, the same for every application whatever it imports — so a kit needing
+a *build-time* dependency had nowhere to put one. Tailwind is exactly that. A kit
+shipping a whole `package.json` would have duplicated the template's manifest,
+which is the same drift in a different place.
+
+Runtime dependencies still come from what the code imports, which is a better
+answer than a list somebody has to remember to update.
+
+### What building it found
+
+**An error was being shown twice.** Every controller in the auth kit routes a
+failure to a *field* — `withErrors({ email: … })` — and the new `Input` reads that
+bag itself, so a page that also rendered an alert for the same string said it
+twice: once at the top and once under the field it belongs to. Seen by signing in
+with a wrong password in a real browser, not by reading the code. The field keeps
+it, since it also highlights the input; the two pages whose errors belong to no
+field keep their alert.
+
+**Biome rejects Tailwind's CSS by default.** `@theme` and the rest need
+`css.parser.tailwindDirectives`, or `bun run lint` goes red on a stylesheet that
+is correct.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

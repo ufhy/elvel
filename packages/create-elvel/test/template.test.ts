@@ -1054,3 +1054,87 @@ describe('branding', () => {
     expect(mark).not.toContain('#FF2D20')
   })
 })
+
+/**
+ * The `jsx` kit — the auth kit with Tailwind and a component set.
+ *
+ * It is the first kit built **on** another: `layers: ['auth', 'jsx']`, so it
+ * inherits thirty-one files it does not mention and replaces the views it does.
+ * Without that it would be a copy of the auth kit, and the two would drift the
+ * first time either changed.
+ */
+describe('the jsx kit', () => {
+  const kitDir = resolve(import.meta.dir, '..', 'kits', 'jsx')
+
+  test('it layers on auth rather than copying it', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+
+    expect(source).toContain("layers: ['auth', 'jsx']")
+
+    // What it does *not* carry is the point: controllers, models and the config
+    // all come from the layer underneath.
+    const carried = await readdir(kitDir)
+
+    expect(carried).not.toContain('app')
+    expect(carried).not.toContain('config')
+    expect(carried).toContain('resources')
+  })
+
+  test('Tailwind arrives as a dev dependency, through the kit manifest', async () => {
+    const manifest = (await Bun.file(join(kitDir, 'manifest.json')).json()) as {
+      devDependencies: Record<string, string>
+    }
+
+    expect(Object.keys(manifest.devDependencies)).toEqual(['@tailwindcss/vite', 'tailwindcss'])
+
+    // `pruneDependencies` deliberately leaves devDependencies alone — it is the
+    // toolchain — so a kit needing a build-time dependency has nowhere else.
+    const css = await Bun.file(join(kitDir, 'resources', 'css', 'app.css')).text()
+
+    expect(css).toContain("@import 'tailwindcss'")
+    expect(await Bun.file(join(kitDir, 'vite.config.ts')).text()).toContain('tailwindcss()')
+  })
+
+  test('the base template is untouched by any of it', async () => {
+    const manifest = (await Bun.file(join(templateDir, '_package.json')).json()) as {
+      devDependencies: Record<string, string>
+    }
+
+    // A kit adds itself; it does not change what every other kit gets.
+    expect(manifest.devDependencies['tailwindcss']).toBeUndefined()
+    expect(await Bun.file(join(templateDir, 'vite.config.ts')).text()).not.toContain('tailwind')
+    expect(await Bun.file(join(templateDir, 'resources', 'css', 'app.css')).text()).not.toContain(
+      'tailwindcss'
+    )
+  })
+
+  test('an auth error is shown once, by the field it belongs to', async () => {
+    const pages = join(kitDir, 'resources', 'views', 'pages')
+
+    /**
+     * Every controller in the auth kit routes an auth failure to a field —
+     * `withErrors({ email: … })` — and `Input` reads that bag itself. A page that
+     * also rendered an alert for the same string said it twice, which is what a
+     * real sign-in attempt showed.
+     */
+    for (const page of ['auth/sign-in.tsx', 'auth/sign-up.tsx', 'settings/password.tsx']) {
+      expect(await Bun.file(join(pages, page)).text()).not.toContain('<Alert message={error}')
+    }
+
+    // The two whose errors belong to no field keep theirs.
+    for (const page of ['auth/verify-email.tsx', 'settings/security.tsx']) {
+      expect(await Bun.file(join(pages, page)).text()).toContain('<Alert message={error}')
+    }
+  })
+
+  test('the field names match the controllers underneath', async () => {
+    const password = await Bun.file(
+      join(kitDir, 'resources', 'views', 'pages', 'settings', 'password.tsx')
+    ).text()
+
+    // `current`, not `current_password`: the controller reads `body.current`, and
+    // a form posting the wrong name fails in a way no type checks.
+    expect(password).toContain('name="current"')
+    expect(password).not.toContain('name="current_password"')
+  })
+})
