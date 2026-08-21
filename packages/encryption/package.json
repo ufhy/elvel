@@ -1,6 +1,6 @@
 {
   "name": "@elvel/encryption",
-  "version": "1.0.0-alpha.9",
+  "version": "1.0.0-alpha.10",
   "description": "Encryption for Elvel — authenticated ciphers over Bun’s crypto, with key rotation",
   "keywords": [
     "aes",
