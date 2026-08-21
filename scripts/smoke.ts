@@ -2942,10 +2942,29 @@ try {
     stderr: 'pipe'
   })
 
+  /**
+   * The failure, said in full.
+   *
+   * The tail of the output is the wrong 600 characters: `bun test` ends with the
+   * summary, so a real assertion — file, line, expected, received — scrolls off
+   * the top and what survives is `— il) the passkey settings page > …`, which
+   * names the test and explains nothing. Twice now that has cost a CI round trip
+   * to learn what one line already knew.
+   *
+   * So this keeps the lines that carry the diagnosis instead of the last ones.
+   */
+  const diagnosis = plain(`${jsxTests.stdout.toString()}\n${jsxTests.stderr.toString()}`)
+    .split('\n')
+    .filter((line) => /\(fail\)|error:|Expected|Received|expect\(/.test(line))
+    // Capped per line: a `Received` carrying a whole HTML page would otherwise be
+    // the only thing that fits, and the name of the failing test is what matters.
+    .map((line) => line.slice(0, 200))
+    .join('\n')
+
   check(
     'the tests it ships pass in it',
     jsxTests.exitCode === 0,
-    plain(jsxTests.stderr.toString()).slice(-600)
+    diagnosis.slice(-1200) || plain(jsxTests.stderr.toString()).slice(-600)
   )
 
   const jsxTypecheck = Bun.spawnSync({

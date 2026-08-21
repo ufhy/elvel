@@ -1391,8 +1391,36 @@ describe('workspace mode', () => {
     // so it had better be a workspace.
     expect(manifest.workspaces).toContain('apps/*')
 
-    // And a scratch directory is deliberately not one.
-    expect(manifest.workspaces).not.toContain('.demo/*')
+    /**
+     * `.demo/*` is one too, and it is a trade rather than an oversight.
+     *
+     * A scaffold under a workspaces glob links the framework by symlink instead of
+     * resolving it from the registry, which is the whole point of scaffolding
+     * inside the checkout. The cost is real and was paid once: a workspace member
+     * that disappears from `bun.lock` — a reverted lockfile, a branch switch, a
+     * stash — is a package `bun install` then *removes*, and it removes the
+     * directory, not merely the entry. That is how `apps/demo` was lost.
+     *
+     * So both globs are listed here on purpose. What must stay true is that every
+     * one of them is a directory `.gitignore` keeps out of the repository: a
+     * workspace member that could be committed is a different thing entirely.
+     */
+    expect(manifest.workspaces).toContain('.demo/*')
+
+    const lines = (await Bun.file(join(root, '.gitignore')).text())
+      .split('\n')
+      .map((line) => line.trim())
+
+    // Compared as whole lines. `includes('packages/')` would have been true of
+    // `packages/*/dist` and told us nothing at all.
+    for (const [glob, rule] of [
+      ['apps/*', 'apps/*'],
+      ['.demo/*', '.demo/']
+    ] as const) {
+      expect<string>(`${glob} ignored by ${rule}: ${lines.includes(rule)}`).toBe(
+        `${glob} ignored by ${rule}: true`
+      )
+    }
   })
 })
 
