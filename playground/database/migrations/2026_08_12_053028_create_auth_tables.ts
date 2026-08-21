@@ -24,7 +24,7 @@ export default class extends Migration {
     await schema.create('session', (table) => {
       table.string('id').primary()
       table.timestamp('expiresAt')
-      table.text('token').unique()
+      table.string('token').unique()
       table.timestamp('createdAt')
       table.timestamp('updatedAt')
       table.text('ipAddress').nullable()
@@ -35,7 +35,8 @@ export default class extends Migration {
 
     await schema.create('account', (table) => {
       table.string('id').primary()
-      table.text('accountId')
+      table.string('issuer')
+      table.string('accountId')
       table.text('providerId')
       table.string('userId').index()
       table.text('accessToken').nullable()
@@ -48,11 +49,12 @@ export default class extends Migration {
       table.timestamp('createdAt')
       table.timestamp('updatedAt')
       table.foreign(['userId']).references(['id']).on('user').onDelete('cascade')
+      table.unique(['issuer', 'accountId'])
     })
 
     await schema.create('verification', (table) => {
       table.string('id').primary()
-      table.text('identifier').index()
+      table.string('identifier').index()
       table.text('value')
       table.timestamp('expiresAt')
       table.timestamp('createdAt')

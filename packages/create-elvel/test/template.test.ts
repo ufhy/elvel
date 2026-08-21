@@ -1030,9 +1030,20 @@ describe('reloading the browser', () => {
       hot: { send: () => sent++ }
     })
 
+    /**
+     * Forward slashes, even on Windows.
+     *
+     * Vite normalises watcher paths to posix separators on every platform, and the
+     * plugin compares against roots it normalises the same way — so a test that
+     * fed `join()`'s backslashes was testing a path Vite would never hand over,
+     * and only Windows CI said so.
+     */
     const reloads = (file: string): number => {
       sent = 0
-      for (const handler of handlers) handler(join(templateDir, file))
+
+      const path = join(templateDir, file).replaceAll('\\', '/')
+
+      for (const handler of handlers) handler(path)
 
       return sent
     }
@@ -1213,7 +1224,11 @@ describe('the jsx kit', () => {
     const controllers = new Bun.Glob('app/**/*.ts')
     const own: string[] = []
 
-    for await (const file of controllers.scan({ cwd: kitDir, onlyFiles: true })) own.push(file)
+    // `scan` answers with the platform's separator, and this compares with a
+    // literal — which passed everywhere except Windows.
+    for await (const file of controllers.scan({ cwd: kitDir, onlyFiles: true })) {
+      own.push(file.replaceAll('\\', '/'))
+    }
 
     expect<string[]>(own).toEqual(['app/Http/Controllers/Settings/AppearanceController.ts'])
   })
