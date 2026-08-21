@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import {
   BunSqlConnection,
   type ConnectionConfig,
@@ -6,8 +9,15 @@ import {
   SchemaBuilder
 } from '@elvel/database'
 import { betterAuth } from 'better-auth'
+import { twoFactor } from 'better-auth/plugins'
 import { reachable } from '../../../tests/support/dialects.ts'
-import { type Dialect, elvelAdapter } from '../src/adapter.ts'
+import { type Dialect, elvelAdapter, migrationFor, schemaShape } from '../src/adapter.ts'
+
+/** What a generated migration is, as a module. */
+type MigrationClass = new () => {
+  up(context: unknown): Promise<void>
+  down(context: unknown): Promise<void>
+}
 
 /**
  * The adapter against real servers.
@@ -189,6 +199,158 @@ for (const { name, config } of available) {
         expect(await auth.api.getSession({ headers: new Headers({ cookie }) })).toBeNull()
       } finally {
         await tearDown()
+      }
+    })
+
+    /**
+     * A plugin's schema, on a real server.
+     *
+     * Everything above covers the four core tables. A plugin adds two shapes
+     * neither of them exercises: a **table of its own**, and — the interesting
+     * one — **a column on a table better-auth already owns**. `twoFactor` adds
+     * `twoFactorEnabled` to `user`, so the generated migration has to alter a
+     * table it also creates, and every dialect has its own opinion about
+     * booleans and about adding a column.
+     *
+     * `config/auth.ts` passes `plugins` straight through to `betterAuth`, so an
+     * application gets this by writing two lines — which makes it worth knowing
+     * that the schema it generates actually runs, rather than only that it can
+     * be generated.
+     */
+    test('a plugin brings its own tables and columns, and they run', async () => {
+      connection = await BunSqlConnection.make(`auth-plugin-${name}`, config)
+
+      const prefixed = (model: string) => `${PREFIX}_plugin_${model}`
+
+      const db = {
+        connection: async () => connection,
+        schema: async () => new SchemaBuilder(connection)
+      }
+
+      const auth = betterAuth({
+        secret: 'a-very-long-test-secret-value-000000',
+        baseURL: 'http://localhost',
+        emailAndPassword: { enabled: true },
+        /**
+         * The plugin's table is renamed too.
+         *
+         * Left alone it is called `twoFactor`, unprefixed — fine in an
+         * application, and a collision here, because Postgres and MySQL are
+         * shared between runs while sqlite's `:memory:` is not.
+         */
+        plugins: [twoFactor({ schema: { twoFactor: { modelName: prefixed('twoFactor') } } })],
+        user: { modelName: prefixed('user') },
+        session: { modelName: prefixed('session') },
+        account: { modelName: prefixed('account') },
+        verification: { modelName: prefixed('verification') },
+        database: elvelAdapter(db as never, { dialect: name })
+      })
+
+      const schema = new SchemaBuilder(connection)
+
+      /** The schema better-auth reports — the same thing `auth:schema` reads. */
+      const tables = await (
+        auth as unknown as { $context: Promise<{ tables: never }> }
+      ).$context.then((context) => context.tables)
+
+      try {
+        const shape = schemaShape(tables)
+
+        // Four core tables plus the plugin's own.
+        expect(shape.length).toBe(5)
+
+        const twoFactorTable = shape.find((entry) => /twoFactor/i.test(entry.table))
+        const userTable = shape.find((entry) => entry.table === prefixed('user'))
+
+        // The plugin's own table…
+        expect(twoFactorTable).toBeDefined()
+        expect(twoFactorTable?.columns).toContain('secret')
+
+        // …and the column it puts on a table it does not own.
+        expect(userTable?.columns).toContain('twoFactorEnabled')
+
+        // The migration our grammar renders for this dialect, which is the part
+        // that has never been checked against a server before.
+        const migration = migrationFor(tables, name)
+
+        expect(migration).toContain('twoFactorEnabled')
+        expect(migration).toContain(prefixed('twoFactor'))
+
+        /**
+         * Run the migration itself, not a hand-built approximation of it.
+         *
+         * Rendering proves the generator; **executing** proves the dialect accepts
+         * what was rendered, which is a different question and the one Postgres
+         * and MySQL answer differently from sqlite. Building the tables by hand
+         * here would have quietly tested a schema nobody ships — the plugin's
+         * `failedVerificationCount` is rendered as `integer`, and a hand-written
+         * `text` would have passed while the real column failed.
+         *
+         * Written to a file and imported because that is what `migrate` does with
+         * it: a migration is a module with `up` and `down`, and a string that
+         * merely contains the right words is no evidence that it parses.
+         */
+        /**
+         * Inside the repository, not in `os.tmpdir()`.
+         *
+         * The generated migration imports `@elvel/database` — as a real one in an
+         * application does — and a directory outside the workspace cannot resolve
+         * that. Writing it where module resolution is the real thing is the
+         * difference between testing the migration and testing a string.
+         */
+        const directory = await mkdtemp(join(import.meta.dir, '.generated-'))
+        const file = join(directory, 'migration.ts')
+
+        await writeFile(file, migration)
+
+        const Generated = ((await import(pathToFileURL(file).href)) as { default: MigrationClass })
+          .default
+
+        const instance = new Generated()
+        let ran = false
+
+        try {
+          await instance.up({ schema } as never)
+          ran = true
+
+          /**
+           * Written through better-auth, not through the query builder.
+           *
+           * A raw `insert` would bypass the adapter, which is the thing that
+           * converts a `Date` and a boolean for each dialect — and it shows: the
+           * first version of this test handed sqlite a `Date` and got
+           * `Binding expected string, TypedArray, boolean, number, bigint or
+           * null`. Signing up exercises the path an application actually uses,
+           * against a schema a plugin extended.
+           */
+          const signedUp = await auth.api.signUpEmail({
+            body: { name: 'Ada', email: 'ada@example.com', password: 'secret123' }
+          })
+
+          expect(signedUp).toBeTruthy()
+
+          const row = await new QueryBuilder(connection, prefixed('user'))
+            .where('email', 'ada@example.com')
+            .first()
+
+          expect(row).toBeTruthy()
+
+          // The column the plugin added to a table it does not own, written by
+          // better-auth's own default and read back through our grammar.
+          expect(Boolean(row?.twoFactorEnabled)).toBe(false)
+
+          // And the plugin's own table exists, with the column it needs.
+          expect(await schema.hasTable(prefixed('twoFactor'))).toBe(true)
+          expect(await schema.hasColumn(prefixed('twoFactor'), 'secret')).toBe(true)
+        } finally {
+          // `down()` is the other half of what makes a generated migration
+          // deployable, so it is exercised rather than assumed.
+          if (ran) await instance.down({ schema } as never)
+
+          await rm(directory, { recursive: true, force: true })
+        }
+      } finally {
+        await connection.disconnect()
       }
     })
   })

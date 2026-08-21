@@ -22,6 +22,11 @@ apps/*
 .demo/
 .playonline/
 
+# Where `packages/auth/test/dialects.test.ts` writes a generated migration so it
+# can be imported with real module resolution. Removed by the test; ignored in
+# case a run is killed part way through.
+packages/*/test/.generated-*
+
 *.tsbuildinfo
 .DS_Store
 
