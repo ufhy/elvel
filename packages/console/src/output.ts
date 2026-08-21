@@ -64,7 +64,33 @@ export class Output {
 
   // ------------------------------------------------------------- interaction
 
+  /**
+   * Is there anybody there to answer?
+   *
+   * Without this every prompt **hangs** where no terminal is attached, which is
+   * every CI job and every cron entry. `migrate` in production asks for
+   * confirmation, and run from a pipeline it rendered the question and waited for
+   * ever — a deploy that holds its lock and never fails is worse than one that
+   * fails, because nothing reports it and nobody is told what to do.
+   *
+   * Answering with the default is also the safe direction: the default for
+   * `confirmInProduction` is `false`, so a non-interactive production run refuses
+   * rather than proceeding.
+   */
+  private interactive(): boolean {
+    return process.stdin.isTTY === true
+  }
+
+  /** Say what was assumed, so a log explains itself later. */
+  private assumed<T>(question: string, value: T): T {
+    this.comment(`${question} — no terminal attached, assuming ${String(value)}.`)
+
+    return value
+  }
+
   async ask(question: string, defaultValue?: string): Promise<string> {
+    if (!this.interactive()) return this.assumed(question, defaultValue ?? '')
+
     const answer = await prompts.text({
       message: question,
       defaultValue,
@@ -74,16 +100,31 @@ export class Output {
   }
 
   async secret(question: string): Promise<string> {
+    /**
+     * Never assumed, and never defaulted to an empty string.
+     *
+     * A blank password is not an answer, and carrying on with one would be worse
+     * than stopping. An option or an environment variable is how a pipeline
+     * supplies a secret.
+     */
+    if (!this.interactive()) {
+      throw new Error(`[${question}] needs a terminal. Pass it as an option or an env var instead.`)
+    }
+
     const answer = await prompts.password({ message: question })
     return this.unwrap(answer, '')
   }
 
   async confirm(question: string, defaultValue = false): Promise<boolean> {
+    if (!this.interactive()) return this.assumed(question, defaultValue)
+
     const answer = await prompts.confirm({ message: question, initialValue: defaultValue })
     return this.unwrap(answer, defaultValue)
   }
 
   async choice<T extends string>(question: string, choices: T[], defaultValue?: T): Promise<T> {
+    if (!this.interactive()) return this.assumed(question, defaultValue ?? (choices[0] as T))
+
     const answer = await prompts.select({
       message: question,
       // Clack's `Option<T>` is conditional on `T extends Primitive`, which TS
