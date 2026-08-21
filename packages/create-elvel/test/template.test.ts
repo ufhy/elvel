@@ -1091,7 +1091,9 @@ describe('the jsx kit', () => {
     // toolchain — so a kit needing a build-time dependency has nowhere else.
     const css = await Bun.file(join(kitDir, 'resources', 'css', 'app.css')).text()
 
-    expect(css).toContain("@import 'tailwindcss'")
+    // Quote style is Biome's to decide — it rewrote this to double quotes the
+    // moment `css.parser.tailwindDirectives` let it format the file at all.
+    expect(css).toMatch(/@import ['"]tailwindcss['"]/)
     expect(await Bun.file(join(kitDir, 'vite.config.ts')).text()).toContain('tailwindcss()')
   })
 
