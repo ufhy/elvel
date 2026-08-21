@@ -155,6 +155,11 @@ middleware(): JobMiddleware[] {
 | `unique` / `uniqueFor` | One instance at a time, keyed by `uniqueId()`. |
 | `encrypted` | Encrypt the payload where the queue stores it. |
 
+`maxExceptions` is counted in the cache, keyed by the payload's uuid. It is for a
+job with `tries = 25` that is *expected* to be released often — a rate-limited
+API call — but which should still give up when it is actually broken rather than
+burning all twenty-five attempts on the same error.
+
 `retryFor` is checked **before** `tries`, exactly as the worker does it: a job
 with a deadline keeps its deadline even when attempts remain. And the default for
 a timeout is to retry, because a timeout is often the network having a bad

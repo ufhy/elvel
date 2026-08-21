@@ -74,3 +74,42 @@ Laravel's do.
 Seeders are composed explicitly with `call()` — there is no auto-discovery,
 because seed order matters and a directory listing is a poor way to express it. A
 seeder pulled in by two others still runs once.
+
+## Relations across a pivot
+
+```ts
+article.tags()            // morphToMany: the pivot stores this model's type
+  .withPivot('added_by')  // read the extra column back, onto `tag.pivot`
+  .withTimestamps()       // and stamp it on attach
+
+tag.articles()            // morphedByMany: the pivot names the *related* type
+```
+
+Pivot columns are selected as `pivot_<column>` and moved onto the accessor after
+hydration, so a pivot's own `created_at` cannot overwrite the model's. `using()`
+hydrates them as a `Pivot` subclass of yours, and `as()` renames the accessor.
+
+## One row across an intermediate table
+
+```ts
+user.latestOfMany(Post, 'created_at')     // one per parent, even eagerly loaded
+country.hasOneThrough(Post, User)
+```
+
+`latestOfMany` joins a grouped subquery rather than ordering and limiting. A
+limit is right for one parent and **wrong for an eager load**, where it answers
+the whole set once — so ten users would share one post between them. The key is
+aggregated alongside the column, so a tie on `created_at` cannot make a "one"
+relation return two rows.
+
+## Walking a large table
+
+```ts
+Article.query().chunkById(500, handle)     // by key: safe to delete while walking
+Article.query().cursorPaginate(15, cursor)
+await user.saveQuietly()                   // no model events
+```
+
+`chunkById` pages by primary key rather than by offset, which is what makes it
+safe to delete or update rows as you go — an offset shifts under you and skips
+records.

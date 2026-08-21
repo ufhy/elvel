@@ -79,9 +79,12 @@ export default defineConfig({
       {
         text: 'The basics',
         items: [
-          { text: 'Routing and controllers', link: '/basics/routing' },
+          { text: 'Routing', link: '/basics/routing' },
+          { text: 'Requests and validation', link: '/basics/requests' },
+          { text: 'Validation rules', link: '/basics/validation' },
+          { text: 'Middleware', link: '/basics/middleware' },
+          { text: 'Session, cookies and CSRF', link: '/basics/session' },
           { text: 'Views', link: '/basics/views' },
-          { text: 'Validation', link: '/basics/validation' },
           { text: 'Events and logging', link: '/basics/events-and-logging' }
         ]
       },
@@ -119,6 +122,8 @@ export default defineConfig({
       {
         text: 'Security',
         items: [
+          { text: 'Authentication', link: '/security/authentication' },
+          { text: 'Authorization', link: '/security/authorization' },
           { text: 'Encryption', link: '/security/encryption' },
           { text: 'Hashing', link: '/digging-deeper/hashing' },
           { text: 'Reporting a vulnerability', link: '/security/reporting' }
