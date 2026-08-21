@@ -1,5 +1,5 @@
 import { rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 
 /**
@@ -63,11 +63,24 @@ function refresh(watched: string[]) {
       }
       hot: { send(payload: { type: 'full-reload'; path: string }): void }
     }) {
+      /**
+       * Resolved once, and compared as a path prefix rather than a substring.
+       *
+       * `file.includes('app')` was the obvious spelling and the wrong one: it
+       * matches any path with those three letters anywhere in it. An application
+       * in `apps/demo` matched every file it owns, and — worse — so did
+       * `resources/css/app.css`, which turned a CSS hot update into a full page
+       * reload. A prefix with a trailing slash can only match a real descendant.
+       */
+      const roots = watched.map((directory) =>
+        resolve(import.meta.dirname, directory).replaceAll('\\', '/')
+      )
+
       server.watcher.add(watched)
 
       // `server.hot`, not `server.ws`: Vite 8 removed the latter.
       const reload = (file: string) => {
-        if (!watched.some((directory) => file.includes(directory.replace('./', '')))) return
+        if (!roots.some((root) => file === root || file.startsWith(`${root}/`))) return
 
         server.hot.send({ type: 'full-reload', path: '*' })
       }
@@ -98,6 +111,21 @@ export default {
     hotFile(),
     refresh(['./resources/views', './app', './routes', './config'])
   ],
+
+  /**
+   * What the watcher must *not* watch.
+   *
+   * Vite watches the project root, and a running application writes inside it —
+   * a session file per request, a SQLite database, the build output. Left alone
+   * that is a loop that feeds itself: a write triggers a reload, the reload is a
+   * request, the request writes a session file, and the page reloads about once
+   * a second forever. Measured here at six reloads in ten idle seconds.
+   */
+  server: {
+    watch: {
+      ignored: ['**/storage/**', '**/database/**', '**/public/build/**', '**/public/hot']
+    }
+  },
 
   build: {
     outDir: 'public/build',

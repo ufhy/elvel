@@ -140,7 +140,20 @@ export class Vite {
     const directory = join(this.options.publicPath, this.options.buildDirectory ?? 'build')
     const named = join(directory, 'manifest.json')
 
-    return existsSync(named) ? named : join(directory, '.vite', 'manifest.json')
+    /**
+     * The named path, unless only the Vite 5 default is there.
+     *
+     * When **neither** exists this used to answer `.vite/manifest.json`, so the
+     * "no manifest" message named a path nothing in this framework writes —
+     * `vite.config.ts` sets `manifest: 'manifest.json'` — and sent people looking
+     * for a directory that was never going to appear. The named path is what a
+     * build here produces, so that is what an absence should be reported as.
+     */
+    if (existsSync(named)) return named
+
+    const legacy = join(directory, '.vite', 'manifest.json')
+
+    return existsSync(legacy) ? legacy : named
   }
 
   /**
