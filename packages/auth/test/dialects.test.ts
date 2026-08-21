@@ -90,55 +90,34 @@ for (const { name, config } of available) {
 
     const table = (model: string) => new QueryBuilder(connection, model)
 
-    const setUp = async () => {
+    /**
+     * The schema, generated rather than written out here.
+     *
+     * It *was* written out, and better-auth 1.7 added `account.issuer` and a
+     * unique `(issuer, accountId)` index underneath it — so every test in this
+     * block failed on a fixture that described a schema the library had stopped
+     * using. Worse than the failure: a fixture agreeing with the wrong schema is
+     * how this suite once passed while `auth:schema` emitted a migration MySQL
+     * refused to run.
+     *
+     * So the tables come from `migrationFor`, executed. What the dialects are
+     * really being asked here is whether the migration an application would run
+     * works on them.
+     */
+    const setUp = async (db: never) => {
       connection = await BunSqlConnection.make(`auth-${name}`, config)
 
-      const schema = new SchemaBuilder(connection)
+      const reported = await (
+        makeAuth(db) as unknown as { $context: Promise<{ tables: never }> }
+      ).$context.then((context) => context.tables)
 
-      await schema.create(tables.user, (blueprint) => {
-        blueprint.string('id').primary()
-        blueprint.string('name')
-        blueprint.string('email').unique()
-        blueprint.boolean('emailVerified')
-        blueprint.text('image').nullable()
-        blueprint.timestamp('createdAt')
-        blueprint.timestamp('updatedAt')
-      })
-      await schema.create(tables.session, (blueprint) => {
-        blueprint.string('id').primary()
-        blueprint.timestamp('expiresAt')
-        blueprint.string('token').unique()
-        blueprint.timestamp('createdAt')
-        blueprint.timestamp('updatedAt')
-        blueprint.text('ipAddress').nullable()
-        blueprint.text('userAgent').nullable()
-        blueprint.string('userId')
-        blueprint.foreign(['userId']).references(['id']).on(tables.user).onDelete('cascade')
-      })
-      await schema.create(tables.account, (blueprint) => {
-        blueprint.string('id').primary()
-        blueprint.text('accountId')
-        blueprint.text('providerId')
-        blueprint.string('userId')
-        blueprint.text('accessToken').nullable()
-        blueprint.text('refreshToken').nullable()
-        blueprint.text('idToken').nullable()
-        blueprint.timestamp('accessTokenExpiresAt').nullable()
-        blueprint.timestamp('refreshTokenExpiresAt').nullable()
-        blueprint.text('scope').nullable()
-        blueprint.text('password').nullable()
-        blueprint.timestamp('createdAt')
-        blueprint.timestamp('updatedAt')
-        blueprint.foreign(['userId']).references(['id']).on(tables.user).onDelete('cascade')
-      })
-      await schema.create(tables.verification, (blueprint) => {
-        blueprint.string('id').primary()
-        blueprint.text('identifier')
-        blueprint.text('value')
-        blueprint.timestamp('expiresAt')
-        blueprint.timestamp('createdAt')
-        blueprint.timestamp('updatedAt')
-      })
+      const { directory, instance } = await write(migrationFor(reported, name))
+
+      try {
+        await instance.up({ schema: new SchemaBuilder(connection), connection })
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
     }
 
     const tearDown = async () => {
@@ -151,26 +130,30 @@ for (const { name, config } of available) {
       await connection.disconnect()
     }
 
+    /** One description of this run's auth, for the schema and for the test. */
+    const makeAuth = (db: never) =>
+      betterAuth({
+        secret: 'a-test-secret-of-at-least-32-characters',
+        baseURL: 'http://localhost',
+        emailAndPassword: { enabled: true },
+        // The model names are per-run so two dialects never share a table.
+        user: { modelName: tables.user },
+        session: { modelName: tables.session },
+        account: { modelName: tables.account },
+        verification: { modelName: tables.verification },
+        database: elvelAdapter(db, { dialect: name })
+      })
+
     test('a user signs up, signs in and is read back with the right types', async () => {
-      await setUp()
+      const db = {
+        connection: async () => connection,
+        table: async (model: string) => new QueryBuilder(connection, model)
+      } as never
+
+      await setUp(db)
 
       try {
-        const db = {
-          connection: async () => connection,
-          table: async (model: string) => new QueryBuilder(connection, model)
-        } as never
-
-        const auth = betterAuth({
-          secret: 'a-test-secret-of-at-least-32-characters',
-          baseURL: 'http://localhost',
-          emailAndPassword: { enabled: true },
-          // The model names are per-run so two dialects never share a table.
-          user: { modelName: tables.user },
-          session: { modelName: tables.session },
-          account: { modelName: tables.account },
-          verification: { modelName: tables.verification },
-          database: elvelAdapter(db, { dialect: name })
-        })
+        const auth = makeAuth(db)
 
         const { user } = await auth.api.signUpEmail({
           body: { name: 'Ada', email: 'ada@example.com', password: 'secret123' }
@@ -225,6 +208,72 @@ for (const { name, config } of available) {
 
         expect(await table(tables.session).count()).toBe(before - 1)
         expect(await auth.api.getSession({ headers: new Headers({ cookie }) })).toBeNull()
+      } finally {
+        await tearDown()
+      }
+    })
+
+    /**
+     * The compound unique index, enforced by the database rather than described.
+     *
+     * better-auth 1.7 scopes an account's identity to `(issuer, accountId)` and
+     * declares it as a table-level `indexes` entry — a shape `migrationFor` had
+     * never read, because it only ever walked `table.fields`. So the generated
+     * migration ran clean on all three dialects while quietly allowing the same
+     * `accountId` from two issuers to collide, which is the exact thing that
+     * change exists to prevent.
+     *
+     * Asserting the index *exists* would have to ask each dialect a different
+     * question, so this asks the only question that matters: insert the pair
+     * twice and expect the database to refuse it.
+     */
+    test('the generated schema refuses two accounts with one identity', async () => {
+      const db = {
+        connection: async () => connection,
+        table: async (model: string) => new QueryBuilder(connection, model)
+      } as never
+
+      await setUp(db)
+
+      try {
+        /**
+         * A timestamp each dialect accepts as a bound parameter.
+         *
+         * The adapter hands better-auth's ISO string straight to Postgres and
+         * sqlite and rewrites it for MySQL, which rejects the `T` and the `Z`.
+         * These rows go in underneath the adapter, so they have to do the same —
+         * and a `Date` object is not bindable at all.
+         */
+        const now =
+          name === 'mysql' || name === 'mariadb'
+            ? new Date().toISOString().slice(0, 19).replace('T', ' ')
+            : new Date().toISOString()
+
+        await table(tables.user).insert({
+          id: 'u1',
+          name: 'Ada',
+          email: 'ada@example.com',
+          emailVerified: false,
+          createdAt: now,
+          updatedAt: now
+        })
+
+        const account = (id: string) => ({
+          id,
+          issuer: 'credential',
+          accountId: 'ada@example.com',
+          providerId: 'credential',
+          userId: 'u1',
+          createdAt: now,
+          updatedAt: now
+        })
+
+        await table(tables.account).insert(account('a1'))
+
+        // The same identity again. Whatever each dialect calls it, it is a refusal.
+        expect(table(tables.account).insert(account('a2'))).rejects.toThrow()
+
+        expect(await table(tables.account).count()).toBe(1)
       } finally {
         await tearDown()
       }

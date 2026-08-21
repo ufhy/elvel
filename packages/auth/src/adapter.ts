@@ -381,11 +381,13 @@ export function migrationFor(
   for (const [, table] of ordered) {
     const lines: string[] = [`      table.string('id').primary()`]
     const keys: string[] = []
+    const compound = compoundIndexes(table)
+    const keyed = new Set(compound.flatMap((entry) => entry.columns))
 
     for (const [name, field] of Object.entries(table.fields)) {
       const column = field.fieldName ?? name
 
-      lines.push(`      ${columnFor(column, field)}`)
+      lines.push(`      ${columnFor(column, field, keyed)}`)
 
       if (field.references) {
         keys.push(
@@ -396,6 +398,22 @@ export function migrationFor(
             `.onDelete('${field.references.onDelete ?? 'cascade'}')`
         )
       }
+    }
+
+    /**
+     * The compound indexes, which no single field can declare.
+     *
+     * better-auth 1.7 keys an account on `(issuer, accountId)` and says so with
+     * a table-level `indexes: [{ fields: [...], unique: true }]`. This generator
+     * only ever walked `table.fields`, so that entry was dropped on the floor:
+     * every application generated a schema that let the same `accountId` from two
+     * issuers collide, and the migration ran clean while doing it. Plugins in 1.7
+     * declare compound indexes the same way, so this is not one table's problem.
+     */
+    for (const entry of compound) {
+      const columns = entry.columns.map((column) => `'${column}'`).join(', ')
+
+      keys.push(`      table.${entry.unique ? 'unique' : 'index'}([${columns}])`)
     }
 
     up.push(
@@ -427,8 +445,38 @@ ${down.join('\n')}
 `
 }
 
-/** One blueprint line for a better-auth field. */
-function columnFor(name: string, field: AuthField): string {
+/**
+ * A table's compound indexes, normalised.
+ *
+ * The shape is better-auth's: `{ fields: string[], unique?: boolean }`, with the
+ * field *names* rather than column names, so a `fieldName` override has to be
+ * resolved before the index can be written. It is typed loosely here because the
+ * adapter's own `AuthTables` type is derived from `createSchema`'s parameter and
+ * does not carry `indexes` in every version this package supports.
+ */
+function compoundIndexes(table: AuthTables[string]): Array<{
+  columns: string[]
+  unique: boolean
+}> {
+  const declared = (table as { indexes?: Array<{ fields?: string[]; unique?: boolean }> }).indexes
+
+  if (!Array.isArray(declared)) return []
+
+  return declared
+    .filter((entry) => Array.isArray(entry.fields) && entry.fields.length > 0)
+    .map((entry) => ({
+      columns: (entry.fields ?? []).map((field) => table.fields[field]?.fieldName ?? field),
+      unique: entry.unique === true
+    }))
+}
+
+/**
+ * One blueprint line for a better-auth field.
+ *
+ * `keyed` names the columns this table indexes *compoundly*, which the field
+ * itself has no way to say — see `compoundKeys` and the note in `migrationFor`.
+ */
+function columnFor(name: string, field: AuthField, keyed: ReadonlySet<string> = new Set()): string {
   const parts: string[] = []
 
   if (field.references) {
@@ -467,9 +515,13 @@ function columnFor(name: string, field: AuthField): string {
          * merely stored, and being indexed is the same statement made a different
          * way; both want varchar.
          */
-        const keyed = field.sortable === true || field.unique === true || field.index === true
+        const indexed =
+          field.sortable === true ||
+          field.unique === true ||
+          field.index === true ||
+          keyed.has(name)
 
-        parts.push(keyed ? `table.string('${name}')` : `table.text('${name}')`)
+        parts.push(indexed ? `table.string('${name}')` : `table.text('${name}')`)
         break
       }
     }

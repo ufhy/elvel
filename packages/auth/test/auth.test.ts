@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elvel/database'
 import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
@@ -401,56 +404,43 @@ describe('elvelAdapter', () => {
       database: ':memory:'
     })
 
-    const schema = new SchemaBuilder(connection)
-
-    await schema.create('user', (blueprint) => {
-      blueprint.string('id').primary()
-      blueprint.string('name')
-      blueprint.string('email').unique()
-      blueprint.boolean('emailVerified')
-      blueprint.text('image').nullable()
-      blueprint.timestamp('createdAt')
-      blueprint.timestamp('updatedAt')
-    })
-    await schema.create('session', (blueprint) => {
-      blueprint.string('id').primary()
-      blueprint.timestamp('expiresAt')
-      blueprint.text('token').unique()
-      blueprint.timestamp('createdAt')
-      blueprint.timestamp('updatedAt')
-      blueprint.text('ipAddress').nullable()
-      blueprint.text('userAgent').nullable()
-      blueprint.string('userId')
-    })
-    await schema.create('account', (blueprint) => {
-      blueprint.string('id').primary()
-      blueprint.text('accountId')
-      blueprint.text('providerId')
-      blueprint.string('userId')
-      blueprint.text('accessToken').nullable()
-      blueprint.text('refreshToken').nullable()
-      blueprint.text('idToken').nullable()
-      blueprint.timestamp('accessTokenExpiresAt').nullable()
-      blueprint.timestamp('refreshTokenExpiresAt').nullable()
-      blueprint.text('scope').nullable()
-      blueprint.text('password').nullable()
-      blueprint.timestamp('createdAt')
-      blueprint.timestamp('updatedAt')
-    })
-    await schema.create('verification', (blueprint) => {
-      blueprint.string('id').primary()
-      blueprint.text('identifier')
-      blueprint.text('value')
-      blueprint.timestamp('expiresAt')
-      blueprint.timestamp('createdAt')
-      blueprint.timestamp('updatedAt')
-    })
-
+    /**
+     * The tables, built from the generator rather than written out here.
+     *
+     * They *were* written out here, and better-auth 1.7 added `account.issuer`
+     * underneath them: every test in this block failed with `table account has no
+     * column named issuer` — a fixture describing a schema better-auth had stopped
+     * using. A hand-written fixture can only ever agree with the version it was
+     * written against, and it fails loudly at best; the version this suite is
+     * really about is whatever `migrationFor` reads out of the library.
+     *
+     * So the schema under test is the generated one. `auth:schema` writes exactly
+     * this, which also means a column the generator gets wrong now breaks the
+     * adapter tests rather than only somebody's production migration.
+     */
     // The manager shape the adapter needs, bound to this one connection.
     const db = {
       connection: async () => connection,
       table: async (name: string) => new QueryBuilder(connection, name)
     } as never
+
+    const tables = await (
+      makeAuth(db) as unknown as { $context: Promise<{ tables: never }> }
+    ).$context.then((context) => context.tables)
+
+    const directory = await mkdtemp(join(import.meta.dir, '.generated-'))
+    const file = join(directory, 'migration.ts')
+
+    await writeFile(file, migrationFor(tables, 'sqlite'))
+
+    const Generated = (
+      (await import(pathToFileURL(file).href)) as {
+        default: new () => { up(context: unknown): Promise<void> }
+      }
+    ).default
+
+    await new Generated().up({ schema: new SchemaBuilder(connection), connection })
+    await rm(directory, { recursive: true, force: true })
 
     auth = makeAuth(db)
   })
