@@ -5,8 +5,8 @@ Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and ea
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
 `auth` is the same pages without Tailwind; `none` and `api` are closer to
-variants of one template. Two-factor authentication is here — TOTP with recovery
-codes, on by account, in both auth kits. No teams, and no passkeys yet.
+variants of one template. Two-factor authentication and passkeys are both here,
+in both auth kits. No teams.
 :::
 
 A kit is a folder copied **over** the base template, not a fork of it. Everything
@@ -31,8 +31,8 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 | --- | --- | --- | --- |
 | `none` | 41 | 9 | 1 |
 | `api` | 54 | 15 | 1 |
-| `auth` | 82 | 16 | 14 |
-| `jsx` | 95 | 16 | 15 |
+| `auth` | 86 | 16 | 15 |
+| `jsx` | 99 | 16 | 16 |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -70,7 +70,7 @@ resources/js/
     app.ts            the appearance choice, and closing a menu
 ```
 
-A component set, not a component library. These are the pieces these fifteen
+A component set, not a component library. These are the pieces these sixteen
 pages actually use, they live in your application, and you edit them — there is
 no `npx shadcn add` and nothing to eject from.
 
@@ -108,6 +108,40 @@ Whichever kit you use, run the migration after scaffolding — the plugin adds a
 ```bash
 bun elvel auth:schema && bun elvel migrate
 ```
+
+### Passkeys
+
+A fingerprint, a face or a screen lock instead of a password, over WebAuthn. The
+plugin is `@better-auth/passkey`, enabled beside `twoFactor()` in
+`config/auth.ts`, and it adds a `passkey` table — so the same
+`auth:schema && migrate` covers both.
+
+This is the one feature in the kit that **needs JavaScript**, and only for two of
+its four parts:
+
+| | where it runs |
+| --- | --- |
+| register a passkey | the browser — `navigator.credentials` creates the key |
+| sign in with one | the browser — the device signs a challenge |
+| list them | the server, rendered into the page |
+| remove one | the server, an ordinary `DELETE` form |
+
+`resources/js/passkeys.ts` is the whole client side: one `createAuthClient`, two
+delegated click handlers, and the conditional-UI call. It is imported by
+`resources/js/app.ts` in both auth kits — the same file, unchanged, because
+nothing in it is about styling.
+
+The sign-in field carries `autocomplete="username webauthn"`, which is what lets
+the browser offer a passkey from the address field itself rather than only from
+the button. In testing against a virtual authenticator that path was so quick it
+beat a scripted click to the button.
+
+::: warning WebAuthn needs a real origin
+A credential is bound to the domain that created it. `rpID` defaults to the host
+and the origin comes from `baseURL`, so **`APP_URL` must be your real origin over
+https** in production. Plain http works on `localhost` and nowhere else, and a
+mismatch fails as a browser prompt that closes without saying why.
+:::
 
 ### Colours are roles, not greys
 

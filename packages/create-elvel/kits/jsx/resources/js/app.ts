@@ -11,6 +11,16 @@
  * paint a white page first. This file is the writing side.
  */
 
+/**
+ * Passkeys, which are the one thing on these pages that HTML cannot do.
+ *
+ * `navigator.credentials` is a browser API: the private key stays on the device
+ * and only script on the page can ask it to sign. Imported rather than inlined
+ * here so the auth kit underneath — which has no appearance setting — can ship
+ * the same file and use it unchanged.
+ */
+import './passkeys.ts'
+
 type Appearance = 'light' | 'dark' | 'system'
 
 const prefersDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches

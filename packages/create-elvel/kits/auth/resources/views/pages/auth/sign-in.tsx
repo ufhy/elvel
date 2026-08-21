@@ -23,7 +23,17 @@ export function SignIn({ title, error }: SignInProps) {
 
           <label>
             <span>Email</span>
-            <input type="email" name="email" value={old('email')} required autofocus />
+            {/* `webauthn` in the autocomplete turns on the browser's conditional
+                UI: focus the field and a passkey for this site is offered from
+                the same dropdown as a saved address. */}
+            <input
+              type="email"
+              name="email"
+              value={old('email')}
+              autocomplete="username webauthn"
+              required
+              autofocus
+            />
           </label>
 
           <label>
@@ -34,6 +44,17 @@ export function SignIn({ title, error }: SignInProps) {
 
           <button type="submit">Sign in</button>
         </form>
+
+        {/* A passkey, for the browsers that hold one. Not a form: there is
+            nowhere to post to — the button asks the device to sign a challenge,
+            and better-auth's own endpoint answers with the session. */}
+        <div data-passkey-autofill>
+          <button type="button" data-passkey="sign-in">
+            Use a passkey
+          </button>
+
+          <p class="error" data-passkey-error hidden />
+        </div>
 
         <p class="muted">
           No account yet? <a href="/sign-up">Create one</a>.

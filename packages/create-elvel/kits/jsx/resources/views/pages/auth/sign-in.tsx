@@ -24,7 +24,13 @@ export function SignIn({ title }: SignInProps) {
       <form class="space-y-4" method="post" action="/sign-in">
         {csrfField()}
 
-        <Input name="email" type="email" label="Email" autocomplete="email" required />
+        {/*
+          `webauthn` in the autocomplete, which is what turns on the browser's
+          conditional UI: focus the field and any passkey for this site is offered
+          from the same dropdown as a saved address. `resources/js/passkeys.ts`
+          only starts that flow when `data-passkey-autofill` is on the page.
+        */}
+        <Input name="email" type="email" label="Email" autocomplete="username webauthn" required />
         {/* Never refilled: a password in a session store is a password in a backup. */}
         <Input
           name="password"
@@ -38,6 +44,30 @@ export function SignIn({ title }: SignInProps) {
           Sign in
         </Button>
       </form>
+
+      {/*
+        A passkey, for the browsers that hold one.
+        Not a form — there is nowhere to post to. The button asks the device to
+        sign a challenge, and better-auth's own endpoint answers with the session.
+      */}
+      <div class="space-y-3" data-passkey-autofill>
+        <div class="flex items-center gap-3">
+          <span class="h-px flex-1 bg-border" role="presentation" />
+          <span class="text-xs text-muted-foreground">or</span>
+          <span class="h-px flex-1 bg-border" role="presentation" />
+        </div>
+
+        <Button variant="secondary" type="button" class="w-full" data={{ passkey: 'sign-in' }}>
+          Use a passkey
+        </Button>
+
+        <p
+          class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          data-passkey-error
+          hidden
+          role="alert"
+        />
+      </div>
 
       <div class="mt-5 space-y-2 text-center text-sm text-muted-foreground">
         <p>

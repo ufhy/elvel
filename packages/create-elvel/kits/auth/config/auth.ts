@@ -1,3 +1,4 @@
+import { passkey } from '@better-auth/passkey'
 import { env } from '@elvel/core'
 import type { Auth } from 'better-auth'
 import { twoFactor } from 'better-auth/plugins'
@@ -81,7 +82,7 @@ const config = {
   appName: env('APP_NAME', 'Elvel'),
 
   /**
-   * Two-factor authentication, over TOTP with recovery codes.
+   * Passkeys, and two-factor authentication over TOTP with recovery codes.
    *
    * The kit ships the pages for it: `/settings/two-factor` turns it on and shows
    * the QR code, and `/two-factor-challenge` is where a sign-in lands when the
@@ -96,8 +97,17 @@ const config = {
    * ```
    *
    * Remove the plugin and the pages stop working — the endpoints go with it.
+   *
+   * `passkey()` needs no options here. `rpID` defaults to the host — `localhost`
+   * in development — and the origin comes from `baseURL` above, which is the
+   * arrangement WebAuthn requires: a credential is bound to the domain that
+   * created it, and a mismatch between these two is the whole class of "the
+   * browser refuses and says nothing useful" failures.
+   *
+   * **In production, `APP_URL` must be the real origin, with https.** WebAuthn
+   * will not run over plain http anywhere except localhost.
    */
-  plugins: [twoFactor()],
+  plugins: [twoFactor(), passkey()],
 
   // ------------------------------------------------------- framework middleware
   /** Where the `auth` middleware sends a guest. Laravel's `redirectGuestsTo`. */

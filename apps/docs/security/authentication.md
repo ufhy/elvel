@@ -135,10 +135,15 @@ the **difference**, not the whole schema again.
 ### Three things to know
 
 **The pages are still yours to write.** A plugin gives you endpoints, not a UI.
-The auth kits are the exception for exactly one plugin: `twoFactor` is enabled in
-their `config/auth.ts` and they ship the three pages it needs — enrolment with a
-QR code, the recovery codes, and the challenge a sign-in lands on. Every other
-plugin gives you a working API and a page you have to build.
+The auth kits are the exception for exactly two: `twoFactor` and `passkey` are
+enabled in their `config/auth.ts` and they ship the pages both need — TOTP
+enrolment with a QR code, the recovery codes, the challenge a sign-in lands on,
+and a passkey list with the WebAuthn client to fill it. Every other plugin gives
+you a working API and a page you have to build.
+
+`passkey` also comes from its own package — `@better-auth/passkey`, not
+`better-auth/plugins` — which is worth knowing before searching the wrong import
+for it.
 
 **`config:cache` will skip that file.** A plugin is an object holding functions,
 and a cached config is JSON. `optimize` says so rather than freezing something

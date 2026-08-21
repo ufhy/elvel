@@ -2882,16 +2882,21 @@ try {
   })
 
   check(
-    'auth:schema writes its migration, two-factor table included',
+    'auth:schema writes its migration, both plugin tables included',
     jsxSchema.exitCode === 0 &&
       (await Array.fromAsync(
         new Bun.Glob('*create_auth_tables.ts').scan({ cwd: join(jsxTarget, 'database/migrations') })
       ).then(
         async (files) =>
           files.length === 1 &&
-          (
-            await Bun.file(join(jsxTarget, 'database/migrations', files[0] as string)).text()
-          ).includes("schema.create('twoFactor'")
+          (await Bun.file(join(jsxTarget, 'database/migrations', files[0] as string))
+            .text()
+            // Both plugins the kit enables, so a dropped one is not silent.
+            .then(
+              (migration) =>
+                migration.includes("schema.create('twoFactor'") &&
+                migration.includes("schema.create('passkey'")
+            ))
       )),
     plain(jsxSchema.stderr.toString()).slice(-300)
   )
