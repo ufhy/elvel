@@ -2571,13 +2571,13 @@ try {
 
 section('Scaffolder')
 
-const scaffoldTarget = join(app.basePath(), '..', '.smoke-scaffold')
+const scaffoldTarget = join(app.basePath(), '..', 'apps', 'smoke-scaffold')
 
 try {
   await rm(scaffoldTarget, { recursive: true, force: true })
 
   const result = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-scaffold', '--kit=none'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-scaffold', '--kit=none'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2586,7 +2586,7 @@ try {
   check('create-elvel exits cleanly', result.exitCode === 0, `exit ${result.exitCode}`)
 
   const manifest = await Bun.file(join(scaffoldTarget, 'package.json')).json()
-  check('_package.json is renamed', manifest.name === '.smoke-scaffold')
+  check('_package.json is renamed', manifest.name === 'smoke-scaffold')
   check(
     'workspace mode links the framework',
     manifest.dependencies['@elvel/core'] === 'workspace:*',
@@ -2716,11 +2716,11 @@ try {
    * checked is that it lands *and* that the base survives it — a kit that
    * replaced `routes/web.ts` wholesale would drop the landing page.
    */
-  const kitTarget = join(app.basePath(), '..', '.smoke-kit')
+  const kitTarget = join(app.basePath(), '..', 'apps', 'smoke-kit')
   await rm(kitTarget, { recursive: true, force: true })
 
   const kitResult = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-kit', '--kit=auth'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-kit', '--kit=auth'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2821,11 +2821,11 @@ try {
    * async component, in a card every settings page uses. It rendered perfectly
    * the entire time.
    */
-  const jsxTarget = join(app.basePath(), '..', '.smoke-jsx-kit')
+  const jsxTarget = join(app.basePath(), '..', 'apps', 'smoke-jsx-kit')
   await rm(jsxTarget, { recursive: true, force: true })
 
   const jsxResult = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-jsx-kit', '--kit=jsx'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-jsx-kit', '--kit=jsx'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -2856,9 +2856,23 @@ try {
       jsxManifest.devDependencies['@tailwindcss/vite'] !== undefined
   )
 
+  /**
+   * Installed from the repository root, not from the scaffold.
+   *
+   * These targets live under `apps/`, which is one of the root manifest's
+   * `workspaces` globs — so their `@elvel/*` dependencies are written as
+   * `workspace:*` and only a root install can resolve them. It is also what the
+   * scaffolder prints for an application created inside the checkout.
+   *
+   * They used to be `.smoke-*` at the repository root, matching no glob at all:
+   * the framework was pinned to a published range instead of linked, and this
+   * kit's own dependencies — `uqr`, `@better-auth/passkey` — were never installed
+   * anywhere, so `bun run typecheck` failed on four missing modules in a
+   * scaffold that was otherwise correct.
+   */
   const jsxInstall = Bun.spawnSync({
     cmd: ['bun', 'install'],
-    cwd: jsxTarget,
+    cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
   })
@@ -2987,11 +3001,11 @@ try {
    * because the interesting part is what the *framework* does for it: a guest
    * gets 401 rather than a redirect to a sign-in page that does not exist.
    */
-  const apiTarget = join(app.basePath(), '..', '.smoke-api-kit')
+  const apiTarget = join(app.basePath(), '..', 'apps', 'smoke-api-kit')
   await rm(apiTarget, { recursive: true, force: true })
 
   const apiResult = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-api-kit', '--kit=api'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-api-kit', '--kit=api'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -3008,7 +3022,7 @@ try {
   )
 
   const unknownKit = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-kit-bad', '--kit=nope'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-kit-bad', '--kit=nope'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
@@ -3070,12 +3084,28 @@ try {
    * had **eleven** type errors and six lint errors on the day it was generated,
    * in a file nobody using it had written.
    *
-   * The check has to run in the scaffold, which is why it lives here.
+   * The check has to run in the scaffold, which is why it lives here — and it
+   * needs an install first: a kit may depend on something the framework does not,
+   * which is how `uqr` and `@better-auth/passkey` arrived with the two-factor and
+   * passkey pages, and `tsc` cannot check an import it cannot resolve.
    */
+  const scaffoldInstall = Bun.spawnSync({
+    cmd: ['bun', 'install'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    'the scaffolds install from the workspace root',
+    scaffoldInstall.exitCode === 0,
+    plain(scaffoldInstall.stderr.toString()).slice(-400)
+  )
+
   for (const target of [scaffoldTarget, kitTarget, apiTarget]) {
-    const label = target.endsWith('.smoke-kit')
+    const label = target.endsWith('smoke-kit')
       ? 'the kit'
-      : target.endsWith('.smoke-api-kit')
+      : target.endsWith('smoke-api-kit')
         ? 'the api kit'
         : 'the template'
 
@@ -3497,7 +3527,7 @@ try {
 
   await rm(kitTarget, { recursive: true, force: true })
   await rm(apiTarget, { recursive: true, force: true })
-  await rm(join(app.basePath(), '..', '.smoke-kit-bad'), { recursive: true, force: true })
+  await rm(join(app.basePath(), '..', 'apps', 'smoke-kit-bad'), { recursive: true, force: true })
 
   /**
    * A command appears only if its provider booted — and a kit decides which do.
