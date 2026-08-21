@@ -26,7 +26,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
   return (
     <Layout title={title}>
       <div class="mx-auto flex min-h-dvh max-w-4xl flex-col px-6">
-        <header class="flex items-center justify-between gap-4 border-b border-neutral-200 py-6 dark:border-neutral-800">
+        <header class="flex items-center justify-between gap-4 border-b border-border py-6">
           <span class="flex items-center gap-2 text-brand">
             <Mark />
             <span class="text-xs font-semibold tracking-[0.22em] uppercase">Elvel</span>
@@ -36,7 +36,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
             <nav class="flex items-center gap-2">
               {user ? (
                 <>
-                  <span class="hidden text-sm text-neutral-500 sm:block dark:text-neutral-400" safe>
+                  <span class="hidden text-sm text-muted-foreground sm:block" safe>
                     {user.name}
                   </span>
                   {nav.dashboard ? (
@@ -64,50 +64,48 @@ export function Welcome({ title, user, links }: WelcomeProps) {
         </header>
 
         <main class="flex-1 py-16 sm:py-24">
-          <h1 class="max-w-2xl text-4xl leading-tight font-semibold tracking-tight text-neutral-900 sm:text-5xl dark:text-neutral-50">
+          <h1 class="max-w-2xl text-4xl leading-tight font-semibold tracking-tight text-foreground sm:text-5xl">
             Laravel's shape,
             <br />
             <span class="text-brand italic">on Bun.</span>
           </h1>
 
-          <p class="mt-6 max-w-xl text-neutral-600 dark:text-neutral-400">
+          <p class="mt-6 max-w-xl text-muted-foreground">
             Service providers, a CLI, migrations and typed JSX views — over Elysia's HTTP server,
             with its type inference intact all the way into your handlers.
           </p>
 
           <div class="mt-14 grid gap-10 sm:grid-cols-2">
             <section>
-              <h2 class="mb-4 text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase dark:text-neutral-400">
+              <h2 class="mb-4 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
                 Let's get started
               </h2>
 
               <ol class="space-y-3">
                 {steps.map(([label, where], index) => (
-                  <li class="border-l-2 border-neutral-200 pl-4 dark:border-neutral-800">
+                  <li class="border-l-2 pl-4">
                     <p
                       class={
                         index === 0
-                          ? 'text-sm font-medium text-neutral-900 dark:text-neutral-100'
-                          : 'text-sm text-neutral-700 dark:text-neutral-300'
+                          ? 'text-sm font-medium text-foreground'
+                          : 'text-sm text-foreground'
                       }
                     >
                       {label}
                     </p>
-                    <code class="font-mono text-xs text-neutral-500 dark:text-neutral-400">
-                      {where}
-                    </code>
+                    <code class="font-mono text-xs text-muted-foreground">{where}</code>
                   </li>
                 ))}
               </ol>
             </section>
 
             <section>
-              <h2 class="mb-4 text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase dark:text-neutral-400">
+              <h2 class="mb-4 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
                 From here
               </h2>
 
-              <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-                <pre class="overflow-x-auto font-mono text-xs leading-6 text-neutral-700 dark:text-neutral-300">
+              <div class="rounded-xl border bg-muted p-4">
+                <pre class="overflow-x-auto font-mono text-xs leading-6 text-foreground">
                   <span class="text-brand">$</span> bun run elvel{'\n'}
                   <span class="text-brand">$</span> bun run elvel route:list{'\n'}
                   <span class="text-brand">$</span> bun run elvel make:controller Post -r{'\n'}
@@ -115,7 +113,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                 </pre>
               </div>
 
-              <p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
+              <p class="mt-3 text-xs text-muted-foreground">
                 A command exists only if its package is registered, so that first line is the honest
                 list — not the framework's.
               </p>
@@ -123,7 +121,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
           </div>
         </main>
 
-        <footer class="border-t border-neutral-200 py-6 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+        <footer class="border-t py-6 text-xs text-muted-foreground">
           <a class="hover:text-brand" href="https://ufhy.github.io/elvel">
             ufhy.github.io/elvel
           </a>

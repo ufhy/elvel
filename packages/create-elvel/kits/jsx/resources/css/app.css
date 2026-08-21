@@ -1,8 +1,8 @@
 /*
  * Your stylesheet.
  *
- * Tailwind, plus the handful of tokens the pages share. Built by Vite —
- * `bun run dev` runs it alongside the server, `bun run build` ships it.
+ * Tailwind, plus the tokens the pages share. Built by Vite — `bun run dev` runs
+ * it alongside the server, `bun run build` ships it.
  *
  * There is no `tailwind.config.js`: v4 configures itself from CSS, and finds
  * class names by scanning every text file in the project. `.tsx` views are
@@ -12,29 +12,150 @@
 @import "tailwindcss";
 
 /*
- * The brand, as tokens.
+ * Dark mode from a class, not from the operating system.
  *
- * `#FF2D20` is the mark's own red and stays exactly that wherever it is a
- * *shape* — a filled button, the logo. As small **text** on light paper it
- * measures 3.54:1, which clears the 3:1 a graphic needs and misses the 4.5:1
- * text needs, so the text tint is darkened, and brightened again for dark mode.
- * Both were measured rather than judged by eye: 5.32:1 and 6.20:1.
+ * `dark:` normally compiles to `@media (prefers-color-scheme: dark)`, which no
+ * page can override — and this kit ships an appearance setting with three
+ * choices, the third being "follow the system". That third one is only
+ * expressible if the other two are: the script in `layout.tsx` decides, and puts
+ * `.dark` on `<html>` before the first paint.
  */
-@theme {
-  --color-brand: #c9241a;
-  --color-brand-strong: #ff2d20;
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * The palette, as roles rather than colours.
+ *
+ * `bg-card`, `text-muted-foreground`, `border-border` — a page never names a
+ * grey. Both themes then reduce to one block of variables each, and a component
+ * needs no `dark:` variant for its colours at all. The values are the ones
+ * Laravel's starter kits use, in oklch: perceptually even lightness steps, so
+ * `0.97` reads as the same nudge away from white everywhere it is used.
+ *
+ * `--color-brand` is the exception and stays a real colour, because the mark has
+ * one and a token would not make it any less specific.
+ */
+@theme inline {
+  --font-sans:
+    "Instrument Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-brand: var(--brand);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.87 0 0);
+  --radius: 0.625rem;
+
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+
+  /*
+   * `#FF2D20` is the mark's own red. As small **text** on white it measures
+   * 3.54:1 — enough for a graphic, short of the 4.5:1 text needs — so the text
+   * tint is darkened here and brightened again below. Both measured: 5.32:1
+   * and 6.20:1.
+   */
+  --brand: #c9241a;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.145 0 0);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+
+  --brand: #ff5c50;
 }
 
 @layer base {
-  /* Form controls and scrollbars follow the theme, which no utility class can do. */
-  :root {
-    color-scheme: light dark;
+  * {
+    @apply border-border;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --color-brand: #ff5c50;
-    }
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Form controls and scrollbars follow the theme, which no utility class can do. */
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 }

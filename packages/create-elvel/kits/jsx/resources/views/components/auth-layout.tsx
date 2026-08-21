@@ -1,16 +1,19 @@
 import { config } from '@elvel/core'
 import type { Children } from '@kitajs/html'
 import { Layout } from './layout.tsx'
-import { Card } from './ui/card.tsx'
 import { Mark } from './ui/mark.tsx'
 
 /**
  * The shell every page you can reach while signed **out** shares.
  *
- * One layout rather than the three variants Laravel's kits offer. Those exist
- * because those kits are built on a component library and switching is an import
- * swap; here a page is a file you edit, so a second variant would be a copy of
- * this one waiting to fall behind it.
+ * Laravel's kits ship three variants of this — simple, card, split — because
+ * they are built on a component library where switching is an import swap. Here a
+ * page is a file you edit, so a second variant would be a copy of this one
+ * waiting to fall behind it. This is the simple one: a mark, a title, a line of
+ * explanation, and the form, centred in the viewport at `max-w-sm`.
+ *
+ * No card, deliberately. A bordered panel floating on a page with nothing else on
+ * it is a box drawn around empty space; the form is the whole page here.
  */
 export function AuthLayout({
   title,
@@ -27,31 +30,35 @@ export function AuthLayout({
 
   return (
     <Layout title={title}>
-      <div class="flex min-h-dvh flex-col items-center justify-center px-4 py-12">
-        <a
-          class="mb-8 inline-flex items-center gap-2 text-brand transition-opacity hover:opacity-80"
-          href="/"
-        >
-          <Mark />
-          <span class="text-xs font-semibold tracking-[0.22em] uppercase" safe>
-            {name}
-          </span>
-        </a>
+      <div class="flex min-h-dvh flex-col items-center justify-center gap-6 p-6 md:p-10">
+        <div class="w-full max-w-sm">
+          <div class="flex flex-col gap-8">
+            <div class="flex flex-col items-center gap-4">
+              <a
+                class="flex flex-col items-center gap-2 font-medium transition-opacity hover:opacity-80"
+                href="/"
+                aria-label={name}
+              >
+                <span class="mb-1 flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                  <Mark class="size-5" />
+                </span>
+              </a>
 
-        <Card class="w-full max-w-sm">
-          <div class="mb-6 space-y-1.5 text-center">
-            <h1 class="text-xl font-semibold text-neutral-900 dark:text-neutral-50" safe>
-              {heading}
-            </h1>
-            {description ? (
-              <p class="text-sm text-neutral-600 dark:text-neutral-400" safe>
-                {description}
-              </p>
-            ) : null}
+              <div class="space-y-2 text-center">
+                <h1 class="text-xl font-medium" safe>
+                  {heading}
+                </h1>
+                {description ? (
+                  <p class="text-sm text-muted-foreground" safe>
+                    {description}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {children}
           </div>
-
-          {children}
-        </Card>
+        </div>
       </div>
     </Layout>
   )

@@ -81,6 +81,9 @@ const KITS: Record<
       '  .use(Auth/SignInController)',
       '  .use(Auth/VerifyEmailController)',
       '  .use(DashboardController)',
+      // This kit's own, and the only route the auth kit has no use for: a theme
+      // is a Tailwind concern, and the auth kit ships no stylesheet to theme.
+      '  .use(Settings/AppearanceController)',
       '  .use(Settings/PasswordController)',
       '  .use(Settings/ProfileController)',
       '  .use(Settings/SecurityController)'

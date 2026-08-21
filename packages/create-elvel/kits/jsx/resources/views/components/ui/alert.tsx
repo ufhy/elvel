@@ -12,12 +12,18 @@ export type AlertProps = {
   class?: string
 }
 
+/**
+ * Three tones, two of which are the theme's own colours.
+ *
+ * `success` is the exception: nothing in a monochrome palette says "that
+ * worked", so green is named outright — with a `dark:` pair, since it is a real
+ * colour rather than a token that both themes already answer for.
+ */
 const tones = {
-  info: 'border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200',
+  info: 'bg-muted text-muted-foreground',
   success:
-    'border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200',
-  error:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200'
+    'border-green-600/20 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300',
+  error: 'border-destructive/30 bg-destructive/10 text-destructive'
 }
 
 export function Alert({ message, tone = 'info', class: extra }: AlertProps) {
@@ -27,7 +33,7 @@ export function Alert({ message, tone = 'info', class: extra }: AlertProps) {
 
   return (
     <div
-      class={classes('rounded-lg border px-4 py-3 text-sm', tones[tone], extra)}
+      class={classes('rounded-md border px-4 py-3 text-sm', tones[tone], extra)}
       role={tone === 'error' ? 'alert' : 'status'}
       safe
     >

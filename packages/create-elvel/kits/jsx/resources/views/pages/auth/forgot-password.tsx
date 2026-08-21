@@ -37,8 +37,11 @@ export function ForgotPassword({ title, sent }: ForgotPasswordProps) {
         </Button>
       </form>
 
-      <p class="mt-5 text-center text-sm text-neutral-600 dark:text-neutral-400">
-        <a class="text-brand hover:underline" href="/sign-in">
+      <p class="mt-5 text-center text-sm text-muted-foreground">
+        <a
+          class="underline decoration-border underline-offset-4 hover:decoration-current"
+          href="/sign-in"
+        >
           Back to sign in
         </a>
       </p>

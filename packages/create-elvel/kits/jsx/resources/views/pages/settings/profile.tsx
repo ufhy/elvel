@@ -1,10 +1,9 @@
 import { csrfField, methodField } from '@elvel/http'
-import { AppShell } from '../../components/app-shell.tsx'
 import { Alert } from '../../components/ui/alert.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Card, CardHeader } from '../../components/ui/card.tsx'
 import { Input } from '../../components/ui/input.tsx'
-import { SettingsNav } from './nav.tsx'
+import { SettingsLayout } from './nav.tsx'
 
 export type ProfileProps = {
   title: string
@@ -19,9 +18,7 @@ export type ProfileProps = {
 
 export function Profile({ title, name, email, emailVerified, saved, pending }: ProfileProps) {
   return (
-    <AppShell title={title} heading="Settings" user={{ name, email }}>
-      <SettingsNav current="profile" />
-
+    <SettingsLayout title={title} current="profile">
       <div class="space-y-4">
         <Alert message={saved ? 'Saved.' : undefined} tone="success" />
         <Alert
@@ -49,9 +46,12 @@ export function Profile({ title, name, email, emailVerified, saved, pending }: P
             />
 
             {emailVerified ? null : (
-              <p class="text-sm text-neutral-600 dark:text-neutral-400">
+              <p class="text-sm text-muted-foreground">
                 This address is not verified.{' '}
-                <a class="text-brand hover:underline" href="/verify-email">
+                <a
+                  class="underline decoration-border underline-offset-4 hover:decoration-current"
+                  href="/verify-email"
+                >
                   Verify it
                 </a>
               </p>
@@ -61,7 +61,7 @@ export function Profile({ title, name, email, emailVerified, saved, pending }: P
           </form>
         </Card>
 
-        <Card class="border-red-200 dark:border-red-900">
+        <Card class="border-destructive/30">
           <CardHeader
             title="Delete this account"
             description="Everything goes with it, and it cannot be undone."
@@ -85,6 +85,6 @@ export function Profile({ title, name, email, emailVerified, saved, pending }: P
           </form>
         </Card>
       </div>
-    </AppShell>
+    </SettingsLayout>
   )
 }

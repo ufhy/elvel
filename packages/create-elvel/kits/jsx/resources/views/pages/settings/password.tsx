@@ -1,10 +1,9 @@
 import { csrfField, methodField } from '@elvel/http'
-import { AppShell } from '../../components/app-shell.tsx'
 import { Alert } from '../../components/ui/alert.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Card, CardHeader } from '../../components/ui/card.tsx'
 import { Input } from '../../components/ui/input.tsx'
-import { SettingsNav } from './nav.tsx'
+import { SettingsLayout } from './nav.tsx'
 
 export type PasswordProps = {
   title: string
@@ -14,9 +13,7 @@ export type PasswordProps = {
 
 export function Password({ title, saved }: PasswordProps) {
   return (
-    <AppShell title={title} heading="Settings">
-      <SettingsNav current="password" />
-
+    <SettingsLayout title={title} current="password">
       <div class="space-y-4">
         <Alert message={saved ? 'Your password was changed.' : undefined} tone="success" />
 
@@ -56,6 +53,6 @@ export function Password({ title, saved }: PasswordProps) {
           </form>
         </Card>
       </div>
-    </AppShell>
+    </SettingsLayout>
   )
 }

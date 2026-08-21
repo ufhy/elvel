@@ -39,15 +39,21 @@ export function SignIn({ title }: SignInProps) {
         </Button>
       </form>
 
-      <div class="mt-5 space-y-2 text-center text-sm text-neutral-600 dark:text-neutral-400">
+      <div class="mt-5 space-y-2 text-center text-sm text-muted-foreground">
         <p>
-          <a class="text-brand hover:underline" href="/forgot-password">
+          <a
+            class="underline decoration-border underline-offset-4 hover:decoration-current"
+            href="/forgot-password"
+          >
             Forgot your password?
           </a>
         </p>
         <p>
           No account yet?{' '}
-          <a class="text-brand hover:underline" href="/sign-up">
+          <a
+            class="underline decoration-border underline-offset-4 hover:decoration-current"
+            href="/sign-up"
+          >
             Create one
           </a>
         </p>

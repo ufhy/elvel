@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
+import { MemorySessionDriver, Session, withRequestScope } from '@elvel/http'
 
 const root = resolve(import.meta.dir, '..', '..', '..')
 const templateDir = resolve(import.meta.dir, '..', 'template')
@@ -1145,13 +1146,27 @@ describe('the jsx kit', () => {
 
     expect(source).toContain("layers: ['auth', 'jsx']")
 
-    // What it does *not* carry is the point: controllers, models and the config
-    // all come from the layer underneath.
+    // What it does *not* carry is the point: the models, the config and every
+    // controller but one come from the layer underneath.
     const carried = await readdir(kitDir)
 
-    expect(carried).not.toContain('app')
     expect(carried).not.toContain('config')
+    expect(carried).not.toContain('database')
     expect(carried).toContain('resources')
+
+    /**
+     * The single exception, and the reason it is one.
+     *
+     * `Settings/AppearanceController` serves the light/dark/system page, which
+     * only means anything to a kit that ships a stylesheet — so it belongs to
+     * this layer rather than to the auth kit underneath, which has none.
+     */
+    const controllers = new Bun.Glob('app/**/*.ts')
+    const own: string[] = []
+
+    for await (const file of controllers.scan({ cwd: kitDir, onlyFiles: true })) own.push(file)
+
+    expect<string[]>(own).toEqual(['app/Http/Controllers/Settings/AppearanceController.ts'])
   })
 
   test('Tailwind arrives as a dev dependency, through the kit manifest', async () => {
@@ -1201,6 +1216,70 @@ describe('the jsx kit', () => {
     for (const page of ['auth/verify-email.tsx', 'settings/security.tsx']) {
       expect(await Bun.file(join(pages, page)).text()).toContain('<Alert message={error}')
     }
+  })
+
+  /**
+   * Every state-changing form carries a token — checked by rendering one.
+   *
+   * The kit shipped a sign-out button that returned 419 for as long as it has
+   * existed: the form had no `{csrfField()}`, the menu opened, the button
+   * submitted, and the middleware rejected it. Nothing rendered wrong, so
+   * nothing looked wrong — and the tests around it read the file as a string,
+   * where a missing hidden input is exactly as invisible as it is on screen.
+   *
+   * So this one runs it. `AccountMenu` needs a request scope for the token and
+   * nothing else, which is why it is the piece under test.
+   */
+  test('the sign-out form renders a CSRF token', async () => {
+    const { AccountMenu } = await import(
+      join(kitDir, 'resources', 'views', 'components', 'app-sidebar.tsx')
+    )
+
+    const session = await new Session('probe', new MemorySessionDriver(), 'elvel_session').start()
+
+    const markup = await withRequestScope(
+      { request: new Request('http://localhost/dashboard'), session },
+      () => AccountMenu({ user: { name: 'Ada Lovelace', email: 'ada@example.test' } })
+    )
+
+    expect(markup).toContain('action="/sign-out"')
+    expect(markup).toContain('name="_token"')
+    expect(markup).toContain(session.token())
+
+    // And the avatar, which is the other thing this component computes.
+    expect(markup).toContain('AL')
+  })
+
+  /**
+   * The same rule, applied to every form in both kits.
+   *
+   * Rendering each page needs the container; reading each file does not, and a
+   * `method="post"` in a file with no `csrfField()` anywhere is wrong however it
+   * is arranged. This is the net under the rendered test above.
+   */
+  test('no view in any kit posts without a token', async () => {
+    const offenders: string[] = []
+    const kits = resolve(import.meta.dir, '..', 'kits')
+
+    for (const kit of await readdir(kits)) {
+      const views = join(kits, kit, 'resources', 'views')
+
+      // `api` answers JSON and ships no views at all.
+      if ((await readdir(views).catch(() => undefined)) === undefined) continue
+
+      const glob = new Bun.Glob('**/*.tsx')
+
+      for await (const file of glob.scan({ cwd: views, onlyFiles: true })) {
+        const source = await Bun.file(join(views, file)).text()
+
+        if (!source.includes('method="post"')) continue
+        if (source.includes('csrfField()')) continue
+
+        offenders.push(`${kit}/${file}`)
+      }
+    }
+
+    expect<string[]>(offenders).toEqual([])
   })
 
   test('the field names match the controllers underneath', async () => {
