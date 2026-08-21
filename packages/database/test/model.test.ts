@@ -1948,15 +1948,29 @@ describe('small model-layer completions', () => {
 
   test('Model.observe subscribes one class to the lifecycle', async () => {
     const seen: string[] = []
+
+    /**
+     * Keyed on the **dispatched name**, as the real dispatcher is.
+     *
+     * This stub used to read the event object's own `name` field instead. The
+     * real dispatcher names a class-based event from its *constructor's* statics,
+     * so `ModelEvent`'s `static eventName` renamed every lifecycle event to
+     * `model` and `observe()` subscribed to names nothing dispatched. The stub
+     * agreed with the intention and disagreed with the dispatcher, which is the
+     * one thing a fake must never do — so it takes the name the same way now.
+     *
+     * `@elvel/database` does not depend on `@elvel/events`, which is why this is
+     * a stub at all; `playground/test` runs the same thing against the real
+     * dispatcher, where both packages are registered.
+     */
     const listeners = new Map<string, (payload: unknown) => unknown>()
 
     Model.setEventDispatcher({
       listen: (event: string, listener: (payload: unknown) => unknown) => {
         listeners.set(event, listener)
       },
-      dispatch: async (event: { name?: string }) => {
-        const listener = listeners.get(String(event.name))
-        if (listener) await listener(event)
+      dispatch: async (event: string, payload: unknown) => {
+        await listeners.get(event)?.(payload)
 
         return []
       }
