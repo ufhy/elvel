@@ -70,3 +70,35 @@ Deliberately not unit-tested:
 - `command.ts` accessors — exercised through the kernel and generator tests
   rather than in isolation.
 - `str.ts` inflection edge cases beyond the common forms.
+
+## Testing a generator, not the query layer
+
+Two bugs have hidden behind the same mistake, so it is worth stating as a rule.
+
+A suite that **constructs** the schema it wants to test proves the query layer and
+nothing about the code that generates schemas. The auth adapter's dialect tests
+built their tables by hand with `blueprint.text('token')`, so the migration
+`auth:schema` actually writes had never been executed against MySQL — only
+rendered and string-matched. It turned out to be illegal there:
+`BLOB/TEXT column 'token' used in key specification without a key length`, for
+every application, on the second table.
+
+The same shape produced the other one: a stub that dispatched events by the
+object's own `name` field rather than the way the real dispatcher does, which hid
+`Model.observe()` doing nothing at all.
+
+So when the thing under test is a generator:
+
+- write what it generated to disk, import it, and **run** it
+- write it inside the workspace, or its own imports will not resolve
+- exercise the reverse too — `down()` is half of what makes a migration
+  deployable
+- go through the real adapter, not the query builder underneath it. A raw insert
+  bypasses the conversions each dialect needs; the first version of the plugin
+  test handed sqlite a `Date` and got
+  `Binding expected string, TypedArray, boolean, number, bigint or null`
+
+And when a package cannot depend on what it needs to test against — as
+`@elvel/database` cannot depend on `@elvel/events` — the stub belongs there and
+the agreement belongs in `playground/test`, where every provider is really
+registered.

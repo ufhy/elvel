@@ -1,5 +1,15 @@
 # Starter kits
 
+::: tip These are scaffolding, not Laravel's starter kits
+Worth saying plainly. Laravel's kits ship a whole frontend — React, Vue, Svelte or
+Livewire, a component library, a dashboard, team management, two-factor screens,
+and two layouts with three variants each. These are thinner: `auth` ships
+server-rendered auth pages and a dashboard, and `none` and `api` are closer to
+variants of one template. There is no component library, no teams, and no
+two-factor page — though the [plugin](/security/authentication#adding-a-better-auth-plugin)
+that provides two-factor is two lines away.
+:::
+
 A kit is a folder copied **over** the base template, not a fork of it. Everything
 a kit does not mention it inherits, so the base and the kits cannot drift the way
 two full templates would — Laravel's Breeze installs into an existing application

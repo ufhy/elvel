@@ -70,6 +70,86 @@ better-auth ships nothing enabled by default. A sign-up route that 404s usually
 means `emailAndPassword.enabled` is not set, not that something is broken.
 :::
 
+## Adding a better-auth plugin
+
+Two lines. `config/auth.ts` passes everything it does not recognise straight to
+better-auth, so a plugin goes in there and the framework does not need to know
+about it:
+
+```ts
+// config/auth.ts
+import { twoFactor } from 'better-auth/plugins'
+
+export default {
+  // …
+  plugins: [twoFactor()]
+}
+```
+
+```bash
+bun elvel auth:schema
+bun elvel migrate
+```
+
+`auth:schema` asks the built better-auth instance for its schema rather than
+carrying a list of tables, so a plugin's contribution arrives on its own. Both
+shapes it can take are handled:
+
+```ts
+await schema.create('user', (table) => {
+  // …
+  table.boolean('twoFactorEnabled').nullable()   // a column on a table it does not own
+})
+
+await schema.create('twoFactor', (table) => {    // and a table of its own
+  table.string('id').primary()
+  table.string('secret').index()
+  table.text('backupCodes')
+  table.string('userId').index()
+  // …
+})
+```
+
+Then the plugin's endpoints are live under `basePath`:
+
+```
+POST /api/auth/two-factor/enable  →  200
+{"totpURI":"otpauth://totp/…?secret=GFBGGQ…&digits=6&period=30",
+ "backupCodes":["1X2Hq-Zr6l5","e0cdS-ryei8", …]}
+```
+
+Run `auth:schema` again after adding a second plugin: it writes a migration for
+the **difference**, not the whole schema again.
+
+### Three things to know
+
+**The pages are still yours to write.** A plugin gives you endpoints, not a UI.
+The auth kit ships sign-in, sign-up, reset, verification and settings pages; a
+two-factor challenge screen is not among them, so enabling the plugin gives you a
+working API and a page you have to build.
+
+**`config:cache` will skip that file.** A plugin is an object holding functions,
+and a cached config is JSON. `optimize` says so rather than freezing something
+wrong:
+
+```
+config/auth.ts holds a function at [auth.plugins.0] — read live.
+```
+
+Everything else stays cached; that one file is read at boot.
+
+**Rename the plugin's table if it collides.** A plugin's table takes its own name
+— `twoFactor`, not prefixed — and it accepts an override the same way the core
+tables do:
+
+```ts
+twoFactor({ schema: { twoFactor: { modelName: 'user_two_factor' } } })
+```
+
+Plugin schemas are tested against SQLite, Postgres and MySQL on every push, by
+generating the migration and **running** it — which is how a `text` column
+carrying a unique constraint was found to be illegal in MySQL.
+
 ## Reading the current user
 
 ```ts
