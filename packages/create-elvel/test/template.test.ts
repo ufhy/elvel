@@ -1140,3 +1140,41 @@ describe('the jsx kit', () => {
     expect(password).not.toContain('name="current_password"')
   })
 })
+
+/**
+ * Inside the checkout is not the same as inside a workspace.
+ *
+ * `workspace:*` resolves for a directory one of the root manifest's `workspaces`
+ * globs matches, and nowhere else. Being anywhere under the checkout was treated
+ * as enough, so a scaffold in a scratch directory declared `workspace:*`, was
+ * ignored by the root install, got no `node_modules` of its own, and could not
+ * install at all — `error: @elvel/view@workspace:* failed to resolve`.
+ *
+ * The server still started, because module resolution walks up to the root's
+ * `node_modules`, so the break only surfaced at `bun run build`, which needs a
+ * local `node_modules/.bin`.
+ */
+describe('workspace mode', () => {
+  test('it asks the root manifest which directories are workspaces', async () => {
+    const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
+
+    expect(source).toContain('isWorkspaceMember')
+    expect(source).toContain('workspaces')
+
+    // `inside` alone is what was wrong; it must now be one condition of two.
+    expect(source).toContain('inside && (await isWorkspaceMember(')
+  })
+
+  test('the globs it checks against really are the repository', async () => {
+    const manifest = (await Bun.file(join(root, 'package.json')).json()) as {
+      workspaces: string[]
+    }
+
+    // `apps/*` is where the scaffolder tells people to put a local application,
+    // so it had better be a workspace.
+    expect(manifest.workspaces).toContain('apps/*')
+
+    // And a scratch directory is deliberately not one.
+    expect(manifest.workspaces).not.toContain('.demo/*')
+  })
+})
