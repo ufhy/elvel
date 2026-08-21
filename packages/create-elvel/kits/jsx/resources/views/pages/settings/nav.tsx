@@ -3,12 +3,19 @@ import type { Children } from '@kitajs/html'
 import { AppShell } from '../../components/app-shell.tsx'
 import { Heading, Separator } from '../../components/ui/card.tsx'
 
-export type SettingsPage = 'profile' | 'password' | 'two-factor' | 'security' | 'appearance'
+export type SettingsPage =
+  | 'profile'
+  | 'password'
+  | 'two-factor'
+  | 'passkeys'
+  | 'security'
+  | 'appearance'
 
 const pages = [
   ['profile', '/settings/profile', 'Profile'],
   ['password', '/settings/password', 'Password'],
   ['two-factor', '/settings/two-factor', 'Two-factor'],
+  ['passkeys', '/settings/passkeys', 'Passkeys'],
   ['security', '/settings/security', 'Security'],
   ['appearance', '/settings/appearance', 'Appearance']
 ] as const

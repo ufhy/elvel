@@ -61,6 +61,7 @@ const KITS: Record<
       '  .use(Auth/TwoFactorChallengeController)',
       '  .use(Auth/VerifyEmailController)',
       '  .use(DashboardController)',
+      '  .use(Settings/PasskeyController)',
       '  .use(Settings/PasswordController)',
       '  .use(Settings/ProfileController)',
       '  .use(Settings/SecurityController)',
@@ -87,6 +88,7 @@ const KITS: Record<
       // This kit's own, and the only route the auth kit has no use for: a theme
       // is a Tailwind concern, and the auth kit ships no stylesheet to theme.
       '  .use(Settings/AppearanceController)',
+      '  .use(Settings/PasskeyController)',
       '  .use(Settings/PasswordController)',
       '  .use(Settings/ProfileController)',
       '  .use(Settings/SecurityController)',
@@ -123,6 +125,7 @@ const RENAMES: Record<string, string> = {
   '_authentication.ts': 'authentication.test.ts',
   '_registration.ts': 'registration.test.ts',
   '_two-factor.ts': 'two-factor.test.ts',
+  '_passkeys.ts': 'passkeys.test.ts',
   '_profile.ts': 'profile.test.ts'
 }
 

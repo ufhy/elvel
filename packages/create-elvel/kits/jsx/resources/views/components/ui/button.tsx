@@ -23,6 +23,15 @@ export type ButtonProps = {
   value?: string
   disabled?: boolean
   class?: string
+  /**
+   * Data attributes, for a behaviour the page wires up in JavaScript.
+   *
+   * A component only renders the props it names, and an unknown `data-…` handed
+   * to this one was silently dropped — which is how the passkey button came to sit
+   * on the settings page looking finished while the script that listens for
+   * `data-passkey` never saw it. Nothing about the button said so.
+   */
+  data?: Record<string, string>
 }
 
 const base =
@@ -51,20 +60,34 @@ export function Button({
   name,
   value,
   disabled,
-  class: extra
+  class: extra,
+  data
 }: ButtonProps) {
   const className = classes(base, variants[variant], sizes[size], extra)
 
+  // `data-x` rather than `x`: the keys are given without the prefix, so a page
+  // writes `data={{ passkey: 'register' }}` and reads it back as `dataset.passkey`.
+  const attributes = Object.fromEntries(
+    Object.entries(data ?? {}).map(([key, value]) => [`data-${key}`, value])
+  )
+
   if (href !== undefined) {
     return (
-      <a class={className} href={href}>
+      <a class={className} href={href} {...attributes}>
         {children}
       </a>
     )
   }
 
   return (
-    <button class={className} type={type} name={name} value={value} disabled={disabled}>
+    <button
+      class={className}
+      type={type}
+      name={name}
+      value={value}
+      disabled={disabled}
+      {...attributes}
+    >
       {children}
     </button>
   )

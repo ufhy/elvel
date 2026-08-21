@@ -2,12 +2,13 @@
 export function SettingsNav({
   current
 }: {
-  current: 'profile' | 'password' | 'security' | 'two-factor'
+  current: 'profile' | 'password' | 'security' | 'two-factor' | 'passkeys'
 }) {
   const pages = [
     ['profile', '/settings/profile', 'Profile'],
     ['password', '/settings/password', 'Password'],
     ['two-factor', '/settings/two-factor', 'Two-factor'],
+    ['passkeys', '/settings/passkeys', 'Passkeys'],
     ['security', '/settings/security', 'Security']
   ] as const
 
