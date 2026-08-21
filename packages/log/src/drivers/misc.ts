@@ -1,4 +1,5 @@
-import type { LogDriver, LogRecord } from '@elvel/contracts'
+import type { LogDriver, LogLevel, LogRecord } from '@elvel/contracts'
+import { isHandling } from '../levels.ts'
 
 /** Discards everything — Laravel's `null` driver, and the default under tests. */
 export class NullDriver implements LogDriver {
@@ -22,12 +23,24 @@ export class MemoryDriver implements LogDriver {
 
 /** Fans one record out to several drivers — the `stack` driver. */
 export class StackDriver implements LogDriver {
-  constructor(private readonly drivers: LogDriver[]) {}
+  /**
+   * Members carry their **own** level, which is why these are not bare drivers.
+   *
+   * A level is enforced by the `Logger`, not by the driver underneath it. Handed
+   * drivers, a stack therefore discarded every member's threshold and applied
+   * only its own — so a `json` channel configured at `warning` still wrote the
+   * `info` lines it was reached with. That is the default path in a scaffolded
+   * application, where `stack` is the default channel, so the levels in
+   * `config/logging.ts` were being ignored wherever anybody actually set them.
+   */
+  constructor(private readonly members: Array<{ level?: LogLevel; driver: LogDriver }>) {}
 
   async write(record: LogRecord): Promise<void> {
     // Sequential, so a stack of file drivers keeps a deterministic order.
-    for (const driver of this.drivers) {
-      await driver.write(record)
+    for (const member of this.members) {
+      if (!isHandling(record.level, member.level ?? 'debug')) continue
+
+      await member.driver.write(record)
     }
   }
 }

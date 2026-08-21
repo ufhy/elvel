@@ -104,7 +104,7 @@ export class LogManager implements LoggerContract {
   stack(channels: string[], name = 'stack'): Logger {
     return new Logger({
       channel: name,
-      driver: new StackDriver(channels.map((channel) => this.driverFor(channel))),
+      driver: new StackDriver(channels.map((channel) => this.member(channel))),
       context: this.shared,
       dispatcher: this.dispatcher()
     })
@@ -173,6 +173,24 @@ export class LogManager implements LoggerContract {
     })
   }
 
+  /**
+   * One member of a stack: its driver, and the level **it** was configured with.
+   *
+   * A level is enforced by the `Logger`, not by the driver, so a stack built from
+   * bare drivers silently discarded every member's threshold — a `json` channel
+   * set to `warning` still wrote the `info` lines the stack was reached with.
+   * `stack` is the default channel in a scaffolded application, so that was the
+   * ordinary path, and the levels in `config/logging.ts` were ignored wherever
+   * anybody had actually set one.
+   */
+  private member(channel: string): { level?: LogLevel; driver: LogDriver } {
+    const level = this.app.config.get<ChannelConfig | undefined>(
+      `logging.channels.${channel}`
+    )?.level
+
+    return { level, driver: this.driverFor(channel) }
+  }
+
   /** The resolved driver for a channel. Public so a test can read what it kept. */
   driverFor(name: string, config?: ChannelConfig): LogDriver {
     const resolved =
@@ -209,7 +227,7 @@ export class LogManager implements LoggerContract {
           throw new Error(`Log stack [${name}] cannot include itself.`)
         }
 
-        return new StackDriver(channels.map((channel) => this.driverFor(channel)))
+        return new StackDriver(channels.map((channel) => this.member(channel)))
       }
 
       case 'errorlog':
