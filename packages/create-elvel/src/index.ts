@@ -307,7 +307,7 @@ async function main(): Promise<number> {
   const wanted =
     setUp ?? (requestedKit === undefined && positional.length === 0 ? await confirmSetUp() : false)
 
-  if (wanted && (await setUpProject(installRoot, target, kit as string))) {
+  if (wanted && (await setUpProject(installRoot, target))) {
     if (workspaceMode) {
       prompts.log.info('Created as a workspace member — framework packages link by symlink.')
     }
@@ -319,8 +319,8 @@ async function main(): Promise<number> {
   }
 
   const start = [
-    ...(kit === 'auth' || kit === 'api' ? ['bun elvel auth:schema'] : []),
-    'bun elvel migrate',
+    ...((await dependsOn(target, '@elvel/auth')) ? ['bun elvel auth:schema'] : []),
+    ...((await dependsOn(target, '@elvel/database')) ? ['bun elvel migrate'] : []),
     // Once, so the manifest exists and the pages carry their assets. While
     // working on them, `bun run dev:assets` in a second terminal is the
     // hot-reloading version.
@@ -368,7 +368,7 @@ async function confirmSetUp(): Promise<boolean> {
  * is not registered, and running it would report an unknown command as though
  * something had gone wrong.
  */
-async function setUpProject(installRoot: string, target: string, kit: string): Promise<boolean> {
+async function setUpProject(installRoot: string, target: string): Promise<boolean> {
   const spinner = prompts.spinner()
 
   const run = async (label: string, cwd: string, argv: string[]): Promise<boolean> => {
@@ -392,10 +392,15 @@ async function setUpProject(installRoot: string, target: string, kit: string): P
 
   if (!(await run('Installing dependencies', installRoot, ['bun', 'install']))) return false
 
-  // Both auth kits need better-auth's tables, and both leave them to be
-  // generated rather than shipping a migration: what the tables are depends on
-  // the options and plugins in `config/auth.ts`.
-  if (kit === 'auth' || kit === 'api') {
+  /**
+   * Any kit with auth needs better-auth's tables, and none of them ship a
+   * migration for them: what the tables are depends on the options and plugins in
+   * `config/auth.ts`, so they are generated.
+   *
+   * Asked of the manifest rather than of the kit's name — the two kits this used
+   * to name by hand became three, and the third was skipped in silence.
+   */
+  if (await dependsOn(target, '@elvel/auth')) {
     if (!(await run('Writing the auth tables', target, ['bun', 'elvel.ts', 'auth:schema']))) {
       return false
     }
@@ -669,6 +674,28 @@ async function pruneConfig(target: string, present: Set<string>): Promise<void> 
       .filter((line) => !removed.some((name) => line.includes(`import('../config/${name}.ts')`)))
       .join('\n')
   )
+}
+
+/**
+ * Does the scaffolded application depend on this package?
+ *
+ * Asked rather than inferred from the kit's name. Two places used to compare
+ * `kit === 'auth' || kit === 'api'` to decide whether `auth:schema` was needed,
+ * and adding a third kit that needs it — `jsx` — silently skipped both: the
+ * printed steps told people to run `migrate` first, which answered
+ * `Nothing to migrate` because the auth tables are generated rather than
+ * shipped, and the automatic setup never generated them at all.
+ *
+ * `pruneDependencies` already works this way for the same reason: a fourth kit
+ * gets it for free, and a kit that starts using something gets the behaviour the
+ * moment it does.
+ */
+async function dependsOn(target: string, name: string): Promise<boolean> {
+  const manifest = (await Bun.file(join(target, 'package.json'))
+    .json()
+    .catch(() => undefined)) as { dependencies?: Record<string, string> } | undefined
+
+  return manifest?.dependencies?.[name] !== undefined
 }
 
 /**
