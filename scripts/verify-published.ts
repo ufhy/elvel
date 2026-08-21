@@ -61,6 +61,56 @@ async function published(name: string, wanted: string): Promise<boolean> {
   return answer?.ok === true
 }
 
+/**
+ * Wait for every package, not just the scaffolder.
+ *
+ * `npm publish` returns before a version is visible everywhere, and this runs
+ * seconds later in the same job. On `alpha.10` it failed with seventy-six
+ * problems that were all one thing: `No version matching "^1.0.0-alpha.10" found
+ * for specifier "@elvel/cache" (but package exists)` — the package was there and
+ * the version was not, yet. Running the same script by hand two minutes later
+ * passed.
+ *
+ * So the check waits, and says what it is waiting for. Checking the scaffolder
+ * alone is not enough: `create-elvel` appears first and then asks for
+ * twenty-six others, so the one that lags is never the one that was asked about.
+ */
+async function waitForPropagation(names: string[], version: string): Promise<string[]> {
+  const deadline = Date.now() + 5 * 60_000
+  let pending = names
+
+  while (pending.length > 0 && Date.now() < deadline) {
+    const answers = await Promise.all(pending.map((name) => published(name, version)))
+    const missing = pending.filter((_, index) => !answers[index])
+
+    if (missing.length === 0) return []
+
+    console.log(`  waiting for ${missing.length} package(s) to appear: ${missing.join(', ')}`)
+
+    pending = missing
+    await Bun.sleep(15_000)
+  }
+
+  return pending
+}
+
+/** Every `@elvel/*` package plus the scaffolder, from the workspace manifests. */
+async function everyPackage(): Promise<string[]> {
+  const { readdir } = await import('node:fs/promises')
+  const directories = await readdir('packages')
+  const names: string[] = []
+
+  for (const directory of directories) {
+    const manifest = await readJson<{ name?: string; private?: boolean }>(
+      join('packages', directory, 'package.json')
+    ).catch(() => undefined)
+
+    if (manifest?.name && manifest.private !== true) names.push(manifest.name)
+  }
+
+  return names
+}
+
 type Manifest = { dependencies?: Record<string, string> }
 
 async function checkKit(kit: string, workspace: string, port: number): Promise<string[]> {
@@ -190,6 +240,16 @@ if (!(await published('create-elvel', version))) {
   console.error(
     `create-elvel@${version} is not on the registry, so there is nothing to install.\n` +
       'This runs after publishing, deliberately — it cannot check a version that does not exist.'
+  )
+  process.exit(1)
+}
+
+const late = await waitForPropagation(await everyPackage(), version)
+
+if (late.length > 0) {
+  console.error(
+    `\n${late.length} package(s) never appeared at ${version} within five minutes: ${late.join(', ')}\n` +
+      'Either the publish did not reach them, or the registry is slower than this is willing to wait.'
   )
   process.exit(1)
 }
