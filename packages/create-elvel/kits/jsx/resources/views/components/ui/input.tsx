@@ -11,6 +11,14 @@ import { classes } from '@elvel/view'
  */
 export type InputProps = {
   name: string
+  /**
+   * The element id, when it cannot be the field name.
+   *
+   * Two forms on one page can want the same field — the two-factor challenge
+   * posts `code` to one route and a recovery `code` to another — and two elements
+   * sharing an id means a label pointing at whichever the browser found first.
+   */
+  id?: string
   type?: 'text' | 'email' | 'password' | 'url' | 'number'
   label?: string
   placeholder?: string
@@ -24,6 +32,7 @@ export type InputProps = {
 
 export function Input({
   name,
+  id = name,
   type = 'text',
   label,
   placeholder,
@@ -39,7 +48,7 @@ export function Input({
   return (
     <div class={classes('grid gap-2', extra)}>
       {label ? (
-        <label class="text-sm leading-none font-medium" for={name}>
+        <label class="text-sm leading-none font-medium" for={id}>
           {label}
         </label>
       ) : null}
@@ -53,7 +62,7 @@ export function Input({
           'disabled:cursor-not-allowed disabled:opacity-50',
           message ? 'border-destructive ring-destructive/20' : 'border-input'
         )}
-        id={name}
+        id={id}
         name={name}
         type={type}
         value={filled}
@@ -61,11 +70,11 @@ export function Input({
         required={required}
         autocomplete={autocomplete}
         aria-invalid={message ? 'true' : undefined}
-        aria-describedby={message ? `${name}-error` : undefined}
+        aria-describedby={message ? `${id}-error` : undefined}
       />
 
       {message ? (
-        <p class="text-sm text-destructive" id={`${name}-error`} safe>
+        <p class="text-sm text-destructive" id={`${id}-error`} safe>
           {message}
         </p>
       ) : null}

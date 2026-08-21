@@ -585,17 +585,39 @@ describe('what a scaffolded application installs', () => {
     }
   })
 
-  test('nothing is kept that the template did not offer', async () => {
+  /**
+   * Nothing appears from nowhere.
+   *
+   * Two places may put a runtime dependency in a scaffolded manifest: the
+   * template, which lists the union of what any kit might import, and a kit's own
+   * `manifest.json` — which is how the auth kits get `uqr` to draw a QR code for
+   * the two-factor page, a package no other kit has any use for.
+   *
+   * Anything else means the prune kept a name that nobody declared, which is how
+   * an application ends up installing something it cannot resolve.
+   */
+  test('nothing is kept that neither the template nor a kit offered', async () => {
     const template = (await Bun.file(resolve(templateDir, '_package.json')).json()) as {
       dependencies: Record<string, string>
     }
 
     const offered = new Set(Object.keys(template.dependencies))
+    const kits = resolve(import.meta.dir, '..', 'kits')
+
+    for (const kit of await readdir(kits)) {
+      const manifest = Bun.file(join(kits, kit, 'manifest.json'))
+
+      if (!(await manifest.exists())) continue
+
+      const declared = (await manifest.json()) as { dependencies?: Record<string, string> }
+
+      for (const name of Object.keys(declared.dependencies ?? {})) offered.add(name)
+    }
 
     for (const kit of ['none', 'auth', 'api']) {
       for (const name of Object.keys(await dependencies(kit))) {
         expect<string>(`${kit}: ${name}`).toBe(
-          offered.has(name) ? `${kit}: ${name}` : `${kit}: not offered by the template`
+          offered.has(name) ? `${kit}: ${name}` : `${kit}: declared by nobody`
         )
       }
     }
@@ -1127,6 +1149,33 @@ describe('branding', () => {
 
     expect(mark).toContain('currentColor')
     expect(mark).not.toContain('#FF2D20')
+  })
+})
+
+/**
+ * Third-party versions in the template, against what this repository tests with.
+ *
+ * The framework packages get their range computed — `workspace:*` inside the
+ * checkout, `^<installer version>` outside it — but a third-party pin is a
+ * literal somebody typed. `better-auth` sat at `1.6.27` while the repository had
+ * moved to 1.7.1, which is worse than it sounds: the plugins and responses the
+ * auth kits are written against are 1.7's, so a scaffolded application installed
+ * a version its own pages did not match, and nothing here noticed.
+ */
+describe('the versions the template pins', () => {
+  test('better-auth matches the one the framework is tested against', async () => {
+    const template = (await Bun.file(join(templateDir, '_package.json')).json()) as {
+      dependencies: Record<string, string>
+    }
+
+    const repository = (await Bun.file(join(root, 'package.json')).json()) as {
+      dependencies: Record<string, string>
+    }
+
+    const pinned = repository.dependencies['better-auth']
+
+    expect(pinned).toBeDefined()
+    expect(template.dependencies['better-auth']).toBe(pinned)
   })
 })
 

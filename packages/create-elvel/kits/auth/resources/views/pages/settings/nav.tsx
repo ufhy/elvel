@@ -1,8 +1,13 @@
-/** The three settings pages, with the current one marked. */
-export function SettingsNav({ current }: { current: 'profile' | 'password' | 'security' }) {
+/** The settings pages, with the current one marked. */
+export function SettingsNav({
+  current
+}: {
+  current: 'profile' | 'password' | 'security' | 'two-factor'
+}) {
   const pages = [
     ['profile', '/settings/profile', 'Profile'],
     ['password', '/settings/password', 'Password'],
+    ['two-factor', '/settings/two-factor', 'Two-factor'],
     ['security', '/settings/security', 'Security']
   ] as const
 

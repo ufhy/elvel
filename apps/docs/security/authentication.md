@@ -135,9 +135,10 @@ the **difference**, not the whole schema again.
 ### Three things to know
 
 **The pages are still yours to write.** A plugin gives you endpoints, not a UI.
-The auth kit ships sign-in, sign-up, reset, verification and settings pages; a
-two-factor challenge screen is not among them, so enabling the plugin gives you a
-working API and a page you have to build.
+The auth kits are the exception for exactly one plugin: `twoFactor` is enabled in
+their `config/auth.ts` and they ship the three pages it needs — enrolment with a
+QR code, the recovery codes, and the challenge a sign-in lands on. Every other
+plugin gives you a working API and a page you have to build.
 
 **`config:cache` will skip that file.** A plugin is an object holding functions,
 and a cached config is JSON. `optimize` says so rather than freezing something

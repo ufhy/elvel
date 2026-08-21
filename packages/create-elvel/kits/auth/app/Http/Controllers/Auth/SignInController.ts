@@ -47,6 +47,20 @@ export default controller('auth-sign-in')
           .toResponse()
       }
 
+      /**
+       * A 200 that is not a sign-in.
+       *
+       * With two-factor enabled on the account, better-auth answers
+       * `{ twoFactorRedirect: true }` — no session, and a short-lived
+       * `better-auth.two_factor` cookie instead. `withSession` copies every
+       * cookie it set, which matters here: the answer *clears* the session
+       * cookies and sets the two-factor one, and dropping any of the three
+       * leaves somebody stuck on a challenge page that cannot identify them.
+       */
+      if (((await answer.clone().json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect) {
+        return withSession(answer, await redirect('/two-factor-challenge').seeOther().toResponse())
+      }
+
       return withSession(answer, await redirect('/dashboard').seeOther().toResponse())
     },
     {
