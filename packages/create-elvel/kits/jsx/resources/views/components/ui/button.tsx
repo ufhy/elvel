@@ -1,16 +1,22 @@
 import { classes } from '@elvel/view'
+import type { Children } from '@kitajs/html'
 
 /**
  * A button, or a link that looks like one.
  *
  * `href` rather than a second component: the two differ by one tag, and every
  * duplicated variant afterwards is a place for them to drift apart.
+ *
+ * The shape is Laravel's — a `rounded-md` control the height of a form field, so
+ * a button next to an input lines up with it. The colours are roles rather than
+ * greys, which is why no variant here carries a `dark:` class.
  */
 export type ButtonProps = {
-  children?: JSX.Element
+  /** `Children` rather than `JSX.Element`: a child may be an async component. */
+  children?: Children
   /** `primary` is filled; `quiet` is a link carrying the same padding. */
   variant?: 'primary' | 'secondary' | 'quiet' | 'danger'
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'icon'
   href?: string
   type?: 'button' | 'submit'
   name?: string
@@ -20,22 +26,21 @@ export type ButtonProps = {
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ' +
-  'disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium ' +
+  'whitespace-nowrap transition-colors outline-none ' +
+  // The brand's one appearance outside the mark. A ring is a graphic, which is
+  // the contrast bracket this red actually clears — see resources/css/app.css.
+  'focus-visible:ring-[3px] focus-visible:ring-brand/40 ' +
+  'disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4'
 
 const variants = {
-  // The mark's own red, used as a shape — the one place it is bright enough to
-  // be right. See the note in resources/css/app.css.
-  primary: 'bg-brand-strong text-white hover:bg-brand',
-  secondary:
-    'border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 ' +
-    'dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800',
-  quiet: 'text-neutral-600 hover:text-brand dark:text-neutral-300 dark:hover:text-brand',
-  danger: 'bg-red-600 text-white hover:bg-red-700'
+  primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  secondary: 'border border-border bg-background hover:bg-accent hover:text-accent-foreground',
+  quiet: 'hover:bg-accent hover:text-accent-foreground',
+  danger: 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
 }
 
-const sizes = { sm: 'px-3 py-1.5 text-sm', md: 'px-5 py-2.5 text-sm' }
+const sizes = { sm: 'h-8 px-3', md: 'h-9 px-4', icon: 'size-9' }
 
 export function Button({
   children,

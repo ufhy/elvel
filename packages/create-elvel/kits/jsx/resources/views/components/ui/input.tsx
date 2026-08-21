@@ -37,21 +37,21 @@ export function Input({
   const filled = value ?? (keepValue ? old(name) : '')
 
   return (
-    <div class={classes('space-y-1.5', extra)}>
+    <div class={classes('grid gap-2', extra)}>
       {label ? (
-        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-200" for={name}>
+        <label class="text-sm leading-none font-medium" for={name}>
           {label}
         </label>
       ) : null}
 
       <input
         class={classes(
-          'block w-full rounded-lg border bg-white px-3 py-2 text-sm text-neutral-900',
-          'placeholder:text-neutral-400 focus:outline-2 focus:outline-offset-0 focus:outline-brand',
-          'dark:bg-neutral-900 dark:text-neutral-100',
-          message
-            ? 'border-red-500 dark:border-red-500'
-            : 'border-neutral-300 dark:border-neutral-700'
+          'h-9 w-full rounded-md border bg-transparent px-3 py-1 text-base shadow-xs',
+          'transition-[color,box-shadow] outline-none md:text-sm',
+          'placeholder:text-muted-foreground',
+          'focus-visible:ring-[3px] focus-visible:ring-brand/40',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          message ? 'border-destructive ring-destructive/20' : 'border-input'
         )}
         id={name}
         name={name}
@@ -65,7 +65,7 @@ export function Input({
       />
 
       {message ? (
-        <p class="text-sm text-red-600 dark:text-red-400" id={`${name}-error`} safe>
+        <p class="text-sm text-destructive" id={`${name}-error`} safe>
           {message}
         </p>
       ) : null}

@@ -33,7 +33,7 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 | `none` | 41 | 9 | 1 |
 | `api` | 54 | 15 | 1 |
 | `auth` | 76 | 16 | 12 |
-| `jsx` | 84 | 16 | 12 |
+| `jsx` | 90 | 16 | 13 |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -49,27 +49,73 @@ starting point for something whose shape you do not know yet.
 
 ## `jsx` — the one with Tailwind
 
-The auth kit's pages, styled with Tailwind, plus a component set and a dashboard
-shell:
+The auth kit's pages, styled with Tailwind. The look is Laravel's own starter
+kits: a fixed sidebar with the account menu at the foot of it, breadcrumbs in the
+header, settings as a column of pages next to a form, and an appearance setting
+with light, dark and system.
 
 ```
 resources/views/
   components/
     layout.tsx        the document
     auth-layout.tsx   what a signed-out page sits in
-    app-shell.tsx     sidebar + header, for signed-in pages
+    app-shell.tsx     sidebar + header + page, for signed-in pages
+    app-sidebar.tsx   nav, footer links, account menu
+    app-header.tsx    breadcrumbs, and the nav below `md`
     ui/
-      alert.tsx  button.tsx  card.tsx  input.tsx  mark.tsx
+      alert.tsx  button.tsx  card.tsx  icon.tsx  input.tsx
+      mark.tsx  placeholder-pattern.tsx
   pages/
     welcome.tsx  dashboard.tsx  auth/*  settings/*
+resources/js/
+    app.ts            the appearance choice, and closing a menu
 ```
 
-Five components, not a library. They are the pieces these twelve pages actually
-use, they live in your application, and you edit them.
+A component set, not a component library. These are the pieces these thirteen
+pages actually use, they live in your application, and you edit them — there is
+no `npx shadcn add` and nothing to eject from.
 
-`Input` is the one worth looking at: it reads `errors()` and `old()` itself, so a
-rejected form keeps what was typed and shows why without the page threading
-anything through — and a password is never repopulated.
+Three of them read the request rather than taking props, for the same reason
+Laravel's kits reach for a hook:
+
+- `Input` reads `errors()` and `old()`, so a rejected form keeps what was typed
+  and says why without the page threading anything through — and a password is
+  never repopulated.
+- `AppSidebar` reads `user()` for the account menu and the request's own path for
+  the active link, so no page has to remember to hand either over.
+
+### Colours are roles, not greys
+
+`resources/css/app.css` defines the palette once as tokens — `bg-card`,
+`text-muted-foreground`, `border-border`, `bg-sidebar` — in the same oklch values
+Laravel's kits use. A page never names a grey, and no component needs a `dark:`
+variant for its colours: light and dark are two blocks of variables in that one
+file.
+
+The brand red survives in exactly two places, the mark and the focus ring, and
+the note in that file explains why its text tint is not the logo's red.
+
+### Dark mode, without the flash
+
+`dark:` compiles to a class here — `@custom-variant dark (&:is(.dark *))` — not to
+`prefers-color-scheme`, because "follow the system" is only one of three choices
+the appearance page offers. The choice lives in `localStorage`: `resources/js/app.ts`
+writes it, and a small **inline** script in `layout.tsx` reads it and sets the
+class before the first paint. Inline is the whole trick — a `type="module"`
+script is deferred until after the document parses, which is after the browser
+has already painted a white page.
+
+So there is no route to submit and nothing stored on the account: a theme is a
+fact about this browser, and asking the server for it would cost a round trip and
+a white flash on every page load.
+
+### Menus without a component library
+
+The account menu and the small-screen nav are `<details>` elements. That gives
+the open state, the keyboard behaviour and the focus handling for free; the two
+things it will not do — close on a click elsewhere, close on Escape — are ten
+lines in `resources/js/app.ts`. Laravel's kit slides a sheet in instead, which
+needs the library, an overlay and focus trapping.
 
 ### It is the auth kit, layered
 
@@ -77,11 +123,12 @@ anything through — and a password is never repopulated.
 layers: ['auth', 'jsx']
 ```
 
-`jsx` carries only `resources/` and `vite.config.ts`. Controllers, models,
-factories, the auth config and the tests all come from the `auth` layer
-underneath, and a file this kit ships replaces the one below it. Copying those
-thirty-one files instead would have guaranteed the two drift apart the first time
-either changed.
+`jsx` carries `resources/`, `vite.config.ts`, and one controller of its own —
+`Settings/AppearanceController`, which serves a page that only means anything to a
+kit with a stylesheet. Models, factories, the auth config, the tests and every
+other controller come from the `auth` layer underneath, and a file this kit ships
+replaces the one below it. Copying those thirty-one files instead would have
+guaranteed the two drift apart the first time either changed.
 
 ### Tailwind
 

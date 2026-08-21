@@ -39,9 +39,12 @@ export function SignUp({ title }: SignUpProps) {
         </Button>
       </form>
 
-      <p class="mt-5 text-center text-sm text-neutral-600 dark:text-neutral-400">
+      <p class="mt-5 text-center text-sm text-muted-foreground">
         Already have one?{' '}
-        <a class="text-brand hover:underline" href="/sign-in">
+        <a
+          class="underline decoration-border underline-offset-4 hover:decoration-current"
+          href="/sign-in"
+        >
           Sign in
         </a>
       </p>

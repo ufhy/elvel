@@ -2811,6 +2811,117 @@ try {
   check('and leaves the base template mounted', kitRoutes.includes('.use(PageController)'))
 
   /**
+   * The JSX kit, scaffolded and **typechecked**.
+   *
+   * The typecheck is the whole point of this block. The kits are excluded from
+   * the framework's own `tsconfig.json` — they are an application's files, not a
+   * package's — so nothing here ever ran `tsc` over them, and the only place that
+   * would is a scaffolded application. One shipped with sixteen type errors in it
+   * for exactly that reason: `children?: JSX.Element` where a child may be an
+   * async component, in a card every settings page uses. It rendered perfectly
+   * the entire time.
+   */
+  const jsxTarget = join(app.basePath(), '..', '.smoke-jsx-kit')
+  await rm(jsxTarget, { recursive: true, force: true })
+
+  const jsxResult = Bun.spawnSync({
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-jsx-kit', '--kit=jsx'],
+    cwd: join(import.meta.dir, '..'),
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('the jsx kit scaffolds', jsxResult.exitCode === 0, `exit ${jsxResult.exitCode}`)
+
+  check(
+    'it layers over the auth kit rather than replacing it',
+    (await Bun.file(join(jsxTarget, 'app/Http/Controllers/Auth/SignInController.ts')).exists()) &&
+      (await Bun.file(
+        join(jsxTarget, 'app/Http/Controllers/Settings/AppearanceController.ts')
+      ).exists()) &&
+      (await Bun.file(join(jsxTarget, 'routes/web.ts')).text()).includes(
+        '.use(AppearanceController)'
+      )
+  )
+
+  // Its own devDependencies, merged in from the kit manifest rather than added
+  // to the template every other kit shares.
+  const jsxManifest = (await Bun.file(join(jsxTarget, 'package.json')).json()) as {
+    devDependencies: Record<string, string>
+  }
+
+  check(
+    'and brings Tailwind with it',
+    jsxManifest.devDependencies['tailwindcss'] !== undefined &&
+      jsxManifest.devDependencies['@tailwindcss/vite'] !== undefined
+  )
+
+  const jsxInstall = Bun.spawnSync({
+    cmd: ['bun', 'install'],
+    cwd: jsxTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check('it installs', jsxInstall.exitCode === 0, plain(jsxInstall.stderr.toString()).slice(-400))
+
+  const jsxTypecheck = Bun.spawnSync({
+    // The scaffold's own script, so this is exactly what a developer runs.
+    cmd: ['bun', 'run', 'typecheck'],
+    cwd: jsxTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    'and every view it ships typechecks',
+    jsxTypecheck.exitCode === 0,
+    plain(jsxTypecheck.stdout.toString() + jsxTypecheck.stderr.toString()).slice(-600)
+  )
+
+  const jsxBuild = Bun.spawnSync({
+    cmd: ['bun', 'run', 'build'],
+    cwd: jsxTarget,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  check(
+    'and its stylesheet builds',
+    jsxBuild.exitCode === 0,
+    plain(jsxBuild.stderr.toString()).slice(-400)
+  )
+
+  /**
+   * The stylesheet, which is the one output nobody looks at.
+   *
+   * A Tailwind build succeeds whatever it finds, so an empty stylesheet and a
+   * complete one are the same exit code. The classes checked below are ones only
+   * this kit's own views mention — if the scanner ever stops seeing them, the
+   * pages render unstyled and nothing else says so.
+   *
+   * The size is reported rather than asserted: this scaffold sits inside the
+   * checkout, where Tailwind scans from the repository root and the sheet comes
+   * out roughly three times the size a real application's would. The kit ships a
+   * plain `@import` because that default is right everywhere except here; the
+   * `source(none)` recipe for a monorepo is in the starter-kit documentation.
+   */
+  const built = new Bun.Glob('*.css')
+  let stylesheet = ''
+
+  for await (const file of built.scan({ cwd: join(jsxTarget, 'public/build/assets') })) {
+    stylesheet = await Bun.file(join(jsxTarget, 'public/build/assets', file)).text()
+  }
+
+  check(
+    "with the kit's own classes in it",
+    stylesheet.includes('bg-sidebar') && stylesheet.includes('text-muted-foreground'),
+    `${Math.round(stylesheet.length / 1024)} kB`
+  )
+
+  await rm(jsxTarget, { recursive: true, force: true })
+
+  /**
    * The API kit, which is the other shape an application comes in.
    *
    * No views, no session, no CSRF — identity arrives as a bearer token and every
