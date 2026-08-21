@@ -351,14 +351,29 @@ function defaultMigrationPath(options: ElvelAdapterOptions): string {
  * column types come out of our own blueprint, so each dialect is handled by our
  * schema grammars rather than by better-auth's own type maps.
  */
-export function migrationFor(tables: AuthTables, dialect: Dialect): string {
+export function migrationFor(
+  tables: AuthTables,
+  dialect: Dialect,
+  /**
+   * Where references are resolved from, when it is not `tables` itself.
+   *
+   * `diffMigrationFor` renders a *subset* — only the tables that do not exist
+   * yet — and a foreign key in that subset still points at a schema key outside
+   * it. Resolved against the subset, `userId → user` found nothing and fell back
+   * to the raw key, so a diff for a plugin emitted
+   * `.references(['id']).on('user')` against an application whose table is
+   * called something else. Postgres answers `relation "user" does not exist`.
+   */
+  all: AuthTables = tables
+): string {
   const ordered = Object.entries(tables)
     .filter(([, table]) => table.disableMigrations !== true)
     .sort(([, a], [, b]) => (a.order ?? 99) - (b.order ?? 99))
 
   // A reference names a *schema key*; the foreign key has to target the table
-  // that key resolves to, which a custom `modelName` may have renamed.
-  const tableOf = (key: string): string => tables[key]?.modelName ?? key
+  // that key resolves to, which a custom `modelName` may have renamed. Looked up
+  // in `all` rather than `tables`, so a rendered subset still resolves outward.
+  const tableOf = (key: string): string => all[key]?.modelName ?? tables[key]?.modelName ?? key
 
   const up: string[] = []
   const down: string[] = []
@@ -523,7 +538,7 @@ export function diffMigrationFor(
       Object.entries(tables).filter(([key, table]) => created.includes(table.modelName ?? key))
     ) as AuthTables
 
-    const full = migrationFor(only, dialect)
+    const full = migrationFor(only, dialect, tables)
     const body =
       /async up\(\{ schema \}: MigrationContext\): Promise<void> \{([\s\S]*?)\n {2}\}/.exec(full)
     const undo =

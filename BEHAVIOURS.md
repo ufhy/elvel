@@ -1460,6 +1460,36 @@ schema it wants to test proves the query layer and nothing about the generator.
 The test that found this writes the generated file to disk, imports it, runs
 `up()` and then `down()`.
 
+## `auth:schema --diff` pointed a foreign key at the wrong table
+
+The `--diff` half had no test at all, and it is the path the documentation tells
+people to use: adding a plugin to a *running* application cannot re-create the
+`user` table, so the diff writes `schema.table(...)` for the column and renders
+the plugin's own table in full.
+
+Rendering that subset is where it broke. `migrationFor` resolves a reference by
+looking the schema key up in the tables it was handed — and the diff hands it only
+the tables that do not exist yet. So `twoFactor.userId → user` found nothing in the
+subset, fell back to the raw key, and emitted `.on('user')` in an application whose
+table is named something else:
+
+```
+PostgresError: relation "user" does not exist
+```
+
+`migrationFor` now takes the full set separately for resolving references, and
+renders only the subset. Found by writing a test for `--diff` that runs the
+migration it generates — on sqlite the plugin's table happened to be called
+`twoFactor` and `user` happened to exist, so only a renamed table exposed it.
+
+Two things this makes plain, both worth keeping:
+
+- **An untested code path is worth finding before a user does.** `diffMigrationFor`
+  had zero test coverage while being the documented way to add a plugin.
+- **A test that renames things finds what a test using default names cannot.** The
+  prefixed table names exist so runs do not collide on a shared Postgres, and they
+  are what turned a silent fallback into a failure.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
