@@ -5,7 +5,8 @@
   "workspaces": [
     "packages/*",
     "playground",
-    "apps/*"
+    "apps/*",
+    ".demo/*"
   ],
   "scripts": {
     "create": "bun packages/create-elvel/src/index.ts",
