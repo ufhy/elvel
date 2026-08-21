@@ -1536,6 +1536,42 @@ adds is the reason the auth generator now picks `varchar` for any keyed string: 
 generator choosing `text` for something it also indexes produces a migration that
 cannot run, and unlike a hand-written blueprint there is nobody to notice.
 
+## Every prompt hung where no terminal was attached
+
+`migrate` in production asks for confirmation. Run from a CI job or a cron entry
+there is no TTY, and the prompt rendered its question and **waited for ever** —
+measured at ten minutes before the process was killed by hand:
+
+```
+⚠ Application is in production.
+◆  Do you really wish to run this command?
+│  ○ Yes / ● No
+```
+
+A deploy that holds its migration lock and never fails is worse than one that
+fails. Nothing reports it, the pipeline sits there, and nobody is told that
+`--force` is the answer.
+
+Prompts now check `process.stdin.isTTY` and take their default, saying so:
+
+```
+Do you really wish to run this command? — no terminal attached, assuming false.
+```
+
+The default is also the safe direction, which is why this is a fix rather than a
+trade: `confirmInProduction` defaults to `false`, so a non-interactive production
+run now **refuses**. `--force` still goes through.
+
+`secret()` is the exception and throws instead. A blank password is not an answer,
+and a command that carried on with one would be worse than one that stopped — an
+option or an environment variable is how a pipeline supplies a secret.
+
+Found while auditing the destructive commands, which is also where the guards
+themselves were checked: `db:wipe`, `migrate:fresh`, `migrate:reset`,
+`migrate:refresh`, `db:seed` and `migrate` all go through `confirmInProduction`,
+and `storage:unlink` refuses a real directory rather than deleting the uploads
+somebody put where the symlink used to be — both verified by running them.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
