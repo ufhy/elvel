@@ -586,6 +586,22 @@ describe('migrationFor', () => {
     expect(code).not.toMatch(/table\.text\('[A-Za-z]+'\)(\.nullable\(\))?\.(unique|index)\(\)/)
   })
 
+  /**
+   * `diffMigrationFor` renders only the tables that do not exist yet, and a
+   * foreign key inside that subset still points at a schema key outside it.
+   * Resolved against the subset, `userId → user` found nothing and fell back to
+   * the raw key — so a diff adding a plugin emitted `.on('user')` against an
+   * application whose table is called something else, and Postgres answered
+   * `relation "user" does not exist`.
+   */
+  test('a subset still resolves a reference to a table outside it', () => {
+    const subset = { session: tables.session } as never
+    const rendered = migrationFor(subset, 'sqlite', tables as never)
+
+    expect(rendered).toContain(".on('user')")
+    expect(rendered).not.toContain("create('user'")
+  })
+
   test('a reference targets the table its schema key resolves to', () => {
     // `references.model` is the schema key `user`; the FK must name the table.
     expect(code).toContain("table.foreign(['userId']).references(['id']).on('user')")

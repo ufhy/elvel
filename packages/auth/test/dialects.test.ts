@@ -11,12 +11,40 @@ import {
 import { betterAuth } from 'better-auth'
 import { twoFactor } from 'better-auth/plugins'
 import { reachable } from '../../../tests/support/dialects.ts'
-import { type Dialect, elvelAdapter, migrationFor, schemaShape } from '../src/adapter.ts'
+import {
+  type Dialect,
+  diffMigrationFor,
+  elvelAdapter,
+  migrationFor,
+  schemaShape
+} from '../src/adapter.ts'
 
 /** What a generated migration is, as a module. */
 type MigrationClass = new () => {
   up(context: unknown): Promise<void>
   down(context: unknown): Promise<void>
+}
+
+/**
+ * Write generated source to disk and import it, which is what `migrate` does.
+ *
+ * Inside the repository rather than `os.tmpdir()`: the file imports
+ * `@elvel/database`, and a directory outside the workspace cannot resolve that.
+ * A string that merely contains the right words is no evidence that it parses.
+ */
+async function write(code: string): Promise<{
+  directory: string
+  instance: InstanceType<MigrationClass>
+}> {
+  const directory = await mkdtemp(join(import.meta.dir, '.generated-'))
+  const file = join(directory, 'migration.ts')
+
+  await writeFile(file, code)
+
+  const Generated = ((await import(pathToFileURL(file).href)) as { default: MigrationClass })
+    .default
+
+  return { directory, instance: new Generated() }
 }
 
 /**
@@ -350,6 +378,121 @@ for (const { name, config } of available) {
           await rm(directory, { recursive: true, force: true })
         }
       } finally {
+        await connection.disconnect()
+      }
+    })
+
+    /**
+     * `auth:schema --diff`, which is what adding a plugin to a *running*
+     * application actually does.
+     *
+     * The full migration would try to create a `user` table that already holds
+     * users, so the diff writes `schema.table(...)` instead — a column added to a
+     * table better-auth already owns, and dropped again on the way down. Neither
+     * half had ever been executed anywhere: `diffMigrationFor` had no test at
+     * all, and it is the path the documentation tells people to use.
+     *
+     * Adding and dropping a column is also where dialects differ most: sqlite
+     * only learned `drop column` recently, MySQL rewrites the table, and Postgres
+     * does it in a transaction.
+     */
+    test('a diff adds a plugin column to a live table, and takes it back', async () => {
+      connection = await BunSqlConnection.make(`auth-diff-${name}`, config)
+
+      const prefixed = (model: string) => `${PREFIX}_diff_${model}`
+      const schema = new SchemaBuilder(connection)
+      const db = {
+        connection: async () => connection,
+        schema: async () => schema
+      }
+
+      /** The same application, before and after the plugin is added. */
+      const build = (plugins: unknown[]) =>
+        betterAuth({
+          secret: 'a-very-long-test-secret-value-000000',
+          baseURL: 'http://localhost',
+          emailAndPassword: { enabled: true },
+          plugins: plugins as never,
+          user: { modelName: prefixed('user') },
+          session: { modelName: prefixed('session') },
+          account: { modelName: prefixed('account') },
+          verification: { modelName: prefixed('verification') },
+          database: elvelAdapter(db as never, { dialect: name })
+        })
+
+      const tablesOf = (auth: unknown) =>
+        (auth as { $context: Promise<{ tables: never }> }).$context.then(
+          (context) => context.tables
+        )
+
+      const before = await tablesOf(build([]))
+      const after = await tablesOf(
+        build([twoFactor({ schema: { twoFactor: { modelName: prefixed('twoFactor') } } })])
+      )
+
+      const created: string[] = []
+      let applied = false
+
+      try {
+        // Install the application as it was, without the plugin.
+        const initial = await write(migrationFor(before, name))
+
+        await initial.instance.up({ schema } as never)
+        applied = true
+        for (const entry of schemaShape(before)) created.push(entry.table)
+        await rm(initial.directory, { recursive: true, force: true })
+
+        // Now ask what is missing, exactly as the command does.
+        const existing = new Map<string, string[]>()
+
+        for (const { table } of schemaShape(after)) {
+          if (!(await schema.hasTable(table))) continue
+
+          existing.set(table.toLowerCase(), await schema.getColumnListing(table))
+        }
+
+        const diff = diffMigrationFor(after, name, existing)
+
+        expect(diff).toBeDefined()
+
+        // The plugin's table is missing entirely; `user` is missing one column.
+        expect(diff?.code).toContain(`schema.table('${prefixed('user')}'`)
+        expect(diff?.code).toContain('twoFactorEnabled')
+        expect(diff?.code).toContain(`schema.create('${prefixed('twoFactor')}'`)
+
+        const patch = await write(diff?.code ?? '')
+
+        try {
+          await patch.instance.up({ schema } as never)
+
+          expect(await schema.hasColumn(prefixed('user'), 'twoFactorEnabled')).toBe(true)
+          expect(await schema.hasTable(prefixed('twoFactor'))).toBe(true)
+
+          // And back down: the column goes, the users stay.
+          await patch.instance.down({ schema } as never)
+
+          expect(await schema.hasColumn(prefixed('user'), 'twoFactorEnabled')).toBe(false)
+          expect(await schema.hasTable(prefixed('user'))).toBe(true)
+        } finally {
+          await rm(patch.directory, { recursive: true, force: true })
+        }
+
+        // Nothing left to do is reported as nothing, not as an empty migration.
+        const settled = new Map<string, string[]>()
+
+        for (const { table } of schemaShape(before)) {
+          if (!(await schema.hasTable(table))) continue
+
+          settled.set(table.toLowerCase(), await schema.getColumnListing(table))
+        }
+
+        expect(diffMigrationFor(before, name, settled)).toBeUndefined()
+      } finally {
+        if (applied) {
+          for (const model of created.reverse()) await schema.dropIfExists(model)
+          await schema.dropIfExists(prefixed('twoFactor'))
+        }
+
         await connection.disconnect()
       }
     })
