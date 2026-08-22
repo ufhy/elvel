@@ -31,7 +31,8 @@ bun create elvel my-app --kit=auth
 | | what it is | providers | dependencies |
 |---|---|---:|---:|
 | `none` | a landing page, no database | 10 | 14 |
-| `auth` | sign in, sign up, a dashboard, settings | 17 | 22 |
+| `auth` | sign in, sign up, a dashboard, settings, two-factor, passkeys | 17 | 24 |
+| `jsx` | the auth kit, styled with Tailwind and a component set | 17 | 24 |
 | `api` | bearer-token auth, JSON, no auth pages | 16 | 21 |
 
 [Starter kits](/getting-started/starter-kits) has what each one writes. Omit
