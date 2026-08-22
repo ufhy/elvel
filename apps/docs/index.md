@@ -44,14 +44,28 @@ features:
 
 ## Alpha, and what that means
 
-`1.0.0-alpha.9` is published with provenance, released by CI over OIDC with no
+`1.0.0-alpha.13` is published with provenance, released by CI over OIDC with no
 token stored anywhere. The shape is settled; the surface still moves, and a
 release can rename something.
 
-What is **not** in these pages yet is most of it. Nineteen of the twenty-seven
-packages are documented here; the other eight — broadcasting, concurrency, image,
-process, http-client, hashing, translation and collections — have working code,
-tests against real servers, and no page. They arrive one at a time.
+All twenty-seven packages have a page now — the eight that were missing one
+arrived over the alphas, which is why this paragraph used to say otherwise. A page
+still appears only when it has something true to say: fifty placeholders would
+make this site look finished and be useless.
 
-A page appears in the sidebar when it has something true to say. Fifty
-placeholders would make this site look finished and be useless.
+Three things are worth knowing before you depend on this, and none of them is a
+missing feature:
+
+- **The packages ship TypeScript source**, so your `tsc` compiles their internals.
+  That makes the types exact and it makes our problems yours — `@elvel/mail` once
+  imported an untyped subpath and applications failed their own typecheck while
+  ours passed. Building each package to a single file would end that class of bug;
+  measured, it also made boot 35–40% *slower*, so it is not done.
+- **Each alpha has fixed bugs in paths nothing had executed** — a sign-out button
+  that was a 419, a scaffolded application that failed its own typecheck, a diff
+  that skipped the index it existed to add. That pattern has not stopped, which is
+  the honest reason the version still says alpha.
+- **Nothing here has run in production.** The suite covers SQLite, Postgres and
+  MySQL against real servers, both caches, the queue drivers, and a smoke run that
+  drives a real application over a socket. None of that is a year of somebody
+  else's traffic.
