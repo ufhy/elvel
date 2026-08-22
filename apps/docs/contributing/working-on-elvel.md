@@ -71,6 +71,25 @@ Deliberately not unit-tested:
   rather than in isolation.
 - `str.ts` inflection edge cases beyond the common forms.
 
+### Running the suite on Windows
+
+Run it from **Git Bash**, not PowerShell. The process tests spawn `echo`, `cat`,
+`printf` and `sh`, which live in `C:\Program Files\Git\usr\bin` and are on `PATH`
+only inside Git Bash — from PowerShell they are `ENOENT` and 29 tests fail on
+their own setup rather than on anything they check. CI forces `shell: bash` on
+every runner for the same reason.
+
+Servers are optional everywhere. Each dialect suite probes its server first and
+drops out with a reason — `skipping dialect on mysql: Failed to connect` — so a
+machine with only SQLite still runs a full green suite. The probe is bounded at
+five seconds, because a server that neither refuses nor answers used to take the
+whole run with it: MySQL from Bun on Windows hung until **Bun 1.4**, and now runs
+151 dialect tests in 9 seconds.
+
+Two things the platform still cannot do, and the tests skip rather than assert
+something weaker: a POSIX file mode (`chmod` toggles one read-only bit), and
+creating a symbolic link without Developer Mode or an elevated shell.
+
 ## Testing a generator, not the query layer
 
 Two bugs have hidden behind the same mistake, so it is worth stating as a rule.
