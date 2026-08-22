@@ -558,7 +558,21 @@ export function schemaShape(tables: AuthTables): Array<{ table: string; columns:
 export function diffMigrationFor(
   tables: AuthTables,
   dialect: Dialect,
-  existing: Map<string, string[]>
+  existing: Map<string, string[]>,
+  /**
+   * The index names each existing table already carries, lowercased.
+   *
+   * Without this the diff could only compare columns, and a table-level index was
+   * invisible to it: upgrading an application to better-auth 1.7 added the
+   * `issuer` column and silently left out the `(issuer, accountId)` unique index
+   * that the same release exists to enforce. A fresh install got it, an upgraded
+   * one never did, and both migrations ran clean.
+   *
+   * Absent, the index half is skipped rather than guessed at: an empty map would
+   * mean "this table has no indexes", and the diff would helpfully write one that
+   * is already there.
+   */
+  indexes?: Map<string, string[]>
 ): { code: string; missing: Array<{ table: string; columns: string[] }> } | undefined {
   const wanted = schemaShape(tables)
   const missing: Array<{ table: string; columns: string[] }> = []
@@ -578,7 +592,36 @@ export function diffMigrationFor(
     if (absent.length > 0) missing.push({ table, columns: absent })
   }
 
-  if (created.length === 0 && missing.length === 0) return undefined
+  /**
+   * The compound indexes an existing table is still missing.
+   *
+   * Collected before the early return, because "every column is there" is not
+   * the same as "nothing to do": upgrading to better-auth 1.7 with `issuer`
+   * already added leaves exactly one thing outstanding, and it is an index.
+   *
+   * Created tables are not considered — they were written in full, indexes
+   * included, by the generator that writes a fresh install.
+   */
+  const absentIndexes: Array<{ table: string; columns: string[]; unique: boolean; name: string }> =
+    []
+
+  for (const { table } of indexes === undefined ? [] : wanted) {
+    if (existing.get(table.toLowerCase()) === undefined) continue
+
+    const present = indexes?.get(table.toLowerCase()) ?? []
+
+    for (const entry of compoundFor(tables, table)) {
+      // The name the blueprint would give it, which is Laravel's and is what the
+      // database reports back: `account_issuer_accountid_unique`.
+      const name = `${table}_${entry.columns.join('_')}_${entry.unique ? 'unique' : 'index'}`
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+
+      if (!present.includes(name)) absentIndexes.push({ table, ...entry, name })
+    }
+  }
+
+  if (created.length === 0 && missing.length === 0 && absentIndexes.length === 0) return undefined
 
   const up: string[] = []
   const down: string[] = []
@@ -601,10 +644,15 @@ export function diffMigrationFor(
   }
 
   for (const { table, columns } of missing) {
+    // Part of a compound index means `varchar`, not `text`, exactly as it does on
+    // a fresh install — MySQL will not key a `TEXT` column, and `issuer` arrived
+    // as `text` here while the same column was `varchar` in a new database.
+    const keyed = new Set(compoundFor(tables, table).flatMap((entry) => entry.columns))
+
     const adds = columns.map((column) => {
       const field = fieldFor(tables, table, column)
 
-      return `      ${field ? columnFor(column, field) : `table.string('${column}').nullable()`}`
+      return `      ${field ? columnFor(column, field, keyed) : `table.string('${column}').nullable()`}`
     })
 
     up.push(`await schema.table('${table}', (table) => {\n${adds.join('\n')}\n    })`)
@@ -612,6 +660,18 @@ export function diffMigrationFor(
       `await schema.table('${table}', (table) => {\n      table.dropColumn(${columns
         .map((column) => `'${column}'`)
         .join(', ')})\n    })`
+    )
+  }
+
+  for (const entry of absentIndexes) {
+    const kind = entry.unique ? 'unique' : 'index'
+    const list = entry.columns.map((column) => `'${column}'`).join(', ')
+
+    up.push(
+      `await schema.table('${entry.table}', (table) => {\n      table.${kind}([${list}])\n    })`
+    )
+    down.push(
+      `await schema.table('${entry.table}', (table) => {\n      table.dropIndex('${entry.name}')\n    })`
     )
   }
 
@@ -636,6 +696,24 @@ export default class extends Migration {
 `
 
   return { code, missing: [...created.map((table) => ({ table, columns: ['*'] })), ...missing] }
+}
+
+/**
+ * A table's compound indexes, found by the name it has in the database.
+ *
+ * `compoundIndexes` takes the declaration; this takes the `modelName`, which is
+ * what the diff has to work from — the database reports tables, not schema keys,
+ * and a `modelName` override means the two need not match.
+ */
+function compoundFor(
+  tables: AuthTables,
+  model: string
+): Array<{ columns: string[]; unique: boolean }> {
+  for (const [key, table] of Object.entries(tables)) {
+    if ((table.modelName ?? key) === model) return compoundIndexes(table)
+  }
+
+  return []
 }
 
 /** The declared field behind a column name, so the diff keeps its type. */

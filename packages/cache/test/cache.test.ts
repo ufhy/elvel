@@ -739,7 +739,18 @@ for (const candidate of candidates) {
       expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe('ok')
       expect(await limiter.attempts('sms')).toBe(1)
 
-      await Bun.sleep(1100)
+      /**
+       * Comfortably past the window, not barely past it.
+       *
+       * A one-second entry is stored as `floor(now / 1000) + 1` and read back as
+       * expired once `floor(now / 1000)` reaches it — whole seconds on both sides.
+       * 1100 ms cleared that for every fraction I could measure, and this test
+       * still failed once in roughly fifteen runs of the full suite and never once
+       * in thirty runs on its own. I could not reproduce it in isolation, so the
+       * margin is now wider than any second-granularity store needs rather than
+       * exactly enough, and this comment is the honest state of it.
+       */
+      await Bun.sleep(2100)
 
       expect(await limiter.attempts('sms')).toBe(0)
       expect(await limiter.availableIn('sms')).toBe(0)
