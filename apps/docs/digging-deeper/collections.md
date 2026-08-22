@@ -78,6 +78,17 @@ Str.before / after / afterLast / chopEnd / matchCase / replacePlaceholders
 away the bytes that would bias the draw. The [security
 page](/security/reporting#two-things-the-first-codeql-run-found) has the reason.
 
+**`Str.mask` reads a negative length as PHP's `substr` does** — it stops that many
+characters from the *end*, rather than masking that many:
+
+```ts
+Str.mask('4111111111111111', '*', 4, -4)   // '4111********1111'
+```
+
+That is Laravel's semantics, and the reason to say so out loud is what the other
+reading would do: taking `-4` as "mask four characters" leaves the rest of the
+card number sitting in your log, and looks plausible enough to ship.
+
 ## `Arr`
 
 ```ts

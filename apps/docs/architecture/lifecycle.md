@@ -19,6 +19,28 @@ Steps 6 and 7 are last for the same reason: a scheduled entry and a route handle
 both need the container already populated, so they are collected after every
 provider has booted rather than while they are still booting.
 
+::: tip Step 3 comes before step 7, and an exception's headers depend on it
+`handleExceptions()` installs the handler that turns a thrown `HttpException` into
+a response — the status *and its headers*. It is an `onError` hook, and Elysia
+applies a hook to the routes mounted after it, so wiring it late is the same as
+not wiring it at all. Measured on the same application, throwing
+`new HttpException(429, 'Too many', { 'Retry-After': '60' })`:
+
+| when `handleExceptions()` runs | status | `Retry-After` |
+| --- | --- | --- |
+| before the routes | 429 | `60` |
+| after the routes | 429 | missing |
+| never | 429 | missing |
+
+The status survives either way, which is what makes this quiet: a 429 with no
+`Retry-After` reads as the rate limiter having forgotten the header rather than as
+a hook registered one line too late.
+
+`create()` has the order right, so an application booted the ordinary way never
+meets this. It is worth knowing if you build one by hand — a test that constructs
+`new Application(base)` and mounts routes on it needs `handleExceptions()` first.
+:::
+
 ### Two lists of providers, and they are not the same list
 
 **`bootstrap/providers.ts` holds the framework's**, one line per package:
