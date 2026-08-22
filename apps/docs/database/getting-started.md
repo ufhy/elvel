@@ -10,6 +10,18 @@ DSL that would duplicate migrations as a second source of truth — and
 `Bun.SQL` sits behind a `Connection` interface, so a Node driver (`pg`,
 `mysql2`, `node:sqlite`) would be an added file rather than a rewrite.
 
+::: tip One connection is a pool of ten, and it times out after thirty seconds
+`new SQL(...)` opens ten sockets by default — measured at eleven including the one
+asking. Anything counting connections server-side has to allow for that, or it
+reports its own pool as somebody else's leak.
+
+The timeout is ours, not Bun's: Bun sets none, and a connection that never
+completes then produces no error at all — the query waits, the process will not
+exit, and nothing says why. `config/database.ts` passes
+`connectionTimeout: Number(env('DB_CONNECT_TIMEOUT', 30))`, so
+`DB_CONNECT_TIMEOUT` changes it per application.
+:::
+
 ```ts
 const users = await db().table('users')
 
