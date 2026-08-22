@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@better-auth/passkey": "^1.7.1",
+    "reflect-metadata": "^0.2.2",
     "uqr": "^0.1.3"
   }
 }

@@ -266,3 +266,37 @@ resolved per request, so a newly added image needs no restart; in production the
 route table is precomputed and served `public` with a day's `max-age`. Turn it off with
 `view.serveStatic: false` when something in front of the application already
 serves them.
+
+### Compression
+
+Compressible files — `.js`, `.css`, `.svg`, `.json`, `.map` and friends — are
+served gzipped to any caller that accepts it. Measured on a built application, a
+page went from 182 kB on the wire to 68 kB, and its largest script from 44.6 kB
+to 15.4 kB.
+
+This matters more than it sounds: `@elysiajs/static` answers with the bytes on
+disk and ignores `accept-encoding`, so before this an application shipped every
+asset uncompressed unless something in front of it stepped in.
+
+In production the compressed bytes are kept in memory, keyed by the file's size
+and modification time, so a file is compressed once rather than per request —
+measured at no change in throughput. In development nothing is cached, because a
+file changes under a name that does not.
+
+Two things it deliberately does not do. It never compresses a **rendered page**,
+only files: a response that mixes a secret with something the caller controls is
+what makes compressing dynamic HTML a subtle question, and the measured waste was
+all in the assets anyway. And it never compresses a file that comes out no
+smaller — a `.png`, or anything below `view.compressMinimumBytes` (1 kB), where
+gzip's own framing can make the response bigger.
+
+```ts
+// config/view.ts
+export default {
+  compressStatic: true,
+  compressMinimumBytes: 1024
+}
+```
+
+Set `compressStatic: false` when nginx, a CDN or a platform router already
+compresses. Compressing twice is wasted work.

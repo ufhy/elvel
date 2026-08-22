@@ -1106,6 +1106,22 @@ Nothing happens until somebody builds one, and any edit makes it stale — a fas
 path that is used without being opted into is a fast path that eventually runs
 yesterday's code.
 
+Re-measured on Bun 1.4, on Windows, on the auth kit:
+
+    elvel list    0.580 s from source    0.337 s bundled
+
+Still worth having, and no longer the difference it was — Bun got most of the way
+there on its own. The numbers above were taken before it did, and are left as
+they were rather than quietly rewritten.
+
+Two things about the handover are not obvious. `bun.lock` changes when a version
+does, not when somebody edits the code behind a `workspace:` or `file:` link — so
+inside this repository, and in any application developed alongside a package it
+links to, the bundle stays "fresh" while the code it was built from moves.
+`ELVEL_BUNDLE=0` runs the source without deleting anything. And a bundle that
+cannot boot takes the ordinary commands down with it, silently, which is why a
+failed handover now says on stderr which file actually ran.
+
 **Routing is core; `HttpServiceProvider` is everything around a request.** An
 application that leaves it out still serves pages — the root Elysia instance and
 `controller()` live in `@elvel/core` — and loses sessions, cookies, CSRF, the
@@ -1663,6 +1679,67 @@ failed — which is why the number is the only way to find it.
 
 Not something the kit ships, because the default is right for every application
 outside a repository. It is in the documentation for the case that is not.
+
+## Bundling changed which module ran first, and a boot check noticed
+
+`bun run build:server` on the auth kit wrote a 4.77 MB bundle that would not
+start:
+
+    error: tsyringe requires a reflect polyfill.
+
+Nothing in the framework or the application imports `tsyringe`. It arrives four
+levels down — `@better-auth/passkey` → `@peculiar/x509` → `tsyringe` — and it
+checks for `Reflect.getMetadata` *while its own module evaluates*. `@peculiar/x509`
+needs the polyfill for real: its ASN.1 decorators read metadata.
+
+From source this never happened, because the order Bun evaluated those modules in
+put the polyfill first. `bun build` wraps each module in a lazy initialiser and
+reached `tsyringe` first. Same code, same dependency tree, different order.
+
+Two things made it worse than a build error. The bundle *built* fine and only
+died when run, so nothing failed until the deploy did. And `elvel.ts` hands over
+to `dist/elvel.js` whenever it is newer — so one `build:server` also took down
+plain `bun run serve`, with a stack trace naming a file the developer did not
+run.
+
+`elvel.ts` now loads `reflect-metadata` before it imports the application, inside
+a `try`, and the auth kit declares the dependency. The guard is what keeps every
+other kit unaffected: no dependency, no polyfill, no failure. Verified both ways —
+a passkey application boots from its bundle and serves the passkey pages, and an
+application without the dependency boots unchanged.
+
+Placement is not free choice, either. The same import inside `config/auth.ts` —
+which is loaded at boot, and reads like the natural home for it — does not work.
+It has to precede the application's own module graph, which is what "top of your
+entry point" in that error message actually means.
+
+The second half of the damage was the handover itself. `elvel.ts` runs
+`dist/elvel.js` whenever it is newer, and said nothing about it, so a broken
+bundle answered every command with a stack trace naming a file nobody ran. It now
+prints the reason on stderr when the handover exits non-zero, and
+`ELVEL_BUNDLE=0` runs the source with the bundle left in place — which also
+covers the case the freshness check cannot see, a linked dependency edited
+without `bun.lock` moving.
+
+## `base` decides the URLs no template ever writes
+
+A Vue island loaded on demand asked for `/assets/MemberTable-*.js` and got a 404.
+The file was in `/build/assets/`.
+
+`vite()` in a layout prefixes `/build/` itself when it reads the manifest, so
+every entry point was always right — and nothing in the kit used a dynamic
+`import()`, so nothing revealed that Vite knew nothing about the prefix. The
+moment one did, the chunk URL Vite generated was wrong. Code splitting, `import()`
+and assets referenced from CSS all come out of `base`.
+
+It cannot simply be `/build/` always: in `serve`, `base` is also the path the dev
+server answers under, while the hot-file tags point straight at
+`http://localhost:5173/resources/...`. `laravel-vite-plugin` splits it the same
+way — `command === 'build' ? assetUrl + '/build/' : ''` — which is why the config
+is now a function of the command.
+
+The failure mode is the reason this is written down: the build succeeds, the page
+renders, and only the part that needed JavaScript is missing.
 
 ## Limits
 

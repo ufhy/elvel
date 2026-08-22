@@ -21,14 +21,72 @@ import { join } from 'node:path'
  */
 const bundle = join(import.meta.dir, 'dist', 'elvel.js')
 
-if (await fresh(bundle)) {
+/**
+ * `ELVEL_BUNDLE=0` runs from source with a bundle sitting right there.
+ *
+ * Without it the only way past the handover is deleting `dist/`, which is a
+ * strange thing to have to do to compare the two — and the reason to compare is
+ * usually that one of them is behaving differently from the other.
+ */
+if (process.env.ELVEL_BUNDLE !== '0' && (await fresh(bundle))) {
   const handed = Bun.spawnSync({
     cmd: ['bun', bundle, ...Bun.argv.slice(2)],
     cwd: process.cwd(),
     stdio: ['inherit', 'inherit', 'inherit']
   })
 
+  /**
+   * Say which file failed, because the developer did not run it.
+   *
+   * A broken bundle reports itself with a stack trace full of `dist/elvel.js`
+   * line numbers while the command that was typed names `elvel.ts` — and since
+   * the handover is silent when it works, nothing on screen connects the two.
+   * Measured once for real: `bun run build:server` on an application with
+   * passkeys wrote a bundle that died at boot, and `bun run serve` — which had
+   * worked a moment earlier and was not rebuilt — died with it.
+   *
+   * On stderr and only on failure: a note printed every time would end up inside
+   * the output of every command that gets piped somewhere.
+   */
+  if ((handed.exitCode ?? 1) !== 0) {
+    process.stderr.write(
+      [
+        '',
+        '  That ran dist/elvel.js, not the source here — it is newer than every',
+        '  source file, so this handed over to it. Run the source instead with',
+        '  ELVEL_BUNDLE=0, or rebuild the bundle with `bun run build:server`.',
+        '',
+        ''
+      ].join('\n')
+    )
+  }
+
   process.exit(handed.exitCode ?? 1)
+}
+
+/**
+ * The reflect polyfill, before anything the application imports.
+ *
+ * `tsyringe` checks for `Reflect.getMetadata` **while its module is evaluating**
+ * and throws if it is missing. Nothing here uses it — it arrives underneath
+ * passkeys, as `@better-auth/passkey` → `@peculiar/x509` → `tsyringe`, and
+ * `@peculiar/x509` needs it for real: its ASN.1 decorators read metadata.
+ *
+ * From source this never surfaced, because whatever order Bun evaluates those
+ * modules in put the polyfill first. `bun build` wraps each module in a lazy
+ * initialiser and reached `tsyringe` first, so `bun run build:server` produced a
+ * bundle that died at boot with a message naming a package the application never
+ * imported. Measured: an unguarded build of the auth kit could not start at all.
+ *
+ * Loaded here rather than as a static import at the top of the file: the
+ * application itself is a dynamic import below, so this runs before it either
+ * way, and an application that declares no such dependency — every kit but
+ * `auth` — needs no polyfill and should not fail for the lack of one.
+ */
+try {
+  await import('reflect-metadata')
+} catch {
+  // Nothing in this application asked for reflection. Carry on.
 }
 
 const app = (await import('./bootstrap/app.ts')).default
@@ -47,6 +105,13 @@ process.exit(await app.make('elvel').run())
  * `node_modules`, `storage` and `dist` itself are skipped — the first is
  * covered by `bun.lock`, and the other two are written while the application
  * runs, which would make every bundle stale the moment it served a request.
+ *
+ * So what this does *not* notice: a dependency edited in place. `bun.lock`
+ * changes when a version does, not when somebody edits the code behind a
+ * `file:` or `workspace:` link — which is exactly the arrangement inside the
+ * framework's own repository, and any application developed alongside a package
+ * it links to. The bundle stays "fresh" while the code it was built from moves.
+ * `ELVEL_BUNDLE=0` is the way out; deleting `dist/` is the other.
  */
 async function fresh(path: string): Promise<boolean> {
   const bundle = await stat(path).catch(() => undefined)
