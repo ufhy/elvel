@@ -35,8 +35,17 @@ bun elvel migrate
 Review it, then run: elvel migrate
 ```
 
-Run `auth:schema` again after changing `config/auth.ts` and it writes a migration
-for the **difference**, not the whole table again.
+After changing `config/auth.ts`, ask for the **difference** rather than the whole
+schema again — `auth:schema` on its own always writes a full `create`, which an
+application that has already migrated cannot run:
+
+```bash
+bun elvel auth:schema --diff
+bun elvel migrate
+```
+
+`--diff` compares the configuration against the database it is pointed at, so it
+sees a missing table, a missing column and a missing index alike.
 
 `bun elvel auth:secret` writes `AUTH_SECRET`, which signs better-auth's tokens.
 It is not `APP_KEY` and must never be the same value: one signs sessions, the
@@ -129,8 +138,27 @@ POST /api/auth/two-factor/enable  →  200
  "backupCodes":["1X2Hq-Zr6l5","e0cdS-ryei8", …]}
 ```
 
-Run `auth:schema` again after adding a second plugin: it writes a migration for
-the **difference**, not the whole schema again.
+Adding a second plugin is `auth:schema --diff` again, and the difference is
+whatever that plugin asked for — a table, a column on a table it does not own, or
+an index:
+
+```
+$ bun elvel auth:schema --diff
+  twoFactor: *
+  user: twoFactorEnabled
+ INFO  Migration created: database/migrations/2026_08_22_034605_add_two_factor.ts
+```
+
+Run it with nothing outstanding and it says so rather than writing an empty
+migration: `The auth tables already match the configuration.`
+
+::: tip Upgrading better-auth is the same command
+better-auth 1.7 added the `(issuer, accountId)` index to a table every existing
+application already has, and `--diff` writes both halves — the column as
+`varchar`, then the index. A stepwise upgrade ends up with the same schema as a
+fresh install; that is asserted against SQLite, Postgres and MySQL by running the
+migration rather than reading it.
+:::
 
 ### Three things to know
 

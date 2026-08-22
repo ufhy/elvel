@@ -260,5 +260,10 @@ bun elvel auth:schema
 bun elvel migrate
 ```
 
-Run `auth:schema` again after changing `config/auth.ts`, and it writes a
-migration for the difference rather than the whole table.
+After changing `config/auth.ts`, ask for the difference — `auth:schema` on its own
+writes a full `create`, which an application that has already migrated cannot run:
+
+```bash
+bun elvel auth:schema --diff
+bun elvel migrate
+```
