@@ -168,14 +168,14 @@
     },
     "apps/docs": {
       "name": "@elvel/docs",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "devDependencies": {
         "vitepress": "2.0.0-alpha.19",
       },
     },
     "packages/auth": {
       "name": "@elvel/auth",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -194,7 +194,7 @@
     },
     "packages/broadcasting": {
       "name": "@elvel/broadcasting",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -205,7 +205,7 @@
     },
     "packages/cache": {
       "name": "@elvel/cache",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -215,7 +215,7 @@
     },
     "packages/concurrency": {
       "name": "@elvel/concurrency",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -223,7 +223,7 @@
     },
     "packages/console": {
       "name": "@elvel/console",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@clack/prompts": "^1.7.0",
         "@elvel/contracts": "workspace:*",
@@ -237,14 +237,14 @@
     },
     "packages/contracts": {
       "name": "@elvel/contracts",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "peerDependencies": {
         "elysia": ">=1.4.0",
       },
     },
     "packages/core": {
       "name": "@elvel/core",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/contracts": "workspace:*",
         "@elvel/support": "workspace:*",
@@ -255,7 +255,7 @@
     },
     "packages/create-elvel": {
       "name": "create-elvel",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "bin": {
         "create-elvel": "./src/index.ts",
       },
@@ -266,7 +266,7 @@
     },
     "packages/database": {
       "name": "@elvel/database",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -278,7 +278,7 @@
     },
     "packages/encryption": {
       "name": "@elvel/encryption",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -295,7 +295,7 @@
     },
     "packages/events": {
       "name": "@elvel/events",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -304,7 +304,7 @@
     },
     "packages/hashing": {
       "name": "@elvel/hashing",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -312,7 +312,7 @@
     },
     "packages/http": {
       "name": "@elvel/http",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/cache": "workspace:*",
         "@elvel/console": "workspace:*",
@@ -328,14 +328,14 @@
     },
     "packages/http-client": {
       "name": "@elvel/http-client",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/core": "workspace:*",
       },
     },
     "packages/image": {
       "name": "@elvel/image",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -344,7 +344,7 @@
     },
     "packages/log": {
       "name": "@elvel/log",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -358,7 +358,7 @@
     },
     "packages/mail": {
       "name": "@elvel/mail",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -371,7 +371,7 @@
     },
     "packages/notifications": {
       "name": "@elvel/notifications",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -384,14 +384,14 @@
     },
     "packages/process": {
       "name": "@elvel/process",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/core": "workspace:*",
       },
     },
     "packages/queue": {
       "name": "@elvel/queue",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/cache": "workspace:*",
         "@elvel/console": "workspace:*",
@@ -404,7 +404,7 @@
     },
     "packages/scheduler": {
       "name": "@elvel/scheduler",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -418,7 +418,7 @@
     },
     "packages/storage": {
       "name": "@elvel/storage",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -428,18 +428,18 @@
     },
     "packages/support": {
       "name": "@elvel/support",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
     },
     "packages/testing": {
       "name": "@elvel/testing",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "devDependencies": {
         "@elvel/core": "workspace:*",
       },
     },
     "packages/translation": {
       "name": "@elvel/translation",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/core": "workspace:*",
         "@elvel/support": "workspace:*",
@@ -447,7 +447,7 @@
     },
     "packages/validation": {
       "name": "@elvel/validation",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/console": "workspace:*",
         "@elvel/core": "workspace:*",
@@ -462,7 +462,7 @@
     },
     "packages/view": {
       "name": "@elvel/view",
-      "version": "1.0.0-alpha.12",
+      "version": "1.0.0-alpha.13",
       "dependencies": {
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
