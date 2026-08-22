@@ -268,6 +268,32 @@ for (const candidate of candidates) {
  */
 const posixModes = process.platform !== 'win32'
 
+/**
+ * Can this account create a symbolic link at all?
+ *
+ * Windows treats that as a privilege: without Developer Mode or an elevated
+ * shell, `symlink()` answers `EPERM`, and the test below then dies on its own
+ * setup rather than on the thing it is checking. A probe rather than a platform
+ * check, deliberately — CI's Windows runner is elevated and does exercise it, as
+ * does a developer who has Developer Mode on.
+ *
+ * `withinRoot` is not platform-shaped: it resolves and compares, which works
+ * everywhere. Only *building the trap* needs the privilege.
+ */
+const canSymlink = await (async () => {
+  const probe = await mkdtemp(join(tmpdir(), 'elvel-symlink-probe-'))
+
+  try {
+    await symlink(join(probe, 'target'), join(probe, 'link'))
+
+    return true
+  } catch {
+    return false
+  } finally {
+    await rm(probe, { recursive: true, force: true })
+  }
+})()
+
 describe('paths', () => {
   test('a relative path is normalised, not rewritten', () => {
     expect(normalisePath('a/b.txt')).toBe('a/b.txt')
@@ -328,7 +354,7 @@ describe('LocalDisk specifics', () => {
     expect(after.mode & 0o777).toBe(0o644)
   })
 
-  test('a symlink pointing out of the disk is refused', async () => {
+  test.skipIf(!canSymlink)('a symlink pointing out of the disk is refused', async () => {
     // The path itself looks innocent; only resolving it shows where it goes. This
     // is why `withinRoot` resolves before comparing.
     const outside = await mkdtemp(join(tmpdir(), 'elvel-outside-'))
