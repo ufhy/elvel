@@ -45,6 +45,29 @@ async function readJson<T>(path: string): Promise<T> {
 }
 
 /**
+ * A package name, and nothing else, on its way into a URL.
+ *
+ * The names here are read out of each workspace manifest, which makes this a
+ * file-to-network flow — CodeQL says so as `js/file-access-to-http`, and it is
+ * right to: a manifest is a file, and "we wrote that file" is an assumption
+ * rather than a check. What belongs in this URL is an npm package name, so that
+ * is what is required, and anything else stops here rather than being encoded
+ * and sent.
+ *
+ * The shape is npm's own: an optional scope, then lowercase letters, digits, and
+ * `.`, `-`, `_`.
+ */
+const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
+
+function packageName(name: string): string {
+  if (!PACKAGE_NAME.test(name)) {
+    throw new Error(`[${name}] is not a package name, so it is not asked about.`)
+  }
+
+  return name
+}
+
+/**
  * Refuse to pass when there is nothing to check.
  *
  * A dry run has published nothing, so `bunx create-elvel@<version>` would either
@@ -66,10 +89,13 @@ async function published(name: string, wanted: string): Promise<boolean> {
    * `no-store`, because a CDN copy that satisfied the first call would satisfy
    * every retry and the loop would never see the update it is waiting for.
    */
-  const answer = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
-    headers: { accept: 'application/json' },
-    cache: 'no-store'
-  }).catch(() => undefined)
+  const answer = await fetch(
+    `https://registry.npmjs.org/${encodeURIComponent(packageName(name))}`,
+    {
+      headers: { accept: 'application/json' },
+      cache: 'no-store'
+    }
+  ).catch(() => undefined)
 
   if (!answer?.ok) return false
 
