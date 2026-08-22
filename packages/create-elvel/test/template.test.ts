@@ -635,13 +635,24 @@ describe('what a scaffolded application installs', () => {
     expect(escape).toBeGreaterThan(-1)
     expect(escape).toBeLessThan(handover)
 
-    // Only on failure, and on stderr, so no command's output gains a line.
-    const notice = entry.indexOf('process.stderr.write')
+    /**
+     * Two messages, both on stderr so no command's stdout gains a line.
+     *
+     * The first is unconditional, and it earned that: a silent handover is how
+     * stale code gets measured for hours — `bun.lock` does not move when a linked
+     * dependency is edited, so the bundle stays "fresh" while the source changes
+     * under it. The second only fires when the bundle exits non-zero, because a
+     * stack trace full of `dist/elvel.js` needs to name the file that ran.
+     */
+    const announcement = entry.indexOf('Running dist/elvel.js')
+    const failure = entry.indexOf('not the source here')
 
-    expect(notice).toBeGreaterThan(handover)
-    expect(entry.slice(handover, notice)).toContain('handed.exitCode ?? 1) !== 0')
-    expect(entry.slice(notice)).toContain('ELVEL_BUNDLE=0')
-    expect(entry).toContain('dist/elvel.js, not the source here')
+    expect(announcement).toBeGreaterThan(handover)
+    expect(entry.slice(handover, announcement)).not.toContain('exitCode')
+    expect(entry.slice(announcement, announcement + 200)).toContain('ELVEL_BUNDLE=0')
+
+    expect(failure).toBeGreaterThan(announcement)
+    expect(entry.slice(announcement, failure)).toContain('handed.exitCode ?? 1) !== 0')
   })
 
   test('a passkey application can boot from its bundle', async () => {

@@ -36,6 +36,16 @@ if (process.env.ELVEL_BUNDLE !== '0' && (await fresh(bundle))) {
   })
 
   /**
+   * Say that the bundle ran, every time — not only when it fails.
+   *
+   * A silent handover is how stale code gets measured for hours: `bun.lock` does
+   * not change when a linked dependency is edited, so the bundle stays "fresh"
+   * while the source moves under it, and the command that was typed names
+   * `elvel.ts`. One dim line on stderr, so a piped stdout stays clean.
+   */
+  process.stderr.write('  Running dist/elvel.js. ELVEL_BUNDLE=0 runs the source.\n')
+
+  /**
    * Say which file failed, because the developer did not run it.
    *
    * A broken bundle reports itself with a stack trace full of `dist/elvel.js`
@@ -84,7 +94,18 @@ if (process.env.ELVEL_BUNDLE !== '0' && (await fresh(bundle))) {
  * `auth` — needs no polyfill and should not fail for the lack of one.
  */
 try {
-  await import('reflect-metadata')
+  /**
+   * Through a variable, so `tsc` does not try to resolve it.
+   *
+   * Only the auth kit declares this dependency — it is there for the passkey
+   * chain — so a literal specifier makes `bun run typecheck` fail in every other
+   * application with `Cannot find module 'reflect-metadata'`. A non-literal
+   * specifier is the documented way to say "resolve this at run time", which is
+   * exactly what the `catch` below is for.
+   */
+  const polyfill: string = 'reflect-metadata'
+
+  await import(polyfill)
 } catch {
   // Nothing in this application asked for reflection. Carry on.
 }

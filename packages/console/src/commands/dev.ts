@@ -1,6 +1,30 @@
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
+import pc from 'picocolors'
 import { Command } from '../command.ts'
 
 type Process = { name: string; argv: string[] }
+
+/**
+ * The lines `dev` prints before anything else does.
+ *
+ * Separated from the command so the content can be tested without spawning four
+ * processes. The complaint that produced it was concrete: `bun run dev` said
+ * `Running: server, assets, schedule` and nothing about the port, the
+ * environment, or where the assets were — all of which it knew.
+ */
+export function devSummary(input: {
+  name: string
+  environment: string
+  port: string
+  assets: string
+}): string[] {
+  return [
+    `  Application:  ${input.name} (${input.environment})`,
+    `  Server:       ${pc.underline(`http://localhost:${input.port}`)}`,
+    `  Assets:       ${input.assets}`
+  ]
+}
 
 /**
  * `dev` — the server, the asset server, a worker and the scheduler, in one
@@ -24,8 +48,12 @@ type Process = { name: string; argv: string[] }
  * `@vite/client` already holds. Neither Bun nor Elysia can do that — see the
  * comment on that plugin for why.
  *
- * Output is prefixed rather than interleaved raw, because three streams into one
- * terminal is otherwise unreadable.
+ * The three streams are inherited, not piped, so they interleave raw. Piping them
+ * to add a `[server]` prefix would take the terminal away from the children —
+ * Vite and `serve` both check for one and drop their colours without it — so the
+ * prefix is not worth what it costs. What makes the output readable instead is
+ * that this command says everything a developer needs *before* the children start
+ * talking.
  */
 export class DevCommand extends Command {
   static override signature =
@@ -44,13 +72,53 @@ export class DevCommand extends Command {
     }
   }
 
+  /**
+   * Report the asset server's real origin, once it has one.
+   *
+   * Vite's port is not knowable in advance: it takes 5174 when 5173 is busy, and
+   * printing 5173 anyway would be a guess that is wrong exactly when it matters.
+   * The template's plugin writes the origin it actually bound to into
+   * `public/hot`, so this waits for that file and prints what it says.
+   *
+   * `since` guards against a stale file — the plugin removes it on exit, but a
+   * killed terminal can leave one behind, and reporting yesterday's port is worse
+   * than reporting none.
+   */
+  private async announceAssets(since: number): Promise<void> {
+    const path = join(this.app.basePath(), 'public', 'hot')
+    const deadline = Date.now() + 20_000
+
+    while (Date.now() < deadline) {
+      const file = Bun.file(path)
+
+      if ((await file.exists()) && file.lastModified >= since) {
+        const origin = (await file.text()).trim()
+
+        if (origin !== '') {
+          this.comment(`  Assets:       ${pc.underline(origin)}`)
+          this.line()
+        }
+
+        return
+      }
+
+      await Bun.sleep(200)
+    }
+  }
+
   async handle(): Promise<number> {
+    const windows = process.platform === 'win32'
+    const port = this.stringOption('port', '3000')
+
     const processes: Process[] = [
       {
         name: 'server',
-        argv: ['bun', '--hot', 'elvel.ts', 'serve', `--port=${this.stringOption('port', '3000')}`]
+        argv: ['bun', '--hot', 'elvel.ts', 'serve', `--port=${port}`]
       }
     ]
+
+    /** What to print beside "Assets", decided as the process list is built. */
+    let assets = 'off, because --no-assets was passed'
 
     /**
      * The asset server, when the application has one installed.
@@ -76,8 +144,9 @@ export class DevCommand extends Command {
        */
       if (this.canResolve('vite')) {
         processes.push({ name: 'assets', argv: ['bun', 'x', 'vite'] })
+        assets = 'starting, its port is reported below'
       } else {
-        this.comment('vite is not installed, so assets and browser reload are off.')
+        assets = 'vite is not installed, so there is no browser reload'
       }
     }
 
@@ -99,8 +168,47 @@ export class DevCommand extends Command {
       processes.push({ name: 'schedule', argv: ['bun', 'elvel.ts', 'schedule:work'] })
     }
 
-    this.info(`Running: ${processes.map((one) => one.name).join(', ')}. Ctrl+C stops all of them.`)
+    /**
+     * Say what is running and where, before the processes start talking.
+     *
+     * `serve` prints its own banner — port, environment, route count — but it
+     * prints it *as a child*, into a terminal three processes share. Under
+     * `bun --hot` inside a repository with linked packages that banner arrived
+     * after 229 lines of `warn: … will not be watched`, and the answer to "what
+     * port is it on" was somewhere in the scrollback. This is the same
+     * information, said first, by the command that was actually typed.
+     */
     this.line()
+    this.output.tag('INFO', `Running ${processes.map((one) => one.name).join(', ')}`)
+    for (const line of devSummary({
+      name: this.app.config.get('app.name', 'Elvel'),
+      environment: this.app.environment(),
+      port,
+      assets
+    })) {
+      this.comment(line)
+    }
+    this.line()
+    this.comment('  Ctrl+C stops all of them.')
+    this.line()
+
+    /**
+     * Clear a hot file the last run could not clear itself.
+     *
+     * Vite's plugin removes it when it stops, but only if it gets to run its
+     * handlers: a forced kill skips them and the file survives — measured on
+     * Windows, both `taskkill /t /f` and `taskkill /t` left it behind. Until Vite
+     * writes a new one, every page rendered by the server points its scripts at a
+     * dev server that is not running.
+     *
+     * Removed here rather than trusted, because `dev` is about to start the
+     * process that owns it.
+     */
+    if (processes.some((one) => one.name === 'assets')) {
+      rmSync(join(this.app.basePath(), 'public', 'hot'), { force: true })
+    }
+
+    const startedAt = Date.now()
 
     const children = processes.map((process) => ({
       name: process.name,
@@ -110,20 +218,41 @@ export class DevCommand extends Command {
         stderr: 'inherit',
         stdin: 'ignore',
         /**
-         * Its own process group, so stopping means stopping.
+         * A process group on POSIX; nothing on Windows, deliberately.
          *
-         * `queue:work` and `schedule:work` spawn children of their own; killing
-         * only the direct child leaves those holding the port or the job, and the
-         * next `dev` fails with "address in use" for reasons nothing explains.
+         * `detached` there does two things and neither one helps. It asks Windows
+         * for a new console — measured: `conhost` went from 11 processes to 12
+         * with the flag and stayed at 10 without it, which is the extra terminal
+         * window that appears when `bun run dev` starts and Vite reports itself
+         * into it instead of here. And the group kill it was added for does not
+         * exist: `process.kill(-pid)` answers `ESRCH: no such process`, so the
+         * children it was meant to stop were surviving anyway.
          */
-        detached: true
+        detached: !windows
       })
     }))
 
+    /**
+     * Stop the children *and* their own children.
+     *
+     * `queue:work` and `schedule:work` spawn processes of their own; stopping only
+     * the direct child leaves those holding the port or a job, and the next `dev`
+     * fails with "address in use" for reasons nothing explains. On POSIX a
+     * negative pid reaches the whole group. On Windows there is no such call —
+     * measured, it throws `ESRCH` — and `taskkill /t` is the equivalent that does
+     * walk the tree.
+     */
     const stopAll = () => {
       for (const child of children) {
         try {
-          process.kill(-child.handle.pid, 'SIGTERM')
+          if (windows) {
+            Bun.spawnSync(['taskkill', '/pid', String(child.handle.pid), '/t', '/f'], {
+              stdout: 'ignore',
+              stderr: 'ignore'
+            })
+          } else {
+            process.kill(-child.handle.pid, 'SIGTERM')
+          }
         } catch {
           // Already gone. Nothing to stop is the outcome asked for.
         }
@@ -132,6 +261,15 @@ export class DevCommand extends Command {
 
     process.on('SIGINT', stopAll)
     process.on('SIGTERM', stopAll)
+
+    /**
+     * Not awaited: the race below is what keeps this command alive.
+     *
+     * If Vite never comes up, this simply gives up after twenty seconds and says
+     * nothing more — a missing line is better than a command that waits for a
+     * process that is not coming.
+     */
+    if (processes.some((one) => one.name === 'assets')) void this.announceAssets(startedAt)
 
     /**
      * The first one to exit takes the rest with it.

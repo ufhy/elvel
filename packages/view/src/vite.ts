@@ -28,6 +28,9 @@ export class Vite {
   /** Warned once per process, not once per render. */
   private static warned = false
 
+  /** The same, for a hot file that survived into production. */
+  private static warnedHot = false
+
   constructor(
     private readonly options: {
       /** Where the build wrote its output, relative to the public directory. */
@@ -35,6 +38,21 @@ export class Vite {
       publicPath: string
       /** Written by `vite dev`; its presence is what "development" means. */
       hotFile?: string
+      /**
+       * Whether that presence may be believed.
+       *
+       * The file is written when the dev server binds and removed when it stops
+       * — but only if it gets to run its handlers. A forced kill (`taskkill /f`,
+       * Task Manager, a closed terminal) skips them, and the file survives.
+       * Measured on Windows: both `taskkill /t /f` and `taskkill /t` left it
+       * behind.
+       *
+       * A leftover file is a nuisance in development and a broken deploy in
+       * production: every page points its scripts at `localhost:5173`, a machine
+       * that is not there, so the application ships without assets and answers
+       * 200 while doing it. So production does not believe it.
+       */
+      trustHotFile?: boolean
       /**
        * What to do when there is neither a dev server nor a build.
        *
@@ -54,9 +72,23 @@ export class Vite {
     }
   ) {}
 
-  /** Is a dev server running? */
+  /** Is a dev server running — and are we willing to believe it? */
   get hot(): boolean {
-    return existsSync(this.hotFilePath)
+    const present = existsSync(this.hotFilePath)
+
+    if (present && this.options.trustHotFile === false) {
+      if (!Vite.warnedHot) {
+        Vite.warnedHot = true
+        console.warn(
+          `Ignoring ${this.hotFilePath} in production: it points at a dev server. ` +
+            'Delete it — it is written by `vite dev` and should never be deployed.'
+        )
+      }
+
+      return false
+    }
+
+    return present
   }
 
   /**

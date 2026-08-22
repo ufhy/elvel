@@ -70,8 +70,31 @@ export class UnauthorizedException extends HttpException {
 export class ExceptionHandler implements ExceptionHandlerContract {
   constructor(protected readonly app: ApplicationContract) {}
 
+  /**
+   * Is this error worth a log line? Client mistakes are not.
+   *
+   * Everything used to be reported, so a browser asking for a `/favicon.ico` an
+   * application does not have produced `ERROR [stack] NOT_FOUND` and a stack
+   * trace through `@elysiajs/static` — an application error, in the log, for a
+   * request that was answered correctly. Laravel has the same rule and the same
+   * reason: `NotFoundHttpException`, `HttpException`, `ValidationException` and
+   * friends are all in its `internalDontReport`.
+   *
+   * 4xx says the caller got it wrong and the answer already told them. 5xx says
+   * this application got it wrong, and that is what a log is for. Override this
+   * to report a status anyway — a 403 worth watching, say — or to silence one.
+   *
+   * The access log is the place to see 404s: `logging.requests.enabled`.
+   */
+  protected shouldReport(error: unknown): boolean {
+    const status = this.statusFor(error)
+
+    return status < 400 || status >= 500
+  }
+
   report(error: unknown): void {
     if (this.app.environment() === 'testing') return
+    if (!this.shouldReport(error)) return
 
     // Prefer the log manager when the log package is installed, so reports obey
     // the configured channels. Core cannot depend on it, hence the duck test.

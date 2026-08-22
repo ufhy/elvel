@@ -44,6 +44,18 @@ export class ViewServiceProvider extends ServiceProvider {
           directive,
           maxAge,
           minimumBytes: this.config<number>('view.compressMinimumBytes', 1024),
+          /**
+           * Where Vite writes, so its hashed names can be cached for a year.
+           *
+           * The environment decides the directive for the rest of `public/`,
+           * whose names stay the same when their contents change. Under this
+           * prefix they do not, so there is nothing for `no-cache` to protect
+           * and a navigation was re-downloading the same bytes every time.
+           */
+          hashedPrefix: `${prefix.endsWith('/') ? prefix : `${prefix}/`}${this.config<string>(
+            'vite.buildDirectory',
+            'build'
+          )}/`,
           // Only where filenames carry a content hash and cannot go stale.
           cache: production
         })

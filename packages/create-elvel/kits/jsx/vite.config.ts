@@ -32,12 +32,20 @@ function hotFile() {
         writeFileSync(path, `http://localhost:${port}`)
       })
 
-      // Both, because a killed terminal fires one and a clean stop the other.
+      /**
+       * Every stop this process can be asked to make politely.
+       *
+       * `exit` covers a normal end, and the two signals turn a request to stop
+       * into one — a handler that only logs would leave the file behind. What
+       * none of them covers is a *forced* kill: `taskkill /f`, Task Manager, a
+       * closed terminal window. Measured on Windows, both `taskkill /t /f` and
+       * `taskkill /t` left the file in place, which is why `elvel dev` removes a
+       * stale one when it starts and why the framework ignores it in production.
+       */
       process.on('exit', clean)
       process.on('SIGINT', () => process.exit())
-    },
-
-    closeBundle: clean
+      process.on('SIGTERM', () => process.exit())
+    }
   }
 }
 

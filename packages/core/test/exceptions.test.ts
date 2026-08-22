@@ -146,6 +146,91 @@ describe('reporting', () => {
   })
 })
 
+/**
+ * A log is for what this application got wrong.
+ *
+ * Every error used to be reported, so a browser asking for a `/favicon.ico` the
+ * application does not ship wrote `ERROR [stack] NOT_FOUND` with a stack trace
+ * through `@elysiajs/static` — an application error, in the log, for a request
+ * that was answered correctly. Laravel keeps the same four-hundreds out of its
+ * log for the same reason.
+ */
+describe('what is worth reporting', () => {
+  /** Counts what `report()` would have written, whatever it reaches for. */
+  const counting = () => {
+    const original = console.error
+    let calls = 0
+
+    console.error = () => {
+      calls += 1
+    }
+
+    return {
+      calls: () => calls,
+      restore: () => {
+        console.error = original
+      }
+    }
+  }
+
+  test('a missing page is not an application error', () => {
+    app.config.set('app.env', 'local')
+
+    const log = counting()
+
+    try {
+      // Every shape a 404 arrives in: the framework's, Elysia's, and a status.
+      handler.report(new NotFoundException())
+      handler.report(Object.assign(new Error('NOT_FOUND'), { code: 'NOT_FOUND' }))
+      handler.report(Object.assign(new Error('missing'), { status: 404 }))
+
+      expect(log.calls()).toBe(0)
+    } finally {
+      log.restore()
+    }
+  })
+
+  test('the rest of the four-hundreds are just as quiet', () => {
+    app.config.set('app.env', 'local')
+
+    const log = counting()
+
+    try {
+      handler.report(new ForbiddenException())
+      handler.report(new UnauthorizedException())
+      handler.report(new HttpException(419, 'CSRF token mismatch.'))
+      handler.report(Object.assign(new Error('invalid'), { code: 'VALIDATION' }))
+
+      expect(log.calls()).toBe(0)
+    } finally {
+      log.restore()
+    }
+  })
+
+  /**
+   * The positive control, and the reason the tests above mean anything.
+   *
+   * A count of zero proves nothing unless the same counter can reach a number,
+   * so this asserts the loud half of the rule: what this application got wrong
+   * still gets written down.
+   */
+  test('a failure of this application is still reported', () => {
+    app.config.set('app.env', 'local')
+
+    const log = counting()
+
+    try {
+      handler.report(new Error('the database is gone'))
+      handler.report(new HttpException(500, 'Server Error'))
+      handler.report(new HttpException(503, 'Down for maintenance'))
+
+      expect(log.calls()).toBe(3)
+    } finally {
+      log.restore()
+    }
+  })
+})
+
 describe('error pages for a browser', () => {
   const handler = () => new ExceptionHandler(new Application(process.cwd()))
 

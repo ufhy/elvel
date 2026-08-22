@@ -15,7 +15,9 @@ export function vite(entrypoints: string | string[]): string {
     buildDirectory: config<string>('vite.buildDirectory', 'build'),
     // Loud in production, where a missing build is a broken deploy; quiet
     // elsewhere, where it usually means the asset build has not been run yet.
-    whenMissing: app().isProduction() ? 'throw' : 'ignore'
+    whenMissing: app().isProduction() ? 'throw' : 'ignore',
+    // A hot file in production is always a mistake — see the option's comment.
+    trustHotFile: !app().isProduction()
   })
 
   return instance.tags(entrypoints)

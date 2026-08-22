@@ -49,6 +49,21 @@ export type CompressedAssetsOptions = {
   /** `Cache-Control` directive, kept the same as the static plugin's. */
   directive: string
 
+  /**
+   * Where the build writes, e.g. `/build/`. Everything under it is cached hard.
+   *
+   * Vite puts a hash of the content in the filename, so a file under this prefix
+   * cannot go stale: change the content and the name changes with it. That makes
+   * `no-cache` there protect nothing and cost everything — measured in
+   * development, every navigation re-downloaded the same 32 kB script because the
+   * whole of `public/` was treated as if its names could be reused.
+   *
+   * The rest of `public/` is a different matter: `favicon.svg`, an image, a
+   * `robots.txt` all keep their names when their contents change, so they keep
+   * the environment's directive.
+   */
+  hashedPrefix?: string
+
   /** `max-age`, in seconds. */
   maxAge: number
 
@@ -77,7 +92,7 @@ export type CompressedAssetsOptions = {
  * is right to refuse it. `Bun.gzipSync` never returns one, so the narrowing below
  * is a statement of that fact rather than a cast that hides a risk.
  */
-type Entry = { bytes: Uint8Array<ArrayBuffer>; type: string }
+type Entry = { bytes: Uint8Array<ArrayBuffer>; type: string; etag: string }
 
 /**
  * Resolve a request path to a file inside the root, or nothing.
@@ -128,23 +143,72 @@ export function compressedAssets(options: CompressedAssetsOptions) {
   const minimum = options.minimumBytes ?? 1024
   const cached = new Map<string, Entry>()
 
+  const hashed = options.hashedPrefix
+
+  /**
+   * A year, and `immutable`, for a name that carries its own version.
+   *
+   * `immutable` is the half that matters in a browser: without it a reload
+   * revalidates every asset even inside `max-age`, which is a round trip per file
+   * for an answer that cannot have changed.
+   */
+  const IMMUTABLE = 'public, max-age=31536000, immutable'
+
   return new Elysia({ name: 'elvel:compressed-assets' }).onRequest(({ request }) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') return
-
-    if (!acceptsGzip(request.headers.get('accept-encoding'))) return
 
     const { pathname } = new URL(request.url)
 
     if (!pathname.startsWith(prefix)) return
-    if (!COMPRESSIBLE.has(extname(pathname).toLowerCase())) return
+
+    /**
+     * Ranges are left to the static plugin, which already implements them.
+     *
+     * A partial response has to agree with what was asked for, and answering one
+     * from a compressed buffer — or with a whole file — is worse than not
+     * answering it here at all.
+     */
+    if (request.headers.get('range') !== null) return
+
+    const underHash = hashed !== undefined && pathname.startsWith(hashed)
+    const compressible = COMPRESSIBLE.has(extname(pathname).toLowerCase())
+    const wantsGzip = acceptsGzip(request.headers.get('accept-encoding'))
+
+    // Nothing to add: not a hashed asset, and not something to compress.
+    if (!underHash && !(compressible && wantsGzip)) return
 
     const path = fileFor(pathname, prefix, options.root)
 
     if (path === undefined) return
 
     const stats = statSync(path)
+    const cacheControl = underHash ? IMMUTABLE : `${options.directive}, max-age=${options.maxAge}`
 
-    if (stats.size < minimum) return
+    /**
+     * A hashed file that will not be compressed still gets the header it needs.
+     *
+     * An image, a font, a caller that sent no `accept-encoding` — all of them
+     * would otherwise fall through to the static plugin and be told `no-cache` in
+     * development, which is the whole complaint.
+     */
+    if (!wantsGzip || !compressible || stats.size < minimum) {
+      if (!underHash) return
+
+      const etag = `W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`
+      const headers: Record<string, string> = {
+        'content-type': Bun.file(path).type,
+        etag,
+        'cache-control': cacheControl
+      }
+
+      const presented = request.headers.get('if-none-match')
+
+      if (presented !== null && presented.split(',').some((tag) => tag.trim() === etag)) {
+        return new Response(null, { status: 304, headers })
+      }
+
+      return new Response(request.method === 'HEAD' ? null : Bun.file(path), { headers })
+    }
 
     /** The cache key carries the file's identity, not just its name. */
     const key = `${path}:${stats.size}:${stats.mtimeMs}`
@@ -160,7 +224,18 @@ export function compressedAssets(options: CompressedAssetsOptions) {
           compressed.byteLength
         )
 
-        return { bytes, type: Bun.file(path).type }
+        /**
+         * A validator of its own, because this is a different representation.
+         *
+         * The static plugin sets an `ETag` on the file it serves; a compressed
+         * response is not that file, so reusing its tag would let a cache answer
+         * an `Accept-Encoding: identity` request with gzipped bytes. Weak, and
+         * built from size and mtime rather than a hash of the content: hashing
+         * every asset on the first request costs more than a revalidation saves.
+         */
+        const etag = `W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}-gzip"`
+
+        return { bytes, type: Bun.file(path).type, etag }
       })()
 
     /**
@@ -175,17 +250,36 @@ export function compressedAssets(options: CompressedAssetsOptions) {
 
     if (options.cache && hit === undefined) cached.set(key, entry)
 
+    const headers: Record<string, string> = {
+      'content-type': entry.type,
+      'content-encoding': 'gzip',
+      etag: entry.etag,
+      /**
+       * Without this, a shared cache can hand these bytes to a client that
+       * never asked for gzip and cannot read them.
+       */
+      vary: 'Accept-Encoding',
+      'cache-control': cacheControl
+    }
+
+    /**
+     * Answer a revalidation with nothing, which is the point of a validator.
+     *
+     * Measured before this existed: a conditional request for an 81 kB script
+     * came back 200 with all 31 kB of it compressed, every time — a browser
+     * revalidating on reload, or after `max-age` ran out, paid full price for a
+     * file it already had.
+     */
+    const presented = request.headers.get('if-none-match')
+
+    if (presented !== null && presented.split(',').some((tag) => tag.trim() === entry.etag)) {
+      return new Response(null, { status: 304, headers })
+    }
+
     return new Response(request.method === 'HEAD' ? null : entry.bytes, {
       headers: {
-        'content-type': entry.type,
-        'content-encoding': 'gzip',
-        'content-length': String(entry.bytes.byteLength),
-        /**
-         * Without this, a shared cache can hand these bytes to a client that
-         * never asked for gzip and cannot read them.
-         */
-        vary: 'Accept-Encoding',
-        'cache-control': `${options.directive}, max-age=${options.maxAge}`
+        ...headers,
+        'content-length': String(entry.bytes.byteLength)
       }
     })
   })
