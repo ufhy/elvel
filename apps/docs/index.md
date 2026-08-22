@@ -36,8 +36,9 @@ features:
     link: /architecture/packages
   - title: Tested against real servers
     details: >-
-      SQLite, Postgres and MySQL on every push, on Linux, macOS and Windows —
-      because a grammar can be plausible and still be rejected.
+      SQLite, Postgres and MySQL on every push — because a grammar can be
+      plausible and still be rejected — and the whole suite on macOS and Windows
+      besides.
     link: /contributing/working-on-elvel
 ---
 
