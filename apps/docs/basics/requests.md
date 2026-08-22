@@ -93,6 +93,42 @@ Four things that follow from it:
   `.withInput()`, `.seeOther()`, `.permanent()` build the rest by hand when you
   want to.
 
+## A form reaching PUT, PATCH or DELETE
+
+A browser form can only send `GET` or `POST`. Laravel's answer is a hidden
+`_method` field, and this is the same one — Blade's `@method` is `methodField()`
+here:
+
+```tsx
+<form method="post" action="/settings/profile">
+  {csrfField()}
+  {methodField('PATCH')}
+  …
+</form>
+```
+
+The route is a real `PATCH`, and nothing in the handler knows a form was involved:
+
+```ts
+controller('profile').patch('/settings/profile', async ({ body }) => { … })
+```
+
+Four things worth knowing:
+
+- **The override happens before routing**, which is what makes it work at all.
+  Elysia picks a handler from the method, and a `beforeHandle` hook runs after
+  that choice — too late. `onRequest` runs first and hands the router a new
+  request carrying the real method.
+- **The body survives the round trip**, so validation and the CSRF check see what
+  was actually sent.
+- **Only `PUT`, `PATCH`, `DELETE` and `OPTIONS` can be claimed.** A form may not
+  spoof `GET` or `HEAD`: turning an unsafe request into a cacheable one lets a
+  proxy cache it and a browser repeat it, and every "this method is safe"
+  assumption downstream would then be wrong. `allow` narrows the list further.
+- **`?_method=` in the query string is ignored by default**, as in Symfony —
+  `fromQuery: true` turns it on. `X-HTTP-Method-Override` is read for clients that
+  cannot set a body field.
+
 ## Validating without a class
 
 ```ts

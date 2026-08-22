@@ -42,8 +42,21 @@ guard somebody forgot to apply, and both are worth knowing.
 | `password.confirm` | Password typed recently; answers **423** |
 | `can:ability` | An [authorization](/security/authorization) check |
 | `throttle:max,minutes` | [Rate limiting](#rate-limiting) |
-| `signed` | The URL's signature is valid |
+| `signed` | The URL's signature is valid, origin included |
+| `signed:relative` | The same, ignoring the origin |
 | `bindings` | Resolve route model bindings |
+
+The two `signed` forms are a real choice, not a shorthand. `signed` covers the
+origin, which is what a link in an email needs — and it therefore **cannot be
+followed on a host `APP_URL` does not name**, including any ephemeral port, so a
+preview deployment or a tunnelled localhost will reject its own links.
+`signed:relative` ignores the origin and works anywhere.
+
+Both sides have to agree. `signedRoute(name, params, expires)` mints the absolute
+form; its fourth argument is `absolute`, so `signedRoute(name, params, expires,
+false)` is the one `signed:relative` can verify. The first version of this shipped
+the verifier without the minter, which made `signed:relative` a check nothing
+could satisfy — mismatch the pair and that is what you get back.
 
 ## Registering your own
 
@@ -62,6 +75,18 @@ middlewares()
 A **group** is a name that expands to several, so a set of routes can say one
 word. `middleware:list` shows what a group expands to, which is how you check that
 `locked-down` still means what you think.
+
+::: tip Only middleware applied through `middleware()` shows up in the listings
+Elysia compiles a route's `beforeHandle` hooks into one anonymous chain, so a
+route table cannot say *which* middleware guards what — only that some does.
+`middleware()` tags its hook with a name, which is what lets `route:list` print a
+middleware column and `middleware:list` count usage.
+
+A hook you attach yourself with `.onBeforeHandle(...)` still runs, and still
+protects the route; it simply has no name to report, so those two commands cannot
+see it. If you want a guard to appear there, register it as an alias and apply it
+with `middleware('subscribed')`.
+:::
 
 ## Order is enforced, not assumed
 
