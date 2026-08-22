@@ -187,9 +187,10 @@ for (const { name, config } of available) {
         /**
          * The unique index the schema builder wrote is enforced by the server.
          *
-         * Caught rather than asserted with `.rejects`, which never settles on
-         * Windows when the promise came from a networked driver — and this one
-         * runs against Postgres and MySQL. See BEHAVIOURS.
+         * Caught rather than asserted with `.rejects`, which never settled on
+         * Windows before Bun 1.4 when the promise came from a networked driver —
+         * and this one runs against Postgres and MySQL. 1.4 fixed that; catching
+         * is kept because it cannot hang on any version. See BEHAVIOURS.
          */
         const duplicate = await auth.api
           .signUpEmail({

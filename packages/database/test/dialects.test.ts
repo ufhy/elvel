@@ -313,10 +313,11 @@ for (const { name, config } of available) {
         /**
          * Caught rather than asserted with `.rejects`.
          *
-         * `expect(promise).rejects` never settles on Windows when the promise
-         * came from a networked driver — the run hangs with no output and Bun
-         * blames a hook whose measured time is 0 ms. Catching asserts the same
-         * thing and cannot hang. See BEHAVIOURS.
+         * `expect(promise).rejects` never settled on Windows before Bun 1.4 when
+         * the promise came from a networked driver: the run hung with no output
+         * and Bun blamed a hook whose measured time was 0 ms. 1.4 fixed it, and
+         * this stays — catching asserts the same thing and cannot hang on any
+         * version. See BEHAVIOURS.
          */
         const refused = await connection
           .transaction(async (tx) => {

@@ -151,8 +151,9 @@ jobs:
   # every test that does not need a server — which is where the platform-shaped
   # bugs actually lived.
   #
-  # MySQL is deliberately absent on Windows rather than merely unconfigured:
-  # Bun hangs on it there, with no error and no timeout. See BEHAVIOURS.
+  # No database here because service containers only run on Linux runners, not
+  # because Bun cannot reach one: MySQL on Windows hung until Bun 1.4 and now
+  # runs 151 dialect tests in 9 seconds, measured. See BEHAVIOURS.
   desktop:
     strategy:
       fail-fast: false

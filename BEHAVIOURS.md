@@ -1677,40 +1677,44 @@ to `0o000` stays readable. The disk does not pretend otherwise and the tests for
 it skip rather than assert something weaker. The S3 disk carries visibility in the
 object's ACL and is unaffected; so is everything else the local disk does.
 
-**MySQL is unusable from Bun on Windows.** Not slow — it stops. The dialect suite
-reaches the MySQL block and produces nothing further; the process never prints a
-summary and never exits. The same file, the same servers, the same Bun 1.3.14,
-run from WSL Linux: **121 tests in 6 seconds**.
+**MySQL from Bun on Windows hung until Bun 1.4, and does not any more.** Measured
+on Windows against MySQL **9.7.1** on Bun **1.4.0**: the four dialect suites run
+**151 tests in 9 seconds**, none skipped, none failed. That MySQL takes part is
+not assumed either — pointed at a dead port instead, the same suites run 81
+tests rather than 121, so forty of them are its own.
 
-It took a day to establish that, so here is what was ruled out, each measured
-rather than assumed. MySQL **8.4** and **9.7.1** both hang. Bun **1.3.3** and
-**1.3.14** both hang. Pool size **10** and **1** both hang. The DDL the grammar
-emits is valid. Both query paths — `statement()` through Bun's prepared path and
-`unprepared()` through the simple one — are fast. Connecting, creating, dropping,
-reading, writing and disconnecting are all milliseconds in isolation; sixty
-connect/disconnect cycles and fifteen create/drop cycles pass without
-degradation. Postgres, SQLite and Redis are fine on Windows.
+What it used to do, for anyone still on 1.3.x: not slow, stopped. The suite
+reached the MySQL block and produced nothing further — no summary, no exit. The
+same file on WSL Linux ran 121 tests in 6 seconds. It took a day to establish,
+and what was ruled out was each measured rather than assumed: MySQL **8.4** and
+**9.7.1** both hung, Bun **1.3.3** and **1.3.14** both hung, pool size **10** and
+**1** both hung, the DDL was valid, both query paths were fast in isolation, and
+sixty connect/disconnect cycles passed without degradation. Bun's tracker carries
+a family of MySQL-only hangs — #26030, #26235, #26237, #26048, #29271, #22695 —
+in which Postgres never appears.
 
-Bun's own tracker carries a family of MySQL-only hangs — #26030, #26235, #26237,
-#26048, #29271, #22695 — closed, reopened, closed again, and one still open on
-Windows (#24130). Postgres appears in none of them.
+**The suite no longer waits to find out.** `tests/support/dialects.ts` bounds its
+probe at five seconds, so a server that neither refuses nor answers drops out
+with `no answer in 5s — it did not refuse, it hung` and the rest of the run
+finishes. That is the difference between a diagnosis and a frozen terminal, and
+it is what makes the paragraph above measurable at all.
 
-**So: develop on Linux, WSL, or macOS if the application uses MySQL.** WSL with
-mirrored networking reaches a MySQL running on the Windows host at `127.0.0.1`
-unchanged, which is the cheapest way out — no config edit, no second server.
+**`expect(promise).rejects` used to never settle on Windows when the promise came
+from a networked driver. Fixed in Bun 1.4 as well.** Measured on 1.4.0 against
+both servers: `await expect(connection.select('select * from no_such_table'))
+.rejects.toThrow()` settles for MySQL and Postgres alike, two assertions in
+**186 ms**.
 
-**`expect(promise).rejects` never settles on Windows when the promise came from a
-networked driver.** A rejection produced after a Postgres, MySQL or Redis round
-trip — `await expect(cache.integer('name')).rejects.toThrow(...)` — hangs for
-ever. Bun then reports "a beforeEach/afterEach hook timed out for this test",
-which sends you to the hooks; those measure 0–1 ms.
+What it did before: a rejection produced after a Postgres, MySQL or Redis round
+trip hung for ever, and Bun reported "a beforeEach/afterEach hook timed out for
+this test" — which sends you to hooks that measure 0–1 ms. Reproduced on 1.3.3
+and 1.3.14, while the same file passed on macOS; SQLite was unaffected, as was a
+plain `expect(Promise.reject(...)).rejects`. The socket was the difference.
 
-Reproduced on Bun 1.3.3 and 1.3.14, so it is not a version regression, and the
-same file passes on macOS. **SQLite is unaffected** — `migrator.test.ts` uses
-`.rejects` throughout and passes — as is a plain
-`expect(Promise.reject(...)).rejects`. The socket is what makes the difference.
-
-Catch the rejection instead, which asserts the same thing and cannot hang:
+The tests written around it were not changed back. Catching a rejection asserts
+the same thing, cannot hang on any version, and reads no worse — so where a
+comment says `.rejects` was avoided for this reason, that is now history rather
+than a live constraint:
 
 ```ts
 const refused = await cache.integer('name').catch((error: unknown) => error)
