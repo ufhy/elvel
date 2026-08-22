@@ -149,8 +149,17 @@ describe('turning two-factor on', () => {
     // The QR code is an inline SVG, rendered from the URI on the server.
     expect(page.body).toContain('<svg')
     expect(page.body).toContain('Turn it on')
-    // Ten codes, each shown once. `xxxxx-xxxxx` is better-auth's format.
-    expect((page.body.match(/<li[^>]*>[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}<\/li>/g) ?? []).length).toBe(10)
+    /**
+     * Ten codes, each shown once — counted without assuming the markup.
+     *
+     * `xxxxx-xxxxx` is better-auth's format, and it was matched as
+     * `<li>…</li>`, which is only how *one* of these kits renders it: the
+     * unstyled one wraps each code in a `<code>` inside the `<li>` and the count
+     * came back 0. Bounded by the tags on either side rather than by which tags
+     * they are — unbounded, the pattern matches hashed asset names and Tailwind
+     * class fragments by the hundred.
+     */
+    expect((page.body.match(/>[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}</g) ?? []).length).toBe(10)
   })
 
   /**

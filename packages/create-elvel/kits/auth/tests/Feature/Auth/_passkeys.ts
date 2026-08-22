@@ -87,11 +87,21 @@ describe('the passkey settings page', () => {
     const session = await register(address())
     await confirmPassword(session)
 
-    const page = await press(app).withCookiesFrom(session).get('/settings/passkeys')
+    /**
+     * The token from the profile page, not from this one.
+     *
+     * An account with no passkeys registered has nothing to remove, so this page
+     * renders no `<form>` at all — and in the unstyled kit that means no
+     * `_token` anywhere on it, since the styled kit's sidebar is what carried one
+     * there. Taking the token from a page that always has a form asks the same
+     * question without depending on which kit rendered it.
+     */
+    const withForms = await press(app).withCookiesFrom(session).get('/settings/profile')
+
     const answer = await press(app)
       .withCookiesFrom(session)
       .form('POST', '/settings/passkeys', {
-        _token: tokenIn(page.body),
+        _token: tokenIn(withForms.body),
         _method: 'DELETE',
         id: 'no-such-passkey'
       })
