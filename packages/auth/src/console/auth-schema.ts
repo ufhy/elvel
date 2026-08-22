@@ -109,13 +109,26 @@ export class AuthSchemaCommand extends Command {
 
     const existing = new Map<string, string[]>()
 
+    /**
+     * The indexes as well as the columns.
+     *
+     * A plugin can add a table-level index to a table that already exists —
+     * better-auth 1.7 keys `account` on `(issuer, accountId)` — and comparing
+     * only columns made that invisible: the upgrade added the column and left out
+     * the constraint the release exists to enforce, while a fresh install got
+     * both. The diff cannot ask the database anything itself, so it is asked
+     * here.
+     */
+    const indexes = new Map<string, string[]>()
+
     for (const { table } of schemaShape(tables)) {
       if (!(await builder.hasTable(table))) continue
 
       existing.set(table.toLowerCase(), await builder.getColumnListing(table))
+      indexes.set(table.toLowerCase(), await builder.getIndexListing(table))
     }
 
-    const diff = diffMigrationFor(tables, connection.grammar.dialect as Dialect, existing)
+    const diff = diffMigrationFor(tables, connection.grammar.dialect as Dialect, existing, indexes)
 
     if (!diff) {
       this.output.tag('INFO', 'The auth tables already match the configuration.')

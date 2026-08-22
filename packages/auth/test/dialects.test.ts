@@ -546,5 +546,134 @@ for (const { name, config } of available) {
         await connection.disconnect()
       }
     })
+
+    /**
+     * The upgrade a version bump asks for, which is not a column.
+     *
+     * better-auth 1.7 keys an account on `(issuer, accountId)` and declares it as
+     * a table-level index. A fresh install got it; an application that had already
+     * migrated did not, because the diff compared columns and nothing else — so
+     * the release's whole point was silently skipped and the migration ran clean
+     * while skipping it.
+     *
+     * The database here is built by stripping that one line out of the generated
+     * migration, which is what a pre-1.7 install looks like: same tables, same
+     * columns, no constraint.
+     */
+    test('a diff adds an index a plugin bump asks for, and takes it back', async () => {
+      connection = await BunSqlConnection.make(`auth-index-${name}`, config)
+
+      const prefixed = (model: string) => `${PREFIX}_index_${model}`
+      const schema = new SchemaBuilder(connection)
+      const db = { connection: async () => connection, schema: async () => schema }
+
+      const auth = betterAuth({
+        secret: 'a-very-long-test-secret-value-000000',
+        baseURL: 'http://localhost',
+        emailAndPassword: { enabled: true },
+        user: { modelName: prefixed('user') },
+        session: { modelName: prefixed('session') },
+        account: { modelName: prefixed('account') },
+        verification: { modelName: prefixed('verification') },
+        database: elvelAdapter(db as never, { dialect: name })
+      })
+
+      const tables = await (
+        auth as unknown as { $context: Promise<{ tables: never }> }
+      ).$context.then((context) => context.tables)
+
+      const account = prefixed('account')
+      const wanted = `${account}_issuer_accountid_unique`.toLowerCase()
+
+      const full = migrationFor(tables, name)
+      const withoutIndex = full.replace(/\n *table\.unique\(\['issuer', 'accountId'\]\)/, '')
+
+      // The line has to have been there, or this test proves nothing.
+      expect(full).toContain("table.unique(['issuer', 'accountId'])")
+      expect(withoutIndex).not.toContain("table.unique(['issuer', 'accountId'])")
+
+      const initial = await write(withoutIndex)
+      let applied = false
+
+      try {
+        await initial.instance.up({ schema } as never)
+        applied = true
+        await rm(initial.directory, { recursive: true, force: true })
+
+        expect(await schema.getIndexListing(account)).not.toContain(wanted)
+
+        const existing = new Map<string, string[]>()
+        const indexes = new Map<string, string[]>()
+
+        for (const { table } of schemaShape(tables)) {
+          if (!(await schema.hasTable(table))) continue
+
+          existing.set(table.toLowerCase(), await schema.getColumnListing(table))
+          indexes.set(table.toLowerCase(), await schema.getIndexListing(table))
+        }
+
+        const diff = diffMigrationFor(tables, name, existing, indexes)
+
+        // Every column is already there. The index is the only outstanding thing,
+        // and "nothing missing" would have been the wrong answer.
+        expect(diff).toBeDefined()
+        expect(diff?.code).toContain(`schema.table('${account}'`)
+        expect(diff?.code).toContain("table.unique(['issuer', 'accountId'])")
+
+        const patch = await write(diff?.code ?? '')
+
+        try {
+          await patch.instance.up({ schema } as never)
+
+          expect(await schema.getIndexListing(account)).toContain(wanted)
+
+          // Enforced by the server, not merely listed.
+          const now =
+            name === 'mysql' || name === 'mariadb'
+              ? new Date().toISOString().slice(0, 19).replace('T', ' ')
+              : new Date().toISOString()
+
+          const users = new QueryBuilder(connection, prefixed('user'))
+          const accounts = new QueryBuilder(connection, account)
+
+          await users.insert({
+            id: 'u1',
+            name: 'Ada',
+            email: 'ada@example.com',
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now
+          })
+
+          const row = (id: string) => ({
+            id,
+            issuer: 'credential',
+            accountId: 'ada@example.com',
+            providerId: 'credential',
+            userId: 'u1',
+            createdAt: now,
+            updatedAt: now
+          })
+
+          await accounts.insert(row('a1'))
+          expect(accounts.insert(row('a2'))).rejects.toThrow()
+
+          // And back down, so the migration is one somebody dares run twice.
+          await patch.instance.down({ schema } as never)
+
+          expect(await schema.getIndexListing(account)).not.toContain(wanted)
+        } finally {
+          await rm(patch.directory, { recursive: true, force: true })
+        }
+      } finally {
+        if (applied) {
+          for (const { table } of [...schemaShape(tables)].reverse()) {
+            await schema.dropIfExists(table)
+          }
+        }
+
+        await connection.disconnect()
+      }
+    })
   })
 }
