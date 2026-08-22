@@ -386,10 +386,11 @@ for (const candidate of candidates) {
       /**
        * Caught rather than asserted with `.rejects`.
        *
-       * `expect(promise).rejects` never settles on Windows when the promise came
-       * from a driver-backed read — the test hangs for ever with no output and
-       * Bun reports it as a hook timeout, which sends you looking in the wrong
-       * place. Catching the rejection asserts exactly the same thing.
+       * `expect(promise).rejects` never settled on Windows before Bun 1.4 when
+       * the promise came from a driver-backed read: the test hung for ever with
+       * no output, and Bun blamed a hook timeout, which sends you looking in the
+       * wrong place. 1.4 fixed it — this stays because catching the rejection
+       * asserts exactly the same thing and cannot hang on any version.
        */
       const refused = await cache.integer('name').catch((error: unknown) => error)
 
