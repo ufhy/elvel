@@ -2953,7 +2953,9 @@ try {
    *
    * So this keeps the lines that carry the diagnosis instead of the last ones.
    */
-  const diagnosis = plain(`${jsxTests.stdout.toString()}\n${jsxTests.stderr.toString()}`)
+  const output = plain(`${jsxTests.stdout.toString()}\n${jsxTests.stderr.toString()}`)
+
+  const diagnosis = output
     .split('\n')
     .filter((line) => /\(fail\)|error:|Expected|Received|expect\(/.test(line))
     // Capped per line: a `Received` carrying a whole HTML page would otherwise be
@@ -2961,10 +2963,26 @@ try {
     .map((line) => line.slice(0, 200))
     .join('\n')
 
+  /**
+   * The whole output as well, written where CI can print it.
+   *
+   * Filtering to the lines that usually carry a diagnosis was still a guess, and
+   * it guessed wrong: these two tests failed with nothing but their names — no
+   * `error:`, no `Expected` — so the filter had nothing to keep and a third round
+   * trip learned nothing again. Whatever bun said, it said it somewhere in here.
+   *
+   * On disk rather than inline because it is thousands of lines, and beside the
+   * scaffold rather than inside it so removing the scaffold does not take the
+   * evidence with it.
+   */
+  const transcript = join(app.basePath(), '..', 'smoke-jsx-kit-tests.log')
+
+  if (jsxTests.exitCode !== 0) await Bun.write(transcript, output)
+
   check(
     'the tests it ships pass in it',
     jsxTests.exitCode === 0,
-    diagnosis.slice(-1200) || plain(jsxTests.stderr.toString()).slice(-600)
+    `${diagnosis.slice(-1200)}\n  full output: ${transcript}\n${output.slice(-1500)}`
   )
 
   const jsxTypecheck = Bun.spawnSync({
