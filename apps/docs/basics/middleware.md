@@ -110,6 +110,19 @@ Four things that follow:
   limit is visible to both HTTP and your own code. See
   [the cache page](/digging-deeper/cache#rate-limiting).
 
+::: warning A limit checks and then increments, so a burst can slip past
+Four simultaneous requests against `throttle:3,1` can all return 200: each reads
+the counter before any of them has written to it. Laravel's `ThrottleRequests`
+has the same shape, so this is its behaviour rather than a divergence — but it
+matters if you are using a limit to stop a *burst* rather than a rate. What would
+close it is an atomic increment-and-compare in the store, which is not what this
+does today.
+
+For the cases where the gap matters — a job that must not run twice, an API that
+allows exactly three callers — use a [lock](/digging-deeper/cache#locks)
+instead. A lock is atomic on every driver here.
+:::
+
 ## CORS and proxies
 
 CORS is driven by `config/cors.ts` — `paths` is the switch. Two behaviours worth

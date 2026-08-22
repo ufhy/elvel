@@ -44,6 +44,19 @@ without one call leaking settings into the next. `withBunOptions` passes anythin
 Bun's `fetch` understands straight through, and `proxy(url)` is there for the
 environments that need one.
 
+::: warning `timeout` and `retry` are this client's, not `fetch`'s
+Bun's `fetch` accepts both options and **silently ignores them**: measured on
+1.3.12, `fetch(url, { timeout: 200 })` against a three-second handler came back
+after 2018 ms with a 200, and `{ retry: 5 }` against an endpoint that fails twice
+called it once. An unknown option to `fetch` is discarded — no error, no warning.
+
+So `.timeout()` here is `AbortSignal.timeout()` and `.retry()` is a real loop in
+this package. The consequence for you is only this: passing `timeout` or `retry`
+through `withBunOptions` does nothing, and the builders are the ones that work.
+`proxy`, `unix` and `tls` are different — they reach into Bun's own networking and
+are forwarded untouched.
+:::
+
 ## Deciding what happened
 
 ```ts
@@ -61,6 +74,19 @@ A `throw()` on a failed response raises `RequestError`; a request that never got
 an answer raises `ConnectionError`. The two are separate on purpose — a 500 and
 an unreachable host call for different handling, and a client that collapses them
 makes retry logic guesswork.
+
+**A 3xx is not a failure.** `failed()` is `clientError() || serverError()`, so a
+redirect passes `throw()` untouched. That is deliberate, and it is what makes
+`withoutRedirecting()` usable: reading a `Location` header would otherwise mean
+catching an exception for a response that is exactly what you asked for.
+
+```ts
+const moved = await http().withoutRedirecting().get(url)
+
+moved.redirect()   // true
+moved.failed()     // false — so throw() and throwOnFailure() leave it alone
+moved.header('location')
+```
 
 ## Testing
 
