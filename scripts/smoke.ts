@@ -3090,12 +3090,25 @@ try {
    * first sign-up until three commands had been run in the right directory. This
    * scaffolds with `--install` and then asks the database what is in it: the
    * better-auth tables being there is the proof, since nothing else created them.
+   *
+   * Under `apps/`, like the other targets, and for a reason this check found on
+   * its own: at the repository root it is no workspace member, so `--install`
+   * resolves `@elvel/*` from the registry at the version in `package.json` — and
+   * on a release commit that version is not published yet. It failed the moment
+   * the manifests said `alpha.12`, which is the one moment a release must not be
+   * blocked by a check about installing.
    */
-  const setupTarget = join(app.basePath(), '..', '.smoke-setup')
+  const setupTarget = join(app.basePath(), '..', 'apps', 'smoke-setup')
   await rm(setupTarget, { recursive: true, force: true })
 
   const setUp = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', '.smoke-setup', '--kit=auth', '--install'],
+    cmd: [
+      'bun',
+      'packages/create-elvel/src/index.ts',
+      'apps/smoke-setup',
+      '--kit=auth',
+      '--install'
+    ],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
