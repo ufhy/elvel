@@ -114,7 +114,24 @@ function refresh(watched: string[]) {
  * `bun run typecheck` works in a checkout that has not installed the front-end
  * dependencies yet, which is every checkout until somebody runs the build.
  */
-export default {
+/**
+ * The config is a function because one value depends on which command is running.
+ *
+ * `base` is what Vite writes into the URLs it generates *itself* — the ones no
+ * template touches: a dynamic `import()`, a chunk pulled in by code splitting, an
+ * asset referenced from CSS. `vite()` in a layout prefixes `/build/` by hand when
+ * it reads the manifest, which covers the entry points and nothing else, so with
+ * `base` left at its default the first `import()` in an application resolves to
+ * `/assets/...` and answers 404 while the file sits in `/build/assets/...`.
+ *
+ * It cannot simply be `/build/` always: in `serve`, `base` is also the prefix the
+ * dev server itself listens under, and the hot-file tags point straight at
+ * `http://localhost:5173/resources/...`. `laravel-vite-plugin` resolves it the
+ * same way — `command === 'build' ? assetUrl + '/build/' : ''`.
+ */
+export default ({ command }: { command: string }) => ({
+  base: command === 'build' ? '/build/' : '',
+
   plugins: [
     hotFile(),
     /**
@@ -157,4 +174,4 @@ export default {
       input: ['resources/css/app.css', 'resources/js/app.ts']
     }
   }
-}
+})

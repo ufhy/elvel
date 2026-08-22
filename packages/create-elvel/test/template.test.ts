@@ -596,6 +596,74 @@ describe('what a scaffolded application installs', () => {
    * Anything else means the prune kept a name that nobody declared, which is how
    * an application ends up installing something it cannot resolve.
    */
+  /**
+   * The polyfill a bundled application cannot boot without.
+   *
+   * `tsyringe` throws while its own module evaluates if `Reflect.getMetadata` is
+   * missing, and it arrives under passkeys — `@better-auth/passkey` →
+   * `@peculiar/x509` → `tsyringe`. From source the evaluation order happened to
+   * be kind; `bun build` reached `tsyringe` first, so `bun run build:server`
+   * wrote a bundle that died at boot naming a package the application never
+   * imported. That is the production deploy path, and it was broken.
+   *
+   * Two halves, and either one alone is useless: the entry has to load the
+   * polyfill *before* the application it boots, and the kit that brings the
+   * passkey chain has to declare it so the specifier resolves.
+   */
+  /**
+   * The handover to `dist/elvel.js` has to be escapable and legible.
+   *
+   * `elvel.ts` runs the bundle whenever it is newer than every source file, and
+   * says nothing when it works — so when a bundle is broken, the developer reads
+   * a stack trace full of `dist/elvel.js` line numbers for a command that names
+   * `elvel.ts`. Measured for real: one `bun run build:server` on an application
+   * with passkeys took `bun run serve` down with it, and nothing on screen
+   * connected the two.
+   *
+   * Staleness has a blind spot that makes an escape hatch necessary rather than
+   * merely convenient — a dependency linked with `workspace:` or `file:` can be
+   * edited without `bun.lock` changing, so the bundle stays "fresh" while the
+   * code behind it moves.
+   */
+  test('the bundle handover can be escaped and explains itself', async () => {
+    const entry = await Bun.file(resolve(templateDir, 'elvel.ts')).text()
+
+    // The escape is checked before the freshness walk, not after it.
+    const escape = entry.indexOf("process.env.ELVEL_BUNDLE !== '0'")
+    const handover = entry.indexOf('Bun.spawnSync')
+
+    expect(escape).toBeGreaterThan(-1)
+    expect(escape).toBeLessThan(handover)
+
+    // Only on failure, and on stderr, so no command's output gains a line.
+    const notice = entry.indexOf('process.stderr.write')
+
+    expect(notice).toBeGreaterThan(handover)
+    expect(entry.slice(handover, notice)).toContain('handed.exitCode ?? 1) !== 0')
+    expect(entry.slice(notice)).toContain('ELVEL_BUNDLE=0')
+    expect(entry).toContain('dist/elvel.js, not the source here')
+  })
+
+  test('a passkey application can boot from its bundle', async () => {
+    const entry = await Bun.file(resolve(templateDir, 'elvel.ts')).text()
+
+    const polyfill = entry.indexOf("await import('reflect-metadata')")
+    const application = entry.indexOf("await import('./bootstrap/app.ts')")
+
+    expect(polyfill).toBeGreaterThan(-1)
+    expect(polyfill).toBeLessThan(application)
+
+    // Guarded, because every kit but `auth` declares no such dependency and
+    // needs no polyfill.
+    expect(entry.slice(0, polyfill)).toContain('try {')
+
+    const auth = (await Bun.file(
+      resolve(import.meta.dir, '..', 'kits', 'auth', 'manifest.json')
+    ).json()) as { dependencies?: Record<string, string> }
+
+    expect(auth.dependencies?.['reflect-metadata']).toBeDefined()
+  })
+
   test('nothing is kept that neither the template nor a kit offered', async () => {
     const template = (await Bun.file(resolve(templateDir, '_package.json')).json()) as {
       dependencies: Record<string, string>
@@ -1010,7 +1078,7 @@ describe('reloading the browser', () => {
    */
   test('the refresh plugin sends a reload for views and for nothing else', async () => {
     const config = (await import(join(templateDir, 'vite.config.ts'))) as {
-      default: {
+      default: (env: { command: string }) => {
         plugins: Array<{
           name: string
           configureServer?(server: unknown): void
@@ -1018,7 +1086,9 @@ describe('reloading the browser', () => {
       }
     }
 
-    const plugin = config.default.plugins.find((candidate) => candidate.name === 'elvel:refresh')
+    const plugin = config
+      .default({ command: 'serve' })
+      .plugins.find((candidate) => candidate.name === 'elvel:refresh')
     const handlers: Array<(file: string) => void> = []
     let sent = 0
 
@@ -1072,15 +1142,54 @@ describe('reloading the browser', () => {
    */
   test('the watcher ignores what a running application writes', async () => {
     const config = (await import(join(templateDir, 'vite.config.ts'))) as {
-      default: { server?: { watch?: { ignored?: string[] } } }
+      default: (env: { command: string }) => { server?: { watch?: { ignored?: string[] } } }
     }
 
-    expect(config.default.server?.watch?.ignored).toEqual([
+    expect(config.default({ command: 'serve' }).server?.watch?.ignored).toEqual([
       '**/storage/**',
       '**/database/**',
       '**/public/build/**',
       '**/public/hot'
     ])
+  })
+
+  /**
+   * `base`, which decides every URL no template ever sees.
+   *
+   * `vite()` in a layout prefixes `/build/` itself when it reads the manifest, so
+   * the entry points were always right and this stayed hidden: nothing in the kit
+   * used a dynamic `import()`. The first one that did — a Vue island, loaded on
+   * demand — asked for `/assets/MemberTable-*.js` and got a 404, while the file
+   * sat in `/build/assets/`. Nothing in the build warns about it; the page simply
+   * renders without the part that needed JavaScript.
+   *
+   * The value cannot be constant. In `serve`, `base` is also the path the dev
+   * server itself answers under, and the hot-file tags point straight at
+   * `http://localhost:5173/resources/...`, so a `/build/` there would 404 every
+   * asset in development instead. `laravel-vite-plugin` splits it the same way.
+   */
+  test('the build carries a base, and the dev server does not', async () => {
+    const config = (await import(join(templateDir, 'vite.config.ts'))) as {
+      default: (env: { command: string }) => { base?: string }
+    }
+
+    expect(config.default({ command: 'build' }).base).toBe('/build/')
+    expect(config.default({ command: 'serve' }).base).toBe('')
+
+    /**
+     * The kit ships its own copy of this config, and it is checked as text.
+     *
+     * `--kit=jsx` replaces the template's `vite.config.ts` with the kit's, so
+     * fixing one and not the other leaves half the applications this package can
+     * produce broken in a way that looks identical from the outside. It cannot be
+     * imported the way the template's can: it pulls in `@tailwindcss/vite`, which
+     * only exists once an application has installed its own dependencies.
+     */
+    const kit = await Bun.file(
+      resolve(import.meta.dir, '..', 'kits', 'jsx', 'vite.config.ts')
+    ).text()
+
+    expect(kit).toContain("base: command === 'build' ? '/build/' : ''")
   })
 
   test('the plugin only runs while a dev server is up', async () => {
