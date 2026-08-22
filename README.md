@@ -69,6 +69,17 @@ why, and the one feature that was attempted and could not be made to work
 (compile-time XSS checking, blocked by a TypeScript 7 incompatibility in
 `@kitajs/ts-html-plugin`).
 
+## What is next
+
+[`ROADMAP.md`](ROADMAP.md) is what has not been built. Its first row is
+`@elvel/islands` — client components mounted into server-rendered pages, framework
+neutral by construction, so a page pays for a runtime only where it mounts one.
+
+It also carries the open decisions, which are questions rather than tasks: whether
+an island renders content or only adds behaviour, whether HTML is compressed
+alongside the assets, and what the default log stack should write. A row there is
+deleted when it is done, never narrowed.
+
 ## Security
 
 Found a hole? **Do not open an issue.** Report it privately through
