@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { createHmac } from 'node:crypto'
-import { chmod, mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elvel/database'
 import { middlewareNamesOf, middlewares } from '@elvel/http'
@@ -1749,19 +1749,37 @@ check(
   noTemporary.supported === false && noTemporary.reason?.includes('cannot make links') === true
 )
 
-// `storage:link` is what makes the public disk reachable without a route.
-const linked = plain(await captureOutput(() => app.make('elvel').run(['storage:link'])))
-check('storage:link reports the link it made or found', /Linked|already links/.test(linked))
+/**
+ * `storage:link` is what makes the public disk reachable without a route.
+ *
+ * Skipped where the link cannot be inspected at all. The repository carries
+ * `playground/public/storage` as a symlink, and a Windows checkout without
+ * symlink support materialises something `lstat` answers `EACCES` for — so the
+ * command has nothing to report and the static file it would serve is not
+ * reachable either. Both are facts about the checkout, not about the code, and a
+ * red check that means "your git cannot make symlinks" teaches nobody anything.
+ */
+const linkPath = app.publicPath('storage')
+const inspectable = await lstat(linkPath)
+  .then(() => true)
+  .catch((error: NodeJS.ErrnoException) => error.code === 'ENOENT')
 
-const publicUpload = (await (
-  await upload('/check/files?disk=public', 'served statically')
-).json()) as { path: string }
+if (inspectable) {
+  const linked = plain(await captureOutput(() => app.make('elvel').run(['storage:link'])))
+  check('storage:link reports the link it made or found', /Linked|already links/.test(linked))
 
-const served = await app.handle(new Request(`http://localhost/storage/${publicUpload.path}`))
-check(
-  'a file on the public disk is served as a static file',
-  (await served.text()) === 'served statically'
-)
+  const publicUpload = (await (
+    await upload('/check/files?disk=public', 'served statically')
+  ).json()) as { path: string }
+
+  const served = await app.handle(new Request(`http://localhost/storage/${publicUpload.path}`))
+  check(
+    'a file on the public disk is served as a static file',
+    (await served.text()) === 'served statically'
+  )
+} else {
+  console.log(`  ${pc.dim(`skipping storage:link: ${linkPath} cannot be inspected`)}`)
+}
 
 await app.handle(
   new Request('http://localhost/check/storage/listing?disk=public', { method: 'DELETE' })

@@ -22,7 +22,29 @@ export class StorageLinkCommand extends Command {
     })
 
     for (const [link, target] of Object.entries(links)) {
-      const existing = await lstat(link).catch(() => null)
+      /**
+       * Only "not there" means not there.
+       *
+       * This swallowed every `lstat` failure as `null` and went on to create the
+       * link — so a path it could not read looked like a path with nothing in it.
+       * Measured on Windows, where a symlink committed to git and checked out
+       * without symlink support answers `EACCES` to `lstat`: the command reported
+       * `EEXIST: file already exists, symlink ...` from three lines further down,
+       * which says nothing about what is wrong or what to do about it.
+       *
+       * "I cannot tell what is at this path" is not "nothing is at this path",
+       * and the difference is worth a sentence to whoever has to fix it.
+       */
+      const existing = await lstat(link).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null
+
+        return error
+      })
+
+      if (existing instanceof Error) {
+        this.error(`[${link}] cannot be inspected: ${existing.code ?? existing.message}.`)
+        continue
+      }
 
       if (existing) {
         // Only a link is replaceable: a real directory there is somebody's files.
