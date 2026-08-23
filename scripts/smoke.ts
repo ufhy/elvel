@@ -3173,8 +3173,17 @@ try {
       plain(typed.stdout.toString() + typed.stderr.toString()).slice(-700)
     )
 
+    /**
+     * `--vcs-enabled=false`, because this application lives where git cannot see.
+     *
+     * A scaffold is written under `apps/`, which the repository ignores, and the
+     * repository's `biome.json` now reads `.gitignore` — so biome found nothing to
+     * check here and exited non-zero for having processed no files. The check read
+     * `Checked 0 files` and called the formatter unhappy, which is a true report
+     * of a meaningless run.
+     */
     const linted = Bun.spawnSync({
-      cmd: ['bunx', 'biome', 'check', '.'],
+      cmd: ['bunx', 'biome', 'check', '--vcs-enabled=false', '.'],
       cwd: target,
       stdout: 'pipe',
       stderr: 'pipe'
