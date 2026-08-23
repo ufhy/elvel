@@ -116,6 +116,12 @@ export class Session {
   private started = false
   private destroyed = false
 
+  /** Set by everything that writes to `data`; read by `isDirty()`. */
+  private changed = false
+
+  /** Set by `save()`. Read by the error path, which must not save twice. */
+  private persisted = false
+
   constructor(
     readonly id: string,
     private readonly driver: SessionDriver,
@@ -163,6 +169,8 @@ export class Session {
     if (typeof key === 'string') this.data[key] = value
     else Object.assign(this.data, key)
 
+    this.changed = true
+
     return this
   }
 
@@ -179,6 +187,7 @@ export class Session {
     this.data[key] = value
     this.data['_flash.new'] = [...this.flashKeys('new').filter((k) => k !== key), key]
     this.data['_flash.old'] = this.flashKeys('old').filter((k) => k !== key)
+    this.changed = true
 
     return this
   }
@@ -187,6 +196,7 @@ export class Session {
   reflash(): this {
     this.data['_flash.new'] = [...new Set([...this.flashKeys('new'), ...this.flashKeys('old')])]
     this.data['_flash.old'] = []
+    this.changed = true
 
     return this
   }
@@ -194,6 +204,7 @@ export class Session {
   keep(keys: string[]): this {
     this.data['_flash.new'] = [...new Set([...this.flashKeys('new'), ...keys])]
     this.data['_flash.old'] = this.flashKeys('old').filter((key) => !keys.includes(key))
+    this.changed = true
 
     return this
   }
@@ -207,12 +218,15 @@ export class Session {
   forget(...keys: string[]): this {
     for (const key of keys.flat()) delete this.data[key]
 
+    this.changed = true
+
     return this
   }
 
   flush(): this {
     const token = this.data._token
     this.data = { _token: token }
+    this.changed = true
 
     return this
   }
@@ -223,6 +237,7 @@ export class Session {
 
   regenerateToken(): this {
     this.data._token = Str.random(40)
+    this.changed = true
 
     return this
   }
@@ -250,9 +265,43 @@ export class Session {
     return this.destroyed
   }
 
+  /**
+   * Has anything been written to this session since it was read?
+   *
+   * Asked by the error path, which saves what a handler would have saved — and
+   * only if there is something to save. `save()` *ages* the flash data: it drops
+   * what the last request flashed and promotes what this one did. So saving a
+   * session nobody touched is not a harmless extra write, it consumes a message
+   * that was on its way to a page.
+   *
+   * Measured as four smoke failures the moment the error path saved
+   * unconditionally: a `419` for a missing CSRF token aged the flash a successful
+   * write had just set, and the page that was going to show it read nothing. A
+   * browser asking for a favicon that does not exist would have done the same.
+   */
+  isDirty(): boolean {
+    return this.changed
+  }
+
+  /**
+   * Has this session already been written during this request?
+   *
+   * The other half of the question above, and a different one: the error path
+   * has to know both whether there is anything to save *and* whether somebody
+   * already did. A redirect built with flash data persists the session itself, so
+   * saving again ages what it had just promoted — the message would be gone
+   * before the page meant to show it.
+   */
+  isPersisted(): boolean {
+    return this.persisted
+  }
+
   /** Persist, ageing the flash data by one request. */
   async save(): Promise<void> {
     if (this.destroyed) return
+
+    this.changed = false
+    this.persisted = true
 
     // Whatever was flashed last request has now been read; drop it, and promote
     // this request's flashes into its place.

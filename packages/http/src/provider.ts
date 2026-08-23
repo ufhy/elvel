@@ -439,19 +439,43 @@ export class HttpServiceProvider extends ServiceProvider {
           if (session === undefined) return
 
           /**
-           * Where `back()` goes next, by the same rule the handler path uses —
-           * with one addition: a page nobody can return to is not worth
-           * remembering. A 404 or a 500 is that page, and a client-routed
-           * application's deep link, rendered here as a 200, is not.
+           * Nothing more to do if something already saved it.
+           *
+           * A redirect built with flash data persists the session itself, and
+           * `save()` *ages* the flash — it drops what the last request flashed and
+           * promotes what this one did. So a second save here throws away the
+           * message that first save had just promoted, and the page meant to show
+           * it renders empty. The cookie below is still worth re-issuing.
            */
-          if (request.method === 'GET' && !isCorsRequest(request) && response.status < 400) {
-            session.put(
-              PREVIOUS_URL_KEY,
-              new URL(request.url).pathname + new URL(request.url).search
-            )
-          }
+          if (!session.isPersisted()) {
+            /**
+             * Where `back()` goes next, by the rule the handler path uses — plus
+             * one: a page nobody can return to is not worth remembering. A 404 or
+             * a 500 is that page; a client-routed application's deep link,
+             * rendered here as a 200, is not.
+             */
+            if (request.method === 'GET' && !isCorsRequest(request) && response.status < 400) {
+              session.put(
+                PREVIOUS_URL_KEY,
+                new URL(request.url).pathname + new URL(request.url).search
+              )
+            }
 
-          await session.save()
+            /**
+             * And saved only if there is something to save.
+             *
+             * Ageing the flash of a session nobody touched consumes a message on
+             * its way to a page. Measured as four smoke failures when this saved
+             * unconditionally: a `419` for a missing CSRF token ate the flash a
+             * successful write had just set, and a browser asking for a favicon
+             * that does not exist would have done the same.
+             *
+             * A brand-new session is dirty by definition — `start()` gives it a
+             * token — so the case this exists for, a document rendered here for a
+             * first-time visitor, is still written and still gets its cookie.
+             */
+            if (session.isDirty()) await session.save()
+          }
 
           response.headers.append('set-cookie', cookieFor(session))
         })
