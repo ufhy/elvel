@@ -128,6 +128,105 @@ with an unsaved draft, a player that must keep playing, a socket that must stay
 open: those are what a document-per-navigation cannot hold, and prefetch does not
 change that. It changes how long the change takes.
 
+## `@elvel/vite`
+
+Five copies of one Vite config live in this repository — 94, 180, 189, 201 and 214
+lines — and they are variants of the same logic: write the hot file, remove it on
+exit, watch what the server renders and push a full reload, set `base` per command,
+name the manifest, refuse to copy `public/` into its own subdirectory.
+
+They drift, and the drift is where the bugs were. `base` unset made an island's
+chunk 404 in one copy while the others were fine. `publicDir` printed a warning in
+every scaffolded application, and closing it meant editing six files by hand. A
+stale hot file pointed a production render at a dev server that was not there.
+
+`laravel-vite-plugin` exists for exactly this reason. What an application should
+write:
+
+```ts
+import elvel from '@elvel/vite'
+
+export default { plugins: [elvel({ input: 'src/main.ts' })] }
+```
+
+The plugin reads `config/vite.ts` for `buildDirectory`, so the two halves of that
+decision stop being two files to keep in step. It has to work from a client
+project that is not the application root — `projectDirectory` — which means
+finding the application above it and writing the hot file there.
+
+## Security headers
+
+Measured across all 27 packages: no `Content-Security-Policy`, no
+`Strict-Transport-Security`, no `X-Frame-Options`, no `Referrer-Policy`, no
+`X-Content-Type-Options`. Not one.
+
+An application that embeds a JSON payload in its document needs CSP specifically:
+`json()` closes injection *through the data*, and CSP is what closes the rest.
+Everything else on that list is a header an auditor asks for by name and a
+framework can set correctly once.
+
+`config/security.ts` plus a middleware in the default stack. The part that needs
+thought is CSP: it has to know where hashed assets are served from, and a policy
+strict enough to be worth having will break an application that was not written
+for it — so it ships as a named policy an application opts into, with the kit
+opting in.
+
+## What a session leaves behind, and what it cannot rotate
+
+Three gaps in `@elvel/http`, all measured:
+
+**`gc()` is implemented on four drivers and called by nothing.** No command
+schedules it. `storage/framework/sessions/` in the SPA demo holds **over 130 files**
+from a few days of use, and every one is a session that still works. Needs
+`session:gc` and a scheduled entry in the kit.
+
+**There is no way to rotate a session id.** `regenerateToken()` exists;
+`regenerate()` does not. Laravel calls it immediately after a successful login,
+for session fixation. The CSRF token also does not rotate when privileges change.
+
+**The cookie's flags are not configurable.** `secure` is `isProduction()` and
+`sameSite` is the literal `'lax'`, both inside the provider. A single-origin
+application wants `Strict` and loses nothing by it; the `__Host-` prefix is real
+hardening that cannot currently be asked for.
+
+## `@elvel/spa`
+
+The SPA demo's glue, minus its invoices: 465 lines that every client-routed
+application would write again. Its `Invoice` model is 25 lines — the glue is
+eighteen times the domain.
+
+Two halves. On the server, one call that assembles the document: the payload as an
+inert `<script type="application/json">`, the CSRF token, `no-store`, and the rule
+for which addresses belong to the client router — GET, `Accept: text/html`, not
+under `/api/`, no file extension. Four conditions, and an application that guesses
+them itself will get one wrong. Three earlier shapes are already known not to work:
+a `GET /*` route loses to the static plugin, a route registered earlier shadows
+every real file, and an `onError` hook in a provider never fires at all.
+
+On the client, the module that decides once what every call needs: the session as
+an `HttpOnly` cookie rather than a token in `localStorage`, `x-csrf-token` on
+writes, `accept: application/json` — without which an expired session arrives as a
+parse error — and 401/422 turned into two error types a component can act on. This
+half is the one most likely to be written insecurely by hand, which is the argument
+for shipping it.
+
+Framework-neutral: it holds no Vue.
+
+## A kit that serves a request in CI
+
+`bun run smoke` scaffolds a kit, checks the files it wrote, and asserts that
+`elvel list` exits 0. It never boots the scaffolded application and never sends it
+a request.
+
+Every bug found in the SPA demo — ten of them — only appears when a real
+application serves a real request: a chunk that 404s, a document with no session, a
+CSRF token belonging to nothing, a cookie never issued. None of them could have
+been caught by what smoke checks today, and the SPA kit will inherit the same hole.
+
+Five checks close most of it: the document carries its payload, a deep link carries
+the user, a write is accepted with its token and refused without it, a hashed asset
+is served, a lazy chunk is in the manifest.
+
 ## Conditional requests for static files
 
 `@elysiajs/static` sets an `ETag` and then ignores `If-None-Match`. Measured on a
