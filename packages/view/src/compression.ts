@@ -127,7 +127,7 @@ function fileFor(pathname: string, prefix: string, root: string): string | undef
 
 /** Does the caller accept gzip? `identity;q=0` and friends are not parsed here. */
 function acceptsGzip(header: string | null): boolean {
-  return header !== null && header.toLowerCase().includes('gzip')
+  return header?.toLowerCase().includes('gzip') ?? false
 }
 
 /**
@@ -203,7 +203,7 @@ export function compressedAssets(options: CompressedAssetsOptions) {
 
       const presented = request.headers.get('if-none-match')
 
-      if (presented !== null && presented.split(',').some((tag) => tag.trim() === etag)) {
+      if (presented?.split(',').some((tag) => tag.trim() === etag)) {
         return new Response(null, { status: 304, headers })
       }
 
@@ -272,7 +272,7 @@ export function compressedAssets(options: CompressedAssetsOptions) {
      */
     const presented = request.headers.get('if-none-match')
 
-    if (presented !== null && presented.split(',').some((tag) => tag.trim() === entry.etag)) {
+    if (presented?.split(',').some((tag) => tag.trim() === entry.etag)) {
       return new Response(null, { status: 304, headers })
     }
 

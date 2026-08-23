@@ -628,12 +628,12 @@ describe('what a scaffolded application installs', () => {
   test('the bundle handover can be escaped and explains itself', async () => {
     const entry = await Bun.file(resolve(templateDir, 'elvel.ts')).text()
 
-    // The escape is checked before the freshness walk, not after it.
-    const escape = entry.indexOf("process.env.ELVEL_BUNDLE !== '0'")
+    // The way out is checked before the freshness walk, not after it.
+    const bypass = entry.indexOf("process.env.ELVEL_BUNDLE !== '0'")
     const handover = entry.indexOf('Bun.spawnSync')
 
-    expect(escape).toBeGreaterThan(-1)
-    expect(escape).toBeLessThan(handover)
+    expect(bypass).toBeGreaterThan(-1)
+    expect(bypass).toBeLessThan(handover)
 
     /**
      * Two messages, both on stderr so no command's stdout gains a line.
@@ -658,11 +658,22 @@ describe('what a scaffolded application installs', () => {
   test('a passkey application can boot from its bundle', async () => {
     const entry = await Bun.file(resolve(templateDir, 'elvel.ts')).text()
 
-    const polyfill = entry.indexOf("await import('reflect-metadata')")
+    /**
+     * Through a variable, and that part is not cosmetic.
+     *
+     * Only the auth kit declares this dependency, so a literal specifier makes
+     * `bun run typecheck` fail in every other application with
+     * `Cannot find module 'reflect-metadata'` — measured on a scaffolded app
+     * before the indirection went in. A non-literal specifier tells TypeScript to
+     * leave the resolution to run time, which is what the `try` is for.
+     */
+    const polyfill = entry.indexOf("'reflect-metadata'")
     const application = entry.indexOf("await import('./bootstrap/app.ts')")
 
     expect(polyfill).toBeGreaterThan(-1)
     expect(polyfill).toBeLessThan(application)
+    expect(entry).not.toContain("await import('reflect-metadata')")
+    expect(entry.slice(polyfill, application)).toContain('await import(polyfill)')
 
     // Guarded, because every kit but `auth` declares no such dependency and
     // needs no polyfill.

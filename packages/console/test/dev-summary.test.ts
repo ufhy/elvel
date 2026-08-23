@@ -11,8 +11,17 @@ import { devSummary } from '../src/commands/dev.ts'
  * watched` from `bun --hot`, so the answer was in the scrollback.
  */
 
-/** Colour is a terminal's business, not this test's. */
-const plain = (line: string) => line.replaceAll(/\[[0-9;]*m/g, '')
+/**
+ * Colour is a terminal's business, not this test's.
+ *
+ * The pattern is built rather than written as a literal: an escape character
+ * inside a regex literal is what `noControlCharactersInRegex` exists to catch,
+ * and it is right to — one arriving by accident is invisible in a diff. Here it
+ * is the whole point, so it is spelled out by code point instead.
+ */
+const ansi = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+
+const plain = (line: string) => line.replaceAll(ansi, '')
 
 describe('what `dev` says before the processes start talking', () => {
   test('the port and the environment are both there', () => {
