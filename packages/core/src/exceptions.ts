@@ -114,7 +114,16 @@ export class ExceptionHandler implements ExceptionHandlerContract {
     console.error(error)
   }
 
-  render(error: unknown, _context: { request: Request }): Response {
+  /**
+   * Typed as the contract types it, so an application can answer asynchronously.
+   *
+   * `ExceptionHandlerContract.render` has always allowed `Promise<Response>` and
+   * this class narrowed it to `Response` — which made the override the contract
+   * invites impossible: a handler that renders a document, and therefore reads
+   * from a database, cannot be synchronous. Found by writing one; the runtime was
+   * already fine because the hook awaits.
+   */
+  render(error: unknown, _context: { request: Request }): Response | Promise<Response> {
     /**
      * An exception may *be* the response — a redirect thrown from validation.
      *
@@ -175,9 +184,18 @@ export class ExceptionHandler implements ExceptionHandlerContract {
    */
   protected renderHtml(status: number, payload: Record<string, unknown>, debug: boolean): string {
     const title = escapeHtml(String(payload.message ?? 'Something went wrong.'))
+    /**
+     * `${…}`, not `$…` — the interpolation was missing its braces.
+     *
+     * The debug error page printed the literal text
+     * `$escapeHtml((payload.stack as string[]).join('\n'))` where the stack trace
+     * belonged, so the one screen whose entire job is to say what went wrong said
+     * nothing about it. Found by hitting a 404 in a browser, which is the only
+     * place this branch is ever seen.
+     */
     const stack =
       debug && Array.isArray(payload.stack)
-        ? `<pre>$escapeHtml((payload.stack as string[]).join('\n'))</pre>`
+        ? `<pre>${escapeHtml((payload.stack as string[]).join('\n'))}</pre>`
         : ''
 
     return `<!DOCTYPE html>

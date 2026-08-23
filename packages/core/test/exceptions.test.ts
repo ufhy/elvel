@@ -50,25 +50,25 @@ describe('exception classes', () => {
 
 describe('status mapping', () => {
   test('HttpException wins', async () => {
-    const response = handler.render(new NotFoundException('Gone fishing'), { request })
+    const response = await handler.render(new NotFoundException('Gone fishing'), { request })
 
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ message: 'Gone fishing' })
   })
 
-  test('a numeric status field is honoured', () => {
-    expect(handler.render({ status: 429 }, { request }).status).toBe(429)
+  test('a numeric status field is honoured', async () => {
+    expect((await handler.render({ status: 429 }, { request })).status).toBe(429)
   })
 
-  test("Elysia's error codes map to statuses", () => {
-    expect(handler.render({ code: 'NOT_FOUND' }, { request }).status).toBe(404)
-    expect(handler.render({ code: 'VALIDATION' }, { request }).status).toBe(422)
-    expect(handler.render({ code: 'PARSE' }, { request }).status).toBe(400)
+  test("Elysia's error codes map to statuses", async () => {
+    expect((await handler.render({ code: 'NOT_FOUND' }, { request })).status).toBe(404)
+    expect((await handler.render({ code: 'VALIDATION' }, { request })).status).toBe(422)
+    expect((await handler.render({ code: 'PARSE' }, { request })).status).toBe(400)
   })
 
-  test('anything else is a 500', () => {
-    expect(handler.render(new Error('boom'), { request }).status).toBe(500)
-    expect(handler.render('a bare string', { request }).status).toBe(500)
+  test('anything else is a 500', async () => {
+    expect((await handler.render(new Error('boom'), { request })).status).toBe(500)
+    expect((await handler.render('a bare string', { request })).status).toBe(500)
   })
 })
 
@@ -76,37 +76,42 @@ describe('message rendering', () => {
   test('machine codes are humanised so they do not leak', async () => {
     // What @elysiajs/static actually throws: an Error carrying a code.
     const thrown = Object.assign(new Error('NOT_FOUND'), { code: 'NOT_FOUND' })
-    const response = handler.render(thrown, { request })
+    const response = await handler.render(thrown, { request })
 
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ message: 'Not Found' })
   })
 
   test('a bare Error is a 500 and reveals nothing, even if it looks like a code', async () => {
-    const response = handler.render(new Error('NOT_FOUND'), { request })
+    const response = await handler.render(new Error('NOT_FOUND'), { request })
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({ message: 'Server Error' })
   })
 
   test('multi-word codes humanise too', async () => {
-    const response = handler.render({ status: 400, message: 'INVALID_FILE_TYPE' }, { request })
+    const response = await handler.render(
+      { status: 400, message: 'INVALID_FILE_TYPE' },
+      { request }
+    )
 
     expect(await response.json()).toMatchObject({ message: 'Invalid File Type' })
   })
 
   test('ordinary non-500 messages pass through unchanged', async () => {
-    const response = handler.render(new HttpException(409, 'Already exists'), { request })
+    const response = await handler.render(new HttpException(409, 'Already exists'), { request })
 
     expect(await response.json()).toMatchObject({ message: 'Already exists' })
   })
 
   test('a 500 hides its message unless debug is on', async () => {
-    const hidden = await handler.render(new Error('secret internals'), { request }).json()
+    const hidden = await (await handler.render(new Error('secret internals'), { request })).json()
     expect(hidden).toEqual({ message: 'Server Error' })
 
     app.config.set('app.debug', true)
-    const shown = (await handler.render(new Error('secret internals'), { request }).json()) as {
+    const shown = (await (
+      await handler.render(new Error('secret internals'), { request })
+    ).json()) as {
       message: string
       exception: string
       stack: string[]
@@ -118,7 +123,7 @@ describe('message rendering', () => {
   })
 
   test('no stack is exposed when debug is off', async () => {
-    const payload = await handler.render(new Error('boom'), { request }).json()
+    const payload = (await handler.render(new Error('boom'), { request })).json()
 
     expect(payload).not.toHaveProperty('stack')
     expect(payload).not.toHaveProperty('exception')
@@ -237,7 +242,7 @@ describe('error pages for a browser', () => {
   const at = (accept: string) => new Request('http://localhost/orders', { headers: { accept } })
 
   test('a browser gets HTML, an API client gets JSON', async () => {
-    const html = handler().render(new NotFoundException('No such order.'), {
+    const html = await handler().render(new NotFoundException('No such order.'), {
       request: at('text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
     })
 
@@ -245,22 +250,29 @@ describe('error pages for a browser', () => {
     expect<string | null>(html.headers.get('content-type')).toContain('text/html')
     expect<boolean>((await html.text()).includes('No such order.')).toBe(true)
 
-    const json = handler().render(new NotFoundException('No such order.'), {
+    const json = await handler().render(new NotFoundException('No such order.'), {
       request: at('application/json')
     })
 
     expect<string | null>(json.headers.get('content-type')).toContain('application/json')
   })
 
-  test('a wildcard Accept still gets JSON', () => {
+  test('a wildcard Accept still gets JSON', async () => {
     // A fetch() sending */* must not be handed a page it cannot parse.
-    const response = handler().render(new NotFoundException('gone'), { request: at('*/*') })
+    const response = await handler().render(new NotFoundException('gone'), { request: at('*/*') })
 
     expect<string | null>(response.headers.get('content-type')).toContain('application/json')
   })
 
   test('the message is escaped', async () => {
-    const response = handler().render(new NotFoundException('<script>alert(1)</script>'), {
+    /**
+     * Awaited, because `render` may answer asynchronously.
+     *
+     * The contract has always allowed `Promise<Response>`; the class narrowed it
+     * to `Response` until an application needed to render a document — which
+     * means reading from a database — from its own handler.
+     */
+    const response = await handler().render(new NotFoundException('<script>alert(1)</script>'), {
       request: at('text/html')
     })
 

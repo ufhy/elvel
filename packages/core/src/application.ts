@@ -287,13 +287,48 @@ export class Application implements ApplicationContract {
     return this
   }
 
-  /** Wire the exception handler into Elysia's error pipeline. */
+  /**
+   * Wire the exception handler into Elysia's error pipeline.
+   *
+   * The handler is resolved **per error**, not once here, and that is the whole
+   * point of the line. This runs at step 3 of `create()`, before a single
+   * provider has registered — so closing over the instance made
+   * `exception.handler` a binding nothing could ever replace, while the comment
+   * beside step 4 promised that application providers may override framework
+   * bindings. Found by trying: an application that rebound it in a provider's
+   * `register()` still got the framework's own 404 page.
+   *
+   * A container lookup per error is a Map read on a path that only runs when
+   * something already went wrong.
+   */
   handleExceptions(): this {
-    const handler = this.make('exception.handler')
+    this.router.onError(async ({ error, request, set }) => {
+      const handler = this.make('exception.handler')
 
-    this.router.onError(({ error, request }) => {
       void handler.report(error)
-      return handler.render(error, { request })
+
+      // `render` may be async — the contract allows it, so this awaits rather
+      // than reading `.status` off a promise.
+      const response = await handler.render(error, { request })
+
+      /**
+       * The handler's status wins, even over one already decided.
+       *
+       * A plugin may have handled the error in its own scope first — and
+       * `@elysiajs/static` does exactly that, swallowing the `NOT_FOUND` it
+       * throws for a missing file. By the time this hook runs the status is
+       * pinned, and a `Response` returned from here does not lift it: measured on
+       * that plugin's shape, a handler answering `200` with a document still went
+       * out as `404`, right body and wrong code.
+       *
+       * Which broke the one thing a handler most obviously wants to do — turn an
+       * error into an ordinary answer. A single-page application's deep link is
+       * that: `/invoices/9` is not missing, the client router owns it, and the
+       * document is a 200.
+       */
+      set.status = response.status
+
+      return response
     })
 
     return this
