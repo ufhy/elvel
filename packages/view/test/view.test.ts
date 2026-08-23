@@ -220,6 +220,38 @@ describe('Vite tags', () => {
     }
   })
 
+  /**
+   * The build half of the same seam.
+   *
+   * `vite-plugin-pwa` injects its `<link rel="manifest">` and its registration
+   * script while building, where there is no dev server to ask — so `@elvel/vite`
+   * harvests them from the page it builds and drops, and writes them beside the
+   * manifest. This renders them.
+   */
+  test('what a plugin injected during the build is rendered too', async () => {
+    const root = await build({
+      'build/manifest.json': JSON.stringify({ 'app.ts': { file: 'assets/app-abc.js' } }),
+      'build/injected.html': '<link rel="manifest" href="/build/manifest.webmanifest">'
+    })
+
+    try {
+      const tags = new Vite({ publicPath: root }).tags('app.ts')
+
+      expect<boolean>(tags.includes('rel="manifest"')).toBe(true)
+
+      /**
+       * After the entry, not before it.
+       *
+       * Nothing harvested from a build has to run first — a service worker
+       * registers on `load` and a manifest link is not code. The dev counterpart is
+       * the opposite: React's preamble has to precede the entry.
+       */
+      expect<boolean>(tags.indexOf('rel="manifest"') > tags.indexOf('app-abc.js')).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test('a missing entry names itself and the manifest', async () => {
     const root = await build({ 'build/manifest.json': JSON.stringify({}) })
 

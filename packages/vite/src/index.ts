@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 
 /** What Vite hands `config`. Typed here so the package needs no import from vite. */
@@ -139,6 +139,9 @@ export default function elvel(options: ElvelViteOptions) {
   let root = ''
   let hotFile = ''
   let tagsFile = ''
+  let indexHtml = ''
+  let outputDir = ''
+  let manifestName: string | boolean = 'manifest.json'
 
   return {
     name: 'elvel',
@@ -163,8 +166,32 @@ export default function elvel(options: ElvelViteOptions) {
       const viteRoot = resolve(user.root ?? options.appDirectory ?? process.cwd())
       const outDir = user.build?.outDir ?? join(root, 'public', build)
 
+      outputDir = outDir
+      manifestName = user.build?.manifest ?? 'manifest.json'
+
       const publicDir =
         user.publicDir === false ? false : resolve(viteRoot, user.publicDir ?? 'public')
+
+      /**
+       * The project's own `index.html`, built and then thrown away.
+       *
+       * A Vite plugin injects into the page through `transformIndexHtml`, and at
+       * build time that hook only runs for an HTML input. A backend-integrated
+       * application serves no `index.html`, so `vite-plugin-pwa` — the one plugin
+       * of the three that injects during a build — lost both of its tags:
+       * `<link rel="manifest">` and its `registerSW.js` script.
+       *
+       * So the file is built for its side effect. Every official template ships
+       * one, its tags are harvested in `generateBundle`, and the HTML itself is
+       * dropped from the output before it can be published: the server renders its
+       * own document, and two of them would be one too many.
+       */
+      indexHtml = command === 'build' ? join(viteRoot, 'index.html') : ''
+
+      const entryInputs =
+        indexHtml !== '' && existsSync(indexHtml)
+          ? [...(Array.isArray(options.input) ? options.input : [options.input]), indexHtml]
+          : options.input
 
       const swallowsOutput =
         publicDir !== false &&
@@ -257,10 +284,10 @@ export default function elvel(options: ElvelViteOptions) {
            * Vite 5 moved the manifest to `.vite/manifest.json` inside the output
            * directory. Naming it puts it back where the server looks for it.
            */
-          manifest: user.build?.manifest ?? 'manifest.json',
+          manifest: manifestName,
           rollupOptions: {
             ...user.build?.rollupOptions,
-            input: user.build?.rollupOptions?.input ?? options.input
+            input: user.build?.rollupOptions?.input ?? entryInputs
           }
         },
 
@@ -281,6 +308,78 @@ export default function elvel(options: ElvelViteOptions) {
       }
     },
 
+    /**
+     * Take what the plugins injected, then remove the page they injected into.
+     *
+     * `writeBundle`, not `generateBundle`: Vite's own HTML plugin transforms the
+     * page during `generateBundle`, so a hook there sees it before the injections
+     * exist — measured, it saw nothing at all. By `writeBundle` every plugin has
+     * had its turn, which also means the file is on disk, so removing it is a
+     * delete rather than a `delete`.
+     */
+    writeBundle(_options: unknown, bundle: Record<string, { source?: string | Uint8Array }>) {
+      if (indexHtml === '' || !existsSync(indexHtml)) return
+
+      const key = Object.keys(bundle).find((name) => name.endsWith('index.html'))
+
+      if (key === undefined) return
+
+      const asset = bundle[key]
+      const built = typeof asset?.source === 'string' ? asset.source : ''
+
+      /**
+       * The page itself is not published, because the server renders its own.
+       *
+       * Two documents in one application is one too many: the stale one answers
+       * whatever asks for `/build/index.html`, and what it contains is a copy of
+       * the shell from whenever the last build ran.
+       */
+      rmSync(join(outputDir, key), { force: true })
+
+      const tags = injectedTags(built, readFileSync(indexHtml, 'utf8'))
+
+      if (tags === '') {
+        rmSync(join(outputDir, 'injected.html'), { force: true })
+
+        return
+      }
+
+      mkdirSync(outputDir, { recursive: true })
+      writeFileSync(join(outputDir, 'injected.html'), tags)
+    },
+
+    /**
+     * And the manifest forgets the page that was only built to be read.
+     *
+     * The extra input leaves an `index.html` key in `manifest.json`, naming a file
+     * this plugin has just deleted. Nothing the framework does looks it up, and
+     * that is exactly why it should not be there: a manifest entry pointing at a
+     * file nobody wrote is a puzzle for whoever finds it next.
+     */
+    closeBundle() {
+      if (indexHtml === '' || outputDir === '') return
+
+      const path = join(outputDir, typeof manifestName === 'string' ? manifestName : '')
+
+      if (manifestName === false || !existsSync(path)) return
+
+      try {
+        const manifest = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
+
+        for (const key of Object.keys(manifest)) {
+          if (key.endsWith('index.html')) delete manifest[key]
+        }
+
+        writeFileSync(
+          path,
+          `${JSON.stringify(manifest, null, 2)}
+`
+        )
+      } catch {
+        // A manifest this cannot parse is not one to rewrite.
+      }
+    },
+
     configureServer(server: DevServer) {
       writeHotFile(server, hotFile, tagsFile)
 
@@ -289,6 +388,63 @@ export default function elvel(options: ElvelViteOptions) {
       watchServerFiles(server, root, options.refresh ?? REFRESH)
     }
   }
+}
+
+/**
+ * What a plugin added to the page, told apart from what the page already had.
+ *
+ * Comparing whole strings does not work: a build rewrites URLs, so the template's
+ * own `favicon.svg` link comes back different from the one on disk. What survives
+ * a rewrite is what the tag *is* — its name, and its `rel`, `id` or `type`. A tag
+ * whose identity the source already had was not injected.
+ *
+ * Stylesheets are the one explicit exception. Vite adds them for an HTML entry and
+ * the source has none, so they read as injected — but the view renders them from
+ * the manifest, and a second copy is a second request for the same bytes.
+ */
+export function injectedTags(built: string, source: string): string {
+  /**
+   * A fresh pattern per scan, because a global regex carries `lastIndex`.
+   *
+   * One shared literal, two `matchAll` calls: the second started where the first
+   * had stopped and found nothing. It cost an empty harvest against a page with
+   * two obvious injections in it, and it reads perfectly.
+   *
+   * Two branches, because a script has a body and a link does not. A single
+   * pattern with an optional closing tail read fine and was also wrong: for a
+   * `<link>`, that tail matched forward to the *next* script's closing tag, so one
+   * "tag" swallowed half the document.
+   */
+  const tagsIn = (html: string): string[] =>
+    [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>|<link\b[^>]*>/gi)].map((match) => match[0])
+
+  const identify = (tag: string): string => {
+    const name = /^<(\w+)/.exec(tag)?.[1]?.toLowerCase() ?? ''
+    const rel = /rel="([^"]+)"/.exec(tag)?.[1]
+    const id = /id="([^"]+)"/.exec(tag)?.[1]
+
+    return `${name}:${rel ?? id ?? (/src=/.test(tag) ? 'src' : 'inline')}`
+  }
+
+  const known = new Set(tagsIn(source).map(identify))
+
+  return tagsIn(built)
+    .filter((tag) => {
+      const kind = identify(tag)
+
+      /**
+       * What Vite itself adds for an HTML entry is not an injection.
+       *
+       * A stylesheet and a `modulepreload` both name the very chunk the view
+       * already renders from the manifest — so keeping them means a second request
+       * for the same bytes, and a preload hint for a script that is already on the
+       * page. The source has neither, so nothing else tells them apart.
+       */
+      if (kind === 'link:stylesheet' || kind === 'link:modulepreload') return false
+
+      return !known.has(kind)
+    })
+    .join('')
 }
 
 /**

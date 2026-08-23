@@ -153,6 +153,16 @@ export class Vite {
       tags.push(this.tagFor(this.asset(chunk.file), chunk.file, chunk.integrity))
     }
 
+    /**
+     * And whatever the plugins added, after the entry rather than before it.
+     *
+     * Nothing harvested from a build has to run first: a service worker registers
+     * on `load`, and a manifest link is not code. The dev counterpart is the
+     * opposite case — React's preamble has to precede the entry — which is why
+     * these two are not one call.
+     */
+    tags.push(this.injectedFromBuild())
+
     return tags.join('')
   }
 
@@ -165,8 +175,22 @@ export class Vite {
    * anyway.
    */
   private injected(): string {
-    const path = join(dirname(this.hotFilePath), 'hot-tags.html')
+    return this.readTags(join(dirname(this.hotFilePath), 'hot-tags.html'))
+  }
 
+  /**
+   * The same question for a build: what did the plugins put in the page?
+   *
+   * `@elvel/vite` harvests them from the project's `index.html` while building and
+   * writes them beside the manifest. `vite-plugin-pwa` is the plugin this exists
+   * for — its `<link rel="manifest">` and `registerSW.js` are injected at build
+   * time, where there is no dev server to ask.
+   */
+  private injectedFromBuild(): string {
+    return this.readTags(join(dirname(this.manifestPath), 'injected.html'))
+  }
+
+  private readTags(path: string): string {
     if (!existsSync(path)) return ''
 
     return readFileSync(path, 'utf8').trim()

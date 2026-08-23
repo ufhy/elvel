@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import elvel, { applicationRoot } from '../src/index.ts'
+import elvel, { applicationRoot, injectedTags } from '../src/index.ts'
 
 let root: string
 
@@ -334,5 +334,131 @@ describe('what the other plugins wanted in the document', () => {
     await Bun.sleep(20)
 
     expect<boolean>(await Bun.file(join(root, 'public', 'hot-tags.html')).exists()).toBe(false)
+  })
+})
+
+describe('what a plugin injected during a build', () => {
+  /** A page as Vite writes it, and the source it was written from. */
+  const source =
+    '<!doctype html><html><head><link rel="icon" href="/favicon.svg" /></head>' +
+    '<body><script type="module" src="/src/main.tsx"></script></body></html>'
+
+  const built =
+    '<!doctype html><html><head><link rel="icon" href="/build/favicon.svg" />' +
+    '<script type="module" crossorigin src="/build/assets/main-abc.js"></script>' +
+    '<link rel="stylesheet" href="/build/assets/main-def.css">' +
+    '<link rel="modulepreload" href="/build/assets/main-abc.js">' +
+    '<link rel="manifest" href="/build/manifest.webmanifest">' +
+    '</head><body><script id="vite-plugin-pwa:register-sw" src="/build/registerSW.js"></script>' +
+    '</body></html>'
+
+  test('is what the source did not have', () => {
+    const tags = injectedTags(built, source)
+
+    // `vite-plugin-pwa` injects exactly these two, measured on the react template.
+    expect<boolean>(tags.includes('rel="manifest"')).toBe(true)
+    expect<boolean>(tags.includes('vite-plugin-pwa:register-sw')).toBe(true)
+  })
+
+  /**
+   * The template's own tags are not injections, even after a build rewrites them.
+   *
+   * Comparing whole strings cannot see that: `/favicon.svg` comes back as
+   * `/build/favicon.svg`. What survives the rewrite is what the tag *is*.
+   */
+  test('and not what it had under a different URL', () => {
+    expect<boolean>(injectedTags(built, source).includes('favicon')).toBe(false)
+  })
+
+  /**
+   * What Vite adds for an HTML entry is not an injection either.
+   *
+   * Both name the chunk the view already renders from the manifest — a second
+   * stylesheet is a second request for the same bytes, and a preload hint for a
+   * script already on the page is noise.
+   */
+  test('and not the entry Vite wired up itself', () => {
+    const tags = injectedTags(built, source)
+
+    expect<boolean>(tags.includes('stylesheet')).toBe(false)
+    expect<boolean>(tags.includes('modulepreload')).toBe(false)
+    expect<boolean>(tags.includes('main-abc.js')).toBe(false)
+  })
+
+  /**
+   * Two scans, and both have to find something.
+   *
+   * One shared global regex made the second `matchAll` start where the first had
+   * stopped, so the harvest came back empty against a page with two obvious
+   * injections in it. It reads perfectly and is wrong.
+   */
+  test('scanning the source does not blind the scan of the build', () => {
+    expect<boolean>(injectedTags(built, source).length > 0).toBe(true)
+    expect<boolean>(injectedTags(built, built).length === 0).toBe(true)
+  })
+})
+
+describe('the page built only to be read', () => {
+  test('is harvested and then not published', async () => {
+    const client = join(root, 'frontend')
+
+    await mkdir(client, { recursive: true })
+    await writeFile(join(client, 'index.html'), '<html><head></head><body></body></html>')
+
+    const plugin = elvel({ input: 'src/main.ts', appDirectory: client })
+    const config = plugin.config({ root: client }, { command: 'build' })
+
+    // The HTML joins the inputs, which is what makes the hook run at all.
+    expect<boolean>(JSON.stringify(config.build.rollupOptions.input).includes('index.html')).toBe(
+      true
+    )
+
+    const out = config.build.outDir
+
+    await mkdir(out, { recursive: true })
+    await writeFile(join(out, 'index.html'), 'whatever Vite wrote')
+
+    plugin.writeBundle(
+      {},
+      {
+        'index.html': {
+          source:
+            '<html><head><link rel="manifest" href="/m.webmanifest"></head><body></body></html>'
+        }
+      }
+    )
+
+    expect<boolean>(await Bun.file(join(out, 'index.html')).exists()).toBe(false)
+    expect<string>((await Bun.file(join(out, 'injected.html')).text()).trim()).toBe(
+      '<link rel="manifest" href="/m.webmanifest">'
+    )
+  })
+
+  /**
+   * And the manifest forgets it too.
+   *
+   * The extra input leaves an `index.html` key naming a file this plugin has just
+   * deleted — a puzzle for whoever finds it next.
+   */
+  test('and the manifest does not name it', async () => {
+    const client = join(root, 'frontend')
+
+    await mkdir(client, { recursive: true })
+    await writeFile(join(client, 'index.html'), '<html><head></head><body></body></html>')
+
+    const plugin = elvel({ input: 'src/main.ts', appDirectory: client })
+    const out = plugin.config({ root: client }, { command: 'build' }).build.outDir
+
+    await mkdir(out, { recursive: true })
+    await writeFile(
+      join(out, 'manifest.json'),
+      JSON.stringify({ 'index.html': { file: 'gone.html' }, 'src/main.ts': { file: 'a.js' } })
+    )
+
+    plugin.closeBundle()
+
+    const manifest = (await Bun.file(join(out, 'manifest.json')).json()) as Record<string, unknown>
+
+    expect<string[]>(Object.keys(manifest)).toEqual(['src/main.ts'])
   })
 })

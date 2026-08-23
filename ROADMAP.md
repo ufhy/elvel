@@ -128,22 +128,6 @@ with an unsaved draft, a player that must keep playing, a socket that must stay
 open: those are what a document-per-navigation cannot hold, and prefetch does not
 change that. It changes how long the change takes.
 
-## Build-time HTML injections from Vite plugins
-
-A Vite plugin puts things in the page through `transformIndexHtml`. In development
-`@elvel/vite` asks the dev server for them and the view renders them — which is
-what makes `@vitejs/plugin-react` and `vite-plugin-vue-devtools` work. During a
-build there is no dev server to ask, and the hook only runs against an
-`index.html` that a backend-integrated application does not have.
-
-So `vite-plugin-pwa` is still lost: its manifest link and service-worker
-registration are injected at build time. Measured with the three plugins that
-inject anything at all, it is the only one left.
-
-Closing it means giving the build an `index.html` to transform — a placeholder that
-is processed, harvested and then dropped from the output — and writing the tags
-beside the manifest, where the production path already looks.
-
 ## `@elvel/spa`
 
 The SPA demo's glue, minus its invoices: 465 lines that every client-routed

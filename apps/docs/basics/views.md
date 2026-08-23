@@ -305,10 +305,28 @@ against as they evaluate, so after the entry it is too late.
 Nothing in the framework knows what either of those plugins is, and a plugin nobody
 has written yet arrives the same way.
 
-::: warning A plugin that only injects at build time is not covered yet
-`vite-plugin-pwa` writes its manifest link and service-worker registration through
-the same hook during the build, where there is no dev server to ask. That half is
-on the roadmap.
+During a build there is no dev server to ask, and the hook only runs for an HTML
+input — so the plugin builds the project's own `index.html` for its side effect,
+harvests what the plugins put in it, and then drops the page from the output. The
+tags land beside the manifest and `vite()` renders them after your entry.
+
+That is what makes `vite-plugin-pwa` work with nothing added to the framework:
+
+```
+<link rel="manifest" href="/build/manifest.webmanifest">
+<script id="vite-plugin-pwa:register-sw" src="/build/registerSW.js"></script>
+```
+
+Told apart from the page's own tags by what each tag *is* — its name, and its
+`rel`, `id` or `type` — because a build rewrites URLs, so the template's own
+`favicon.svg` comes back looking different from the one on disk. What Vite adds for
+an HTML entry is dropped as well: a stylesheet and a `modulepreload` both name the
+chunk the view already renders.
+
+::: tip The document is still yours
+The built `index.html` is never published, and its key is removed from the manifest.
+A second document in the output would answer `/build/index.html` with a stale copy
+of a shell nobody serves.
 :::
 
 ### An SSR build writes outside the web root
