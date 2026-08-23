@@ -245,6 +245,21 @@ It says so when there is nothing to start, as well: `vite is not installed in
 frontend, so there is no browser reload`. Silence there is how a browser that
 stopped refreshing becomes a mystery.
 
+`serve` refuses a port somebody else is on, and says which command finds them:
+
+```
+✖ Something is already listening on port 3000.
+
+  Find it:  netstat -ano | findstr :3000     then     taskkill /pid <pid> /t /f
+```
+
+Not a formality. On Windows a second bind to the same port **succeeds** —
+`SO_REUSEADDR` permits it — so two servers listen and requests go to whichever
+socket wins. What that looks like from a terminal is a server that cannot be
+killed: Ctrl+C returns the prompt, the next start reports success, and the old
+process keeps answering. Turn the check off with `http.checkPort: false` for a
+deliberate `reusePort` cluster.
+
 `route:list` prints what Elysia actually registered, including the routes a
 package added:
 

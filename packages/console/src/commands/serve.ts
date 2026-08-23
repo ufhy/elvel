@@ -1,3 +1,4 @@
+import { PortInUseError } from '@elvel/core'
 import pc from 'picocolors'
 import { Command } from '../command.ts'
 
@@ -10,7 +11,23 @@ export class ServeCommand extends Command {
     const port = this.stringOption('port')
     const host = this.stringOption('host')
 
-    await this.app.listen(port === '' ? undefined : Number(port), host === '' ? undefined : host)
+    /**
+     * A port somebody else holds is not a crash, so it does not read like one.
+     *
+     * The developer who meets this is already confused — their last server looked
+     * like it would not die — and a stack trace through the bootstrapper answers a
+     * question they did not ask. The message names the port and the command that
+     * finds the process.
+     */
+    try {
+      await this.app.listen(port === '' ? undefined : Number(port), host === '' ? undefined : host)
+    } catch (error) {
+      if (!(error instanceof PortInUseError)) throw error
+
+      this.error(error.message)
+
+      return 1
+    }
 
     const server = this.app.router.server
     const url = server ? `http://${server.hostname}:${server.port}` : this.app.url

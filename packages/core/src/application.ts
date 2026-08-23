@@ -15,6 +15,7 @@ import { Env } from './env.ts'
 import { ExceptionHandler } from './exceptions.ts'
 import { RequestLifecycle } from './lifecycle.ts'
 import { MaintenanceMode } from './maintenance.ts'
+import { PortInUseError, portInUse, portInUseMessage } from './port.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -377,6 +378,24 @@ export class Application implements ApplicationContract {
   async listen(port?: number, hostname?: string): Promise<Application> {
     const resolvedPort = port ?? this.config.get<number>('app.port', Env.number('PORT', 3000))
     const resolvedHost = hostname ?? this.config.get<string>('app.host', Env.string('HOST', ''))
+
+    /**
+     * Refuse a port somebody else holds, rather than reporting success on it.
+     *
+     * On Windows a second bind to the same port succeeds — `SO_REUSEADDR` allows
+     * it — so two servers end up listening and requests go to whichever socket
+     * wins. Measured: a second `serve` printed `Server running on
+     * http://localhost:3000` while another process was already there, and
+     * `netstat` showed both. What it looks like from the terminal is a server that
+     * cannot be killed, because the old one keeps answering.
+     */
+    if (this.config.get<boolean>('http.checkPort', true) !== false) {
+      const probeHost = resolvedHost === '' ? '127.0.0.1' : resolvedHost
+
+      if (await portInUse(resolvedPort, probeHost)) {
+        throw new PortInUseError(portInUseMessage(resolvedPort, resolvedHost))
+      }
+    }
 
     this.router.listen(
       resolvedHost === '' ? resolvedPort : { port: resolvedPort, hostname: resolvedHost }

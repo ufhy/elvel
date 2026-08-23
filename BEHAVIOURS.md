@@ -1840,6 +1840,27 @@ declare `@elvel/*` as `workspace:*`, which only resolves for a workspace member.
 So there is a test now. It fails on the machine that has the demos, which is the
 only machine that can create the problem, and it names the directory.
 
+## Binding a port somebody else holds succeeds on Windows
+
+`SO_REUSEADDR` permits a second bind to the same address there, so a second server
+starts, reports `Server running on http://localhost:3000`, and `netstat` shows two
+processes on the port. Requests go to whichever socket wins.
+
+The report that found it was "`bun run serve` cannot be stopped with Ctrl+C" — and
+Ctrl+C was working the whole time. The prompt came back, the next start said it had
+succeeded, and the previous server kept answering. Two things were ruled out with
+measurements before the real cause appeared: the child of `bun run` dies with its
+parent, and no package registers a `terminating()` callback that could swallow the
+signal.
+
+One more measurement was worthless and worth recording as such: `process.kill(pid,
+'SIGINT')` from another process killed the server, which proves nothing about
+Ctrl+C — on Windows that call terminates the process rather than delivering a
+console signal.
+
+`listen()` now asks first, with a TCP connect against the port and a 300 ms
+deadline, and refuses with the command that finds the process.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the
