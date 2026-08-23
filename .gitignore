@@ -32,6 +32,13 @@ packages/*/test/.generated-*
 # What the Playwright MCP server leaves behind when a page is opened to look at.
 .playwright-mcp/
 
+# Editor and agent configuration, which is a matter of taste rather than of the
+# framework. A language server declared here can only be declared inside a
+# plugin, and the only project-scoped plugin form Claude Code has is a directory
+# under `.claude/skills` — so it lands in the repository whether or not the
+# repository wants it. Whoever wants one makes it; nobody inherits it.
+.claude/
+
 .env
 .env.local
 

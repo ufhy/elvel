@@ -1,5 +1,0 @@
-{
-  "name": "typescript-lsp",
-  "description": "Language server for this workspace, run by the TypeScript the workspace itself compiles with.",
-  "version": "1.0.0"
-}
