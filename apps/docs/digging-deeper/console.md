@@ -231,6 +231,20 @@ not have: `--kit=none` prunes the queue and the scheduler, and starting them
 there failed with `Command "queue:work" is not defined`, taking the server down
 with it.
 
+Vite runs where `config/vite.ts` says the client project is — `projectDirectory`,
+`.` by default, and `frontend` for a client that is its own project. `vite` is
+resolved from there too, since that is where it is installed. The line `dev` prints
+says which:
+
+```
+Assets:  starting in frontend, its port is reported below
+Assets:  http://localhost:5173
+```
+
+It says so when there is nothing to start, as well: `vite is not installed in
+frontend, so there is no browser reload`. Silence there is how a browser that
+stopped refreshing becomes a mystery.
+
 `route:list` prints what Elysia actually registered, including the routes a
 package added:
 

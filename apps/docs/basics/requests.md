@@ -173,3 +173,14 @@ One handler renders them, in `@elvel/core`. `ValidationError` carries
 something bag-shaped without importing the validator. A second `onError` in the
 http package once raced the first and lost — which is how that was found, and why
 there is only one now.
+
+The redirect a rejected form produces is thrown, not returned: validation happens
+inside a handler, several frames from anywhere a `Response` could go back. So it
+travels as an exception that **carries** its response, and two things read that
+exception's status — the log and the response itself.
+
+Which is why it is not reported. A thrown redirect is control flow, and only 5xx
+is worth a log line: every rejected form used to write `ERROR [stack] Redirecting
+to /subscribe` with a stack trace through `failedValidation`, for a browser on its
+way back to the form it came from. 4xx says the caller got it wrong and the answer
+already told them; 3xx says nothing went wrong at all.

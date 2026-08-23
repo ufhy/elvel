@@ -259,6 +259,40 @@ stays quiet elsewhere. Laravel throws in every environment; here a missing build
 in production means a deploy shipped an unstyled page and silence would be wrong,
 while locally it usually means `bun run build` has not been run yet.
 
+### The build writes into `public/`, and copies nothing there
+
+`build.outDir` is `public/build`, which sits *inside* Vite's `publicDir` — so its
+copy step would walk the directory it is writing into, and Vite says so: "The
+public directory feature may not work correctly." The config sets
+`publicDir: false`, and there was nothing to copy in the first place. `public/` is
+the document root: the server hands out `favicon.svg` and `robots.txt` from where
+they already sit, and a second copy under `/build/` is one nothing links to.
+`laravel-vite-plugin` settles it the same way.
+
+### When the client is its own project
+
+`config/vite.ts` names the directory the client lives in:
+
+```ts
+// config/vite.ts
+export default {
+  // `.` is the scaffold: vite.config.ts beside elvel.ts, client source in resources/.
+  projectDirectory: 'frontend',
+  buildDirectory: 'build'
+}
+```
+
+`elvel dev` runs Vite there. That is what a decoupled front end needs — `bun create
+vite` in `frontend/`, kept standard, with its own config and `node_modules` — and
+the default of `.` is the scaffold, where nothing has to change.
+
+::: warning Pointed at the wrong directory, Vite still starts
+It takes a port and answers **404 for every path**, and it writes no hot file — so
+the server falls back to `manifest.json` and serves the last build while `dev`
+reports that assets are up. Measured before this setting existed. If the browser
+is showing yesterday's JavaScript in development, this is the first thing to check.
+:::
+
 ## Static files
 
 The provider mounts `@elysiajs/static` on `public/`. In development files are

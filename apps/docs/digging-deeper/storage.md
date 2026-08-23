@@ -91,6 +91,22 @@ directly, after:
 bun elvel storage:link
 ```
 
+What it does with what it finds there:
+
+| at the link path | what happens |
+| --- | --- |
+| nothing | the link is created |
+| a link already | reported, kept — `--force` replaces it |
+| a real directory | refused, because those are somebody's files |
+| something it cannot read | reported as that, and nothing is touched |
+
+The last row is the one worth knowing about. Every `lstat` failure used to be read
+as "nothing there", so the command went on to create the link and failed further
+down with `EEXIST: file already exists, symlink …` — a message about the wrong
+thing. It shows up on Windows, where a symlink committed to git and checked out
+without symlink support answers `EACCES`; creating the link there needs a privilege
+Windows does not grant by default.
+
 ::: warning Visibility on the local disk is a POSIX mode
 `public` is `0o644` and `private` is `0o600`, read back off the mode. Windows has
 no such mode — `chmod` there toggles one read-only bit — so a file written

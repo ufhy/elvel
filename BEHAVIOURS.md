@@ -1779,6 +1779,53 @@ Preparation is a separate step for cost, not neatness. Resolving the session in
 that never needed one — every static asset among them. On this path the work
 happens only where the answer is used.
 
+### Saving a session is not a harmless extra write
+
+The first version of the finisher saved unconditionally, and `save()` *ages* the
+flash data: it drops what the last request flashed and promotes what this one did.
+So it consumed messages nobody had read yet. CI caught four smoke checks where a
+`419` for a missing CSRF token ate the flash a successful write had just set, and
+the page meant to show it rendered empty. A browser asking for a favicon that does
+not exist would have done the same.
+
+Two questions, not one, because the answers differ:
+
+- `isPersisted()` — did anything already save this request? A redirect built with
+  flash data persists the session itself, so saving again drops what it had just
+  promoted.
+- `isDirty()` — is there anything to save? A refused write changed nothing.
+
+A brand-new session is dirty by definition, because `start()` gives it a token —
+so the case the finisher exists for, a document rendered for a first-time visitor,
+is still written and still gets its cookie.
+
+## A thrown redirect was logged as a 500
+
+Every rejected form wrote `ERROR [stack] Redirecting to /subscribe`, with a stack
+trace through `failedValidation`, for a browser on its way back to the form it came
+from.
+
+Two mistakes met. `statusFor` asked every branch it knew and none of them fits an
+exception that *carries* a response: a `RedirectException` has no status of its own,
+so it fell through to the 500 at the bottom. And `shouldReport` read "anything but
+4xx", which sounds like nothing until an exception is used for control flow.
+
+The status matters twice over, which is why this was worth fixing rather than
+filtering in the logger: the error hook pins `set.status` from the same call.
+
+## `split('/')` is not a path API
+
+`path.split('/').pop()` as a file name is only a file name where the separator is a
+forward slash. The migration generator returns a platform path, so on Windows the
+split returned the whole absolute path and the smoke script asked to write
+`storage/framework/smoke-migrations/E:/.../migrations/xxx.ts`. It died with `ENOENT
+… mkdir`, and around 400 checks after that line had never run on Windows —
+including the four that CI later failed on.
+
+`basename`. The same rule caught `storage:link`, where every `lstat` failure was
+read as "nothing there": a path that cannot be read is not a path with nothing in
+it, and the difference is worth a sentence to whoever has to fix it.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

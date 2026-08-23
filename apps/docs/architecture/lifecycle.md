@@ -176,6 +176,52 @@ Errors are rendered by **one** handler, in `@elvel/core`. A second `onError` in 
 http package once raced it and lost — which is how that was found, and why there is
 only one.
 
+### Replacing the handler
+
+Bind your own over it, from a provider's `register`:
+
+```ts
+// app/Providers/AppServiceProvider.ts
+register(): void {
+  this.app.instance('exception.handler', new SpaExceptionHandler(this.app))
+}
+```
+
+`render` may be async — the contract has always allowed `Promise<Response>` — which
+is what lets a handler answer with a page it had to read a database for. Override
+`shouldReport` to log a status the default leaves alone, or to silence one.
+
+An `onError` hook registered by a provider is **not** the seam: the framework wires
+its own into Elysia's error pipeline before any provider registers, and the first
+handler to answer wins. Replace the handler instead.
+
+### A response with no handler runs the rest of the lifecycle itself
+
+The pipeline above belongs to a *route*. A response the exception handler produces
+has none — nothing matched, or something threw on the way there — so `derive`,
+`onBeforeHandle` and `onAfterHandle` never run, and everything they do is missing.
+That does not matter while an error page is a paragraph of text. It matters
+completely once an application renders a real page there, which a client-routed
+application does for every address only its own router knows.
+
+`request.lifecycle` is what the error path runs instead, in three steps:
+
+| step | when | why it is separate |
+| --- | --- | --- |
+| `preparing` | before rendering | resolving a session or a user is async |
+| `entering` | before rendering | `enterWith` must be called synchronously |
+| `finishing` | after the response exists | saving is a write, and needs the status |
+
+A package registers into it at boot: `@elvel/http` resolves the session, puts it in
+scope and re-issues its cookie; `@elvel/auth` puts the signed-in user back.
+Measured before it existed, on one cookie: `GET /api/user` answered as the user
+while a document rendered by the 404 handler read guest, `csrf: ''`, and set no
+cookie at all.
+
+Nothing registered here may **answer**. A hook that returns a value in Elysia's
+error pipeline pins the response, which would let the machinery describing an error
+replace it.
+
 ## Why `bootstrap/app.ts` names every config file
 
 ```ts

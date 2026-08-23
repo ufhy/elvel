@@ -30,6 +30,40 @@ A flashed value survives **exactly one further request**, implemented with the
 same `_flash.new` → `_flash.old` ageing Laravel uses. That is why nothing has to
 clean up after a redirect: the value expires by being read once.
 
+### A response with no handler still has a session
+
+Every per-request hook — `derive`, `onBeforeHandle`, `onAfterHandle` — belongs to a
+route, and a response the exception handler produces has none: nothing matched, or
+something threw before the pipeline got there. That used to mean no session at all
+on that path, which matters the moment an application renders a real page there. A
+client-routed application does exactly that: the server cannot know which paths the
+client router owns, so every one of them arrives as a 404 and leaves as a document.
+
+Measured on a built application, one cookie, two requests:
+
+| request | answered by | `csrfToken()` | `Set-Cookie` |
+| --- | --- | --- | --- |
+| a route | the handler | the session's | yes |
+| a deep link | the 404 handler | **`''`** | **none** |
+
+The second is the dangerous one: the client booted with a token belonging to a
+session nobody stored, and nothing said so until the first write came back 419.
+
+The error path now resolves the session, enters its scope, and — if there is
+anything to save — saves it and re-issues the cookie. `request.lifecycle` is the
+seam, and [Views](/basics/views) needs nothing for it: `csrfToken()`, `errors()`
+and `old()` read the same scope they always did.
+
+Two rules keep it honest, and both are about flash data:
+
+- **Nothing saves twice.** A redirect built with flash data persists the session
+  itself, and `save()` ages the flash — so saving again would drop what that save
+  had just promoted, and the form would render with no messages.
+- **A request that changed nothing saves nothing.** Ageing the flash of an
+  untouched session consumes a message on its way to a page. A `419` for a missing
+  token used to do exactly that, and so would a browser asking for a favicon that
+  does not exist.
+
 ### Drivers
 
 ```ts
