@@ -37,6 +37,7 @@
         "@elvel/translation": "workspace:*",
         "@elvel/validation": "workspace:*",
         "@elvel/view": "workspace:*",
+        "@elvel/vite": "workspace:*",
         "@elysiajs/static": "^1.4.10",
         "@kitajs/html": "^4.2.13",
         "@types/bun": "^1.3.14",
@@ -352,6 +353,13 @@
         "elysia": ">=1.4.0",
       },
     },
+    "packages/vite": {
+      "name": "@elvel/vite",
+      "version": "1.0.0-alpha.13",
+      "peerDependencies": {
+        "vite": ">=6.0.0",
+      },
+    },
     "playground": {
       "name": "playground",
       "dependencies": {
@@ -500,6 +508,8 @@
     "@elvel/validation": ["@elvel/validation@workspace:packages/validation"],
 
     "@elvel/view": ["@elvel/view@workspace:packages/view"],
+
+    "@elvel/vite": ["@elvel/vite@workspace:packages/vite"],
 
     "@elysiajs/static": ["@elysiajs/static@1.4.10", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-BN/3PZVWjqkL/6TM7RH69Pae89CfU0OqfEYPeBp2hB/GR5Euds39Wy+0ug9Vbvu++GG4tRRANf2QjaLnriJveg=="],
 

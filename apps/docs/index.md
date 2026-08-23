@@ -12,7 +12,7 @@ hero:
       text: Get started
       link: /getting-started/installation
     - theme: alt
-      text: The 27 packages
+      text: The 28 packages
       link: /architecture/packages
     - theme: alt
       text: GitHub
@@ -48,7 +48,7 @@ features:
 token stored anywhere. The shape is settled; the surface still moves, and a
 release can rename something.
 
-All twenty-seven packages have a page now — the eight that were missing one
+All twenty-eight packages have a page now — the eight that were missing one
 arrived over the alphas, which is why this paragraph used to say otherwise. A page
 still appears only when it has something true to say: fifty placeholders would
 make this site look finished and be useless.

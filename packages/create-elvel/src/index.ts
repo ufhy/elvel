@@ -494,7 +494,8 @@ const FRAMEWORK_PACKAGES = [
   'testing',
   'translation',
   'validation',
-  'view'
+  'view',
+  'vite'
 ] as const
 
 /**

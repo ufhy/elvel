@@ -1,0 +1,41 @@
+{
+  "name": "@elvel/vite",
+  "version": "1.0.0-alpha.13",
+  "description": "The Vite plugin for Elvel \u2014 hot file, server-side reload, build output and asset URLs",
+  "keywords": [
+    "bun",
+    "elvel",
+    "hmr",
+    "vite",
+    "vite-plugin"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elvel.git",
+    "directory": "packages/vite"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "vite": ">=6.0.0"
+  }
+}

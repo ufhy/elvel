@@ -23,7 +23,6 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
     "@clack/prompts": "^1.7.0",
-    "@elysiajs/static": "^1.4.10",
     "@elvel/auth": "workspace:*",
     "@elvel/broadcasting": "workspace:*",
     "@elvel/cache": "workspace:*",
@@ -50,6 +49,8 @@
     "@elvel/translation": "workspace:*",
     "@elvel/validation": "workspace:*",
     "@elvel/view": "workspace:*",
+    "@elvel/vite": "workspace:*",
+    "@elysiajs/static": "^1.4.10",
     "@kitajs/html": "^4.2.13",
     "@types/bun": "^1.3.14",
     "@types/nodemailer": "^8.0.1",

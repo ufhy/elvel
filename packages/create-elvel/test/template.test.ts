@@ -1074,47 +1074,54 @@ describe('the welcome page', () => {
  * tests exist because that arrangement is easy to take apart by accident.
  */
 describe('reloading the browser', () => {
-  test('the template watches what produces HTML and pushes a full reload', async () => {
-    const config = await Bun.file(join(templateDir, 'vite.config.ts')).text()
-
-    expect(config).toContain("name: 'elvel:refresh'")
-    // `server.hot`, not `server.ws`: Vite 8 removed the latter.
-    expect(config).toContain('server.hot.send')
-    expect(config).toContain("type: 'full-reload'")
-    expect(config).not.toContain('server.ws.send')
-
-    for (const watched of ['./resources/views', './app', './routes', './config']) {
-      expect(config).toContain(watched)
-    }
-  })
-
   /**
-   * Executed, not string-matched.
+   * The plugin the template ships, loaded and run rather than read.
    *
-   * The predicate here was `file.includes('app')` and read fine: every watched
-   * directory appeared in the file. It was also wrong for two paths that matter
-   * — an application living in `apps/demo` matched every file it owns, and
-   * `resources/css/app.css` turned a CSS hot update into a full page reload —
-   * and no amount of reading the string would have said so. So this loads the
-   * real config, hands the real plugin a fake server, and watches what it sends.
+   * The predicate that made this necessary was `file.includes('app')`, which read
+   * fine — every watched directory appeared in the file — and was wrong for two
+   * paths that matter: an application in `apps/demo` matched every file it owns,
+   * and `resources/css/app.css` turned a CSS hot update into a full page reload.
+   * No amount of reading the string would have said so.
+   *
+   * The working directory moves for the same reason. `@elvel/vite` finds the
+   * application by walking up for an `elvel.ts`, which is what lets one plugin
+   * serve both layouts — so the test has to stand where a developer stands.
    */
-  test('the refresh plugin sends a reload for views and for nothing else', async () => {
-    const config = (await import(join(templateDir, 'vite.config.ts'))) as {
-      default: (env: { command: string }) => {
-        plugins: Array<{
-          name: string
-          configureServer?(server: unknown): void
-        }>
-      }
-    }
+  async function templatePlugin(command: string): Promise<{
+    config: { base?: string; server?: { watch?: { ignored?: string[] } } }
+    plugin: { name: string; configureServer?(server: unknown): void }
+  }> {
+    const cwd = process.cwd()
 
-    const plugin = config
-      .default({ command: 'serve' })
-      .plugins.find((candidate) => candidate.name === 'elvel:refresh')
+    try {
+      process.chdir(templateDir)
+
+      const loaded = (await import(join(templateDir, 'vite.config.ts'))) as {
+        default: {
+          plugins: Array<{
+            name: string
+            config(user: object, env: { command: string }): object
+            configureServer?(server: unknown): void
+          }>
+        }
+      }
+
+      const plugin = loaded.default.plugins.find((one) => one.name === 'elvel')
+
+      if (plugin === undefined) throw new Error('The template ships no `elvel` plugin.')
+
+      return { config: plugin.config({}, { command }), plugin }
+    } finally {
+      process.chdir(cwd)
+    }
+  }
+
+  test('the refresh plugin sends a reload for views and for nothing else', async () => {
+    const { plugin } = await templatePlugin('serve')
     const handlers: Array<(file: string) => void> = []
     let sent = 0
 
-    plugin?.configureServer?.({
+    plugin.configureServer?.({
       watcher: {
         add: () => undefined,
         on: (_event: string, handler: (file: string) => void) => handlers.push(handler)
@@ -1163,11 +1170,9 @@ describe('reloading the browser', () => {
    * measured, before these patterns were in place.
    */
   test('the watcher ignores what a running application writes', async () => {
-    const config = (await import(join(templateDir, 'vite.config.ts'))) as {
-      default: (env: { command: string }) => { server?: { watch?: { ignored?: string[] } } }
-    }
+    const { config } = await templatePlugin('serve')
 
-    expect(config.default({ command: 'serve' }).server?.watch?.ignored).toEqual([
+    expect(config.server?.watch?.ignored).toEqual([
       '**/storage/**',
       '**/database/**',
       '**/public/build/**',
@@ -1191,35 +1196,34 @@ describe('reloading the browser', () => {
    * asset in development instead. `laravel-vite-plugin` splits it the same way.
    */
   test('the build carries a base, and the dev server does not', async () => {
-    const config = (await import(join(templateDir, 'vite.config.ts'))) as {
-      default: (env: { command: string }) => { base?: string }
-    }
-
-    expect(config.default({ command: 'build' }).base).toBe('/build/')
-    expect(config.default({ command: 'serve' }).base).toBe('')
-
-    /**
-     * The kit ships its own copy of this config, and it is checked as text.
-     *
-     * `--kit=jsx` replaces the template's `vite.config.ts` with the kit's, so
-     * fixing one and not the other leaves half the applications this package can
-     * produce broken in a way that looks identical from the outside. It cannot be
-     * imported the way the template's can: it pulls in `@tailwindcss/vite`, which
-     * only exists once an application has installed its own dependencies.
-     */
-    const kit = await Bun.file(
-      resolve(import.meta.dir, '..', 'kits', 'jsx', 'vite.config.ts')
-    ).text()
-
-    expect(kit).toContain("base: command === 'build' ? '/build/' : ''")
+    expect((await templatePlugin('build')).config.base).toBe('/build/')
+    expect((await templatePlugin('serve')).config.base).toBe('')
   })
 
-  test('the plugin only runs while a dev server is up', async () => {
-    const config = await Bun.file(join(templateDir, 'vite.config.ts')).text()
+  /**
+   * Both configs delegate, and neither keeps a copy.
+   *
+   * Five copies of this logic lived in this repository, 94 to 214 lines each, and
+   * the drift between them is where the bugs were: `base` unset in one, a
+   * `publicDir` warning in another, a stale hot file in a third. The kit is checked
+   * as text because it cannot be imported — it pulls in `@tailwindcss/vite`, which
+   * exists only once an application has installed its own dependencies.
+   */
+  test('the template and the kit both use the package rather than a copy', async () => {
+    for (const path of [
+      join(templateDir, 'vite.config.ts'),
+      resolve(import.meta.dir, '..', 'kits', 'jsx', 'vite.config.ts')
+    ]) {
+      const config = await Bun.file(path).text()
 
-    // Both plugins are `apply: 'serve'`. A production build must not carry a
-    // file watcher, and the hot file must not survive the server that wrote it.
-    expect(config.match(/apply: 'serve'/g)?.length).toBe(2)
+      expect(config).toContain("from '@elvel/vite'")
+      expect(config).toContain('elvel({ input:')
+
+      // The hand-rolled halves, gone: the hot file, the watcher, the prefix.
+      expect(config).not.toContain('writeFileSync')
+      expect(config).not.toContain('server.hot')
+      expect(config).not.toContain('base: command')
+    }
   })
 
   test('dev runs the asset server, and serve stays a plain server', async () => {

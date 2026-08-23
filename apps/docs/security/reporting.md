@@ -27,7 +27,7 @@ version: what is in scope, what helps a report, and which versions are supported
   accident.
 
 Every action in the release workflow is pinned to a commit rather than a tag,
-because that workflow holds permission to publish twenty-seven packages to npm.
+because that workflow holds permission to publish twenty-eight packages to npm.
 
 ## Two things the first CodeQL run found
 

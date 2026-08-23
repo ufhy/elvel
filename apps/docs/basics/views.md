@@ -259,15 +259,32 @@ stays quiet elsewhere. Laravel throws in every environment; here a missing build
 in production means a deploy shipped an unstyled page and silence would be wrong,
 while locally it usually means `bun run build` has not been run yet.
 
-### The build writes into `public/`, and copies nothing there
+### One plugin, and what it settles
 
-`build.outDir` is `public/build`, which sits *inside* Vite's `publicDir` — so its
-copy step would walk the directory it is writing into, and Vite says so: "The
-public directory feature may not work correctly." The config sets
-`publicDir: false`, and there was nothing to copy in the first place. `public/` is
-the document root: the server hands out `favicon.svg` and `robots.txt` from where
-they already sit, and a second copy under `/build/` is one nothing links to.
-`laravel-vite-plugin` settles it the same way.
+```ts
+// vite.config.ts
+import elvel from '@elvel/vite'
+
+export default { plugins: [elvel({ input: 'resources/js/app.ts' })] }
+```
+
+`@elvel/vite` answers what an application should not have to decide, and every
+value defers to one the application sets itself:
+
+| | why it is not a default worth rediscovering |
+| --- | --- |
+| the hot file | its presence is how the server knows to point at Vite, and it has to be removed when Vite stops |
+| a full reload on view changes | a `.tsx` view is a string on the server, so there is no module to swap |
+| `base` per command | `/build/` in a build, empty in `serve`, where `base` is also the path the dev server answers under |
+| `publicDir: false` | the build output lives *inside* `public/`, so the copy step would walk the directory it writes into |
+| `manifest.json` | Vite 5 moved it to `.vite/manifest.json`; this puts it back where the server looks |
+| `outDir` | `public/build` **of the application**, found by walking up for `elvel.ts` |
+
+That last row is what makes a decoupled client work. `laravel-vite-plugin` exists
+for the same reason and settles the same questions; five hand-written copies of
+this logic lived in this repository first, and the drift between them is where the
+bugs were — an unset `base` made a lazily imported chunk 404 in one of them while
+the others were fine.
 
 ### When the client is its own project
 
@@ -284,7 +301,20 @@ export default {
 
 `elvel dev` runs Vite there. That is what a decoupled front end needs — `bun create
 vite` in `frontend/`, kept standard, with its own config and `node_modules` — and
-the default of `.` is the scaffold, where nothing has to change.
+the default of `.` is the scaffold, where nothing has to change. Its config is a
+standard one plus the plugin:
+
+```ts
+// frontend/vite.config.ts
+import vue from '@vitejs/plugin-vue'
+import elvel from '@elvel/vite'
+
+export default { plugins: [vue(), elvel({ input: 'src/main.ts' })] }
+```
+
+Nothing there names the application's directory. The plugin finds it by walking up
+for `elvel.ts`, so the hot file and the build output land in the application while
+the client project stays a client project.
 
 ::: warning Pointed at the wrong directory, Vite still starts
 It takes a port and answers **404 for every path**, and it writes no hot file — so
