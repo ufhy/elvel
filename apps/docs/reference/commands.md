@@ -145,6 +145,7 @@ rotating a key means every `encrypted` cast stops decrypting.
 | --- | --- |
 | `auth:schema` | Generate a migration for better-auth's tables |
 | `auth:schema --diff` | Only what the database is missing — the one to use after the first migration |
+| `session:gc` | Delete sessions idle past their lifetime — nothing else does |
 | `storage:link` / `storage:unlink` | The symlinks `config/filesystems.ts` names |
 | `session:table` · `notifications:table` | Migrations for those drivers |
 | `install:api` | Add an API routes file and wire it into the bootstrap |

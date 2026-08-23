@@ -1,6 +1,6 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
 import { controller } from '@elvel/core'
-import { errors, middleware, redirect, routes } from '@elvel/http'
+import { currentScope, errors, middleware, redirect, routes } from '@elvel/http'
 import { view } from '@elvel/view'
 import { t } from 'elysia'
 import { SignIn } from '../../../../resources/views/pages/auth/sign-in.tsx'
@@ -60,6 +60,17 @@ export default controller('auth-sign-in')
       if (((await answer.clone().json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect) {
         return withSession(answer, await redirect('/two-factor-challenge').seeOther().toResponse())
       }
+
+      /**
+       * A new session id, now that this browser is somebody.
+       *
+       * Session fixation: an id chosen before signing in is an id somebody else
+       * may have chosen, and if it still names the session afterwards then whoever
+       * chose it is signed in as this user. The CSRF token rotates with it, so a
+       * token picked up while signed out no longer authorises writes while signed
+       * in. Laravel calls this in the same place, for the same reason.
+       */
+      await currentScope()?.session.regenerate()
 
       return withSession(answer, await redirect('/dashboard').seeOther().toResponse())
     },

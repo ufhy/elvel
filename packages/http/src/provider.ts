@@ -6,6 +6,7 @@ import { BindingRegistry, resolveBindings } from './bindings.ts'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
 import { MiddlewareListCommand } from './console/middleware-list.ts'
+import { SessionGcCommand } from './console/session-gc.ts'
 import { SessionTableCommand } from './console/session-table.ts'
 import { cookiePlugin } from './cookie-plugin.ts'
 import { CookieJar } from './cookies.ts'
@@ -218,6 +219,7 @@ export class HttpServiceProvider extends ServiceProvider {
           MakeRequestCommand,
           MakeResourceCommand,
           MiddlewareListCommand,
+          SessionGcCommand,
           SessionTableCommand
         )
     }
@@ -466,9 +468,27 @@ export class HttpServiceProvider extends ServiceProvider {
     const jar = this.app.make('cookies')
     const name = this.config<string>('session.cookie', 'elvel_session')
     const lifetime = this.config<number>('session.lifetime', 7200)
+
+    /**
+     * `Lax` by default, `Strict` where it costs nothing.
+     *
+     * `Lax` attaches the cookie to a top-level navigation from another site, which
+     * is what makes a link from an email land signed in. `Strict` refuses even
+     * that: safer, and a visible difference to anybody arriving by link, so it is
+     * a choice rather than a default.
+     */
+    const sameSite = this.config<'lax' | 'strict' | 'none'>('session.sameSite', 'lax')
     const except = this.config<string[]>('session.csrfExcept', [])
     const csrfEnabled = this.config<boolean>('session.csrf', true)
-    const secure = this.app.isProduction()
+
+    /**
+     * Over TLS only, in production.
+     *
+     * Configurable because a development setup can be HTTPS and a production one
+     * can sit behind a proxy that terminates it — but the default is the safe half
+     * of that: a cookie sent over plain HTTP in production is a cookie on the wire.
+     */
+    const secure = this.config<boolean>('session.secure', this.app.isProduction())
 
     /**
      * Encrypt the session cookie, when asked and when an encrypter exists.
@@ -598,12 +618,18 @@ export class HttpServiceProvider extends ServiceProvider {
       return session
     }
 
-    /** Re-issued on every response, which is what keeps its lifetime rolling. */
+    /**
+     * Re-issued on every response, which is what keeps its lifetime rolling.
+     *
+     * `httpOnly` is not configurable, and that is the point: a session cookie a
+     * script can read is a session an injected script can steal, and there is no
+     * application for which that is the right trade. Everything else here is.
+     */
     const cookieFor = (session: Session): string =>
       CookieJar.serialize(
         name,
         encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id),
-        { maxAge: lifetime, httpOnly: true, secure, sameSite: 'lax' }
+        { maxAge: lifetime, httpOnly: true, secure, sameSite }
       )
 
     return (

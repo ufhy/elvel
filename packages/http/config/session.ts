@@ -12,6 +12,28 @@ export default {
 
   cookie: env('SESSION_COOKIE', 'elvel_session'),
 
+  /**
+   * `Lax` or `Strict`, and what the difference costs.
+   *
+   * `Lax` attaches the cookie to a top-level navigation from another site, which
+   * is what makes a link in an email land signed in. `Strict` refuses even that —
+   * safer, and visible to anybody arriving by link, which is why it is a choice
+   * rather than the default.
+   *
+   * `HttpOnly` is not here on purpose: it is always on. A session cookie a script
+   * can read is a session an injected script can steal.
+   */
+  sameSite: env('SESSION_SAME_SITE', 'lax'),
+
+  /**
+   * Sent over TLS only.
+   *
+   * Defaults to on in production. Configurable because a development setup can be
+   * HTTPS and a production one can sit behind a proxy that terminates it — but a
+   * cookie sent over plain HTTP in production is a cookie on the wire.
+   */
+  secure: env('SESSION_SECURE', undefined),
+
   /** Seconds. */
   lifetime: Number(env('SESSION_LIFETIME', 7200)),
 

@@ -140,24 +140,6 @@ A stylesheet is a smaller problem than a document, and the fix is the same shape
 the conditional-requests row below: those responses have to pass through something
 that can see them.
 
-## What a session leaves behind, and what it cannot rotate
-
-Three gaps in `@elvel/http`, all measured:
-
-**`gc()` is implemented on four drivers and called by nothing.** No command
-schedules it. `storage/framework/sessions/` in the SPA demo holds **over 130 files**
-from a few days of use, and every one is a session that still works. Needs
-`session:gc` and a scheduled entry in the kit.
-
-**There is no way to rotate a session id.** `regenerateToken()` exists;
-`regenerate()` does not. Laravel calls it immediately after a successful login,
-for session fixation. The CSRF token also does not rotate when privileges change.
-
-**The cookie's flags are not configurable.** `secure` is `isProduction()` and
-`sameSite` is the literal `'lax'`, both inside the provider. A single-origin
-application wants `Strict` and loses nothing by it; the `__Host-` prefix is real
-hardening that cannot currently be asked for.
-
 ## `@elvel/spa`
 
 The SPA demo's glue, minus its invoices: 465 lines that every client-routed

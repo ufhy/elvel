@@ -89,6 +89,42 @@ The `sessions` table's `last_activity` is **64-bit**, unlike Laravel's — see
 [behaviours](https://github.com/ufhy/elvel/blob/main/BEHAVIOURS.md) for why a
 32-bit one is a problem before 2038 rather than at it.
 
+### A login must change the session id
+
+```ts
+await currentScope()?.session.regenerate()
+```
+
+Session fixation, concretely: an attacker gets a victim's browser to hold a session
+id they already know, the victim signs in, and the id they know is now an
+authenticated session. Nothing about the sign-in is broken — the id simply never
+changed. The auth kit calls this straight after a successful sign-in, where Laravel
+calls it too.
+
+The CSRF token rotates with it, because a token is bound to a session: keeping the
+old one across a privilege change means the value a page picked up while signed out
+still authorises writes while signed in.
+
+The old record is destroyed, which is where this differs from Laravel's
+`regenerate()`. What an attacker holds *is* that record, and leaving it to expire
+leaves it usable until it does. `regenerate(false)` keeps it for the rare case
+where something else still reads it.
+
+### Nothing expires a session by itself
+
+The file and database drivers keep a record until something removes it, and an idle
+session that still exists is an idle session that still works. `gc()` was
+implemented on all four drivers from the start and called by nothing: measured in
+this repository's own playground, one command removed **121 sessions**.
+
+```bash
+bun elvel session:gc                    # against config('session.lifetime')
+bun elvel session:gc --lifetime=86400   # or against something else
+```
+
+The scaffold schedules it hourly in `routes/console.ts`. The cache and redis
+drivers answer 0, because their store expires keys itself.
+
 ## Cookies
 
 **Signed by default, and encryptable.** A signed value stays readable by the
@@ -109,6 +145,26 @@ everybody out** — the sessions already in the wild keep working until they exp
 An encrypted `X-XSRF-TOKEN` is still *rejected* rather than waved through, because
 a header is not a cookie and treating one as the other is how a CSRF check gets
 bypassed.
+
+### The flags on the session cookie
+
+```ts
+// config/session.ts
+sameSite: 'lax',   // or 'strict'
+secure: undefined  // production by default
+```
+
+`Lax` attaches the cookie to a top-level navigation from another site, which is what
+makes a link in an email land signed in. `Strict` refuses even that: safer, and
+visible to anybody arriving by link, which is why it is a choice rather than the
+default.
+
+`secure` defaults to on in production and can be set either way — a development
+setup can be HTTPS, and a production one can sit behind a proxy that terminates it.
+
+`HttpOnly` is not configurable, deliberately. A session cookie a script can read is
+a session an injected script can steal, and there is no application for which that
+is the right trade.
 
 ## CSRF
 

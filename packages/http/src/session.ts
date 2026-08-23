@@ -122,11 +122,22 @@ export class Session {
   /** Set by `save()`. Read by the error path, which must not save twice. */
   private persisted = false
 
+  /**
+   * Reassignable, because a session can be given a new one.
+   *
+   * `regenerate()` is what a login should call: the id in the cookie before
+   * signing in is an id somebody else may have chosen, and if it still names the
+   * session afterwards then whoever chose it is now signed in as this user.
+   */
+  id: string
+
   constructor(
-    readonly id: string,
+    id: string,
     private readonly driver: SessionDriver,
     private readonly name = 'elvel_session'
-  ) {}
+  ) {
+    this.id = id
+  }
 
   static newId(): string {
     return Str.random(40)
@@ -294,6 +305,35 @@ export class Session {
    */
   isPersisted(): boolean {
     return this.persisted
+  }
+
+  /**
+   * A new id for the same data — what a login must do.
+   *
+   * Session fixation, concretely: an attacker gets a victim's browser to hold a
+   * session id they already know, the victim signs in, and the id they know is now
+   * an authenticated session. Nothing about the sign-in itself is broken; the id
+   * simply never changed. Laravel calls this from
+   * `AuthenticatedSessionController::store` for the same reason.
+   *
+   * The CSRF token is rotated with it. A token is bound to a session, so keeping
+   * the old one across a privilege change means the value a page picked up while
+   * signed out still authorises writes while signed in.
+   *
+   * The old record is destroyed by default, which is where this differs from
+   * Laravel's `regenerate()`. What an attacker holds *is* that record — leaving it
+   * to expire leaves it usable until it does. Pass `false` to keep it, for the
+   * rare case where something else still reads it.
+   */
+  async regenerate(destroyPrevious = true): Promise<this> {
+    const previous = this.id
+
+    this.id = Session.newId()
+    this.regenerateToken()
+
+    if (destroyPrevious) await this.driver.destroy(previous)
+
+    return this
   }
 
   /** Persist, ageing the flash data by one request. */
