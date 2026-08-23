@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createHmac } from 'node:crypto'
 import { chmod, mkdir, rm, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { BunSqlConnection, MigrationRepository, Migrator } from '@elvel/database'
 import { middlewareNamesOf, middlewares } from '@elvel/http'
 import { ProcessManager } from '@elvel/process'
@@ -2523,10 +2523,18 @@ try {
 
   const staging = join(app.basePath(), 'storage', 'framework', 'smoke-migrations')
   await mkdir(staging, { recursive: true })
+  /**
+   * `basename`, not `split('/').pop()`.
+   *
+   * The generator returns whatever path the platform builds, and on Windows that
+   * is `E:\...\database\migrations\xxx.ts` — with no forward slash in it, so the
+   * split returned the whole absolute path as the file name and this asked to
+   * write `storage/framework/smoke-migrations/E:/.../migrations/xxx.ts`. Measured:
+   * `ENOENT: no such file or directory, mkdir`, and none of the 400-odd checks
+   * after this line ever ran on Windows.
+   */
   await Promise.all(
-    generatedTables.map((path) =>
-      Bun.write(join(staging, path.split('/').pop() as string), Bun.file(path))
-    )
+    generatedTables.map((path) => Bun.write(join(staging, basename(path)), Bun.file(path)))
   )
 
   const sqlite = await BunSqlConnection.make('smoke-tables', {
