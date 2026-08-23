@@ -142,6 +142,32 @@ Closing it means answering `If-None-Match` for every static file rather than onl
 those two cases, which is a small handler in front of the plugin and not a change
 to the plugin.
 
+## The session is out of scope inside an exception handler
+
+The auth plugin resolves a request's session in `onRequest` and puts it *in scope*
+in `onBeforeHandle`. Only the second of those runs per handler — so a response
+produced by the exception handler, which answers without a handler pipeline, sees
+no session at all.
+
+Measured on the built SPA demo, one cookie, two requests:
+
+| request | answered by | `user()` |
+| --- | --- | --- |
+| `GET /api/user` | a route, behind `auth` | Ada |
+| `GET /dashboard` | the 404 exception handler | **null** |
+
+This is not a demo problem. Any application that renders pages from its error
+handler — every client-routed one, since the server cannot know which paths the
+client owns — reads "guest" for a signed-in visitor and sends them to sign in
+again. The workaround is `auth().recall(request)`, which reads what `onRequest`
+already resolved; the demo does exactly that.
+
+Closing it means entering the scope for the error path too, which is one hook in
+the auth plugin. What made it worth writing down rather than just fixing: an
+`onError` registered by a plugin pins the response status, so the fix has to enter
+the scope *without* answering, and that needs a test that proves a 500 is still a
+500.
+
 ## decision: compress HTML too
 
 Only files are compressed today, never a rendered page. What that leaves on the
