@@ -134,6 +134,22 @@ export class AuthServiceProvider extends ServiceProvider {
 
     this.app.instance('auth', manager)
 
+    /**
+     * Who is signed in, on the path that has no handler.
+     *
+     * The scope below is entered in `onBeforeHandle`, which an error response
+     * never reaches: a deep link nothing matched is answered by the exception
+     * handler, so an application rendering its own page there read `user()` as
+     * guest and sent a signed-in visitor back to sign in. `remember()` ran for
+     * that request in `onRequest`, so the session is already resolved — only the
+     * scope is missing, and this puts it back.
+     */
+    if (this.app.bound('request.lifecycle')) {
+      this.app.make('request.lifecycle').entering((request) => {
+        manager.enterScope(manager.recall(request), request)
+      })
+    }
+
     if (this.config<boolean>('auth.mount', true) === false) return
 
     this.use(this.plugin(auth, manager))

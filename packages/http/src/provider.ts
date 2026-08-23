@@ -366,6 +366,15 @@ export class HttpServiceProvider extends ServiceProvider {
    * server, which is why signing is enough and encryption is not needed here.
    */
   private async sessionPlugin() {
+    /**
+     * This request's session, held until the scope is entered.
+     *
+     * Keyed by the `Request` so nothing has to be added to the context, and so a
+     * finished request's session is collectable. Read by the restorer below, on
+     * the one path that has no handler to enter the scope for it.
+     */
+    const sessions = new WeakMap<Request, Session>()
+
     const driver = this.app.make('session.driver')
     const jar = this.app.make('cookies')
     const name = this.config<string>('session.cookie', 'elvel_session')
@@ -397,23 +406,99 @@ export class HttpServiceProvider extends ServiceProvider {
       }
     }
 
+    /**
+     * The whole session lifecycle, for a response with no handler.
+     *
+     * `derive`, `onBeforeHandle` and `onAfterHandle` all belong to a handler, and
+     * an error response has none — nothing matched, or something threw first. So
+     * before this existed a document rendered by the 404 handler carried
+     * `csrf: ''` **and** came back with no `Set-Cookie` at all: measured, an
+     * unmatched request set no cookie while a matched one did. The client booted
+     * with a token for a session nobody stored, and the first write it attempted
+     * was refused with 419 — silent until then, which is what made it worth
+     * fixing rather than writing down.
+     *
+     * Three steps because the work has three shapes: read the session (async),
+     * enter its scope (must be synchronous), then save it and re-issue the cookie
+     * (async, and only once the response exists).
+     */
+    if (this.app.bound('request.lifecycle')) {
+      this.app
+        .make('request.lifecycle')
+        .preparing(async (request) => {
+          await sessionFor(request)
+        })
+        .entering((request) => {
+          const session = sessions.get(request)
+
+          if (session !== undefined) enterRequestScope({ request, session })
+        })
+        .finishing(async (request, response) => {
+          const session = sessions.get(request)
+
+          if (session === undefined) return
+
+          /**
+           * Where `back()` goes next, by the same rule the handler path uses —
+           * with one addition: a page nobody can return to is not worth
+           * remembering. A 404 or a 500 is that page, and a client-routed
+           * application's deep link, rendered here as a 200, is not.
+           */
+          if (request.method === 'GET' && !isCorsRequest(request) && response.status < 400) {
+            session.put(
+              PREVIOUS_URL_KEY,
+              new URL(request.url).pathname + new URL(request.url).search
+            )
+          }
+
+          await session.save()
+
+          response.headers.append('set-cookie', cookieFor(session))
+        })
+    }
+
+    /**
+     * This request's session, resolved once.
+     *
+     * Two callers now — the `derive` below, and the error path through
+     * `request.lifecycle` — and they must not each start their own: two `Session`
+     * objects for one request means one of them saves over the other.
+     */
+    const sessionFor = async (request: Request): Promise<Session> => {
+      const already = sessions.get(request)
+
+      if (already !== undefined) return already
+
+      const cookies = CookieJar.parse(request.headers.get('cookie'))
+
+      // Encrypted when configured and possible; signed otherwise. Reading falls
+      // back to the other form so a running application survives the switch
+      // without logging everyone out.
+      const id =
+        (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ??
+        jar.unsign(cookies[name]) ??
+        Session.newId()
+
+      const session = await new Session(id, driver, name).start()
+
+      sessions.set(request, session)
+
+      return session
+    }
+
+    /** Re-issued on every response, which is what keeps its lifetime rolling. */
+    const cookieFor = (session: Session): string =>
+      CookieJar.serialize(
+        name,
+        encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id),
+        { maxAge: lifetime, httpOnly: true, secure, sameSite: 'lax' }
+      )
+
     return (
       new Elysia({ name: 'elvel:session' })
-        .derive({ as: 'global' }, async ({ request }) => {
-          const cookies = CookieJar.parse(request.headers.get('cookie'))
-
-          // Encrypted when configured and possible; signed otherwise. Reading falls
-          // back to the other form so a running application survives the switch
-          // without logging everyone out.
-          const id =
-            (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ??
-            jar.unsign(cookies[name]) ??
-            Session.newId()
-
-          const session = await new Session(id, driver, name).start()
-
-          return { session }
-        })
+        .derive({ as: 'global' }, async ({ request }) => ({
+          session: await sessionFor(request)
+        }))
         /**
          * Enter the request scope, **synchronously**.
          *
@@ -467,15 +552,7 @@ export class HttpServiceProvider extends ServiceProvider {
 
           await session.save()
 
-          // Re-issuing every response keeps the cookie's lifetime rolling.
-          const value = encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id)
-
-          set.headers['set-cookie'] = CookieJar.serialize(name, value, {
-            maxAge: lifetime,
-            httpOnly: true,
-            secure,
-            sameSite: 'lax'
-          })
+          set.headers['set-cookie'] = cookieFor(session)
         })
     )
   }

@@ -35,6 +35,7 @@ export {
   resource_path,
   storage_path
 } from './helpers.ts'
+export { RequestLifecycle } from './lifecycle.ts'
 export {
   BYPASS_COOKIE,
   bypassCookieIsValid,

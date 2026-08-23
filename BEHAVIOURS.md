@@ -1741,6 +1741,44 @@ is now a function of the command.
 The failure mode is the reason this is written down: the build succeeds, the page
 renders, and only the part that needed JavaScript is missing.
 
+## Every per-request hook belongs to a handler, and an error response has none
+
+`derive`, `onBeforeHandle`, `transform`, `onAfterHandle` — all of them run as part
+of handling a route. A response the exception handler produces has no route:
+nothing matched, or something threw before the pipeline got there. So everything
+those hooks do is simply absent, which does not matter while an error page is a
+paragraph of text and matters completely once an application renders a real page
+there. A client-routed application does exactly that — the server cannot know
+which paths the client router owns, so every one of them arrives as a 404 and
+leaves as a document.
+
+Measured on a built application, one cookie, two requests:
+
+| request | answered by | `user()` | `csrfToken()` | `Set-Cookie` |
+| --- | --- | --- | --- | --- |
+| `GET /api/user` | a route, behind `auth` | the signed-in user | the session's | yes |
+| `GET /dashboard` | the 404 handler | **null** | **`''`** | **none** |
+
+Both halves fail, and the second is worse than it looks. The session was never
+resolved, so it was never saved and its cookie never issued — a document rendered
+there handed the client a token belonging to nothing, and the first write it
+attempted came back 419. Nothing says so until that write.
+
+`request.lifecycle` is the seam that closes it: `preparing` resolves what a scope
+needs (async), `entering` puts the scope back (synchronous, because `enterWith`
+is), and `finishing` writes what the finished response owes — the session saved,
+the cookie appended. The core error handler runs all three, and the packages that
+own those values register into it.
+
+Three steps rather than one because of a constraint worth naming: a hook that
+*answers* in Elysia's error pipeline pins the response, so none of this may return
+anything. There is a test that a 500 is still a 500.
+
+Preparation is a separate step for cost, not neatness. Resolving the session in
+`onRequest` would have worked and would have added a store read to every request
+that never needed one — every static asset among them. On this path the work
+happens only where the answer is used.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

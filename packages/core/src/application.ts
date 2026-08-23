@@ -13,12 +13,14 @@ import { Elysia } from 'elysia'
 import { Config } from './config.ts'
 import { Env } from './env.ts'
 import { ExceptionHandler } from './exceptions.ts'
+import { RequestLifecycle } from './lifecycle.ts'
 import { MaintenanceMode } from './maintenance.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
     'exception.handler': ExceptionHandlerContract
     maintenance: MaintenanceMode
+    'request.lifecycle': RequestLifecycle
   }
 }
 
@@ -66,6 +68,12 @@ export class Application implements ApplicationContract {
     this.router = new Elysia({ name: 'elvel' })
 
     this.instance('exception.handler', new ExceptionHandler(this))
+
+    /**
+     * Bound here, not in a provider, because the error path uses it and the error
+     * path has to work before and after any provider has a say.
+     */
+    this.instance('request.lifecycle', new RequestLifecycle())
 
     // Bound in the constructor rather than a provider: `elvel down` has to work
     // when a provider cannot boot, which is one of the reasons to run it.
@@ -305,6 +313,25 @@ export class Application implements ApplicationContract {
     this.router.onError(async ({ error, request, set }) => {
       const handler = this.make('exception.handler')
 
+      /**
+       * Put the request's scopes back, **before** anything reads them.
+       *
+       * Every per-request hook belongs to a handler, and this path has none —
+       * nothing matched, or something threw on the way there. Without this, a
+       * handler rendering a page for a 404 reads no session and no user: measured
+       * as `user: null` and `csrf: ''` on a request whose cookie the very next
+       * endpoint accepted.
+       *
+       * Synchronous, and called before the first `await` for the reason
+       * `enterWith` exists — it applies to the rest of this execution and the
+       * continuations scheduled from it, so entering after an `await` would land
+       * in a frame `render` never sees.
+       */
+      const lifecycle = this.make('request.lifecycle')
+
+      await lifecycle.prepare(request)
+      lifecycle.enter(request)
+
       void handler.report(error)
 
       // `render` may be async — the contract allows it, so this awaits rather
@@ -327,6 +354,17 @@ export class Application implements ApplicationContract {
        * document is a 200.
        */
       set.status = response.status
+
+      /**
+       * And what the response still owes, now that it exists.
+       *
+       * `onAfterHandle` is where the session is saved and its cookie re-issued,
+       * and it belongs to a handler this path never had: measured, an unmatched
+       * request came back with **no `Set-Cookie` at all**, so a document rendered
+       * here handed the client a token for a session nobody stored. Awaited,
+       * because saving is a write.
+       */
+      await lifecycle.finish(request, response)
 
       return response
     })
