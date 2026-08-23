@@ -46,7 +46,7 @@ and `--force` writes into a directory that already has something in it.
 
 This is the one place Elvel departs from Laravel by necessity. Laravel's
 components arrive inside a single Composer package whether or not you touch them;
-these are twenty-eight npm packages, and **registering all of them took a landing
+these are twenty-nine npm packages, and **registering all of them took a landing
 page from 1.0 MB to 3.7 MB** — most of it `kysely` behind the database,
 `nodemailer` behind mail, and better-auth behind auth.
 

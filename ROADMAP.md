@@ -128,29 +128,6 @@ with an unsaved draft, a player that must keep playing, a socket that must stay
 open: those are what a document-per-navigation cannot hold, and prefetch does not
 change that. It changes how long the change takes.
 
-## `@elvel/spa`
-
-The SPA demo's glue, minus its invoices: 465 lines that every client-routed
-application would write again. Its `Invoice` model is 25 lines — the glue is
-eighteen times the domain.
-
-Two halves. On the server, one call that assembles the document: the payload as an
-inert `<script type="application/json">`, the CSRF token, `no-store`, and the rule
-for which addresses belong to the client router — GET, `Accept: text/html`, not
-under `/api/`, no file extension. Four conditions, and an application that guesses
-them itself will get one wrong. Three earlier shapes are already known not to work:
-a `GET /*` route loses to the static plugin, a route registered earlier shadows
-every real file, and an `onError` hook in a provider never fires at all.
-
-On the client, the module that decides once what every call needs: the session as
-an `HttpOnly` cookie rather than a token in `localStorage`, `x-csrf-token` on
-writes, `accept: application/json` — without which an expired session arrives as a
-parse error — and 401/422 turned into two error types a component can act on. This
-half is the one most likely to be written insecurely by hand, which is the argument
-for shipping it.
-
-Framework-neutral: it holds no Vue.
-
 ## A kit that serves a request in CI
 
 `bun run smoke` scaffolds a kit, checks the files it wrote, and asserts that

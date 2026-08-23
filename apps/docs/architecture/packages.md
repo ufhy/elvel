@@ -1,6 +1,6 @@
-# The 28 packages
+# The 29 packages
 
-Laravel is one package. Elvel is twenty-eight, and this page is why.
+Laravel is one package. Elvel is twenty-nine, and this page is why.
 
 | Package | Contents |
 | --- | --- |
@@ -15,6 +15,7 @@ Laravel is one package. Elvel is twenty-eight, and this page is why.
 | `@elvel/console` | The CLI: signature parser, command base, kernel, stub generators. |
 | `@elvel/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `@elvel/vite` | The Vite plugin: hot file, server-side reload, build output, asset URLs. |
+| `@elvel/spa` | The document a client-routed application boots from, and the client that talks to it. |
 | `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. |
 | `@elvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
 | `@elvel/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
@@ -25,7 +26,7 @@ Laravel is one package. Elvel is twenty-eight, and this page is why.
 | `@elvel/encryption` | AES-256-GCM, HKDF-derived keys, context binding, key rotation, `key:generate`. |
 | `create-elvel` | Application skeleton scaffolder. |
 
-## Why twenty-eight
+## Why twenty-nine
 
 Laravel is one Composer package: `illuminate/*` arrives whole whether or not you
 touch it, and registering all of Eloquent, Queue and Mail in an application that

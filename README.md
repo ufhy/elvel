@@ -12,7 +12,7 @@ change between alphas.
 ## Documentation
 
 **[ufhy.github.io/elvel](https://ufhy.github.io/elvel/)** — installation, the
-every one of the twenty-eight packages, from installation and the starter kits to
+every one of the twenty-nine packages, from installation and the starter kits to
 routing, views, the database, queues, broadcasting and how to work on the
 framework itself.
 

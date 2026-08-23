@@ -43,6 +43,7 @@
     "@elvel/process": "workspace:*",
     "@elvel/queue": "workspace:*",
     "@elvel/scheduler": "workspace:*",
+    "@elvel/spa": "workspace:*",
     "@elvel/storage": "workspace:*",
     "@elvel/support": "workspace:*",
     "@elvel/testing": "workspace:*",

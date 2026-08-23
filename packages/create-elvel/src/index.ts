@@ -489,6 +489,7 @@ const FRAMEWORK_PACKAGES = [
   'process',
   'queue',
   'scheduler',
+  'spa',
   'storage',
   'support',
   'testing',
@@ -638,6 +639,7 @@ const CONFIG_OWNERS: Record<string, string> = {
   notifications: 'notifications',
   queue: 'queue',
   security: 'http',
+  spa: 'spa',
   session: 'http',
   view: 'view',
   vite: 'view'

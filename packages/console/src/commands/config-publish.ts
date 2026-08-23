@@ -31,6 +31,7 @@ const OWNERS: Record<string, string> = {
   notifications: 'notifications',
   queue: 'queue',
   security: 'http',
+  spa: 'spa',
   session: 'http',
   view: 'view',
   vite: 'view'

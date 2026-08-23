@@ -86,6 +86,7 @@ export default defineConfig({
           { text: 'Middleware', link: '/basics/middleware' },
           { text: 'Session, cookies and CSRF', link: '/basics/session' },
           { text: 'Views', link: '/basics/views' },
+          { text: 'Single-page applications', link: '/basics/spa' },
           { text: 'Events and logging', link: '/basics/events-and-logging' }
         ]
       },
