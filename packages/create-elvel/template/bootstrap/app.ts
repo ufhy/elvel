@@ -42,6 +42,7 @@ export default await Application.configure(join(import.meta.dir, '..'))
     notifications: () => import('../config/notifications.ts'),
     queue: () => import('../config/queue.ts'),
     services: () => import('../config/services.ts'),
+    security: () => import('../config/security.ts'),
     session: () => import('../config/session.ts'),
     view: () => import('../config/view.ts'),
     vite: () => import('../config/vite.ts')

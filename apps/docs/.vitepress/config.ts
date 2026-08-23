@@ -126,6 +126,7 @@ export default defineConfig({
           { text: 'Authentication', link: '/security/authentication' },
           { text: 'Authorization', link: '/security/authorization' },
           { text: 'Encryption', link: '/security/encryption' },
+          { text: 'Security headers', link: '/security/headers' },
           { text: 'Hashing', link: '/digging-deeper/hashing' },
           { text: 'Reporting a vulnerability', link: '/security/reporting' }
         ]

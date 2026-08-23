@@ -1,4 +1,5 @@
 import { config } from '@elvel/core'
+import { cspNonce } from '@elvel/http'
 import { stack, vite } from '@elvel/view'
 import type { Children } from '@kitajs/html'
 
@@ -61,7 +62,15 @@ export function Layout({ title, children }: LayoutProps) {
           {title} — {name}
         </title>
 
-        <script>{appearance}</script>
+        {/*
+          The nonce is what lets this script run under the policy.
+
+          `script-src` allows no inline script, because allowing them is allowing
+          the injected one — so this carries the request's nonce and the policy
+          names it. With the policy off `cspNonce()` is empty, and the attribute
+          is inert rather than wrong.
+        */}
+        <script nonce={cspNonce()}>{appearance}</script>
 
         {/*
           Instrument Sans, the face Laravel's starter kits use, from Bunny's

@@ -117,11 +117,19 @@ export {
 export { route, routes } from './route-helpers.ts'
 export { RouteRegistry } from './routes.ts'
 export {
+  cspNonce,
   currentScope,
   enterRequestScope,
   type RequestScope,
   withRequestScope
 } from './scope.ts'
+export {
+  type ContentSecurityPolicy,
+  contentSecurityPolicy,
+  newNonce,
+  type SecurityConfig,
+  securityHeaders
+} from './security.ts'
 export {
   FileSessionDriver,
   MemorySessionDriver,

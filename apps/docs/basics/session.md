@@ -130,6 +130,13 @@ token one byte at a time to anybody willing to measure.
 "your token expired", which a client can respond to by reloading the form rather
 than by telling the user they are not allowed.
 
+## The other half of an XSS defence
+
+CSRF stops another site acting as your user. It does nothing about a script
+injected into your own page, which is what a Content Security Policy is for — and
+for a page that embeds a JSON payload, the two are read together. See
+[security headers](/security/headers).
+
 ## Errors and old input
 
 ```tsx

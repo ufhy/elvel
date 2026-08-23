@@ -729,13 +729,14 @@ describe('what a scaffolded application installs', () => {
  * what an application is configured with.
  */
 describe('the config files a kit ships', () => {
-  test('a landing page gets nine, and they are these nine', async () => {
+  test('a landing page gets ten, and they are these ten', async () => {
     expect<string[]>((await scaffold('none')).configs).toEqual([
       'app',
       'cache',
       'cors',
       'http',
       'logging',
+      'security',
       'services',
       'session',
       'view',
@@ -1341,13 +1342,26 @@ describe('the jsx kit', () => {
 
     expect(source).toContain("layers: ['auth', 'jsx']")
 
-    // What it does *not* carry is the point: the models, the config and every
-    // controller but one come from the layer underneath.
+    // What it does *not* carry is the point: the models and every controller but
+    // one come from the layer underneath.
     const carried = await readdir(kitDir)
 
-    expect(carried).not.toContain('config')
     expect(carried).not.toContain('database')
     expect(carried).toContain('resources')
+
+    /**
+     * One config file, and only because this kit loads from another origin.
+     *
+     * Its layout asks `fonts.bunny.net` for a typeface, and a Content Security
+     * Policy that does not name that origin blocks it — measured in a browser:
+     * `Loading the stylesheet … violates the following Content Security Policy
+     * directive: "style-src 'self'"`, with the page rendering in a fallback font
+     * and nothing on it saying why. No other kit loads anything off-origin, which
+     * is why no other kit needs to say so.
+     */
+    const configs = await readdir(join(kitDir, 'config'))
+
+    expect<string[]>(configs).toEqual(['security.ts'])
 
     /**
      * The single exception, and the reason it is one.

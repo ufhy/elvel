@@ -4,6 +4,15 @@ import type { Session } from './session.ts'
 export type RequestScope = {
   request: Request
   session: Session
+
+  /**
+   * This response's CSP nonce, when a policy is being sent.
+   *
+   * Here rather than threaded through props for the same reason `errors()` is: a
+   * view is a component, and an inline script three components deep still has to
+   * carry the nonce or the browser refuses to run it.
+   */
+  nonce?: string
 }
 
 const storage = new AsyncLocalStorage<RequestScope>()
@@ -42,4 +51,18 @@ export function enterRequestScope(scope: RequestScope): void {
 /** Run `body` inside a scope. For tests, and for anything not in a hook. */
 export function withRequestScope<T>(scope: RequestScope, body: () => T): T {
   return storage.run(scope, body)
+}
+
+/**
+ * The nonce a `<script>` in this response must carry.
+ *
+ * ```tsx
+ * <script nonce={cspNonce()}>{theme}</script>
+ * ```
+ *
+ * Empty when no policy is being sent, which makes the attribute inert rather than
+ * wrong — a page written this way works with the policy off and with it on.
+ */
+export function cspNonce(): string {
+  return currentScope()?.nonce ?? ''
 }

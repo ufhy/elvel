@@ -128,48 +128,17 @@ with an unsaved draft, a player that must keep playing, a socket that must stay
 open: those are what a document-per-navigation cannot hold, and prefetch does not
 change that. It changes how long the change takes.
 
-## `@elvel/vite`
+## Security headers on a static file
 
-Five copies of one Vite config live in this repository — 94, 180, 189, 201 and 214
-lines — and they are variants of the same logic: write the hot file, remove it on
-exit, watch what the server renders and push a full reload, set `base` per command,
-name the manifest, refuse to copy `public/` into its own subdirectory.
+Every response carries the security headers now, on both paths a response can
+leave by — except one. A file the static plugin answers claims its own route and
+skips the outer lifecycle, so a header set globally never reaches it. Measured: a
+global hook set nothing on a served file, which is the same reason compression had
+to move to `onRequest`.
 
-They drift, and the drift is where the bugs were. `base` unset made an island's
-chunk 404 in one copy while the others were fine. `publicDir` printed a warning in
-every scaffolded application, and closing it meant editing six files by hand. A
-stale hot file pointed a production render at a dev server that was not there.
-
-`laravel-vite-plugin` exists for exactly this reason. What an application should
-write:
-
-```ts
-import elvel from '@elvel/vite'
-
-export default { plugins: [elvel({ input: 'src/main.ts' })] }
-```
-
-The plugin reads `config/vite.ts` for `buildDirectory`, so the two halves of that
-decision stop being two files to keep in step. It has to work from a client
-project that is not the application root — `projectDirectory` — which means
-finding the application above it and writing the hot file there.
-
-## Security headers
-
-Measured across all 27 packages: no `Content-Security-Policy`, no
-`Strict-Transport-Security`, no `X-Frame-Options`, no `Referrer-Policy`, no
-`X-Content-Type-Options`. Not one.
-
-An application that embeds a JSON payload in its document needs CSP specifically:
-`json()` closes injection *through the data*, and CSP is what closes the rest.
-Everything else on that list is a header an auditor asks for by name and a
-framework can set correctly once.
-
-`config/security.ts` plus a middleware in the default stack. The part that needs
-thought is CSP: it has to know where hashed assets are served from, and a policy
-strict enough to be worth having will break an application that was not written
-for it — so it ships as a named policy an application opts into, with the kit
-opting in.
+A stylesheet is a smaller problem than a document, and the fix is the same shape as
+the conditional-requests row below: those responses have to pass through something
+that can see them.
 
 ## What a session leaves behind, and what it cannot rotate
 

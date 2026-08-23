@@ -637,6 +637,7 @@ const CONFIG_OWNERS: Record<string, string> = {
   mail: 'mail',
   notifications: 'notifications',
   queue: 'queue',
+  security: 'http',
   session: 'http',
   view: 'view',
   vite: 'view'
