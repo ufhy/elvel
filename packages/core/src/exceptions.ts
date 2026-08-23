@@ -84,12 +84,17 @@ export class ExceptionHandler implements ExceptionHandlerContract {
    * this application got it wrong, and that is what a log is for. Override this
    * to report a status anyway — a 403 worth watching, say — or to silence one.
    *
+   * Only 5xx, not "anything but 4xx". The earlier rule reported everything below
+   * 400 as well, which sounds like nothing until an exception is used for control
+   * flow: a redirect thrown by validation is a `302`, and every failed form
+   * submission wrote `ERROR [stack] Redirecting to /subscribe` with a stack trace
+   * through `failedValidation`. Nothing had gone wrong — the browser was on its
+   * way back to the form it came from.
+   *
    * The access log is the place to see 404s: `logging.requests.enabled`.
    */
   protected shouldReport(error: unknown): boolean {
-    const status = this.statusFor(error)
-
-    return status < 400 || status >= 500
+    return this.statusFor(error) >= 500
   }
 
   report(error: unknown): void {
@@ -234,6 +239,17 @@ export class ExceptionHandler implements ExceptionHandlerContract {
   }
 
   protected statusFor(error: unknown): number {
+    /**
+     * An exception that carries a response has that response's status.
+     *
+     * Asked first because nothing else can answer it: a `RedirectException` holds
+     * a built `Response` and has no `status` of its own, so it fell through every
+     * branch to the 500 at the bottom. Two things read that — the log, which
+     * called an ordinary redirect an application failure, and the error hook,
+     * which pins `set.status` from it.
+     */
+    if (carriesResponse(error)) return error[CARRIES_RESPONSE]().status
+
     if (error instanceof HttpException) return error.status
 
     // Elysia surfaces its own errors with a `status` or `code` field.

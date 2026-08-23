@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Application } from '../src/application.ts'
 import {
+  CARRIES_RESPONSE,
   ExceptionHandler,
   ForbiddenException,
   HttpException,
@@ -233,6 +234,52 @@ describe('what is worth reporting', () => {
     } finally {
       log.restore()
     }
+  })
+})
+
+describe('an exception that carries its own response', () => {
+  /**
+   * A redirect thrown by validation is control flow, not a failure.
+   *
+   * It has no `status` of its own — it holds a built `Response` — so it fell
+   * through to the 500 at the bottom of `statusFor`. The log then called every
+   * failed form submission an application error: `ERROR [stack] Redirecting to
+   * /subscribe`, with a stack trace through `failedValidation`, for a browser on
+   * its way back to the form it came from.
+   */
+  const thrown = (status: number) => {
+    const carried = new Response('', { status, headers: { location: '/subscribe' } })
+
+    return Object.assign(new Error('Redirecting to /subscribe'), {
+      [CARRIES_RESPONSE]: () => carried
+    })
+  }
+
+  test('its status is the response it carries', () => {
+    const handler = new (class extends ExceptionHandler {
+      status(error: unknown): number {
+        return this.statusFor(error)
+      }
+    })(app)
+
+    expect<number>(handler.status(thrown(302))).toBe(302)
+  })
+
+  test('and a redirect is not worth a log line', () => {
+    const reported: string[] = []
+
+    const handler = new (class extends ExceptionHandler {
+      worth(error: unknown): boolean {
+        return this.shouldReport(error)
+      }
+    })(app)
+
+    expect<boolean>(handler.worth(thrown(302))).toBe(false)
+
+    // The rule is 5xx, so a carried 500 — an application answering its own
+    // failure with a page — is still reported.
+    expect<boolean>(handler.worth(thrown(500))).toBe(true)
+    expect<string[]>(reported).toEqual([])
   })
 })
 
