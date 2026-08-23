@@ -117,6 +117,22 @@ function refresh(watched: string[]) {
  */
 export default ({ command }: { command: string }) => ({
   base: command === 'build' ? '/build/' : '',
+  /**
+   * Vite copies nothing; the application already serves `public/`.
+   *
+   * `publicDir` defaults to `public/`, and the build output lives *inside* it —
+   * so Vite's copy step would walk the very directory it is writing into. It
+   * says so: "The public directory feature may not work correctly. outDir
+   * public/build and publicDir public are not separate folders."
+   *
+   * There is nothing to copy in the first place. In a framework laid out this
+   * way `public/` *is* the document root: the server hands out `favicon.svg`
+   * and `robots.txt` from where they already sit, and duplicating them into
+   * `public/build/` would only publish a second copy under `/build/` that
+   * nothing links to. `laravel-vite-plugin` sets exactly this, for exactly this
+   * reason — `publicDir: userConfig.publicDir ?? false`.
+   */
+  publicDir: false,
 
   plugins: [
     /**
