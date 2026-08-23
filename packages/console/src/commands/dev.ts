@@ -1,9 +1,21 @@
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import pc from 'picocolors'
 import { Command } from '../command.ts'
 
-type Process = { name: string; argv: string[] }
+type Process = {
+  name: string
+  argv: string[]
+  /**
+   * Where to run it, when that is not the application root.
+   *
+   * Only the asset server uses this, and only because a front end does not have
+   * to live in the application: a decoupled client — its own `vite.config.ts`,
+   * its own `node_modules`, `bun create vite` and nothing removed — is a
+   * directory next door.
+   */
+  cwd?: string
+}
 
 /**
  * The lines `dev` prints before anything else does.
@@ -55,6 +67,61 @@ export function devSummary(input: {
  * that this command says everything a developer needs *before* the children start
  * talking.
  */
+/**
+ * Whether `dev` runs Vite, where, and what it says about it.
+ *
+ * Its own function for the reason `devSummary` is: the decision is worth a test
+ * and spawning four processes to reach it is not.
+ *
+ * `directory` is `vite.projectDirectory` as written in the config, and it is what
+ * the notice quotes — a developer who set `frontend` should read `frontend`, not
+ * an absolute path with their username in it. `root` is that resolved, which is
+ * where Vite actually runs.
+ *
+ * The scaffold keeps `.`: `vite.config.ts` sits beside `elvel.ts`. A client that
+ * is its own project — `bun create vite` in `frontend/`, kept standard, with its
+ * own config and `node_modules` — names that directory instead.
+ *
+ * Measured before this existed, with Vite run at the application root while the
+ * config lived in `frontend/`: it started, took 5173, answered **404 for every
+ * path**, and wrote no hot file — so the server rendered manifest tags and `dev`
+ * quietly served the last build. A dev command that serves stale assets and
+ * reports success is worse than one that says it cannot help.
+ *
+ * `resolvable` is asked of `root`, not of the application: in that layout `vite`
+ * is in `frontend/node_modules` and nowhere a walk from the application root
+ * would find it.
+ */
+export function assetServer(
+  directory: string,
+  root: string,
+  resolvable: boolean
+): { process?: Process; notice: string } {
+  const where = directory === '.' ? '' : ` in ${directory}`
+
+  /**
+   * Skipped rather than attempted when `vite` is absent: `bun x vite` would reach
+   * for the network mid-`dev`, and an application that never built a front end
+   * has nothing for it to serve anyway. Said out loud, because a browser that
+   * stops refreshing is otherwise a mystery.
+   *
+   * Resolved, not stat'd. This looked for `<app>/node_modules/vite`, which is
+   * only one of the places a package manager may put it: inside a workspace, or
+   * wherever a version is shared, it is hoisted to a parent `node_modules` and
+   * the directory check finds nothing while `vite` is perfectly usable. The
+   * report was `vite is not installed` in an application that had installed it —
+   * and then a page with no stylesheet.
+   */
+  if (!resolvable) {
+    return { notice: `vite is not installed${where}, so there is no browser reload` }
+  }
+
+  return {
+    process: { name: 'assets', argv: ['bun', 'x', 'vite'], cwd: root },
+    notice: `starting${where}, its port is reported below`
+  }
+}
+
 export class DevCommand extends Command {
   static override signature =
     'dev {--port=3000 : Port for the server} {--no-queue : Do not run a queue worker} {--no-schedule : Do not run the scheduler} {--no-assets : Do not run the Vite dev server}'
@@ -62,9 +129,9 @@ export class DevCommand extends Command {
   static override description = 'Run the server, a queue worker and the scheduler together'
 
   /** Can this application import the package, wherever it was hoisted to? */
-  private canResolve(name: string): boolean {
+  private canResolve(name: string, from?: string): boolean {
     try {
-      Bun.resolveSync(`${name}/package.json`, this.app.basePath())
+      Bun.resolveSync(`${name}/package.json`, from ?? this.app.basePath())
 
       return true
     } catch {
@@ -129,25 +196,13 @@ export class DevCommand extends Command {
      * browser that stops refreshing is otherwise a mystery.
      */
     if (!this.flag('no-assets')) {
-      /**
-       * Resolved, not stat'd.
-       *
-       * This looked for `<app>/node_modules/vite`, which is only one of the
-       * places a package manager may put it: inside a workspace, or wherever a
-       * version is shared, it is hoisted to a parent `node_modules` and the
-       * directory check finds nothing while `vite` is perfectly usable. The
-       * report was `vite is not installed` in an application that had installed
-       * it — and then a page with no stylesheet.
-       *
-       * `Bun.resolveSync` walks the same chain an import would, which is the
-       * question actually being asked.
-       */
-      if (this.canResolve('vite')) {
-        processes.push({ name: 'assets', argv: ['bun', 'x', 'vite'] })
-        assets = 'starting, its port is reported below'
-      } else {
-        assets = 'vite is not installed, so there is no browser reload'
-      }
+      const directory = this.app.config.get<string>('vite.projectDirectory', '.')
+      const root = resolve(this.app.basePath(), directory)
+      const decided = assetServer(directory, root, this.canResolve('vite', root))
+
+      if (decided.process) processes.push(decided.process)
+
+      assets = decided.notice
     }
 
     /**
@@ -213,7 +268,7 @@ export class DevCommand extends Command {
     const children = processes.map((process) => ({
       name: process.name,
       handle: Bun.spawn(process.argv, {
-        cwd: this.app.basePath(),
+        cwd: process.cwd ?? this.app.basePath(),
         stdout: 'inherit',
         stderr: 'inherit',
         stdin: 'ignore',
