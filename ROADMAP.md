@@ -128,18 +128,6 @@ with an unsaved draft, a player that must keep playing, a socket that must stay
 open: those are what a document-per-navigation cannot hold, and prefetch does not
 change that. It changes how long the change takes.
 
-## Security headers on a static file
-
-Every response carries the security headers now, on both paths a response can
-leave by — except one. A file the static plugin answers claims its own route and
-skips the outer lifecycle, so a header set globally never reaches it. Measured: a
-global hook set nothing on a served file, which is the same reason compression had
-to move to `onRequest`.
-
-A stylesheet is a smaller problem than a document, and the fix is the same shape as
-the conditional-requests row below: those responses have to pass through something
-that can see them.
-
 ## `@elvel/spa`
 
 The SPA demo's glue, minus its invoices: 465 lines that every client-routed
@@ -177,20 +165,6 @@ been caught by what smoke checks today, and the SPA kit will inherit the same ho
 Five checks close most of it: the document carries its payload, a deep link carries
 the user, a write is accepted with its token and refused without it, a hashed asset
 is served, a lazy chunk is in the manifest.
-
-## Conditional requests for static files
-
-`@elysiajs/static` sets an `ETag` and then ignores `If-None-Match`. Measured on a
-built application: a conditional request for an 81 kB script came back **200 with
-all 81,048 bytes**, every time.
-
-The compression layer in `@elvel/view` answers 304 for what it serves — measured,
-31,725 bytes became 0 — but it only serves what it compresses, plus everything
-under the build prefix. A `.png` outside that prefix still cannot be revalidated.
-
-Closing it means answering `If-None-Match` for every static file rather than only
-those two cases, which is a small handler in front of the plugin and not a change
-to the plugin.
 
 ## decision: compress HTML too
 

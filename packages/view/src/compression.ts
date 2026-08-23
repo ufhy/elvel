@@ -68,6 +68,19 @@ export type CompressedAssetsOptions = {
   maxAge: number
 
   /**
+   * Headers to add to every response this plugin produces.
+   *
+   * The security headers, in practice. They are decided by `@elvel/http`, which
+   * this package does not depend on — so they arrive as a function rather than as
+   * an import, read from the container by whoever mounts this.
+   *
+   * They have to arrive here because a static file cannot get them any other way:
+   * the static plugin's routes skip the surrounding lifecycle, measured in both
+   * `alwaysStatic` modes, so a header set globally never reaches a served file.
+   */
+  headers?: (request: Request) => Record<string, string>
+
+  /**
    * Below this, compression costs more than it saves.
    *
    * A response smaller than a network packet arrives in one either way, and gzip
@@ -171,31 +184,47 @@ export function compressedAssets(options: CompressedAssetsOptions) {
     if (request.headers.get('range') !== null) return
 
     const underHash = hashed !== undefined && pathname.startsWith(hashed)
-    const compressible = COMPRESSIBLE.has(extname(pathname).toLowerCase())
-    const wantsGzip = acceptsGzip(request.headers.get('accept-encoding'))
+    const extension = extname(pathname).toLowerCase()
 
-    // Nothing to add: not a hashed asset, and not something to compress.
-    if (!underHash && !(compressible && wantsGzip)) return
+    /**
+     * A path with no extension is not a file in this layout, and is not stat'd.
+     *
+     * Every address a client router owns arrives here — `/dashboard`,
+     * `/invoices/9` — and none of them is on disk. Asking the filesystem about
+     * each one is a syscall per page view for an answer that is always no.
+     * `indexHTML` is off, so a directory is not a document either.
+     */
+    if (!underHash && extension === '') return
 
     const path = fileFor(pathname, prefix, options.root)
 
     if (path === undefined) return
 
+    const compressible = COMPRESSIBLE.has(extension)
+    const wantsGzip = acceptsGzip(request.headers.get('accept-encoding'))
     const stats = statSync(path)
     const cacheControl = underHash ? IMMUTABLE : `${options.directive}, max-age=${options.maxAge}`
+    const added = options.headers?.(request) ?? {}
 
     /**
-     * A hashed file that will not be compressed still gets the header it needs.
+     * Everything it can resolve is answered here, compressed or not.
      *
-     * An image, a font, a caller that sent no `accept-encoding` — all of them
-     * would otherwise fall through to the static plugin and be told `no-cache` in
-     * development, which is the whole complaint.
+     * It used to decline anything it would not compress, and that left the static
+     * plugin answering images, fonts and any request without `accept-encoding` —
+     * responses nothing can add a header to, because those routes skip the
+     * surrounding lifecycle. So a `.png` went out with no Content Security Policy
+     * and no way to give it one. Answering it here is what closes that, and it
+     * brings conditional requests with it: the static plugin sets an `ETag` and
+     * then ignores `If-None-Match`, which was measured as a 200 with all 81,048
+     * bytes for a request that asked whether anything had changed.
+     *
+     * Ranges are still declined above, so the static plugin keeps the one
+     * implementation of those, and of 404s.
      */
     if (!wantsGzip || !compressible || stats.size < minimum) {
-      if (!underHash) return
-
       const etag = `W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`
       const headers: Record<string, string> = {
+        ...added,
         'content-type': Bun.file(path).type,
         etag,
         'cache-control': cacheControl
@@ -239,18 +268,40 @@ export function compressedAssets(options: CompressedAssetsOptions) {
       })()
 
     /**
-     * A file that does not shrink is served as it is.
+     * A file that does not shrink is served as it is — here, not elsewhere.
      *
-     * Already-compressed bytes under a compressible extension — an inlined
-     * `.map` of random-looking base64, a `.wasm` a build already packed — come
-     * out bigger, and sending more bytes plus a decompression step for both ends
-     * is worse than sending the file.
+     * Already-compressed bytes under a compressible extension — an inlined `.map`
+     * of random-looking base64, a `.wasm` a build already packed — come out
+     * bigger, and sending more bytes plus a decompression step for both ends is
+     * worse than sending the file. This used to fall through to the static plugin,
+     * which meant the same file arrived with a policy or without one depending on
+     * how well it happened to compress.
      */
-    if (entry.bytes.byteLength >= stats.size) return
+    if (entry.bytes.byteLength >= stats.size) {
+      const plain = `W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`
+      const headers: Record<string, string> = {
+        ...added,
+        'content-type': entry.type,
+        etag: plain,
+        'cache-control': cacheControl
+      }
+
+      if (
+        request.headers
+          .get('if-none-match')
+          ?.split(',')
+          .some((tag) => tag.trim() === plain)
+      ) {
+        return new Response(null, { status: 304, headers })
+      }
+
+      return new Response(request.method === 'HEAD' ? null : Bun.file(path), { headers })
+    }
 
     if (options.cache && hit === undefined) cached.set(key, entry)
 
     const headers: Record<string, string> = {
+      ...added,
       'content-type': entry.type,
       'content-encoding': 'gzip',
       etag: entry.etag,

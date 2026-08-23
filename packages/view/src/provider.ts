@@ -45,6 +45,17 @@ export class ViewServiceProvider extends ServiceProvider {
           maxAge,
           minimumBytes: this.config<number>('view.compressMinimumBytes', 1024),
           /**
+           * The security headers, read from the container rather than imported.
+           *
+           * They are `@elvel/http`'s decision and this package does not depend on
+           * it — and a static file cannot get them any other way, because these
+           * routes skip the surrounding lifecycle. Resolved per request so a
+           * policy that names a per-response nonce is still correct.
+           */
+          headers: this.app.bound('security.headers')
+            ? (request: Request) => this.app.make('security.headers')(request)
+            : undefined,
+          /**
            * Where Vite writes, so its hashed names can be cached for a year.
            *
            * The environment decides the directive for the rest of `public/`,

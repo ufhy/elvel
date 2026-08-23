@@ -29,7 +29,12 @@ mkdirSync(join(root, 'build'), { recursive: true })
 writeFileSync(join(root, 'build', 'app.js'), script)
 writeFileSync(join(root, 'build', 'logo.png'), Buffer.alloc(4096, 7))
 
-const server = async (options?: { prefix?: string; cache?: boolean; hashedPrefix?: string }) =>
+const server = async (options?: {
+  prefix?: string
+  cache?: boolean
+  hashedPrefix?: string
+  headers?: (request: Request) => Record<string, string>
+}) =>
   new Elysia()
     .use(
       compressedAssets({
@@ -38,7 +43,8 @@ const server = async (options?: { prefix?: string; cache?: boolean; hashedPrefix
         directive: 'public',
         maxAge: 86_400,
         hashedPrefix: options?.hashedPrefix,
-        cache: options?.cache ?? false
+        cache: options?.cache ?? false,
+        headers: options?.headers
       })
     )
     .use(await staticPlugin({ assets: root, prefix: options?.prefix ?? '/', indexHTML: false }))
@@ -283,5 +289,136 @@ describe('compressed static assets', () => {
     expect(response.headers.get('content-encoding')).toBe('gzip')
     expect(Number(response.headers.get('content-length'))).toBeGreaterThan(0)
     expect((await response.arrayBuffer()).byteLength).toBe(0)
+  })
+})
+
+/**
+ * A static file could not be given a header, and that was the hole.
+ *
+ * The static plugin's routes skip the surrounding lifecycle — measured in both
+ * `alwaysStatic` modes — so a security header set globally never reached a served
+ * file. Everything this plugin can resolve is answered here now, which is what
+ * makes the header possible at all.
+ */
+describe('headers a static file could not otherwise carry', () => {
+  const policy = () => ({ 'content-security-policy': "default-src 'self'" })
+
+  test('on a compressed response', async () => {
+    const app = await server({ headers: policy })
+    const response = await get(app, '/app.js', { 'accept-encoding': 'gzip' })
+
+    expect<string | null>(response.headers.get('content-encoding')).toBe('gzip')
+    expect<string | null>(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self'"
+    )
+  })
+
+  /**
+   * And on the file that used to fall through.
+   *
+   * A `.png` is not compressible and carries no hash, so the plugin declined it
+   * and the static plugin answered — with no policy, and no way to add one.
+   */
+  test('on an image, which nothing could reach before', async () => {
+    const app = await server({ headers: policy })
+    const response = await get(app, '/logo.png')
+
+    expect<number>(response.status).toBe(200)
+    expect<string | null>(response.headers.get('content-type')).toBe('image/png')
+    expect<string | null>(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self'"
+    )
+  })
+
+  test('on a file too small to be worth compressing', async () => {
+    const app = await server({ headers: policy })
+    const response = await get(app, '/tiny.js', { 'accept-encoding': 'gzip' })
+
+    expect<string | null>(response.headers.get('content-encoding')).toBeNull()
+    expect<string | null>(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self'"
+    )
+  })
+
+  test('and on a caller that never asked for gzip', async () => {
+    const app = await server({ headers: policy })
+    const response = await get(app, '/app.js')
+
+    expect<string | null>(response.headers.get('content-encoding')).toBeNull()
+    expect<string | null>(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self'"
+    )
+  })
+
+  /**
+   * The nonce in the policy is this response's, so it is read per request.
+   *
+   * A policy computed once at boot would name a nonce no page carries.
+   */
+  test('the headers are asked for per request', async () => {
+    let asked = 0
+    const app = await server({
+      headers: () => {
+        asked += 1
+
+        return { 'x-asked': String(asked) }
+      }
+    })
+
+    expect<string | null>((await get(app, '/logo.png')).headers.get('x-asked')).toBe('1')
+    expect<string | null>((await get(app, '/logo.png')).headers.get('x-asked')).toBe('2')
+  })
+})
+
+/**
+ * Answering everything it resolves brought conditional requests with it.
+ *
+ * `@elysiajs/static` sets an `ETag` and then ignores `If-None-Match`: measured on
+ * a built application, a conditional request for an 81 kB script came back **200
+ * with all 81,048 bytes**, every time.
+ */
+describe('revalidating a file that is not compressed', () => {
+  test('an image answers 304 with no body', async () => {
+    const app = await server()
+    const first = await get(app, '/logo.png')
+    const etag = first.headers.get('etag') ?? ''
+
+    expect<boolean>(etag.length > 0).toBe(true)
+
+    const second = await get(app, '/logo.png', { 'if-none-match': etag })
+
+    expect<number>(second.status).toBe(304)
+    expect<number>((await second.arrayBuffer()).byteLength).toBe(0)
+  })
+
+  /**
+   * A path with no extension is not stat'd at all.
+   *
+   * Every address a client router owns arrives here — `/dashboard`, `/invoices/9`
+   * — and none of them is a file. Asking the filesystem about each one is a
+   * syscall per page view for an answer that is always no.
+   */
+  test('a path with no extension is left alone', async () => {
+    let asked = 0
+    const app = await server({
+      headers: () => {
+        asked += 1
+
+        return {}
+      }
+    })
+
+    const response = await get(app, '/dashboard')
+
+    expect<number>(response.status).toBe(404)
+    expect<number>(asked).toBe(0)
+  })
+
+  /** The traversal guard still refuses, and still refuses first. */
+  test('a file outside the root is refused', async () => {
+    const app = await server({ headers: () => ({ 'x-seen': 'yes' }) })
+    const response = await get(app, '/%2e%2e%2fsecret.env')
+
+    expect<boolean>(response.status === 200).toBe(false)
   })
 })

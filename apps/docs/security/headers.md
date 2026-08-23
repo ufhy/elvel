@@ -99,14 +99,26 @@ The browser reports what the policy *would* have blocked and blocks nothing, und
 `Content-Security-Policy-Report-Only`. Turning a strict policy on blind gives you a
 page that renders without its JavaScript, which is worse than no policy at all.
 
-## Which responses carry them, and one that does not
+## Which responses carry them
 
-Both paths a response can leave by: a handler's, and the exception handler's — the
-second matters because a client-routed application answers most of its addresses
-there, and a page with no policy is exactly the page an injected script wants.
+All three paths a response can leave by.
 
-A file served by the static plugin does **not** carry them. It claims its own route
-and skips the outer lifecycle, which is measurable: a header set globally does not
-appear on it. A stylesheet is a smaller problem than a document, and closing it
-means moving those responses through something that can see them — recorded in the
-roadmap rather than half-done.
+A **handler's**, through `mapResponse`. The **exception handler's**, through
+`request.lifecycle` — which matters because a client-routed application answers
+most of its addresses there, and a page with no policy is exactly the page an
+injected script wants. And a **static file's**, which took a different fix.
+
+The static plugin's routes skip the surrounding lifecycle, measured in both
+`alwaysStatic` modes: a header set globally never reaches a served file. So
+`@elvel/view` answers every static file it can resolve itself — it already did that
+for compressible ones — and reads the headers from the container, since it does not
+depend on `@elvel/http`. What still falls through to the static plugin is a range
+request and a path that is not a file.
+
+That change brought conditional requests with it. `@elysiajs/static` sets an `ETag`
+and then ignores `If-None-Match`: measured on a built application, a conditional
+request for an 81 kB script came back 200 with all 81,048 bytes. An image now
+answers 304 with no body.
+
+A path with no extension is never stat'd — every address a client router owns
+arrives here, and none of them is a file.

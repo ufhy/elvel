@@ -37,6 +37,8 @@ import { enforceThrottle, LimiterRegistry } from './throttle.ts'
 declare module '@elvel/contracts' {
   interface ContainerBindings {
     'session.driver': SessionDriver
+    /** This response's security headers, for a package that answers its own. */
+    'security.headers': (request: Request) => Record<string, string>
     cookies: CookieJar
     limiters: LimiterRegistry
     routes: RouteRegistry
@@ -411,7 +413,16 @@ export class HttpServiceProvider extends ServiceProvider {
    */
   private securityPlugin() {
     const config = this.config<SecurityConfig>('security', {})
-    const secure = this.app.isProduction()
+    /**
+     * Named for what it decides, not for what it reads.
+     *
+     * There were two `const secure = this.app.isProduction()` in this file — this
+     * one, which sends HSTS, and the session cookie's `Secure` attribute — and a
+     * config read meant for the cookie landed here instead. Same expression, same
+     * name, thirty lines apart, and no test could tell them apart because neither
+     * set the new key. Two different questions get two different names.
+     */
+    const overHttps = this.app.isProduction()
     const hot = this.app.publicPath('hot')
 
     /**
@@ -423,7 +434,7 @@ export class HttpServiceProvider extends ServiceProvider {
      * blocked every module in exactly the session it was meant to help.
      */
     const devOrigin = (): string | undefined => {
-      if (secure || !existsSync(hot)) return undefined
+      if (overHttps || !existsSync(hot)) return undefined
 
       const origin = readFileSync(hot, 'utf8').trim()
 
@@ -431,7 +442,11 @@ export class HttpServiceProvider extends ServiceProvider {
     }
 
     const headersFor = (request: Request) =>
-      securityHeaders(config, { secure, nonce: this.nonces.get(request), devOrigin: devOrigin() })
+      securityHeaders(config, {
+        secure: overHttps,
+        nonce: this.nonces.get(request),
+        devOrigin: devOrigin()
+      })
 
     if (this.app.bound('request.lifecycle')) {
       this.app.make('request.lifecycle').finishing((request, response) => {
@@ -440,6 +455,16 @@ export class HttpServiceProvider extends ServiceProvider {
         }
       })
     }
+
+    /**
+     * Bound, so a package that answers its own responses can add them.
+     *
+     * `@elvel/view` serves static files itself, and those responses come from a
+     * plugin whose routes skip the surrounding lifecycle — so a header set here
+     * cannot reach them. It reads this instead, through the container, because
+     * `view` does not depend on `http` and should not have to.
+     */
+    this.app.instance('security.headers', headersFor)
 
     return new Elysia({ name: 'elvel:security' }).mapResponse(
       { as: 'global' },
@@ -488,7 +513,7 @@ export class HttpServiceProvider extends ServiceProvider {
      * can sit behind a proxy that terminates it — but the default is the safe half
      * of that: a cookie sent over plain HTTP in production is a cookie on the wire.
      */
-    const secure = this.config<boolean>('session.secure', this.app.isProduction())
+    const secureCookie = this.config<boolean>('session.secure', this.app.isProduction())
 
     /**
      * Encrypt the session cookie, when asked and when an encrypter exists.
@@ -629,7 +654,7 @@ export class HttpServiceProvider extends ServiceProvider {
       CookieJar.serialize(
         name,
         encryptSession ? jar.encrypt(name, session.id) : jar.sign(session.id),
-        { maxAge: lifetime, httpOnly: true, secure, sameSite }
+        { maxAge: lifetime, httpOnly: true, secure: secureCookie, sameSite }
       )
 
     return (

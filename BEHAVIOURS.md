@@ -1826,6 +1826,20 @@ including the four that CI later failed on.
 read as "nothing there": a path that cannot be read is not a path with nothing in
 it, and the difference is worth a sentence to whoever has to fix it.
 
+## The lockfile can name a directory no checkout has
+
+`workspaces` includes `.demo/*`, and those directories are gitignored — scratch
+applications that exist on one machine. So `bun install` run with them present
+writes them into `bun.lock`, along with every dependency they pull in, while CI
+installs with `--frozen-lockfile` against a checkout where none of it exists.
+
+It cost four reverts of `bun.lock` in one afternoon, every one noticed by accident:
+the diff is hundreds of plausible lines. The glob cannot simply go — the demos
+declare `@elvel/*` as `workspace:*`, which only resolves for a workspace member.
+
+So there is a test now. It fails on the machine that has the demos, which is the
+only machine that can create the problem, and it names the directory.
+
 ## Limits
 
 Not gaps — nothing here is waiting to be built. These are the places the

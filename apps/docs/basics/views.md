@@ -325,11 +325,18 @@ is showing yesterday's JavaScript in development, this is the first thing to che
 
 ## Static files
 
-The provider mounts `@elysiajs/static` on `public/`. In development files are
-resolved per request, so a newly added image needs no restart; in production the
-route table is precomputed and served `public` with a day's `max-age`. Turn it off with
-`view.serveStatic: false` when something in front of the application already
-serves them.
+The provider answers files under `public/` itself and mounts `@elysiajs/static`
+behind it for what it does not: a range request, and a path that is not a file.
+Turn it off with `view.serveStatic: false` when something in front of the
+application already serves them.
+
+Answering them here is what makes two things possible. A served file carries the
+[security headers](/security/headers) — the static plugin's routes skip the
+surrounding lifecycle, so nothing else can give them to it. And it revalidates:
+`@elysiajs/static` sets an `ETag` and ignores `If-None-Match`, measured as a 200
+with all 81,048 bytes for a request asking whether anything had changed. A path
+with no extension is never stat'd, so an address the client router owns costs
+nothing here.
 
 ### Compression
 
