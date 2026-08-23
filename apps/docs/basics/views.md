@@ -286,6 +286,43 @@ this logic lived in this repository first, and the drift between them is where t
 bugs were — an unset `base` made a lazily imported chunk 404 in one of them while
 the others were fine.
 
+### What the other Vite plugins inject
+
+A Vite plugin puts things in the page through `transformIndexHtml`, and that hook
+needs an `index.html` to transform. A document rendered by the server is not one —
+so those injections used to be lost. Measured against the official Vite templates:
+
+| plugin | what was missing | what broke |
+| --- | --- | --- |
+| `@vitejs/plugin-react` | the `/@react-refresh` preamble | Fast Refresh, silently — the page still worked |
+| `vite-plugin-vue-devtools` | `overlay.js`, `load.js` | DevTools never loaded |
+
+`@elvel/vite` asks Vite for them when the dev server starts and writes them beside
+the hot file; `vite()` renders them between the client and your entry. That order
+is the requirement: React's preamble installs a global hook its components register
+against as they evaluate, so after the entry it is too late.
+
+Nothing in the framework knows what either of those plugins is, and a plugin nobody
+has written yet arrives the same way.
+
+::: warning A plugin that only injects at build time is not covered yet
+`vite-plugin-pwa` writes its manifest link and service-worker registration through
+the same hook during the build, where there is no dev server to ask. That half is
+on the roadmap.
+:::
+
+### An SSR build writes outside the web root
+
+```bash
+bun x vite build --ssr src/entry-server.ts
+```
+
+`bootstrap/ssr/entry-server.js`, and `ssrDirectory` moves it. It has to be outside
+`public/`: measured before this existed, the server bundle landed in
+`public/build/entry-server.js` — downloadable at `/build/entry-server.js` — and its
+manifest overwrote the client's, so every page then threw `is not in the Vite
+manifest`.
+
 ### When the client is its own project
 
 `config/vite.ts` names the directory the client lives in:

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 type ManifestChunk = {
   file: string
@@ -105,9 +105,25 @@ export class Vite {
 
       // The client comes first and is not optional: it is what opens the socket
       // the dev server pushes updates over.
-      return ['@vite/client', ...entries]
-        .map((entry) => this.tagFor(`${origin}/${entry}`, entry))
-        .join('')
+      const client = this.tagFor(`${origin}/@vite/client`, '@vite/client')
+      const app = entries.map((entry) => this.tagFor(`${origin}/${entry}`, entry)).join('')
+
+      /**
+       * Between the two: whatever the other Vite plugins wanted in the document.
+       *
+       * A plugin injects through `transformIndexHtml`, which needs an `index.html`
+       * to transform — and a document rendered by the server is not one. Measured
+       * against the official Vite templates, that silently dropped the
+       * `@vitejs/plugin-react` Fast Refresh preamble and the whole of Vue DevTools.
+       *
+       * `@elvel/vite` asks Vite for them when the dev server starts and writes them
+       * beside the hot file. Nothing here knows what any of them are.
+       *
+       * The position is the requirement. React's preamble installs a global hook
+       * that its components register against as they evaluate, so it has to run
+       * before the entry — after it, Fast Refresh is quietly a full reload.
+       */
+      return [client, this.injected(), app].join('')
     }
 
     const manifest = this.manifest()
@@ -138,6 +154,22 @@ export class Vite {
     }
 
     return tags.join('')
+  }
+
+  /**
+   * The tags the dev server's other plugins asked for, if any.
+   *
+   * Read per render rather than cached: a plugin can be added to `vite.config.ts`
+   * while the dev server is running, and the file is rewritten when it restarts.
+   * One read of a small file in development, against a page that is being rendered
+   * anyway.
+   */
+  private injected(): string {
+    const path = join(dirname(this.hotFilePath), 'hot-tags.html')
+
+    if (!existsSync(path)) return ''
+
+    return readFileSync(path, 'utf8').trim()
   }
 
   /** The public URL of a built file, by its manifest key. */

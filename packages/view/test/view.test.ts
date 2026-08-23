@@ -170,6 +170,56 @@ describe('Vite tags', () => {
     }
   })
 
+  /**
+   * What the dev server's other plugins asked for, and where it has to go.
+   *
+   * A Vite plugin injects into the page through `transformIndexHtml`, which needs
+   * an `index.html` — and a document the server renders is not one. Measured
+   * against the official Vite templates: `@vitejs/plugin-react` lost its Fast
+   * Refresh preamble and `vite-plugin-vue-devtools` lost the whole overlay.
+   *
+   * `@elvel/vite` asks Vite for them when the dev server starts and writes them
+   * beside the hot file. This is the half that renders them.
+   */
+  test('the tags other plugins asked for land between the client and the app', async () => {
+    const root = await build({
+      hot: 'http://localhost:5173\n',
+      'hot-tags.html': '<script type="module">preamble()</script>'
+    })
+
+    try {
+      const tags = new Vite({ publicPath: root }).tags('app.ts')
+
+      /**
+       * The order is the requirement, not a preference.
+       *
+       * React's preamble installs a global hook its components register against as
+       * they evaluate, so it has to run *before* the entry. After it, Fast Refresh
+       * is quietly a full reload — which is the failure nobody reports because the
+       * page still works.
+       */
+      expect<boolean>(
+        tags.indexOf('preamble()') > tags.indexOf('@vite/client') &&
+          tags.indexOf('preamble()') < tags.indexOf('/app.ts')
+      ).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test('and nothing changes when no plugin asked for anything', async () => {
+    const root = await build({ hot: 'http://localhost:5173\n' })
+
+    try {
+      const tags = new Vite({ publicPath: root }).tags('app.ts')
+
+      expect<boolean>(tags.includes('@vite/client')).toBe(true)
+      expect<number>(tags.split('<script').length - 1).toBe(2)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test('a missing entry names itself and the manifest', async () => {
     const root = await build({ 'build/manifest.json': JSON.stringify({}) })
 

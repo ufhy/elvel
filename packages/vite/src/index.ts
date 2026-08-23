@@ -1,18 +1,34 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 
 /** What Vite hands `config`. Typed here so the package needs no import from vite. */
-type ConfigEnv = { command: string }
+type ConfigEnv = { command: string; isSsrBuild?: boolean }
 
 type UserConfig = {
   base?: string
+  root?: string
   publicDir?: string | false
   build?: {
     outDir?: string
     emptyOutDir?: boolean
     manifest?: boolean | string
+    copyPublicDir?: boolean
     rollupOptions?: { input?: unknown }
   }
+}
+
+/** What this plugin answers with — a partial Vite config, and only these keys. */
+type Answer = {
+  base?: string
+  publicDir?: false
+  build: {
+    outDir: string
+    emptyOutDir: boolean
+    manifest: string | boolean
+    copyPublicDir?: boolean
+    rollupOptions: { input?: unknown }
+  }
+  server?: { watch: { ignored: string[] } }
 }
 
 type DevServer = {
@@ -25,6 +41,7 @@ type DevServer = {
     on(event: string, handler: (file: string) => void): unknown
   }
   hot: { send(payload: { type: 'full-reload'; path: string }): void }
+  transformIndexHtml(url: string, html: string): Promise<string>
 }
 
 export type ElvelViteOptions = {
@@ -48,6 +65,20 @@ export type ElvelViteOptions = {
    * upwards will not reach it.
    */
   appDirectory?: string
+
+  /**
+   * Where an SSR build writes, relative to the application.
+   *
+   * **Not** inside `public/`, which is the whole point. Left to the client
+   * defaults, `vite build --ssr` wrote the server bundle to
+   * `public/build/entry-server.js` — downloadable at `/build/entry-server.js` —
+   * and overwrote the client manifest with one naming only the server entry, so
+   * every page then threw `is not in the Vite manifest`. Measured on the `vue-ts`
+   * template.
+   *
+   * `bootstrap/ssr` is Laravel's location for the same output.
+   */
+  ssrDirectory?: string
 
   /**
    * Directories whose changes reload the browser, relative to the application.
@@ -107,6 +138,7 @@ export default function elvel(options: ElvelViteOptions) {
   const build = options.buildDirectory ?? 'build'
   let root = ''
   let hotFile = ''
+  let tagsFile = ''
 
   return {
     name: 'elvel',
@@ -117,9 +149,59 @@ export default function elvel(options: ElvelViteOptions) {
      * Every value defers to one the application set itself, which is what makes
      * this a default rather than a decision taken away.
      */
-    config(user: UserConfig, { command }: ConfigEnv) {
+    config(user: UserConfig, { command, isSsrBuild }: ConfigEnv): Answer {
       root = applicationRoot(options.appDirectory ?? process.cwd())
       hotFile = join(root, 'public', 'hot')
+      tagsFile = join(root, 'public', 'hot-tags.html')
+
+      /**
+       * Vite's own root and public directory, as Vite would resolve them.
+       *
+       * `root` defaults to the working directory — which is the project Vite was
+       * started in — and `publicDir` to `public` inside it.
+       */
+      const viteRoot = resolve(user.root ?? options.appDirectory ?? process.cwd())
+      const outDir = user.build?.outDir ?? join(root, 'public', build)
+
+      const publicDir =
+        user.publicDir === false ? false : resolve(viteRoot, user.publicDir ?? 'public')
+
+      const swallowsOutput =
+        publicDir !== false &&
+        (resolve(outDir) === publicDir || resolve(outDir).startsWith(publicDir + sep))
+
+      /**
+       * An SSR build is a different build, and answering it like the client one is
+       * how a server bundle ends up on the web.
+       *
+       * No manifest — the client's is the one the server reads, and writing this
+       * build's over it leaves every page unable to find its own script. No
+       * `base`, because nothing here is fetched by a browser. And a directory
+       * outside `public/`, because everything in there is served.
+       */
+      if (isSsrBuild === true) {
+        /**
+         * `publicDir` is left alone here, and the reason is worth writing down.
+         *
+         * Turning it off looked harmless — a server bundle has no use for copied
+         * assets — and broke the build: `publicDir` is also how Vite *resolves* a
+         * `/icons.svg` written in source, so the `vue-ts` template failed with
+         * `Could not resolve '/icons.svg'`.
+         *
+         * `copyPublicDir` is the knob that was actually wanted: resolution stays,
+         * the copy stops. Without it the assets were duplicated into the SSR
+         * output, where nothing serves them.
+         */
+        return {
+          build: {
+            outDir: user.build?.outDir ?? join(root, options.ssrDirectory ?? 'bootstrap/ssr'),
+            emptyOutDir: user.build?.emptyOutDir ?? true,
+            manifest: user.build?.manifest ?? false,
+            copyPublicDir: user.build?.copyPublicDir ?? false,
+            rollupOptions: user.build?.rollupOptions ?? {}
+          }
+        }
+      }
 
       return {
         /**
@@ -137,19 +219,29 @@ export default function elvel(options: ElvelViteOptions) {
         base: user.base ?? (command === 'build' ? `/${build}/` : ''),
 
         /**
-         * Vite copies nothing; the application already serves `public/`.
+         * Turned off only when it would swallow its own output.
          *
-         * The build output lives *inside* the default `publicDir`, so the copy
-         * step would walk the directory it is writing into — Vite says as much:
-         * "The public directory feature may not work correctly." And there is
-         * nothing to copy. `public/` is the document root: the server hands out
-         * `favicon.svg` from where it already sits, and a second copy under the
-         * build prefix is one nothing links to.
+         * In the scaffold, Vite's root *is* the application, so `publicDir` is
+         * `public/` and the build writes to `public/build` — inside it. The copy
+         * step would then walk the directory it is writing into, and Vite says so:
+         * "The public directory feature may not work correctly." There is also
+         * nothing to copy, because that directory is the document root already.
+         *
+         * A client project of its own is the opposite case, and getting this wrong
+         * broke every official Vite template. `frontend/public/` is that project's
+         * own asset directory and has nothing to do with the application's — so
+         * disabling it dropped `favicon.svg` and `icons.svg` from the build output
+         * of all nine presets, silently, and made `vue-ts` fail outright: its
+         * `HelloWorld.vue` imports `/icons.svg`, and with no public directory there
+         * is nothing for that path to resolve to.
+         *
+         * So the question is not which layout this is, it is whether the output
+         * lands inside the input.
          */
-        publicDir: user.publicDir ?? false,
+        ...(swallowsOutput ? { publicDir: false as const } : {}),
 
         build: {
-          outDir: user.build?.outDir ?? join(root, 'public', build),
+          outDir,
           /**
            * Emptied, and said out loud.
            *
@@ -190,7 +282,7 @@ export default function elvel(options: ElvelViteOptions) {
     },
 
     configureServer(server: DevServer) {
-      writeHotFile(server, hotFile)
+      writeHotFile(server, hotFile, tagsFile)
 
       if (options.refresh === false) return
 
@@ -207,8 +299,11 @@ export default function elvel(options: ElvelViteOptions) {
  * contents are the origin to point at — so it has to be removed when the server
  * stops, or a production render sends the browser to a machine that is not there.
  */
-function writeHotFile(server: DevServer, path: string): void {
-  const clean = () => rmSync(path, { force: true })
+function writeHotFile(server: DevServer, path: string, tagsPath: string): void {
+  const clean = () => {
+    rmSync(path, { force: true })
+    rmSync(tagsPath, { force: true })
+  }
 
   server.httpServer?.once('listening', () => {
     const address = server.httpServer?.address()
@@ -224,6 +319,8 @@ function writeHotFile(server: DevServer, path: string): void {
      */
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, `http://localhost:${port}`)
+
+    void publishInjectedTags(server, tagsPath)
   })
 
   /**
@@ -239,6 +336,84 @@ function writeHotFile(server: DevServer, path: string): void {
   process.on('exit', clean)
   process.on('SIGINT', () => process.exit())
   process.on('SIGTERM', () => process.exit())
+}
+
+/**
+ * What the other plugins want in the document, written where the server can read it.
+ *
+ * A Vite plugin injects into the page through `transformIndexHtml`, and that hook
+ * needs an `index.html` to transform. An application whose document the server
+ * renders has none, so those injections were simply lost — measured against the
+ * official templates:
+ *
+ * | plugin | what was missing | what broke |
+ * | --- | --- | --- |
+ * | `@vitejs/plugin-react` | the `/@react-refresh` preamble | Fast Refresh |
+ * | `vite-plugin-vue-devtools` | `overlay.js`, `load.js` | DevTools never loaded |
+ *
+ * Nothing here knows about either of them. The plugin runs *inside* Vite, so it
+ * asks Vite the same question the hook answers — against a marked-up blank
+ * document — and writes whatever came back beside the hot file. `vite()` in a view
+ * emits it. A plugin nobody has written yet arrives the same way.
+ *
+ * Asked once, for `/`. A plugin that injects differently per URL exists in theory;
+ * the ones that do this in practice inject the same thing on every page, and a
+ * file written once is what a sibling process can read without asking.
+ */
+async function publishInjectedTags(server: DevServer, path: string): Promise<void> {
+  /**
+   * An empty head and an empty body, so whatever is inside them afterwards is the
+   * answer.
+   *
+   * The first attempt put markers in and read what followed them, which found
+   * nothing: Vite injects with `head-prepend` as often as `head`, so half the tags
+   * landed *before* the marker. Measured against `react-ts`, whose Fast Refresh
+   * preamble is prepended. An empty container needs no marker and cannot be
+   * outflanked by either.
+   */
+  try {
+    const transformed = await server.transformIndexHtml(
+      '/',
+      '<!doctype html><html><head></head><body></body></html>'
+    )
+
+    const between = (open: string, close: string): string => {
+      const from = transformed.indexOf(open)
+      const to = transformed.indexOf(close)
+
+      return from < 0 || to < from ? '' : transformed.slice(from + open.length, to)
+    }
+
+    const injected = between('<head>', '</head>') + between('<body>', '</body>')
+
+    /**
+     * `@vite/client` is dropped, because the view already renders it.
+     *
+     * It has to be first in the document — it opens the socket everything else
+     * reports over — so it is the view's to place, not something to append twice.
+     */
+    const tags = injected
+      .replaceAll(/<script[^>]*src="[^"]*@vite\/client"[^>]*><\/script>/g, '')
+      .trim()
+
+    if (tags === '') {
+      rmSync(path, { force: true })
+
+      return
+    }
+
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, tags)
+  } catch {
+    /**
+     * A transform that throws leaves no file, and that is the whole handling.
+     *
+     * This is a convenience for development. Failing here must not stop a dev
+     * server from starting — the page still works, minus whatever a plugin wanted
+     * to add to it.
+     */
+    rmSync(path, { force: true })
+  }
 }
 
 /**
