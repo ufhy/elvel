@@ -101,12 +101,15 @@ const KITS: Record<
     label: 'Vue — the auth kit, with a Vite + Vue client',
     describe: 'server-rendered auth over better-auth, and a Vue SPA behind it',
     /**
-     * The auth kit's routes, with one replaced.
+     * The auth kit's routes, plus one of this kit's own — mounted last.
      *
-     * `DashboardController` here renders the document the Vue client boots from
-     * instead of a page, which is what makes the application area the SPA. The
-     * auth pages stay server rendered and answer for themselves: a form posts, the
-     * server redirects, and `errors()` and `old()` need no client state at all.
+     * `AuthPageController` takes over the seven auth **pages** and nothing else:
+     * every action stays with the controllers above it, unedited and uncopied. It
+     * comes last because in Elysia the last registration of a path wins, which is
+     * the whole mechanism. Moving it up this list silently gives the pages back.
+     *
+     * `DashboardController` is replaced rather than shadowed — that one is this
+     * kit's file already.
      */
     routes: [
       '  .use(Auth/ConfirmPasswordController)',
@@ -120,7 +123,8 @@ const KITS: Record<
       '  .use(Settings/PasswordController)',
       '  .use(Settings/ProfileController)',
       '  .use(Settings/SecurityController)',
-      '  .use(Settings/TwoFactorController)'
+      '  .use(Settings/TwoFactorController)',
+      '  .use(Auth/AuthPageController)'
     ],
     layers: ['auth', 'vue']
   },
@@ -635,9 +639,28 @@ async function applyLayerRemovals(layer: string, target: string): Promise<number
 
     await rm(full, { recursive: true, force: true })
     removed += 1
+
+    // The Vue kit removes all seven pages under `resources/views/pages/auth`, and
+    // an empty directory left behind is a place a developer looks for something
+    // that is not there any more.
+    await pruneEmptyParents(dirname(full), target)
   }
 
   return removed
+}
+
+/** Walk up removing directories that the removal emptied, stopping at the app. */
+async function pruneEmptyParents(directory: string, target: string): Promise<void> {
+  let at = directory
+
+  while (at !== target && relative(target, at) !== '' && !relative(target, at).startsWith('..')) {
+    if ((await readdir(at)).length > 0) return
+
+    // `recursive`, because `rm` refuses a directory without it — even an empty one,
+    // which the line above has just established this is. `ERR_FS_EISDIR`.
+    await rm(at, { recursive: true, force: true })
+    at = dirname(at)
+  }
 }
 
 /** `Bun.file().exists()` answers false for a directory, which is not the question. */

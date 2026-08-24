@@ -10,8 +10,9 @@ closer to variants of one template. Two-factor authentication and passkeys are i
 all three auth kits. No teams.
 
 One difference worth knowing before you pick: Laravel's Vue kit renders *every*
-page through Inertia, including sign-in. Ours leaves the auth pages server
-rendered and gives the client the application behind them — see below for why.
+page through Inertia, including sign-in. Ours renders the **auth screens** in Vue
+too, but reaches each of them with a document rather than a client navigation —
+see below for why that distinction is load-bearing.
 :::
 
 A kit is a folder copied **over** the base template, not a fork of it. Everything
@@ -39,7 +40,7 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 | `api` | 55 | 16 | 1 |
 | `auth` | 87 | 17 | 15 |
 | `jsx` | 100 | 17 | 16 |
-| `vue` | 208 | 18 | 14 + a Vue client |
+| `vue` | 220 | 18 | 9 Vue + 7 stubs + 7 `.tsx` |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -252,8 +253,10 @@ my-app/
         ├── main.ts            the client
         ├── style.css          Tailwind v4 + the shadcn theme, in oklch
         ├── components/ui/     90 files, written by `shadcn-vue init`
-        ├── layouts/           the frame a signed-in page sits in
-        └── views/             the pages the router owns
+        ├── layouts/           App (sidebar) and Auth (one card)
+        ├── composables/       usePasskey — the WebAuthn half
+        ├── lib/form.ts        useForm, wired to this application
+        └── views/             the pages the router owns, auth/ included
 ```
 
 Those 90 files are what shadcn is: components live **in** your project, not behind
@@ -280,26 +283,63 @@ One `bun install` covers both: the application's manifest names `frontend` in it
 `workspaces`, so its dependencies land in a `node_modules` of its own rather than
 resolving by accident through the application's.
 
-### Why the auth pages are not Vue
+### The auth screens are Vue, and are still reached by a document
 
-Signing in is a form and a redirect. It has no client state, and rendering it on
-the server means `errors()` and `old()` work exactly as they do in any other
-application — no 422 handling, no CSRF wiring per form, no guest guard in a
-router. So this kit inherits those pages from `auth` **unchanged**, and gives the
-client everything behind them.
+Every screen in this kit is a `.vue` file — the seven auth ones included. A kit
+whose name is Vue should not hand you fourteen `.tsx` pages to learn a second view
+layer for, and this one no longer does.
 
-The two halves meet at exactly one place: `/dashboard` renders the document the
-client boots from. From there the Vue router owns every address, and each one
-arrives as a 404 that `SpaServiceProvider` answers with that same document — so a
-reload on `/dashboard/reports` boots the same application from the same data.
+It does that **without changing the `auth` kit it is built on**, which is the
+constraint that shaped the design. One file in this kit, mounted last:
 
-What it costs: two rendering models in one application, and a full page load when
-you submit the sign-in form. What it buys: fourteen auth screens you do not
-maintain in two places, and no protocol between client and server.
+```ts
+// routes/web.ts — the order is the mechanism
+  .use(Auth/SignInController)      // the auth kit's, unedited: POST /sign-in
+  …
+  .use(Auth/AuthPageController)    // this kit's: GET /sign-in and six more
+```
 
-This is the half that is changing: the auth screens are being rewritten as Vue
-pages so the kit has one view layer rather than two. Until then it ships fourteen
-`.tsx` pages it did not write.
+In Elysia the **last registration of a path wins**, so this kit's seven `GET`
+handlers take over the pages and every action stays where it was. The auth kit's
+controllers are byte-identical to the ones `--kit=auth` and `--kit=jsx` ship — the
+same file, not a copy of it, so there is nothing to drift.
+
+Two things follow from shadowing, and both are in that controller on purpose:
+
+- **The guards are repeated.** Shadowing a handler shadows its middleware, so
+  `guest` and `auth` are named again. Losing them silently would be worse than
+  writing them twice.
+- **The refusals are repeated too.** `GET /reset-password` without a token still
+  redirects to `/forgot-password`, because a page shadow must not shadow a check.
+
+What it costs: the `auth` layer's seven `.tsx` pages are still on disk, since its
+controllers import them. This kit replaces each with a stub that says so and points
+at the `.vue` file to edit instead. Removing them outright would break the import;
+leaving the real pages there would leave seven files a developer edits and sees no
+change from.
+
+**A form that is refused does not reload.** The server answers a client with
+`422 { errors }` instead of a redirect, and `useForm` puts each message under its
+own input with what was typed still there.
+
+**A form that succeeds does reload.** Deliberately. The payload a client boots from
+describes *the document* — the user, the CSRF token, the page's data — and a
+client-side navigation fetches no new one. Pushing to `/dashboard` after signing in
+arrived with the *sign-in* page's payload: `user` was null, so the shell rendered no
+user menu and no way to sign out, and the CSRF token was the pre-sign-in one that
+`regenerate()` had already invalidated. Signing in rotates the session id on
+purpose — session fixation — so a fresh document is not a compromise, it is the only
+correct answer. It costs one request on something that happens once per session.
+
+The same reasoning makes links *between* auth screens plain `<a href>`: a
+client-side push to `/sign-up` would carry `/sign-in`'s flashed error with it.
+
+Two flows stay entirely client-side, because their answer needs no new document:
+asking for a reset link and resending a verification mail both show their
+confirmation in place, rather than through the `?sent=1` redirect a browser gets.
+
+What is left in `.tsx`: `welcome.tsx`, the six settings screens, and the seven auth
+stubs.
 
 ::: tip It is one Vite project, not two
 `frontend/vite.config.ts` builds both entries — `src/main.ts` for the client, and

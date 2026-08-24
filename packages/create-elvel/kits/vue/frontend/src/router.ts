@@ -9,7 +9,32 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
  */
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },
-  { path: '/dashboard', name: 'dashboard', component: () => import('./views/Dashboard.vue') },
+
+  /**
+   * The auth screens, which the server also has routes for.
+   *
+   * Both halves are needed and neither is redundant: the server's `/sign-in`
+   * answers the *document* — guarded by `middleware('guest')`, so a signed-in
+   * visitor never reaches it — and this entry is what renders inside that document,
+   * and what a client-side link navigates to without a page load.
+   */
+  { path: '/sign-in', component: () => import('./views/auth/SignIn.vue') },
+  { path: '/sign-up', component: () => import('./views/auth/SignUp.vue') },
+  { path: '/forgot-password', component: () => import('./views/auth/ForgotPassword.vue') },
+  { path: '/reset-password', component: () => import('./views/auth/ResetPassword.vue') },
+  { path: '/confirm-password', component: () => import('./views/auth/ConfirmPassword.vue') },
+  { path: '/verify-email', component: () => import('./views/auth/VerifyEmail.vue') },
+  {
+    path: '/two-factor-challenge',
+    component: () => import('./views/auth/TwoFactorChallenge.vue')
+  },
+
+  {
+    path: '/dashboard',
+    name: 'dashboard',
+    component: () => import('./views/Dashboard.vue'),
+    meta: { title: 'Dashboard' }
+  },
 
   /**
    * A page for an address nothing matched — the client's own 404.
@@ -25,4 +50,22 @@ export const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior: () => ({ top: 0 })
+})
+
+/**
+ * The tab's title, after a navigation that fetched no document.
+ *
+ * The server sets `<title>` on the document it renders, and that is right for the
+ * page it rendered — but a client-side navigation replaces the view and nothing
+ * else, so the title stayed on whatever the document said. Signing in and landing
+ * on the dashboard left the tab reading "Sign in".
+ *
+ * Only routes that declare one are touched. The auth screens deliberately do not:
+ * each is reached by a document load, so the server's title is already correct and
+ * repeating it here would be two places to change it.
+ */
+router.afterEach((to) => {
+  const title = to.meta.title
+
+  if (typeof title === 'string') document.title = title
 })

@@ -1646,6 +1646,66 @@ field keep their alert.
 `css.parser.tailwindDirectives`, or `bun run lint` goes red on a stylesheet that
 is correct.
 
+### A kit takes over a page by mounting last, not by editing the kit below it
+
+The Vue kit needed `GET /sign-in` to answer with a document. That route lives in
+the auth kit's controller, in one chain with the `POST` that calls better-auth,
+rotates the session and copies the cookie.
+
+The first attempt added an indirection *to the auth kit* — controllers naming a
+page instead of importing one, so the Vue kit could replace the resolver. It
+worked, and it was the wrong shape: a new kit had edited the two kits already
+shipping. Reverted.
+
+What replaced it needs nothing outside the Vue kit. `routes/web.ts` mounts its
+`AuthPageController` **after** the auth kit's, and in Elysia the last registration
+of a path wins — measured, since a single misplaced `.use()` gives the pages back
+silently:
+
+    const a = new Elysia({ name: 'a' }).get('/sign-in', () => 'A')
+    const b = new Elysia({ name: 'b' }).get('/sign-in', () => 'B')
+    new Elysia().use(a).use(b)   // → B
+    new Elysia().use(b).use(a)   // → A
+
+Two consequences live in that controller deliberately. **Shadowing a handler
+shadows its middleware**, so `guest` and `auth` are named again — losing a guard
+silently is worse than writing it twice. And **a page shadow must not shadow a
+check**: `GET /reset-password` without a token still redirects, as the auth kit's
+does.
+
+What it costs: the auth layer's seven `.tsx` pages stay on disk, because its
+controllers import them. `removes` cannot take them without breaking the import, so
+the Vue kit overrides each with a stub that says it is not rendered and names the
+`.vue` file to edit. Seven near-empty files, against four hundred lines of copied
+auth logic or an edit to a kit that was working.
+
+### An embedded payload belongs to the document, not to the page
+
+Measured, and it cost a whole shell. After signing in, `router.push('/dashboard')`
+arrived with the payload of the **sign-in** document: `user` was null, so `NavUser`
+rendered nothing at all — no user menu, no way to sign out — and `page.csrf` was
+the token `regenerate()` had just invalidated, so the next write would have been
+refused.
+
+So an auth transition loads a document. That is not a compromise: signing in
+rotates the session id deliberately, and everything derived from it — the CSRF
+token, who the payload describes — changes with it. `useForm`'s `onRedirect`
+therefore defaults to `location.assign`, and a page whose data it fetches itself
+can override that.
+
+The same rule reaches the links: `<a href>` between auth screens, not
+`RouterLink`, because a client-side push to `/sign-up` carries `/sign-in`'s flashed
+error with it.
+
+### A client navigation leaves the tab's title behind
+
+The server sets `<title>` on the document it renders, which is right for the page
+it rendered. A client-side navigation replaces the view and nothing else, so
+signing in and landing on the dashboard left the tab reading "Sign in". A
+`router.afterEach` sets it from `route.meta.title` — and the auth routes
+deliberately declare none, because each is reached by a document load, so the
+server's title is already correct and repeating it would be two places to change.
+
 ### Every document needs a `<head>`, and not every document has a caller
 
 `spa.head` in config, not an argument to `document()`. The document a 404 renders
@@ -1661,7 +1721,10 @@ Layering was additive only, and a kit can be *smaller* than what it builds on.
 underneath it was shipped and never rendered — a developer edits it and nothing
 changes on screen. `removes` in a layer's `manifest.json` deletes those, applied
 after that layer's own copy so it never has to avoid naming its own files. Paths
-that climb out of the target are refused rather than trusted.
+that climb out of the target are refused rather than trusted, and a directory the
+removal emptied goes too — the Vue kit takes all seven pages under
+`resources/views/pages/auth`, and an empty directory left behind is a place
+somebody looks for something that is no longer there.
 
 ### shadcn-vue cannot be compiled without classic TypeScript
 
