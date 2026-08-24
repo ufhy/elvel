@@ -2,31 +2,32 @@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useResource } from '@/composables/useResource.ts'
 import SettingsLayout from '@/layouts/SettingsLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
-
-type Session = {
-  id: string
-  current: boolean
-  createdAt?: string
-  expiresAt?: string
-  userAgent?: string
-  ipAddress?: string
-}
+import { api } from '@/api.ts'
 
 /**
  * Where this account is signed in, and how to cut any of it off.
  *
- * Behind `password.confirm` on the server: reading this list and revoking from it
- * is the one place a borrowed unlocked browser does real damage.
+ * Behind `password.confirm` twice over: on the page, so a borrowed unlocked browser
+ * cannot read the list, and on `/api/settings/sessions`, because that is where the
+ * list actually is. Guarding the page alone would be guarding the door and leaving
+ * the window.
  */
-const props = page as { sessions?: Session[]; revoked?: boolean; error?: string }
+const { data, failed, reload } = useResource(() => api.sessions())
 
-const revoke = useForm({ id: '' })
-const others = useForm({})
+/**
+ * Revoking reloads the list rather than reloading the page.
+ *
+ * This is the payoff of a page that fetches its own data: the answer changed the
+ * thing this page is showing, so asking again is both the simplest and the only
+ * version that cannot disagree with the server.
+ */
+const revoke = useForm({ id: '' }, { onRedirect: () => void reload() })
+const others = useForm({}, { onRedirect: () => void reload() })
 
-/** The id travels in the form, so it is set on the way into the request. */
 const revokeOne = (id: string) => {
   revoke.data.id = id
 
@@ -36,9 +37,8 @@ const revokeOne = (id: string) => {
 /**
  * The user agent, shortened to something a person can act on.
  *
- * A full UA string is unreadable and the point of the list is recognising your own
- * devices. Not a parser — a browser name and a platform is enough to say "that one
- * is not mine".
+ * Not a parser — a browser name and a platform is enough to say "that one is not
+ * mine", which is the only question this list exists to answer.
  */
 const describe = (agent?: string): string => {
   if (!agent) return 'Unknown browser'
@@ -73,17 +73,18 @@ const on = (value?: string) => (value ? new Date(value).toLocaleString() : '')
 
 <template>
   <SettingsLayout title="Security" description="Every browser this account is signed in on.">
-    <Alert v-if="props.revoked" class="mb-4">
-      <AlertDescription>Signed out.</AlertDescription>
+    <Alert v-if="failed" variant="destructive" class="mb-4">
+      <AlertDescription>{{ failed }}</AlertDescription>
     </Alert>
 
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
-    </Alert>
+    <div v-if="data === null" class="mb-6 grid gap-2">
+      <Skeleton class="h-14 w-full" />
+      <Skeleton class="h-14 w-full" />
+    </div>
 
-    <ul class="mb-6 grid gap-2">
+    <ul v-else class="mb-6 grid gap-2">
       <li
-        v-for="session in props.sessions ?? []"
+        v-for="session in data.sessions"
         :key="session.id"
         class="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
       >
@@ -110,7 +111,11 @@ const on = (value?: string) => (value ? new Date(value).toLocaleString() : '')
       </li>
     </ul>
 
-    <Button variant="outline" :disabled="others.processing" @click="others.post('/settings/security/revoke-others')">
+    <Button
+      variant="outline"
+      :disabled="others.processing"
+      @click="others.post('/settings/security/revoke-others')"
+    >
       Sign out every other browser
     </Button>
   </SettingsLayout>

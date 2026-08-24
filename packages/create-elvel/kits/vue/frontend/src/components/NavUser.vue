@@ -78,17 +78,10 @@ const initials = (name: string, email: string): string => {
       <DropdownMenuSeparator />
 
       <DropdownMenuItem as-child>
-        <!--
-          A document, not a client push.
-
-          The profile page renders the name and address the server put in the
-          payload, and a client-side navigation fetches no new payload — it would
-          arrive with this page's one and show an empty form.
-        -->
-        <a href="/settings/profile">
+        <RouterLink to="/settings/profile">
           <SettingsIcon class="size-4" />
           Settings
-        </a>
+        </RouterLink>
       </DropdownMenuItem>
 
       <DropdownMenuSeparator />

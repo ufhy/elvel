@@ -4,31 +4,30 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { usePasskey } from '@/composables/usePasskey.ts'
+import { useResource } from '@/composables/useResource.ts'
 import SettingsLayout from '@/layouts/SettingsLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
-
-type Row = { id: string; name: string; createdAt?: string; deviceType?: string }
+import { api } from '@/api.ts'
 
 /**
  * Passkeys on this account.
  *
- * Adding one cannot be a form: the private key never leaves the device and the
+ * Adding one cannot be a form: the private key never leaves the device, and the
  * browser will only produce a signature for script on the page. Removing one is an
  * ordinary request, so it is one.
+ *
+ * Both end the same way — ask the list again. The page owns its data now, so there
+ * is nothing to reload but the list.
  */
-const props = page as { passkeys?: Row[]; removed?: boolean; error?: string }
+const { data, failed, reload } = useResource(() => api.passkeys())
 
 const name = ref('')
 
-// A registered passkey has to appear in the list, and the list came from the
-// server — so the honest way to show it is to ask again.
-const passkey = usePasskey(() => window.location.reload())
+const passkey = usePasskey(() => void reload())
+const remove = useForm({ id: '' }, { onRedirect: () => void reload() })
 
-const remove = useForm({ id: '' })
-
-/** The id travels in the form, so it is set on the way into the request. */
 const removeOne = (id: string) => {
   remove.data.id = id
 
@@ -36,7 +35,10 @@ const removeOne = (id: string) => {
 }
 
 const add = async () => {
-  if (await passkey.register(name.value)) window.location.reload()
+  if (await passkey.register(name.value)) {
+    name.value = ''
+    await reload()
+  }
 }
 
 const on = (value?: string) => (value ? new Date(value).toLocaleDateString() : '')
@@ -44,41 +46,41 @@ const on = (value?: string) => (value ? new Date(value).toLocaleDateString() : '
 
 <template>
   <SettingsLayout title="Passkeys" description="Sign in with your device instead of a password.">
-    <Alert v-if="props.removed" class="mb-4">
-      <AlertDescription>That passkey was removed.</AlertDescription>
+    <Alert v-if="failed || passkey.error.value" variant="destructive" class="mb-4">
+      <AlertDescription>{{ passkey.error.value || failed }}</AlertDescription>
     </Alert>
 
-    <Alert
-      v-if="props.error || passkey.error.value"
-      variant="destructive"
-      class="mb-4"
-    >
-      <AlertDescription>{{ passkey.error.value || props.error }}</AlertDescription>
-    </Alert>
+    <div v-if="data === null" class="mb-6 grid gap-2">
+      <Skeleton class="h-11 w-full" />
+    </div>
 
-    <ul v-if="props.passkeys?.length" class="mb-6 grid gap-2">
-      <li
-        v-for="row in props.passkeys"
-        :key="row.id"
-        class="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-      >
-        <span>
-          <span class="font-medium">{{ row.name }}</span>
-          <span v-if="row.createdAt" class="text-muted-foreground"> — added {{ on(row.createdAt) }}</span>
-        </span>
-
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="remove.processing"
-          @click="removeOne(row.id)"
+    <template v-else>
+      <ul v-if="data.passkeys.length" class="mb-6 grid gap-2">
+        <li
+          v-for="row in data.passkeys"
+          :key="row.id"
+          class="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
         >
-          Remove
-        </Button>
-      </li>
-    </ul>
+          <span>
+            <span class="font-medium">{{ row.name }}</span>
+            <span v-if="row.createdAt" class="text-muted-foreground">
+              — added {{ on(row.createdAt) }}
+            </span>
+          </span>
 
-    <p v-else class="text-muted-foreground mb-6 text-sm">No passkeys yet.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="remove.processing"
+            @click="removeOne(row.id)"
+          >
+            Remove
+          </Button>
+        </li>
+      </ul>
+
+      <p v-else class="text-muted-foreground mb-6 text-sm">No passkeys yet.</p>
+    </template>
 
     <div class="grid max-w-lg gap-2">
       <Label for="passkey-name">Name this device</Label>

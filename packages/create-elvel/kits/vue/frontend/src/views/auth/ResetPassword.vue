@@ -1,39 +1,30 @@
 <script setup lang="ts">
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
 
 /**
  * Choosing a new password, with the token from the emailed link.
  *
- * The token comes from the server rather than from `location.search`. Same value,
- * but the server has already been asked for this page and can refuse a link that
- * is missing or expired — reading the URL here would mean posting a token the
- * server never acknowledged.
+ * The token comes from the address bar, and that is safe here for a reason worth
+ * knowing: the server refused this page without one. `Auth/AuthPageController`
+ * redirects a tokenless `/reset-password` to `/forgot-password` before any of this
+ * loads, so by the time this renders the token is present — and it is the same
+ * string the server just saw.
  *
  * Signing in afterwards is deliberately *not* automatic: whoever used the link
  * proved they read the inbox, not that they own the account. So the server sends
  * this one to `/sign-in`, and `useForm` follows it as a document load.
  */
-const props = page as { token?: string; error?: string }
+const token = new URLSearchParams(window.location.search).get('token') ?? ''
 
-const form = useForm({
-  token: props.token ?? '',
-  password: '',
-  password_confirmation: ''
-})
+const form = useForm({ token, password: '', password_confirmation: '' })
 </script>
 
 <template>
   <AuthLayout title="Choose a new password">
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
-    </Alert>
-
     <form class="grid gap-4" @submit.prevent="form.post('/reset-password')">
       <div class="grid gap-2">
         <Label for="password">New password</Label>

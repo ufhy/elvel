@@ -17,21 +17,45 @@ export default {
   mountId: env('SPA_MOUNT', 'app'),
 
   /**
-   * The first screen's data travels in the document.
+   * A shell: the document carries no data at all.
    *
-   * That is what makes this feel different from a plain single-page application:
-   * the server already knows who is asking, so the first paint has content rather
-   * than a spinner. The cost is that the document is then one person's, which is
-   * why it goes out `no-store`.
+   * `false` is the choice that makes this a single-page application rather than a
+   * server-driven one. The document is the same bytes for everybody, so a cache may
+   * keep it, and every page asks for what it needs — `GET /api/session` for who is
+   * asking and the CSRF token, then whatever that page reads.
    *
-   * `false` renders a shell instead — the same bytes for everybody, and therefore
-   * cacheable, which is what an installable application needs. It costs two
-   * requests before the first screen.
+   * `true` embeds the first screen's data instead, which buys a first paint with
+   * content and costs the document its cacheability: it is then one person's, and
+   * goes out `no-store`. It costs something subtler too, and it is why this kit
+   * turned it off — an embedded payload belongs to the *document*, so a client-side
+   * navigation arrives carrying the previous page's data.
    */
-  embed: env('SPA_EMBED', true),
+  embed: env('SPA_EMBED', false),
 
-  /** A 404 under these answers for itself rather than with the document. */
+  /**
+   * A 404 under these answers for itself rather than with the document.
+   *
+   * Load-bearing here: every read this client makes lives under `/api/`, and a
+   * missing one has to arrive as a 404 the client can see rather than as HTML it
+   * would fail to parse three layers from the mistake.
+   */
   apiPrefixes: ['/api/'],
+
+  /**
+   * Two regions: the auth screens, and the application behind them.
+   *
+   * The root area is what `middleware: ['auth']` is here for. Every address the Vue
+   * router owns — `/dashboard`, `/settings/profile`, anything you add — is refused
+   * to a guest **by the server**, before a byte of JavaScript loads. Without it the
+   * only thing standing there is a check in the client router, which is a check
+   * running on the visitor's own machine.
+   *
+   * The auth screens are not an area: they are real routes at the root
+   * (`/sign-in`, `/sign-up`, …) with their own `guest` guard, and
+   * `Auth/AuthPageController` gives them their own entry — so a guest downloads the
+   * auth bundle and not the application behind it.
+   */
+  areas: [{ path: '/', entry: env('SPA_ENTRY', 'src/main.ts'), middleware: ['auth'] }],
 
   /**
    * Markup every document carries in its `<head>`, after the asset tags.

@@ -7,17 +7,14 @@ import { Label } from '@/components/ui/label'
 import { usePasskey } from '@/composables/usePasskey.ts'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
 
 /**
  * Signing in.
  *
- * `page.error` is what the server flashed — a passkey failure, or an expired
- * challenge — and is right at first paint. Everything this form learns *after*
- * that comes back as a 422 and lands in `form.errors`.
+ * Nothing is read from the server before this renders. The document is a shell, and
+ * a sign-in form needs no data — what it learns comes back from its own submission
+ * as a 422, and lands in `form.errors` under the field it belongs to.
  */
-const props = page as { error?: string }
-
 const form = useForm({ email: '', password: '' })
 
 /**
@@ -33,8 +30,8 @@ onMounted(() => passkey.offerFromField())
 
 <template>
   <AuthLayout title="Sign in" description="Enter your email below to sign in.">
-    <Alert v-if="props.error || passkey.error.value" variant="destructive" class="mb-4">
-      <AlertDescription>{{ passkey.error.value || props.error }}</AlertDescription>
+    <Alert v-if="passkey.error.value" variant="destructive" class="mb-4">
+      <AlertDescription>{{ passkey.error.value }}</AlertDescription>
     </Alert>
 
     <form class="grid gap-4" @submit.prevent="form.post('/sign-in')">

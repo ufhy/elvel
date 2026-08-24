@@ -1,39 +1,92 @@
+import { call, Invalid, NeedsPasswordConfirmation, Unauthenticated } from '@elvel/spa/client'
+
+export { Invalid, NeedsPasswordConfirmation, Unauthenticated }
+
 /**
  * What this application knows about talking to its server.
  *
- * `@elvel/spa/client` decides the four things every request needs — the session
- * cookie rather than a token in storage, `accept: application/json` so an expired
- * session arrives as a 401 instead of as HTML, the CSRF token on writes, and 401
- * and 422 as two types a router and a form can act on.
+ * The document is a shell — `spa.embed` is off — so nothing arrives with the page.
+ * That is the trade a single-page application makes: the same bytes for everybody
+ * and a cache that may keep them, in exchange for asking two questions on boot
+ * instead of nought. Who is asking, and what is this screen looking at.
  *
- * What belongs here is your application's shape: the endpoints it calls and the
- * types they answer with. Note what is *not* here — signing out. That is an auth
- * flow, and in this kit the auth flows are pages: the shell posts a form to
- * `/sign-out` and the server redirects, which needs no client code at all.
+ * `@elvel/spa/client` decides what a request looks like: the session cookie rather
+ * than a token in storage, `accept: application/json` so an expired session arrives
+ * as a 401 instead of as HTML, the CSRF token on writes, and 401 and 422 as two
+ * types a router and a form can act on.
  */
-export { call, Invalid, page, Unauthenticated } from '@elvel/spa/client'
+export type User = {
+  id: string
+  name: string
+  email: string
+  emailVerified: boolean
+}
 
-import { call, page } from '@elvel/spa/client'
-
-export type User = { id: string; name: string; email: string }
-
-/** Who the document was rendered for, without asking the server again. */
-export const currentUser = (): User | null => (page as { user?: User | null }).user ?? null
+type Session = { app: string; user: User | null; csrf: string }
 
 /**
- * The application's name, as the server knows it.
+ * The answer to "who is asking", held for the life of the page.
  *
- * Sent in the payload rather than written here, because a `.vue` file is copied
- * byte-for-byte by the scaffolder: it cannot carry a `{{ name }}` placeholder,
- * since that is Vue's own interpolation syntax. So renaming the application is one
- * edit in `.env`.
+ * Module state rather than a store, because there is one of these per document and
+ * nothing in the application may disagree about it. `boot()` fills it before the app
+ * mounts, so no component ever sees it empty.
  */
-export const appName = (): string => (page as { app?: string }).app ?? 'Elvel'
+let current: Session = { app: 'Elvel', user: null, csrf: '' }
 
-/** The token every write sends back, from the document the server rendered. */
-export const csrf = (): string => (page as { csrf?: string }).csrf ?? ''
+/** Ask the server who this is. Called by the entry, and again after signing in. */
+export async function boot(): Promise<Session> {
+  current = await call<Session>('/session')
+
+  return current
+}
+
+export const currentUser = (): User | null => current.user
+
+export const appName = (): string => current.app
+
+/**
+ * The token every write sends back.
+ *
+ * From `/api/session` rather than from the document, which is the one thing a shell
+ * cannot carry: a token is per session, and a document carrying one would be per
+ * session too — which is exactly the cacheability a shell exists for.
+ */
+export const csrf = (): string => current.csrf
+
+/**
+ * A request with this session's token attached.
+ *
+ * Every write goes through here rather than through `call` directly. `call` reads
+ * the token from the document by default, and there is no document to read — so
+ * forgetting the override would not fail loudly, it would fail as a 419 from
+ * somewhere else entirely.
+ */
+export const ask = <T>(path: string, options: Parameters<typeof call>[1] = {}) =>
+  call<T>(path, { token: current.csrf, ...options })
 
 export const api = {
-  /** The endpoint every client calls when it needs to be sure. */
-  me: () => call<{ user: User }>('/user')
+  profile: () => ask<{ name: string; email: string; emailVerified: boolean }>('/settings/profile'),
+
+  sessions: () =>
+    ask<{
+      sessions: Array<{
+        id: string
+        current: boolean
+        createdAt?: string
+        expiresAt?: string
+        userAgent?: string
+        ipAddress?: string
+      }>
+    }>('/settings/sessions'),
+
+  passkeys: () =>
+    ask<{
+      passkeys: Array<{ id: string; name: string; createdAt?: string; deviceType?: string }>
+    }>('/settings/passkeys'),
+
+  twoFactor: () =>
+    ask<{
+      enabled: boolean
+      pending?: { uri: string; secret: string; codes: string[] }
+    }>('/settings/two-factor')
 }

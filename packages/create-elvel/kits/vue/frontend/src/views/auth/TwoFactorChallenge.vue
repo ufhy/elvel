@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
 
 /**
  * The second factor, with the way out when the phone is not in the room.
@@ -18,7 +17,6 @@ import { page } from '@/api.ts'
  *
  * Each recovery code works once — better-auth deletes it as it accepts it.
  */
-const props = page as { error?: string }
 
 const recovering = ref(false)
 
@@ -35,10 +33,6 @@ const recovery = useForm({ code: '' })
         : 'Enter the six-digit code from your authenticator app.'
     "
   >
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
-    </Alert>
-
     <form
       v-if="!recovering"
       class="grid gap-4"

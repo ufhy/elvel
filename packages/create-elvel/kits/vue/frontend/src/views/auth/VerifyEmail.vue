@@ -3,22 +3,20 @@ import { ref } from 'vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import AuthLayout from '@/layouts/AuthLayout.vue'
-import { csrf, page } from '@/api.ts'
+import { csrf, currentUser } from '@/api.ts'
 import { useForm } from '@/lib/form.ts'
 
 /**
  * Waiting for the link in the inbox.
  *
- * Nothing to fill in — the only action is asking for another mail — so this posts
- * an empty body. Like `/forgot-password`, the server answers a browser by
- * redirecting to `?sent=1`; a client shows the confirmation where it stands.
+ * The address comes from the boot request the whole bundle makes for its CSRF
+ * token, so this screen needs no request of its own.
  *
  * Signing out is here on purpose. Somebody is signed in but cannot get past this
  * screen, and without a way out the only escape is clearing cookies.
  */
-const props = page as { email?: string; sent?: boolean }
-
-const sent = ref(props.sent === true)
+const email = currentUser()?.email ?? null
+const sent = ref(false)
 
 const form = useForm({}, { onRedirect: () => (sent.value = true) })
 </script>
@@ -26,8 +24,10 @@ const form = useForm({}, { onRedirect: () => (sent.value = true) })
 <template>
   <AuthLayout title="Confirm your address">
     <p class="text-muted-foreground mb-4 text-sm">
-      We sent a link to <span class="text-foreground font-medium">{{ props.email }}</span>. Open it
-      and this account is verified.
+      <template v-if="email !== null">
+        We sent a link to <span class="text-foreground font-medium">{{ email }}</span>. Open it
+        and this account is verified.
+      </template>
     </p>
 
     <Alert v-if="sent" class="mb-4">

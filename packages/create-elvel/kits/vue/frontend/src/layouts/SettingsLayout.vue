@@ -27,18 +27,15 @@ const items = [
   <AppLayout title="Settings">
     <div class="flex flex-col gap-6 lg:flex-row">
       <!--
-        Plain anchors, not RouterLink.
-
-        Four of these six pages are rendered from a document the server built —
-        `sessions`, `passkeys`, the enrolment in progress — and a client-side push
-        would arrive with the previous page's payload and render empty lists. The
-        exception is Appearance, which asks the server for nothing.
+        Client-side navigation, and it is safe because each page fetches its own
+        data. This was plain anchors while the pages read a payload out of the
+        document: a push carried the previous page's data and rendered empty lists.
       -->
       <nav class="flex w-full flex-col gap-1 lg:w-48">
-        <a
+        <RouterLink
           v-for="item in items"
           :key="item.to"
-          :href="item.to"
+          :to="item.to"
           class="rounded-md px-3 py-2 text-sm"
           :class="
             route.path === item.to
@@ -47,7 +44,7 @@ const items = [
           "
         >
           {{ item.title }}
-        </a>
+        </RouterLink>
       </nav>
 
       <Separator orientation="vertical" class="hidden lg:block" />

@@ -1668,6 +1668,41 @@ document it returns is the same one every other page gets.
 at build time — `Unexpected token, expected ","`. Two of the settings pages needed
 it, and both read better as a named function in `<script setup>` anyway.
 
+### A second entry point breaks three things, and two of them silently
+
+Areas make more than one Vite entry ordinary, and each of these appeared the first
+time an application had two.
+
+**A shared stylesheet vanishes.** Rollup hoists a stylesheet imported by two entries
+into a chunk they share, so both entries report `css: []`. `vite()` read only
+`chunk.css`, so the page rendered as unstyled HTML with nothing in the console —
+found by looking at a screenshot, not at code. It walks the import graph now, as
+Laravel's plugin does.
+
+**`useForm` cannot post from a shell.** It read the CSRF token from the embedded
+payload, and a shell carries none. `FormOptions.token` is a getter rather than a
+value, because signing in rotates the session id and the token rotates with it.
+
+**A guest cannot obtain a CSRF token at all** unless something unguarded hands it
+over. `/api/session` was behind `auth` on the reasoning that a guest has no session
+to describe — and sign-in then answered `419 CSRF token mismatch` on a fresh visit.
+The guard belonged on the document route, which `spa.areas` already provides;
+`user: null` is a real answer.
+
+### A client-side navigation runs no server middleware
+
+Obvious once stated, and it cost a working page. `/settings/security` is behind
+`password.confirm` on its document route — and reaching it by client-side
+navigation never touches that route. What refused was the **API**, with a `423`,
+which the client had no type for and displayed as "Request failed (423)".
+
+Two things follow. Every guard on a page needs repeating on the endpoint that page
+reads, because that is where the data is. And the client's answer to a `423` is to
+load the same address as a document rather than to jump to the confirmation screen:
+only the server's own redirect records where the person was going, so jumping
+directly sent them to `/settings/security` after being stopped on
+`/settings/passkeys`.
+
 ### A kit takes over a page by mounting last, not by editing the kit below it
 
 The Vue kit needed `GET /sign-in` to answer with a document. That route lives in

@@ -125,7 +125,9 @@ const KITS: Record<
       '  .use(Settings/SecurityController)',
       '  .use(Settings/TwoFactorController)',
       '  .use(Auth/AuthPageController)',
-      '  .use(Settings/SettingsPageController)'
+      '  .use(Settings/SettingsPageController)',
+      '  .use(Api/SessionController)',
+      '  .use(Api/SettingsController)'
     ],
     layers: ['auth', 'vue']
   },

@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import SettingsLayout from '@/layouts/SettingsLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useResource } from '@/composables/useResource.ts'
+import { api } from '@/api.ts'
 
 /**
  * Turning two-factor on, and off.
@@ -16,18 +18,14 @@ import { page } from '@/api.ts'
  * again. Without the proof step a mistyped setup would lock somebody out of their
  * own account, which is the one failure this feature must not have.
  */
-const props = page as {
-  enabled?: boolean
-  pending?: { uri: string; secret: string; codes: string[] }
-  turnedOn?: boolean
-  turnedOff?: boolean
-  error?: string
-}
+const { data, failed, reload } = useResource(() => api.twoFactor())
 
-const enable = useForm({ password: '' })
-const confirm = useForm({ code: '' })
-const disable = useForm({ password: '' })
-const fresh = useForm({ password: '' })
+const again = { onRedirect: () => void reload() }
+
+const enable = useForm({ password: '' }, again)
+const confirm = useForm({ code: '' }, again)
+const disable = useForm({ password: '' }, again)
+const fresh = useForm({ password: '' }, again)
 </script>
 
 <template>
@@ -35,26 +33,23 @@ const fresh = useForm({ password: '' })
     title="Two-factor"
     description="A code from your authenticator app, on top of your password."
   >
-    <Alert v-if="props.turnedOn" class="mb-4">
-      <AlertDescription>Two-factor authentication is on.</AlertDescription>
-    </Alert>
-
-    <Alert v-if="props.turnedOff" class="mb-4">
-      <AlertDescription>Two-factor authentication is off.</AlertDescription>
-    </Alert>
-
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
+    <Alert v-if="failed" variant="destructive" class="mb-4">
+      <AlertDescription>{{ failed }}</AlertDescription>
     </Alert>
 
     <!-- Step two: prove the secret was scanned. -->
-    <div v-if="props.pending" class="grid max-w-lg gap-4">
+    <div v-if="data === null" class="grid max-w-lg gap-3">
+      <Skeleton class="h-4 w-64" />
+      <Skeleton class="h-9 w-full" />
+    </div>
+
+    <div v-else-if="data.pending" class="grid max-w-lg gap-4">
       <p class="text-sm">
         Scan this in your authenticator app, or type the secret in by hand, then enter
         the code it shows.
       </p>
 
-      <code class="bg-muted rounded-md px-3 py-2 text-sm break-all">{{ props.pending.secret }}</code>
+      <code class="bg-muted rounded-md px-3 py-2 text-sm break-all">{{ data.pending.secret }}</code>
 
       <div>
         <p class="mb-1 text-sm font-medium">Recovery codes</p>
@@ -63,7 +58,7 @@ const fresh = useForm({ password: '' })
           they are shown.
         </p>
         <ul class="bg-muted grid gap-1 rounded-md p-3 font-mono text-sm">
-          <li v-for="code in props.pending.codes" :key="code">{{ code }}</li>
+          <li v-for="code in data.pending.codes" :key="code">{{ code }}</li>
         </ul>
       </div>
 
@@ -88,7 +83,7 @@ const fresh = useForm({ password: '' })
     </div>
 
     <!-- On: offer fresh recovery codes, or turning it off. -->
-    <div v-else-if="props.enabled" class="grid max-w-lg gap-6">
+    <div v-else-if="data.enabled" class="grid max-w-lg gap-6">
       <p class="text-sm">Two-factor authentication is on for this account.</p>
 
       <form class="grid gap-2" @submit.prevent="fresh.post('/settings/two-factor/recovery-codes')">

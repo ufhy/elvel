@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
 
 /**
  * Asking for a reset link.
@@ -16,12 +15,10 @@ import { page } from '@/api.ts'
  * confirmation appears here without a reload — and `onRedirect` is overridden to
  * nothing rather than followed, which would throw away the message it is carrying.
  *
- * `page.sent` is still read: an old `?sent=1` link, or a reload after one, has to
- * arrive as the confirmation and not as a blank form.
+ * There is no `?sent=1` to read any more either: the shell carries nothing, so the
+ * only state this page has is the state it just created.
  */
-const props = page as { error?: string; sent?: boolean }
-
-const sent = ref(props.sent === true)
+const sent = ref(false)
 
 const form = useForm(
   { email: '' },
@@ -38,10 +35,6 @@ const form = useForm(
       <AlertDescription>
         If that address has an account, the link is on its way.
       </AlertDescription>
-    </Alert>
-
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
     </Alert>
 
     <form class="grid gap-4" @submit.prevent="form.post('/forgot-password')">

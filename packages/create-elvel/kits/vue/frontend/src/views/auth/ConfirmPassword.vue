@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
 
 /**
  * The wall in front of anything that would undo the account's security.
@@ -18,7 +17,6 @@ import { page } from '@/api.ts'
  * `AuthLayout` rather than `AppLayout`, even though somebody is signed in. A
  * sidebar here would offer the navigation this page exists to interrupt.
  */
-const props = page as { error?: string }
 
 const form = useForm({ password: '' })
 </script>
@@ -28,10 +26,6 @@ const form = useForm({ password: '' })
     title="Confirm your password"
     description="This is a secure area. Please confirm your password before continuing."
   >
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
-    </Alert>
-
     <form class="grid gap-4" @submit.prevent="form.post('/confirm-password')">
       <div class="grid gap-2">
         <Label for="password">Password</Label>

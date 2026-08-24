@@ -10,24 +10,6 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },
 
-  /**
-   * The auth screens, which the server also has routes for.
-   *
-   * Both halves are needed and neither is redundant: the server's `/sign-in`
-   * answers the *document* — guarded by `middleware('guest')`, so a signed-in
-   * visitor never reaches it — and this entry is what renders inside that document,
-   * and what a client-side link navigates to without a page load.
-   */
-  { path: '/sign-in', component: () => import('./views/auth/SignIn.vue') },
-  { path: '/sign-up', component: () => import('./views/auth/SignUp.vue') },
-  { path: '/forgot-password', component: () => import('./views/auth/ForgotPassword.vue') },
-  { path: '/reset-password', component: () => import('./views/auth/ResetPassword.vue') },
-  { path: '/confirm-password', component: () => import('./views/auth/ConfirmPassword.vue') },
-  { path: '/verify-email', component: () => import('./views/auth/VerifyEmail.vue') },
-  {
-    path: '/two-factor-challenge',
-    component: () => import('./views/auth/TwoFactorChallenge.vue')
-  },
 
   /**
    * Settings. Five of the six are rendered from a document the server built —
@@ -35,14 +17,34 @@ const routes: RouteRecordRaw[] = [
    * them with plain anchors. The routes are here because the document still needs
    * this router to know which component to mount at that address.
    */
-  { path: '/settings/profile', component: () => import('./views/settings/Profile.vue') },
-  { path: '/settings/password', component: () => import('./views/settings/Password.vue') },
-  { path: '/settings/two-factor', component: () => import('./views/settings/TwoFactor.vue') },
-  { path: '/settings/passkeys', component: () => import('./views/settings/Passkeys.vue') },
-  { path: '/settings/security', component: () => import('./views/settings/Security.vue') },
+  {
+    path: '/settings/profile',
+    component: () => import('../views/settings/Profile.vue'),
+    meta: { title: 'Profile' }
+  },
+  {
+    path: '/settings/password',
+    component: () => import('../views/settings/Password.vue'),
+    meta: { title: 'Password' }
+  },
+  {
+    path: '/settings/two-factor',
+    component: () => import('../views/settings/TwoFactor.vue'),
+    meta: { title: 'Two-factor' }
+  },
+  {
+    path: '/settings/passkeys',
+    component: () => import('../views/settings/Passkeys.vue'),
+    meta: { title: 'Passkeys' }
+  },
+  {
+    path: '/settings/security',
+    component: () => import('../views/settings/Security.vue'),
+    meta: { title: 'Security' }
+  },
   {
     path: '/settings/appearance',
-    component: () => import('./views/settings/Appearance.vue'),
+    component: () => import('../views/settings/Appearance.vue'),
     // The only settings page with no server route behind it, so it is the only one
     // whose title nothing else sets.
     meta: { title: 'Appearance' }
@@ -51,7 +53,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/dashboard',
     name: 'dashboard',
-    component: () => import('./views/Dashboard.vue'),
+    component: () => import('../views/Dashboard.vue'),
     meta: { title: 'Dashboard' }
   },
 
@@ -62,7 +64,7 @@ const routes: RouteRecordRaw[] = [
    * know which paths this router owns. So the router has to be the one to say "no
    * such page", and it needs a page to say it with.
    */
-  { path: '/:rest(.*)', name: 'missing', component: () => import('./views/Missing.vue') }
+  { path: '/:rest(.*)', name: 'missing', component: () => import('../views/Missing.vue') }
 ]
 
 export const router = createRouter({

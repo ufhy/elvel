@@ -59,7 +59,7 @@ export default {
      * pages load — one project, one manifest, one build, so there is never a
      * question of which of two configs wrote what.
      */
-    elvel({ input: ['src/main.ts', 'src/server.ts'] })
+    elvel({ input: ['src/main.ts', 'src/auth.ts', 'src/server.ts'] })
   ],
 
   resolve: {

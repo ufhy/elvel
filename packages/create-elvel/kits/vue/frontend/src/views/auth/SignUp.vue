@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
-import { page } from '@/api.ts'
 
 /**
  * Creating an account.
@@ -14,17 +13,12 @@ import { page } from '@/api.ts'
  * `password_confirmation` here and adding one would be a field the controller
  * ignores, which is worse than not having it.
  */
-const props = page as { error?: string }
 
 const form = useForm({ name: '', email: '', password: '' })
 </script>
 
 <template>
   <AuthLayout title="Create an account" description="Enter your details to get started.">
-    <Alert v-if="props.error" variant="destructive" class="mb-4">
-      <AlertDescription>{{ props.error }}</AlertDescription>
-    </Alert>
-
     <form class="grid gap-4" @submit.prevent="form.post('/sign-up')">
       <div class="grid gap-2">
         <Label for="name">Name</Label>
