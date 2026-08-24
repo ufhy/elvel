@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "types": ["bun"],
+
+    // Automatic JSX runtime: components need no per-file `import { Html }`.
+    "jsx": "react-jsx",
+    "jsxImportSource": "@kitajs/html",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  /**
+   * `frontend` is its own project, with its own tsconfig and `vue-tsc` to check
+   * it. Left in here, this one tries to resolve `./App.vue` with no SFC shim and
+   * fails on a file it does not own.
+   */
+  "exclude": ["node_modules", "frontend"]
+}

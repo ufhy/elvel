@@ -4,9 +4,13 @@
 Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and each
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
-`auth` is the same pages without Tailwind; `none` and `api` are closer to
-variants of one template. Two-factor authentication and passkeys are both here,
-in both auth kits. No teams.
+`auth` is the same pages without Tailwind; `vue` puts a Vite + Vue client behind
+those pages; `none` and `api` are closer to variants of one template. Two-factor
+authentication and passkeys are in all three auth kits. No teams.
+
+One difference worth knowing before you pick: Laravel's Vue kit renders *every*
+page through Inertia, including sign-in. Ours leaves the auth pages server
+rendered and gives the client the application behind them — see below for why.
 :::
 
 A kit is a folder copied **over** the base template, not a fork of it. Everything
@@ -20,6 +24,7 @@ Pick one when scaffolding:
 bun create elvel my-app --kit=none
 bun create elvel my-app --kit=auth
 bun create elvel my-app --kit=jsx
+bun create elvel my-app --kit=vue
 bun create elvel my-app --kit=api
 ```
 
@@ -29,10 +34,11 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 
 | Kit | Files | Config files | Pages |
 | --- | --- | --- | --- |
-| `none` | 41 | 9 | 1 |
-| `api` | 54 | 15 | 1 |
-| `auth` | 86 | 16 | 15 |
-| `jsx` | 99 | 16 | 16 |
+| `none` | 42 | 10 | 1 |
+| `api` | 55 | 16 | 1 |
+| `auth` | 87 | 17 | 15 |
+| `jsx` | 100 | 17 | 16 |
+| `vue` | 100 | 18 | 15 + a Vue client |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -224,6 +230,52 @@ Naming them is two lines:
 `source(none)` turns automatic detection off, and each `@source` is relative to
 the stylesheet. Outside a repository — which is every real application — the
 default is right and there is nothing to do.
+:::
+
+## `vue` — the auth kit, with a Vite + Vue client
+
+The auth kit, with the application behind it written in Vue:
+
+```
+my-app/
+├── app/, routes/, config/     the application
+├── resources/views/           the auth pages, server rendered
+└── frontend/                  a `bun create vite` project
+    ├── package.json           vue, vue-router, vite — its own
+    ├── vite.config.ts         `vue()` and `elvel()`
+    └── src/main.ts            the client
+```
+
+`frontend/` is an ordinary Vite project. Every Vite tutorial, upgrade guide and
+plugin applies to it verbatim, because there is nothing framework-specific in it
+beyond one plugin. Swapping Vue for something else is swapping that directory.
+
+One `bun install` covers both: the application's manifest names `frontend` in its
+`workspaces`, so its dependencies land in a `node_modules` of its own rather than
+resolving by accident through the application's.
+
+### Why the auth pages are not Vue
+
+Signing in is a form and a redirect. It has no client state, and rendering it on
+the server means `errors()` and `old()` work exactly as they do in any other
+application — no 422 handling, no CSRF wiring per form, no guest guard in a
+router. So this kit inherits those pages from `auth` **unchanged**, and gives the
+client everything behind them.
+
+The two halves meet at exactly one place: `/dashboard` renders the document the
+client boots from. From there the Vue router owns every address, and each one
+arrives as a 404 that `SpaServiceProvider` answers with that same document — so a
+reload on `/dashboard/reports` boots the same application from the same data.
+
+What it costs: two rendering models in one application, and a full page load when
+you submit the sign-in form. What it buys: fourteen auth screens you do not
+maintain in two places, and no protocol between client and server.
+
+::: tip It is one Vite project, not two
+`frontend/vite.config.ts` builds both entries — `src/main.ts` for the client, and
+`src/server.ts` for the auth pages, which imports the stylesheet and the passkey
+script from `resources/` where the auth kit put them. One project, one manifest,
+one build, so there is never a question of which of two configs wrote what.
 :::
 
 ## `auth` — sign in, sign up, a dashboard

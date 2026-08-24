@@ -13,7 +13,8 @@
       "!**/storage",
       "!**/*.edge",
       "!**/public/build",
-      "!apps/*/public"
+      "!apps/*/public",
+      "!packages/create-elvel/kits/*/frontend"
     ]
   },
   "formatter": {

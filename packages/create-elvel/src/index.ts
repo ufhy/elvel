@@ -97,6 +97,34 @@ const KITS: Record<
     layers: ['auth', 'jsx']
   },
 
+  vue: {
+    label: 'Vue — the auth kit, with a Vite + Vue client',
+    describe: 'server-rendered auth over better-auth, and a Vue SPA behind it',
+    /**
+     * The auth kit's routes, with one replaced.
+     *
+     * `DashboardController` here renders the document the Vue client boots from
+     * instead of a page, which is what makes the application area the SPA. The
+     * auth pages stay server rendered and answer for themselves: a form posts, the
+     * server redirects, and `errors()` and `old()` need no client state at all.
+     */
+    routes: [
+      '  .use(Auth/ConfirmPasswordController)',
+      '  .use(Auth/PasswordResetController)',
+      '  .use(Auth/RegisterController)',
+      '  .use(Auth/SignInController)',
+      '  .use(Auth/TwoFactorChallengeController)',
+      '  .use(Auth/VerifyEmailController)',
+      '  .use(DashboardController)',
+      '  .use(Settings/PasskeyController)',
+      '  .use(Settings/PasswordController)',
+      '  .use(Settings/ProfileController)',
+      '  .use(Settings/SecurityController)',
+      '  .use(Settings/TwoFactorController)'
+    ],
+    layers: ['auth', 'vue']
+  },
+
   api: {
     label: 'API — token auth, JSON, no views',
     describe: 'bearer-token auth over better-auth, answering JSON',
@@ -287,6 +315,8 @@ async function main(): Promise<number> {
     await registerKitRoutes(target, entry?.routes ?? [])
     written += (await mergeKitManifest(target, entry?.layers ?? [kit as string])) ? 1 : 0
   }
+
+  await adoptClientProject(target)
 
   await pruneConfig(target, await pruneDependencies(target))
 
@@ -831,6 +861,46 @@ async function mergeKitManifest(target: string, layers: string[]): Promise<boole
  * Only `dependencies` is touched. `devDependencies` is the toolchain, the same
  * for every application whatever it imports.
  */
+/**
+ * A kit may ship a client of its own, and then the application owns it.
+ *
+ * `frontend/` in the Vue kit is a real `bun create vite` project: its own
+ * manifest, its own dependencies, its own `vite.config.ts`. What it is not is a
+ * second thing to install by hand — naming it in `workspaces` means one
+ * `bun install` at the application root reaches it, and its dependencies land in
+ * a `node_modules` of its own rather than resolving by accident through the
+ * application's.
+ *
+ * Measured, because "accident" is the part that matters: a client that does not
+ * declare `@elvel/vite` still finds it by walking up, and looks fine — until an
+ * install that does not hoist, or a copy of the directory somewhere else.
+ *
+ * The application's own asset scripts move with it: there is no `vite.config.ts`
+ * beside `elvel.ts` any more, so `vite build` there would have nothing to build.
+ */
+async function adoptClientProject(target: string): Promise<boolean> {
+  const manifestPath = join(target, 'frontend', 'package.json')
+
+  if (!(await exists(manifestPath))) return false
+
+  const path = join(target, 'package.json')
+  const manifest = await readJson<{
+    workspaces?: string[]
+    scripts?: Record<string, string>
+  }>(path)
+
+  manifest.workspaces = [...new Set([...(manifest.workspaces ?? []), 'frontend'])]
+  manifest.scripts = {
+    ...manifest.scripts,
+    build: 'bun run --cwd frontend build',
+    'dev:assets': 'bun run --cwd frontend dev'
+  }
+
+  await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  return true
+}
+
 async function pruneDependencies(target: string): Promise<Set<string>> {
   const imported = new Set<string>(ALWAYS_DEPENDED_ON)
 

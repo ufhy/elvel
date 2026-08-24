@@ -190,21 +190,12 @@ describe('the providers a kit registers', () => {
       if ((await provider.exists()) && !registered.has(name)) never.push(name)
     }
 
-    /**
-     * `spa` is here until a kit ships a client project.
-     *
-     * Its provider replaces the exception handler so a deep link answers with the
-     * document, which is exactly what an application that has no client router
-     * must not do — so no current kit registers it, and that is correct rather
-     * than an oversight.
-     */
     expect<string[]>(never.sort()).toEqual([
       'broadcasting',
       'concurrency',
       'http-client',
       'image',
-      'process',
-      'spa'
+      'process'
     ])
   })
 })

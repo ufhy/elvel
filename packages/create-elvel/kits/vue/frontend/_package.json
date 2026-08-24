@@ -1,0 +1,21 @@
+{
+  "name": "{{ name }}-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elvel/spa": "{{ dep_spa }}",
+    "vue": "^3.5.41",
+    "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "@elvel/vite": "{{ dep_vite }}",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  }
+}

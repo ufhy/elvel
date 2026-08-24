@@ -6,6 +6,7 @@
     "packages/*",
     "playground",
     "apps/*",
+    "apps/*/frontend",
     ".demo/*"
   ],
   "scripts": {
