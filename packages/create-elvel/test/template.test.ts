@@ -1343,6 +1343,71 @@ describe('the versions the template pins', () => {
  * Without that it would be a copy of the auth kit, and the two would drift the
  * first time either changed.
  */
+/**
+ * Every path that signs somebody in has to give them a new session id.
+ *
+ * Session fixation: an id chosen before signing in is an id somebody else may
+ * have chosen, and if it still names the session afterwards then whoever chose it
+ * is signed in as this user.
+ *
+ * This is a test rather than a comment because of how it went wrong. One path was
+ * patched — the password one — and the commit said the hole was closed. Three were
+ * not: completing a two-factor challenge either way, and registering. The account
+ * with two factors on it, the one most worth protecting, was the one left open.
+ *
+ * The rule is mechanical, so a fifth path — a passkey, a magic link — fails here
+ * rather than in somebody's application.
+ */
+describe('signing in rotates the session', () => {
+  test('every controller that lands on the dashboard also regenerates', async () => {
+    const authApp = resolve(import.meta.dir, '..', 'kits', 'auth', 'app')
+    const behind: string[] = []
+
+    for await (const path of new Bun.Glob('**/*.ts').scan({ cwd: authApp, absolute: true })) {
+      const source = await Bun.file(path).text()
+
+      /**
+       * The shape that means "this browser is now somebody": a session handed over
+       * with `withSession`, and a landing on the application itself.
+       */
+      const landings = source.match(/redirect\('\/dashboard'\)/g)?.length ?? 0
+
+      if (landings === 0) continue
+
+      const rotations = source.match(/\.regenerate\(/g)?.length ?? 0
+
+      if (rotations < landings) {
+        behind.push(`${basename(path)}: ${landings} sign-in, ${rotations} regenerate`)
+      }
+    }
+
+    expect<string[]>(behind).toEqual([])
+  })
+
+  /**
+   * And the settings pages do not, which is not an oversight.
+   *
+   * Changing a profile or turning on two-factor is an operation by somebody
+   * already signed in — the identity does not change, so neither should the id.
+   */
+  test('the settings controllers leave the session alone', async () => {
+    const settings = resolve(
+      import.meta.dir,
+      '..',
+      'kits',
+      'auth',
+      'app',
+      'Http',
+      'Controllers',
+      'Settings'
+    )
+
+    for await (const path of new Bun.Glob('*.ts').scan({ cwd: settings, absolute: true })) {
+      expect<boolean>((await Bun.file(path).text()).includes('.regenerate(')).toBe(false)
+    }
+  })
+})
+
 describe('the jsx kit', () => {
   const kitDir = resolve(import.meta.dir, '..', 'kits', 'jsx')
 
