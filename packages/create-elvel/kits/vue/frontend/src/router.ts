@@ -29,6 +29,25 @@ const routes: RouteRecordRaw[] = [
     component: () => import('./views/auth/TwoFactorChallenge.vue')
   },
 
+  /**
+   * Settings. Five of the six are rendered from a document the server built —
+   * sessions, passkeys, an enrolment in progress — so `SettingsLayout` links to
+   * them with plain anchors. The routes are here because the document still needs
+   * this router to know which component to mount at that address.
+   */
+  { path: '/settings/profile', component: () => import('./views/settings/Profile.vue') },
+  { path: '/settings/password', component: () => import('./views/settings/Password.vue') },
+  { path: '/settings/two-factor', component: () => import('./views/settings/TwoFactor.vue') },
+  { path: '/settings/passkeys', component: () => import('./views/settings/Passkeys.vue') },
+  { path: '/settings/security', component: () => import('./views/settings/Security.vue') },
+  {
+    path: '/settings/appearance',
+    component: () => import('./views/settings/Appearance.vue'),
+    // The only settings page with no server route behind it, so it is the only one
+    // whose title nothing else sets.
+    meta: { title: 'Appearance' }
+  },
+
   {
     path: '/dashboard',
     name: 'dashboard',

@@ -1,3 +1,3 @@
 {
-  "removes": ["resources/views/pages/dashboard.tsx"]
+  "removes": ["resources/views/pages/dashboard.tsx", "resources/views/pages/settings/nav.tsx"]
 }

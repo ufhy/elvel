@@ -422,6 +422,20 @@ describe('a redirect a client cannot follow', () => {
     expect(await response.json()).toEqual({ redirect: '/settings/profile', status: 'Saved.' })
   })
 
+  test('and are flashed as well, because the client is about to fetch that document', async () => {
+    /**
+     * The first version skipped them, reasoning that a client renders no document.
+     * Wrong, and it broke enrolling a second factor: the secret and the recovery
+     * codes are flashed by the POST and shown by the page it redirects to. A
+     * `{ redirect }` answer *means* a document is coming.
+     */
+    await asClient(() =>
+      redirect('/settings/two-factor').with('two-factor.pending', { secret: 'S' }).toResponse()
+    )
+
+    expect(inRequest(() => session.get<string[]>('_flash.new'))).toContain('two-factor.pending')
+  })
+
   test('a named bag collapses — one form has no second form to confuse', async () => {
     const response = await asClient(() =>
       redirect('/sign-in').withErrors({ email: 'No.' }, 'signIn').toResponse()

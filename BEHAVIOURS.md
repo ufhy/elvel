@@ -224,12 +224,20 @@ Four things to know about the form loop:
   headers is a test, an internal dispatch or a health probe, and reading those as
   clients turned 29 redirects into JSON payloads nobody followed. The rule lives in
   one place, `negotiation.ts`, with the difference passed in as `whenSilent`.
-- **A hand-built redirect negotiates too, and writes nothing to the session when it
-  does.** `fetch` follows a 302 silently and lands on a document whose flash it
-  never renders, so the form comes back blank with nothing said — which is why
-  `redirect().withErrors(...)` answers a JSON caller 422 `{ message, errors }`
-  instead. The flash is skipped rather than merely unused: left behind, it lights up
-  whatever form a later navigation happens to reach.
+- **A hand-built redirect negotiates too.** `fetch` follows a 302 silently and lands
+  on a document whose flash it never renders, so the form comes back blank with
+  nothing said — which is why `redirect().withErrors(...)` answers a JSON caller 422
+  `{ message, errors }` instead. On that 422 the flash is skipped rather than merely
+  unused: left behind, it lights up whatever form a later navigation happens to
+  reach.
+- **On the success answer, the flashes are written after all** — and the first
+  version got this backwards. It skipped them for every JSON caller, reasoning that
+  a client renders no document. But `{ redirect }` *means* the client is about to
+  fetch one, and that document is what consumes the flash. What it broke: enrolling
+  a second factor, where the POST flashes the TOTP secret and ten recovery codes and
+  the page it redirects to is the only place they are ever shown. The page arrived
+  with no enrolment on it and no error either. Found by clicking "Set up two-factor"
+  in a browser, not by reading.
 - **A thrown redirect must persist the session; a returned one must not.**
   `onAfterHandle` is what saves, and it does not run on the error path — so a thrown
   redirect saves before throwing. Doing both saves the session twice, which ages the
@@ -1645,6 +1653,20 @@ field keep their alert.
 **Biome rejects Tailwind's CSS by default.** `@theme` and the rest need
 `css.parser.tailwindDirectives`, or `bun run lint` goes red on a stylesheet that
 is correct.
+
+### A client-only page still needs a route, or a guest can reach it
+
+`/settings/appearance` posts nothing and reads nothing — a theme is the browser's
+business. So it was a client route only, and the SPA fallback answered it: a
+fallback has no middleware and cannot refuse anybody. A signed-out visitor got the
+settings shell with nothing in it. The handler exists for its `auth` guard; the
+document it returns is the same one every other page gets.
+
+### A `@click` with two statements is not a Vue template expression
+
+`@click="form.data.id = row.id; form.delete(…)"` across two lines is a parse error
+at build time — `Unexpected token, expected ","`. Two of the settings pages needed
+it, and both read better as a named function in `<script setup>` anyway.
 
 ### A kit takes over a page by mounting last, not by editing the kit below it
 

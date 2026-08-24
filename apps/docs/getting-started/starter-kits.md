@@ -40,7 +40,7 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 | `api` | 55 | 16 | 1 |
 | `auth` | 87 | 17 | 15 |
 | `jsx` | 100 | 17 | 16 |
-| `vue` | 220 | 18 | 9 Vue + 7 stubs + 7 `.tsx` |
+| `vue` | 227 | 18 | 15 Vue + 12 stubs + `welcome.tsx` |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -254,7 +254,7 @@ my-app/
         ├── style.css          Tailwind v4 + the shadcn theme, in oklch
         ├── components/ui/     90 files, written by `shadcn-vue init`
         ├── layouts/           App (sidebar) and Auth (one card)
-        ├── composables/       usePasskey — the WebAuthn half
+        ├── composables/       usePasskey, useAppearance
         ├── lib/form.ts        useForm, wired to this application
         └── views/             the pages the router owns, auth/ included
 ```
@@ -283,23 +283,25 @@ One `bun install` covers both: the application's manifest names `frontend` in it
 `workspaces`, so its dependencies land in a `node_modules` of its own rather than
 resolving by accident through the application's.
 
-### The auth screens are Vue, and are still reached by a document
+### Every screen is Vue, and each is reached by a document
 
-Every screen in this kit is a `.vue` file — the seven auth ones included. A kit
-whose name is Vue should not hand you fourteen `.tsx` pages to learn a second view
-layer for, and this one no longer does.
+Every screen in this kit is a `.vue` file — the seven auth ones and the six
+settings ones included. A kit whose name is Vue should not hand you fourteen `.tsx`
+pages to learn a second view layer for, and this one no longer does.
 
 It does that **without changing the `auth` kit it is built on**, which is the
 constraint that shaped the design. One file in this kit, mounted last:
 
 ```ts
 // routes/web.ts — the order is the mechanism
-  .use(Auth/SignInController)      // the auth kit's, unedited: POST /sign-in
+  .use(Auth/SignInController)            // the auth kit's, unedited: POST /sign-in
+  .use(Settings/ProfileController)       // the auth kit's, unedited: PATCH /settings/profile
   …
-  .use(Auth/AuthPageController)    // this kit's: GET /sign-in and six more
+  .use(Auth/AuthPageController)          // this kit's: GET /sign-in and six more
+  .use(Settings/SettingsPageController)  // this kit's: GET /settings/* and appearance
 ```
 
-In Elysia the **last registration of a path wins**, so this kit's seven `GET`
+In Elysia the **last registration of a path wins**, so this kit's thirteen `GET`
 handlers take over the pages and every action stays where it was. The auth kit's
 controllers are byte-identical to the ones `--kit=auth` and `--kit=jsx` ship — the
 same file, not a copy of it, so there is nothing to drift.
@@ -338,8 +340,12 @@ Two flows stay entirely client-side, because their answer needs no new document:
 asking for a reset link and resending a verification mail both show their
 confirmation in place, rather than through the `?sent=1` redirect a browser gets.
 
-What is left in `.tsx`: `welcome.tsx`, the six settings screens, and the seven auth
-stubs.
+One settings page has no server route at all until you count the guard:
+**appearance** posts nothing and reads nothing, but it still gets a handler, because
+without one it would be a client route only — and the SPA fallback cannot refuse a
+guest. That left a signed-out visitor looking at an empty settings shell.
+
+What is left in `.tsx`: `welcome.tsx`, and twelve stubs.
 
 ::: tip It is one Vite project, not two
 `frontend/vite.config.ts` builds both entries — `src/main.ts` for the client, and

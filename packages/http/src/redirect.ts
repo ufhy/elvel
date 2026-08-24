@@ -216,11 +216,19 @@ export class Redirect {
    * - otherwise → **200** `{ redirect }`, plus any other flash by its own key, so
    *   `.with('status', 'Saved')` arrives as `{ redirect, status: 'Saved' }`
    *
-   * Nothing is written to the session. A flash is read by the *next* document, and
-   * this caller is not going to render one; leaving the errors behind would light
-   * up a form some later navigation happened to land on. The old input is dropped
-   * for the same reason and needs no replacement — the client still has what the
-   * user typed, in the fields they typed it into.
+   * **On the 422, nothing is written to the session.** The client renders those
+   * messages from the body, and a flash left behind would light up a form that some
+   * later navigation happened to land on. The old input goes the same way and needs
+   * no replacement — the client still has what the person typed, in the fields they
+   * typed it into.
+   *
+   * **On the 200, the flashes are written**, exactly as they are for a browser. The
+   * first version of this skipped them on the reasoning that a client renders no
+   * document — which is wrong, and cost an afternoon: `{ redirect }` *means* the
+   * client is about to fetch one, and that document is what consumes the flash.
+   * Skipping it broke enrolling a second factor, where the secret and the recovery
+   * codes are flashed by the POST and shown by the page it redirects to. They are in
+   * the body too, for a client that would rather not navigate.
    */
   private asJson(): Response {
     const bag = this.errorBag()
@@ -238,6 +246,8 @@ export class Redirect {
 
     for (const [key, value] of this.flashes) {
       if (key === ERRORS_KEY || key === OLD_INPUT_KEY) continue
+
+      this.session?.flash(key, value)
 
       body[key] = value
     }
