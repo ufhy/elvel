@@ -29,6 +29,8 @@ type Manifest = {
   repository?: { directory?: string }
   files?: string[]
   publishConfig?: { access?: string }
+  exports?: Record<string, unknown>
+  scripts?: Record<string, string>
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
   devDependencies?: Record<string, string>
@@ -213,6 +215,47 @@ describe('every package is publishable', () => {
    * or a probe left in the folder. What each one ships is its source plus the
    * directories the framework reads at run time.
    */
+  /**
+   * A package Node reads has to ship what Node can read.
+   *
+   * Every package here ships TypeScript source, because Bun is what consumes
+   * them — except `@elvel/vite`, which Vite's config loader imports from a Node
+   * process. Vite's binary is `#!/usr/bin/env node` and its config bundler
+   * externalises every bare import it can resolve, so Node ends up doing
+   * `import('…/src/index.ts')` and answers `ERR_UNKNOWN_FILE_EXTENSION`.
+   *
+   * Measured on a machine with Node on `PATH`: `vite build`, `bun x vite build`
+   * and `bun x vite` all failed. CI never saw it, because its image has no `node`
+   * binary and Bun ran the shim instead.
+   *
+   * So: a package whose exports name `dist` must declare the build that writes
+   * it, and must ship it. The next one to need this fails here rather than in
+   * somebody's application.
+   */
+  test('a package that exports dist declares the build that writes it', async () => {
+    const wrong: string[] = []
+
+    for (const { manifest } of await packages()) {
+      const exports = JSON.stringify(manifest.exports ?? {})
+
+      if (!exports.includes('dist/')) continue
+
+      if (manifest.scripts?.build === undefined) wrong.push(`${manifest.name}: no build script`)
+      if (!(manifest.files ?? []).includes('dist')) wrong.push(`${manifest.name}: dist not shipped`)
+
+      /**
+       * And Bun still reads the source.
+       *
+       * Without that condition the repository's own tests, and every Bun consumer,
+       * would run whatever `dist` last happened to contain — which is how a build
+       * artifact goes stale without anybody noticing.
+       */
+      if (!exports.includes('"bun":')) wrong.push(`${manifest.name}: no bun condition`)
+    }
+
+    expect<string[]>(wrong).toEqual([])
+  })
+
   test('and ship source rather than tests', async () => {
     const wrong: string[] = []
 

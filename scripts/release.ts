@@ -89,6 +89,7 @@ type Manifest = {
   description: string
   files?: string[]
   dependencies?: Record<string, string>
+  scripts?: Record<string, string>
 }
 
 /**
@@ -262,6 +263,35 @@ const failures: string[] = []
 for (const directory of directories) {
   const dir = join(ROOT, 'packages', directory)
   const manifest = (await Bun.file(join(dir, 'package.json')).json()) as Manifest
+
+  /**
+   * A package that declares a build gets built, whatever `--built` says.
+   *
+   * `--built` is an experiment about publishing *every* package compiled. This is
+   * a different thing: `@elvel/vite` is read by Node — Vite's binary is
+   * `#!/usr/bin/env node`, and its config bundler externalises every bare import
+   * it can resolve, so Node ends up importing our entry directly and answers
+   * `ERR_UNKNOWN_FILE_EXTENSION` for a `.ts`. That package's `exports` therefore
+   * always name `dist` for anything that is not Bun, and a tarball without it
+   * would point at a file that does not exist.
+   *
+   * Failing loudly here rather than packing something broken: a missing `dist` is
+   * invisible in a tarball listing until somebody installs it.
+   */
+  if (manifest.scripts?.build !== undefined) {
+    const build = Bun.spawnSync({
+      cmd: ['bun', 'run', 'build'],
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
+
+    if (build.exitCode !== 0) {
+      console.log(`  ${manifest.name} failed to build`)
+      console.log(build.stderr.toString().trim())
+      process.exit(1)
+    }
+  }
 
   // Written into the package for the duration of the pack, and removed after —
   // `bun pm pack` only takes what is beside the manifest, and neither file is

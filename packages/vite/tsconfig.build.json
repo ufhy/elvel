@@ -1,0 +1,26 @@
+{
+  /**
+   * Types for the one package Node reads.
+   *
+   * Every other package ships TypeScript source, because Bun is what consumes
+   * them. This one is imported by Vite's config loader, which is a Node process:
+   * Vite's binary is `#!/usr/bin/env node`, and its config bundler externalises
+   * every bare import it can resolve — so Node ends up doing
+   * `import('…/src/index.ts')` and answers `ERR_UNKNOWN_FILE_EXTENSION`.
+   *
+   * `bun run build` in this package writes `dist/index.js` for that, and this
+   * writes the declarations beside it. The `bun` export condition still points at
+   * the source, so nothing in this repository — or any Bun consumer — reads either.
+   */
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Nothing else imports these; a map pointing at source that ships anyway
+    // would only be weight in the tarball.
+    "declarationMap": false
+  },
+  "include": ["src/**/*.ts"]
+}

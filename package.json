@@ -9,16 +9,17 @@
     ".demo/*"
   ],
   "scripts": {
+    "build:packages": "bun run --cwd packages/vite build",
     "create": "bun packages/create-elvel/src/index.ts",
-    "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke": "bun scripts/smoke.ts",
-    "verify": "bun run lint && bun run typecheck && bun run test && bun run smoke",
     "playground": "bun playground/elvel.ts",
     "playground:dev": "bun --watch playground/elvel.ts serve",
-    "playground:reset": "bun scripts/reset-playground.ts"
+    "playground:reset": "bun scripts/reset-playground.ts",
+    "smoke": "bun run build:packages && bun scripts/smoke.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "verify": "bun run lint && bun run typecheck && bun run test && bun run smoke"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
