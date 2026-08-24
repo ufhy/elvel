@@ -36,6 +36,26 @@ export class Unauthenticated extends Error {
 }
 
 /**
+ * The session is real but the password has not been confirmed recently.
+ *
+ * A 423, and it is a different situation from a 401: the caller is who they say,
+ * they simply have not proved it lately — and reading which devices are signed in,
+ * or a two-factor secret, is where a borrowed unlocked browser does real damage.
+ *
+ * The useful response is **to load the page as a document**. The server has the
+ * same guard on the document route, and answering it there redirects to the
+ * confirmation screen *and* remembers where the person was going. A client that
+ * navigated to the confirmation screen itself would arrive without that, and send
+ * them somewhere else afterwards.
+ */
+export class NeedsPasswordConfirmation extends Error {
+  constructor() {
+    super('Password confirmation required')
+    this.name = 'NeedsPasswordConfirmation'
+  }
+}
+
+/**
  * What the server embedded in the document it rendered.
  *
  * Read from an inert `<script type="application/json">` rather than from a global
@@ -149,6 +169,7 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
   })
 
   if (response.status === 401) throw new Unauthenticated()
+  if (response.status === 423) throw new NeedsPasswordConfirmation()
 
   // 204 has no body, and `JSON.parse('')` throws.
   const text = await response.text()

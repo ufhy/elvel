@@ -104,6 +104,35 @@ describe('Vite tags', () => {
     }
   })
 
+  test('a stylesheet two entries share is found in the chunk they share', async () => {
+    /**
+     * The failure this prevents is silent. Rollup hoists a stylesheet imported by
+     * more than one entry into a shared chunk, so both entries come back with
+     * `css: []` and the page renders as unstyled HTML with nothing in the console.
+     * Measured the first time an application had two entries.
+     */
+    const root = await build({
+      'build/manifest.json': JSON.stringify({
+        'src/main.ts': { file: 'assets/main-abc.js', imports: ['_style-xyz.js'] },
+        'src/auth.ts': { file: 'assets/auth-def.js', imports: ['_style-xyz.js'] },
+        '_style-xyz.js': { file: 'assets/style-xyz.js', css: ['assets/style-123.css'] }
+      })
+    })
+
+    try {
+      const vite = new Vite({ publicPath: root })
+
+      for (const entry of ['src/main.ts', 'src/auth.ts']) {
+        const tags = vite.tags(entry)
+
+        expect<boolean>(tags.includes('/build/assets/style-123.css')).toBe(true)
+        expect<boolean>(tags.indexOf('.css') < tags.indexOf('.js')).toBe(true)
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test('the manifest is found where Vite 5 puts it, too', async () => {
     // A project that set `manifest: true` rather than naming the file has it at
     // `.vite/manifest.json`; before this, that project rendered no tags at all

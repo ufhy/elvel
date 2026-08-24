@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path'
 type ManifestChunk = {
   file: string
   css?: string[]
+  /** Chunks this one pulls in — where a shared stylesheet ends up. */
+  imports?: string[]
   integrity?: string
 }
 
@@ -146,7 +148,7 @@ export class Vite {
 
       // Stylesheets first, so the page does not paint unstyled while the
       // module graph loads.
-      for (const stylesheet of chunk.css ?? []) {
+      for (const stylesheet of this.stylesheetsFor(entry, manifest)) {
         tags.push(this.tagFor(this.asset(stylesheet), stylesheet))
       }
 
@@ -199,6 +201,42 @@ export class Vite {
   /** The public URL of a built file, by its manifest key. */
   asset(file: string): string {
     return `/${[this.options.buildDirectory ?? 'build', file].join('/').replace(/^\/+/, '')}`
+  }
+
+  /**
+   * Every stylesheet an entry needs, including the ones it does not own.
+   *
+   * `chunk.css` alone is not the answer, and the failure is silent: with **two
+   * entries importing the same stylesheet**, Rollup hoists it into a shared chunk,
+   * both entries come back with `css: []`, and the page renders as unstyled HTML
+   * with nothing in the console. Measured the moment areas gave this kit a second
+   * entry — `src/main.ts` and `src/auth.ts` both empty, the CSS sitting under
+   * `_style-DBiwHCGr.js`.
+   *
+   * So the import graph is walked. Laravel's plugin does the same, for the same
+   * reason. Depth-first and deduplicated, so a stylesheet two entries share is
+   * linked once and in the order the graph reaches it.
+   */
+  private stylesheetsFor(
+    entry: string,
+    manifest: Record<string, ManifestChunk>,
+    seen: Set<string> = new Set()
+  ): string[] {
+    if (seen.has(entry)) return []
+
+    seen.add(entry)
+
+    const chunk = manifest[entry]
+
+    if (!chunk) return []
+
+    const sheets = [...(chunk.css ?? [])]
+
+    for (const imported of chunk.imports ?? []) {
+      sheets.push(...this.stylesheetsFor(imported, manifest, seen))
+    }
+
+    return [...new Set(sheets)]
   }
 
   private tagFor(url: string, name: string, integrity?: string): string {

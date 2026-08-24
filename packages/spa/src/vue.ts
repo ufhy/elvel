@@ -27,6 +27,20 @@ export type FormOptions = {
 
   /** Everything the server answered, redirect included. */
   onSuccess?: (payload: Record<string, unknown>) => void
+
+  /**
+   * Where the CSRF token comes from, when it does not come from the document.
+   *
+   * `call()` reads it from the embedded payload by default, and a **shell** carries
+   * none — a token is per session, and a document carrying one would be per session
+   * too, which is the cacheability a shell exists for. So an application on a shell
+   * fetches the token (`GET /api/session`, usually) and hands it over here.
+   *
+   * A function rather than a string, because it is read per submission: signing in
+   * rotates the session id and the token rotates with it, so a value captured when
+   * the form was created is the wrong one by the time it submits.
+   */
+  token?: () => string
 }
 
 export type Form<T> = {
@@ -110,7 +124,9 @@ export function useForm<T extends Record<string, unknown>>(
          * No prefix. `/sign-in` and `/settings/profile` are the same addresses a
          * browser would navigate to, and a form posts to the address it names.
          */
-        prefix: ''
+        prefix: '',
+        // Read now, not when the form was created: signing in rotates the token.
+        ...(options.token === undefined ? {} : { token: options.token() })
       })
 
       const to = payload.redirect
