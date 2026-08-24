@@ -9,6 +9,7 @@ import {
   ValidationError,
   Validator
 } from '@elvel/validation'
+import { expectsJson } from './negotiation.ts'
 import { redirect } from './redirect.ts'
 import { RedirectException } from './redirect-exception.ts'
 
@@ -187,36 +188,11 @@ export abstract class FormRequest {
   /**
    * Does this caller want JSON, or is it a browser posting a form?
    *
-   * Getting this wrong is not cosmetic in either direction — an API would receive
-   * a 302 it cannot follow, and a form would receive a 422 it cannot show — so the
-   * decision reads four signals rather than one:
-   *
-   * 1. `X-Requested-With: XMLHttpRequest` — how a `fetch()` from a page says it is
-   *    not navigating.
-   * 2. `Accept` naming JSON.
-   * 3. A **JSON request body**. A browser form posts `x-www-form-urlencoded` or
-   *    `multipart/form-data` and can post nothing else; anything sending JSON is a
-   *    client. This is the signal that was missing when the playground's API routes
-   *    started being redirected instead of answered.
-   * 4. No `Accept` at all, which no browser omits.
-   *
-   * Otherwise: a caller that accepts HTML — or anything, `*&#47;*` — is treated as a
-   * browser, which is Laravel's reading too.
+   * The rule itself lives in `negotiation.ts`, because `Redirect` needs the same
+   * answer. Kept as a method so a request class can still override it.
    */
   protected expectsJson(): boolean {
-    const headers = this.context.headers ?? {}
-    const header = (name: string) => headers[name] ?? this.context.request?.headers.get(name) ?? ''
-
-    if (header('x-requested-with').toLowerCase() === 'xmlhttprequest') return true
-
-    const accept = header('accept')
-    if (accept.includes('application/json')) return true
-
-    if (header('content-type').includes('application/json')) return true
-
-    if (accept === '') return true
-
-    return !accept.includes('text/html') && !accept.includes('*/*')
+    return expectsJson(this.context)
   }
 
   /** The validated payload. Available after `validateResolved()`. */

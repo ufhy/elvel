@@ -373,3 +373,87 @@ describe('named routes', () => {
     ).not.toThrow()
   })
 })
+
+describe('a redirect a client cannot follow', () => {
+  /**
+   * A client-routed application posts with `fetch`, which follows a 302 silently
+   * and lands on a document — while the messages the form needed went into a flash
+   * that document consumed. The form comes back blank with nothing said. So the
+   * same builder answers a caller that asked for JSON differently.
+   */
+  const asClient = <T>(body: () => T): T => inRequest(body, { accept: 'application/json' })
+
+  test('flashed errors arrive as a 422, in the shape the exception handler uses', async () => {
+    const response = await asClient(() =>
+      redirect('/sign-in')
+        .withErrors({ email: 'Those details did not match.' })
+        .withInput({ email: 'someone@example.com' })
+        .toResponse()
+    )
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({
+      message: 'Those details did not match.',
+      errors: { email: ['Those details did not match.'] }
+    })
+  })
+
+  test('and nothing is written to the session', async () => {
+    // A flash is read by the next document, and this caller renders none. Left
+    // behind, it lights up whatever form a later navigation happens to reach.
+    await asClient(() => redirect('/sign-in').withErrors({ email: 'No.' }).toResponse())
+
+    expect(inRequest(() => errors().isEmpty())).toBe(true)
+    expect(inRequest(() => hasOld('email'))).toBe(false)
+  })
+
+  test('a successful redirect becomes somewhere for the client to route to', async () => {
+    const response = await asClient(() => redirect('/dashboard').seeOther().toResponse())
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ redirect: '/dashboard' })
+  })
+
+  test('other flashes come along by their own key', async () => {
+    const response = await asClient(() =>
+      redirect('/settings/profile').with('status', 'Saved.').toResponse()
+    )
+
+    expect(await response.json()).toEqual({ redirect: '/settings/profile', status: 'Saved.' })
+  })
+
+  test('a named bag collapses — one form has no second form to confuse', async () => {
+    const response = await asClient(() =>
+      redirect('/sign-in').withErrors({ email: 'No.' }, 'signIn').toResponse()
+    )
+
+    expect(response.status).toBe(422)
+    expect((await response.json()).errors).toEqual({ email: ['No.'] })
+  })
+
+  test('an XMLHttpRequest counts, even accepting anything', async () => {
+    const response = await inRequest(() => redirect('/dashboard').toResponse(), {
+      accept: '*/*',
+      'x-requested-with': 'XMLHttpRequest'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  test('a browser still gets the redirect', async () => {
+    const response = await inRequest(() => redirect('/dashboard').toResponse(), {
+      accept: 'text/html,application/xhtml+xml'
+    })
+
+    expect(response.status).toBe(302)
+  })
+
+  test('and so does a request that says nothing at all', async () => {
+    /**
+     * Silence is read as a browser here, unlike in validation. A `Request` built
+     * without headers is a test, an internal dispatch or a health probe — and
+     * answering those with JSON turned 29 redirects into payloads nobody followed.
+     */
+    expect((await inRequest(() => redirect('/dashboard').toResponse())).status).toBe(302)
+  })
+})

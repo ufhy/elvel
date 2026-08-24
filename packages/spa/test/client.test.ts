@@ -165,3 +165,25 @@ describe('what an answer means', () => {
     await expect(call('/invoices')).rejects.toThrow('The database is on fire.')
   })
 })
+
+describe('where a call is addressed', () => {
+  test('under /api by default, because that is what answers a client with JSON', () => {
+    const seen = record()
+
+    void call('/invoices')
+
+    expect(seen.url).toBe('/api/invoices')
+  })
+
+  test('and nowhere in particular when the prefix is cleared', () => {
+    const seen = record()
+
+    /**
+     * A form posts to the address it names. `/sign-in` and `/settings/profile` are
+     * the same addresses a browser navigates to — prefixing them would 404.
+     */
+    void call('/sign-in', { method: 'POST', body: {}, prefix: '' })
+
+    expect(seen.url).toBe('/sign-in')
+  })
+})

@@ -79,6 +79,16 @@ export type CallOptions = {
 
   /** Overrides the token from the document — for a shell, which carries none. */
   token?: string
+
+  /**
+   * What goes in front of `path`. `/api` unless you say otherwise.
+   *
+   * The default is the prefix `config/spa.ts` hands the exception handler, so a
+   * 401 there arrives as JSON rather than as the document. Auth and settings do
+   * **not** live under it — `/sign-in` and `/settings/profile` are the addresses a
+   * browser navigates to as well — so a form posting to one passes `prefix: ''`.
+   */
+  prefix?: string
 }
 
 /**
@@ -100,7 +110,9 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
    */
   const token = options.token ?? embedded().csrf
 
-  const response = await fetch(`/api${path}${query === '' ? '' : `?${query}`}`, {
+  const prefix = options.prefix ?? '/api'
+
+  const response = await fetch(`${prefix}${path}${query === '' ? '' : `?${query}`}`, {
     method,
     /**
      * No `Authorization` header anywhere in this file, and that is the point.

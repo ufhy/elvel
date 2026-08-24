@@ -1,5 +1,6 @@
 import { app } from '@elvel/core'
 import { BAGGED, DEFAULT_BAG, ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
+import { expectsJson } from './negotiation.ts'
 import { currentScope } from './scope.ts'
 
 /** Session key holding where a guest was going before being sent to sign in. */
@@ -190,11 +191,84 @@ export class Redirect {
    * Both were found by driving the form over the network rather than by reading it.
    */
   async toResponse(persist = false): Promise<Response> {
+    if (expectsJson(undefined, { whenSilent: false })) return this.asJson()
+
     for (const [key, value] of this.flashes) this.session?.flash(key, value)
 
     if (persist) await this.session?.save()
 
     return new Response(null, { status: this.status, headers: { location: this.target } })
+  }
+
+  /**
+   * The same redirect, for a caller that cannot follow one.
+   *
+   * A client-routed application posts its forms with `fetch`. A 302 there is worse
+   * than useless: `fetch` follows it silently, so the client receives 200 and a
+   * *document* — and the errors it needs are in a session flash that the document
+   * it never renders would have consumed. The form stays blank and nothing says
+   * why. This is that same redirect expressed as something a client can act on.
+   *
+   * Two shapes, matching what the exception handler already answers with so a
+   * client has one shape to handle rather than two:
+   *
+   * - errors flashed → **422** `{ message, errors }`, exactly a `ValidationError`
+   * - otherwise → **200** `{ redirect }`, plus any other flash by its own key, so
+   *   `.with('status', 'Saved')` arrives as `{ redirect, status: 'Saved' }`
+   *
+   * Nothing is written to the session. A flash is read by the *next* document, and
+   * this caller is not going to render one; leaving the errors behind would light
+   * up a form some later navigation happened to land on. The old input is dropped
+   * for the same reason and needs no replacement — the client still has what the
+   * user typed, in the fields they typed it into.
+   */
+  private asJson(): Response {
+    const bag = this.errorBag()
+
+    if (bag !== undefined) {
+      const first = Object.values(bag)[0]?.[0]
+
+      return Response.json(
+        { message: first ?? 'The given data was invalid.', errors: bag },
+        { status: 422 }
+      )
+    }
+
+    const body: Record<string, unknown> = { redirect: this.target }
+
+    for (const [key, value] of this.flashes) {
+      if (key === ERRORS_KEY || key === OLD_INPUT_KEY) continue
+
+      body[key] = value
+    }
+
+    return Response.json(body)
+  }
+
+  /**
+   * The flashed errors as one flat bag, or nothing.
+   *
+   * The last flash wins, because `withErrors` already merged what came before it.
+   * Named bags collapse to the default one: a bag exists so two forms on one page
+   * can keep their messages apart, and a client posting a single form has no
+   * second form to confuse.
+   */
+  private errorBag(): Record<string, string[]> | undefined {
+    let found: Record<string, unknown> | undefined
+
+    for (const [key, value] of this.flashes) {
+      if (key === ERRORS_KEY) found = value as Record<string, unknown>
+    }
+
+    if (found === undefined) return undefined
+
+    if (BAGGED in found) {
+      const bags = found[BAGGED] as Record<string, Record<string, string[]>>
+
+      return bags[DEFAULT_BAG] ?? Object.values(bags)[0] ?? {}
+    }
+
+    return found as Record<string, string[]>
   }
 
   /**

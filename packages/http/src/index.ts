@@ -85,6 +85,7 @@ export {
   middlewareNamesOf,
   middlewares
 } from './middleware.ts'
+export { expectsJson, type Negotiable } from './negotiation.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
   AWS_ELB_HEADERS,
