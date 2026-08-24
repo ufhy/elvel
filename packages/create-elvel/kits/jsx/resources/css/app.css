@@ -5,11 +5,26 @@
  * it alongside the server, `bun run build` ships it.
  *
  * There is no `tailwind.config.js`: v4 configures itself from CSS, and finds
- * class names by scanning every text file in the project. `.tsx` views are
+ * class names by scanning every text file it is pointed at. `.tsx` views are
  * included, because it reads files as text rather than parsing them.
- */
+ *
+ * `source("../")` is not decoration: it pins where Tailwind looks for class names
+ * to `resources/`, which is where every one of them is. Without it Tailwind decides
+ * the scope itself and reaches outside the application — a cold `bun run dev` took
+ * **108 seconds** to serve this file, and the build **40.8s**, against **2.4s** and
+ * **1.6s** pinned. It also generated 478 utilities nothing here uses, 34 kB of
+ * them, because other projects in the same folder tree mentioned them.
+ *
+ * Those numbers are a worst case — this was measured on an application scaffolded
+ * inside the framework's own repository, where the neighbours are other demos and
+ * kit templates. Yours has fewer. Pinning is still right: it makes the stylesheet
+ * depend on this application alone rather than on whatever sits beside it. Add a
+ * directory with `@source "../../wherever"` if classes ever live outside
+ * `resources/`.
+ *
+*/
 
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 
 /*
  * Dark mode from a class, not from the operating system.

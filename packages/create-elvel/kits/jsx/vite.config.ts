@@ -22,11 +22,16 @@ export default {
      * included, because it reads them as text rather than parsing them — so
      * there is no `content` list to keep in step with where the views live.
      *
-     * One consequence worth knowing: it **skips anything `.gitignore` covers**.
-     * An application scaffolded inside the Elvel repository lands under an
-     * ignored directory, so its own views are invisible to Tailwind and the
-     * stylesheet comes out nearly empty. Outside the repository — which is every
-     * real application — there is nothing to do.
+     * Where it looks is pinned in `resources/css/app.css`, with
+     * `@import "tailwindcss" source("../")`, and that line is worth the trouble of
+     * understanding. Left to choose for itself, Tailwind reached outside the
+     * application: a cold `bun run dev` took 108 seconds to serve the stylesheet
+     * against 2.4 pinned, and generated 34 kB of utilities nothing here uses.
+     *
+     * An earlier version of this comment claimed the opposite — that a scaffold
+     * inside the Elvel repository is invisible to Tailwind because `.gitignore`
+     * covers it, and comes out nearly empty. Measured, it is not: the views were
+     * found, and so was a great deal else.
      */
     tailwindcss(),
 
