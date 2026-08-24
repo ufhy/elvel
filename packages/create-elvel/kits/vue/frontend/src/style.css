@@ -1,16 +1,32 @@
 /*
- * The stylesheet, as `shadcn-vue init` wrote it — with two deliberate changes.
+ * The stylesheet, as `shadcn-vue init` wrote it — with three deliberate changes.
  *
  * Everything below the imports is generated: the `reka-nova` style on a neutral
  * base, in oklch. Leave it be. Adding `bunx shadcn-vue add <component>` later
  * expects to find these tokens exactly as they are, and hand-editing one of them
  * is how a component arrives looking wrong for no visible reason.
  *
- * The two changes, both about the font:
+ * Three changes — one about where Tailwind looks, two about the font:
  *
- * 1. **fonts.bunny.net, not fonts.googleapis.com.** A drop-in mirror that sets no
+ * 1. **`source("./")` on the Tailwind import.** Without it Tailwind chooses where
+ *    to look for class names itself, and it looks outside the application: a cold
+ *    `bun run dev` took **14.3s** to serve this file against **3.1s** pinned, and
+ *    the build **8.4s** against **1.7s**. The stylesheet came out 41 kB larger too
+ *    — 490 utilities this application never uses, generated because some other
+ *    project in the same folder tree mentioned them.
+ *
+ *    Those numbers are a worst case: they were measured on an application
+ *    scaffolded *inside* the framework's own repository, where the neighbours are
+ *    other demos and kit templates. Yours will have fewer. Pinning is still the
+ *    right answer, because it makes the stylesheet depend on this application
+ *    alone rather than on whatever happens to sit beside it.
+ *
+ *    `./` is relative to this stylesheet, so it means `frontend/src` — and nothing
+ *    outside it carries a class, `index.html` included. Add a directory with
+ *    `@source "../wherever"` if that stops being true.
+ * 2. **fonts.bunny.net, not fonts.googleapis.com.** A drop-in mirror that sets no
  *    cookies and logs no IPs. Laravel's starter kits use it for the same reason.
- * 2. **`Geist`, not `Geist Variable`.** That is the family name bunny serves it
+ * 3. **`Geist`, not `Geist Variable`.** That is the family name bunny serves it
  *    under; the generated name resolves to nothing and every heading silently
  *    falls back to `sans-serif`.
  *
@@ -22,7 +38,7 @@
 
 @import url('https://fonts.bunny.net/css?family=geist:400,500,600,700');
 
-@import "tailwindcss";
+@import "tailwindcss" source("./");
 @import "tw-animate-css";
 @import "shadcn-vue/tailwind.css";
 
