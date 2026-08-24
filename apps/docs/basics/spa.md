@@ -109,6 +109,56 @@ Four things every request needs, decided once:
 It imports nothing — not from the framework, and not from Vue, React or Svelte. It
 is the same module whichever of those you chose.
 
+Two options are worth knowing:
+
+- `prefix` is `/api` unless you clear it. That default is the prefix
+  `spa.apiPrefixes` hands the exception handler, so a 401 there arrives as JSON
+  rather than as the document. Auth and settings are **not** under it — `/sign-in`
+  and `/settings/profile` are addresses a browser navigates to as well — so a form
+  posting to one passes `prefix: ''`.
+- `token` overrides the CSRF token read from the document, for a shell that carries
+  none.
+
+## Forms
+
+A form is where the client half and the server half have to agree, so the
+agreement ships with the framework rather than being written per application:
+
+```ts
+import { useForm } from '@elvel/spa/vue'
+
+const form = useForm({ email: '', password: '' }, { onRedirect: (to) => router.push(to) })
+
+form.post('/sign-in')
+```
+
+```vue
+<input v-model="form.data.email" />
+<p v-if="form.errors.email">{{ form.errors.email }}</p>
+<button :disabled="form.processing">Sign in</button>
+```
+
+- `form.data` holds the fields, and they stay under `data` rather than being
+  hoisted onto the form. Hoisting reads better right up until an application has a
+  field called `errors` or `post`, and then it shadows the form's own — a bug whose
+  symptom is a submit button that does nothing.
+- `form.errors` is **one message per field**, which is what fits under an input.
+  The server sends all of them; `Invalid.errors` from `call()` still carries the
+  rest for a summary.
+- `form.processing` is true in flight and false afterwards *even when refused* —
+  set in a `finally`, so a 422 cannot leave the button disabled forever.
+- Errors clear **before** the request, not after. A field the server no longer
+  objects to has to stop being red, and that is the only certain moment.
+- `post`, `put`, `patch`, `delete`, plus `reset(...fields)` and
+  `clearErrors(...fields)`.
+- A **422 is an answer**, not a failure: `post()` resolves with `undefined` and
+  fills `errors`. Anything else throws, `Unauthenticated` included — what a
+  signed-out session means is the router's decision, not a form's.
+- `onRedirect` is where navigation happens, and the package does not guess it.
+  Signing in might mean the dashboard or a two-factor challenge, and only the
+  server knows which; reaching for `location.assign` would throw away the client
+  routing that made this a client in the first place.
+
 ## A shell, when the application has to be installable
 
 ```ts

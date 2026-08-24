@@ -85,7 +85,19 @@ Four things that follow from it:
 - **A browser is redirected; a client asking for JSON gets the 422 and the bag.**
   Asking counts as an `Accept` header, `X-Requested-With`, *or sending a JSON
   body* — a client that posts JSON and gets an HTML redirect has been handed a
-  parse error instead of an error message.
+  parse error instead of an error message. This holds for a redirect you built by
+  hand as well, not only for a form request: `redirect().withErrors(...)` answers
+  such a caller 422 `{ message, errors }` and writes nothing to the session, since
+  a flash is read by the next document and that caller renders none. On success it
+  answers `{ redirect }` for a router to act on, plus any other flash by its own
+  key.
+
+  The two disagree on one point, deliberately. A request with **no `Accept` at
+  all** is read as a client by validation — no browser omits the header — and as a
+  browser by a redirect, which is Laravel's reading. What is at stake decides it:
+  a `Request` built without headers is a test, an internal dispatch or a health
+  probe, and answering those with JSON silently breaks every redirect they rely
+  on.
 - `password`, `password_confirmation`, `current_password`, `token` and uploads are
   **never flashed**, at any depth.
 - Flash data survives exactly one further request, so nothing has to clean up.

@@ -217,6 +217,19 @@ Four things to know about the form loop:
   signals: `X-Requested-With`, `Accept`, a **JSON request body**, and no `Accept` at
   all. The body signal was missing at first, and the playground's API routes started
   receiving redirects they could not follow.
+- **Silence means opposite things to validation and to a redirect**, and that is
+  deliberate. A request with no `Accept` header at all is read as a client by
+  `FormRequest` — no browser omits it — and as a browser by `Redirect`, which is
+  Laravel's own reading. What is at stake decides it: a `Request` built without
+  headers is a test, an internal dispatch or a health probe, and reading those as
+  clients turned 29 redirects into JSON payloads nobody followed. The rule lives in
+  one place, `negotiation.ts`, with the difference passed in as `whenSilent`.
+- **A hand-built redirect negotiates too, and writes nothing to the session when it
+  does.** `fetch` follows a 302 silently and lands on a document whose flash it
+  never renders, so the form comes back blank with nothing said — which is why
+  `redirect().withErrors(...)` answers a JSON caller 422 `{ message, errors }`
+  instead. The flash is skipped rather than merely unused: left behind, it lights up
+  whatever form a later navigation happens to reach.
 - **A thrown redirect must persist the session; a returned one must not.**
   `onAfterHandle` is what saves, and it does not run on the error path — so a thrown
   redirect saves before throwing. Doing both saves the session twice, which ages the
