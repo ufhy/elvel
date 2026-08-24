@@ -135,10 +135,13 @@ describe('the state a button binds to', () => {
   test('processing is true in flight and false after, even when refused', async () => {
     let release: (() => void) | undefined
 
+    // `as unknown as` because this stub takes no arguments at all: a `fetch` that
+    // ignores its input does not overlap with the real signature closely enough
+    // for a direct assertion, and `preconnect` is the property TS names.
     globalThis.fetch = (() =>
       new Promise<Response>((resolve) => {
         release = () => resolve(new Response('{}', { status: 422 }))
-      })) as typeof fetch
+      })) as unknown as typeof fetch
 
     const form = useForm({ email: '' })
 

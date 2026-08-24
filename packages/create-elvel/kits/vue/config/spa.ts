@@ -31,5 +31,14 @@ export default {
   embed: env('SPA_EMBED', true),
 
   /** A 404 under these answers for itself rather than with the document. */
-  apiPrefixes: ['/api/']
+  apiPrefixes: ['/api/'],
+
+  /**
+   * Markup every document carries in its `<head>`, after the asset tags.
+   *
+   * Here rather than on each `document()` call: the document a 404 renders comes
+   * from the exception handler, which has no call to hang options on — so an icon
+   * named at the call site reached the dashboard and no other page.
+   */
+  head: env('SPA_HEAD', '<link rel="icon" href="/favicon.svg" type="image/svg+xml" />')
 }

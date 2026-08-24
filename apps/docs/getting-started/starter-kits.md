@@ -5,8 +5,9 @@ Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and ea
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
 `auth` is the same pages without Tailwind; `vue` puts a Vite + Vue client behind
-those pages; `none` and `api` are closer to variants of one template. Two-factor
-authentication and passkeys are in all three auth kits. No teams.
+those pages, with **shadcn-vue** and a collapsible sidebar; `none` and `api` are
+closer to variants of one template. Two-factor authentication and passkeys are in
+all three auth kits. No teams.
 
 One difference worth knowing before you pick: Laravel's Vue kit renders *every*
 page through Inertia, including sign-in. Ours leaves the auth pages server
@@ -38,7 +39,7 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 | `api` | 55 | 16 | 1 |
 | `auth` | 87 | 17 | 15 |
 | `jsx` | 100 | 17 | 16 |
-| `vue` | 100 | 18 | 15 + a Vue client |
+| `vue` | 208 | 18 | 14 + a Vue client |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -78,7 +79,10 @@ resources/js/
 
 A component set, not a component library. These are the pieces these sixteen
 pages actually use, they live in your application, and you edit them — there is
-no `npx shadcn add` and nothing to eject from.
+nothing to eject from. Nor is there a CLI to add the twentieth: this set is
+hand-written for these pages, which is the trade against the `vue` kit's
+shadcn-vue, where `bunx shadcn-vue add dialog` writes a new component for you and
+ninety files arrive whether you touch them or not.
 
 Three of them read the request rather than taking props, for the same reason
 Laravel's kits reach for a hook:
@@ -242,9 +246,31 @@ my-app/
 ├── resources/views/           the auth pages, server rendered
 └── frontend/                  a `bun create vite` project
     ├── package.json           vue, vue-router, vite — its own
-    ├── vite.config.ts         `vue()` and `elvel()`
-    └── src/main.ts            the client
+    ├── components.json        so `bunx shadcn-vue add …` works here
+    ├── vite.config.ts         `vue()`, `tailwindcss()` and `elvel()`
+    └── src/
+        ├── main.ts            the client
+        ├── style.css          Tailwind v4 + the shadcn theme, in oklch
+        ├── components/ui/     90 files, written by `shadcn-vue init`
+        ├── layouts/           the frame a signed-in page sits in
+        └── views/             the pages the router owns
 ```
+
+Those 90 files are what shadcn is: components live **in** your project, not behind
+a version number, so changing one is editing a file. `components.json` is what
+makes the CLI keep working — `bunx shadcn-vue add dialog` writes beside them and
+matches their style.
+
+::: warning The client project pins classic TypeScript
+`typescript@5` and `vue-tsc`, not the framework's TypeScript 7 — and it is not a
+preference. `defineProps<SidebarProps>()` extends a type imported from `reka-ui`,
+and to read it the SFC compiler needs TypeScript's own module resolution: *"
+TypeScript is required as a peer dep for vue in order to support resolving types
+from module imports."* TypeScript 7 is a native binary no JavaScript runtime can
+import, so `ts.sys` comes back empty and the build fails once per component with
+typed props. It buys something back: `vue-tsc` runs, so props are checked across a
+`.vue` boundary.
+:::
 
 `frontend/` is an ordinary Vite project. Every Vite tutorial, upgrade guide and
 plugin applies to it verbatim, because there is nothing framework-specific in it
@@ -270,6 +296,10 @@ reload on `/dashboard/reports` boots the same application from the same data.
 What it costs: two rendering models in one application, and a full page load when
 you submit the sign-in form. What it buys: fourteen auth screens you do not
 maintain in two places, and no protocol between client and server.
+
+This is the half that is changing: the auth screens are being rewritten as Vue
+pages so the kit has one view layer rather than two. Until then it ships fourteen
+`.tsx` pages it did not write.
 
 ::: tip It is one Vite project, not two
 `frontend/vite.config.ts` builds both entries — `src/main.ts` for the client, and

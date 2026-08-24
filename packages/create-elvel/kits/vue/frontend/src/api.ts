@@ -20,6 +20,16 @@ export type User = { id: string; name: string; email: string }
 /** Who the document was rendered for, without asking the server again. */
 export const currentUser = (): User | null => (page as { user?: User | null }).user ?? null
 
+/**
+ * The application's name, as the server knows it.
+ *
+ * Sent in the payload rather than written here, because a `.vue` file is copied
+ * byte-for-byte by the scaffolder: it cannot carry a `{{ name }}` placeholder,
+ * since that is Vue's own interpolation syntax. So renaming the application is one
+ * edit in `.env`.
+ */
+export const appName = (): string => (page as { app?: string }).app ?? 'Elvel'
+
 /** The token every write sends back, from the document the server rendered. */
 export const csrf = (): string => (page as { csrf?: string }).csrf ?? ''
 

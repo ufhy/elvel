@@ -310,6 +310,10 @@ async function main(): Promise<number> {
     // kit built on another copies that one first.
     for (const layer of entry?.layers ?? [kit as string]) {
       written += await copyTemplate(join(KITS_DIR, layer), target, replacements)
+
+      // After its own copy, so a layer can drop what the layers under it left
+      // behind without having to avoid naming its own files.
+      written -= await applyLayerRemovals(layer, target)
     }
 
     await registerKitRoutes(target, entry?.routes ?? [])
@@ -595,6 +599,54 @@ async function frameworkDependencies(workspaceMode: boolean): Promise<Replacemen
   const entries = FRAMEWORK_PACKAGES.map((name) => [`dep_${name}`, range])
 
   return Object.fromEntries(entries) as Replacements
+}
+
+/**
+ * Files a layer deletes, named in its `manifest.json` as `removes`.
+ *
+ * Layering is additive, and that is usually the point — a kit carries only what it
+ * changes. But a kit can also be *smaller* than what it builds on: the Vue kit
+ * renders its auth screens in the client, so the `auth` layer's `.tsx` pages
+ * underneath it are files nobody chose, one of which is never even rendered.
+ * Shipping them is not harmless — a developer opens `resources/views/pages/auth/`,
+ * edits a page, and nothing changes on screen.
+ *
+ * Only `removes` deletes anything, and only inside the target. A layer is repo
+ * content rather than user input, but a path that climbs out of the target would
+ * delete somebody's files, and a guard is cheaper than being sure forever.
+ */
+async function applyLayerRemovals(layer: string, target: string): Promise<number> {
+  const file = Bun.file(join(KITS_DIR, layer, 'manifest.json'))
+
+  if (!(await file.exists())) return 0
+
+  const { removes } = (await file.json()) as { removes?: string[] }
+
+  let removed = 0
+
+  for (const path of removes ?? []) {
+    const full = join(target, path)
+
+    if (isAbsolute(path) || relative(target, full).startsWith('..')) {
+      throw new Error(`Kit layer "${layer}" tried to remove "${path}", which is outside the app.`)
+    }
+
+    if (!(await Bun.file(full).exists()) && !(await directoryExists(full))) continue
+
+    await rm(full, { recursive: true, force: true })
+    removed += 1
+  }
+
+  return removed
+}
+
+/** `Bun.file().exists()` answers false for a directory, which is not the question. */
+async function directoryExists(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory()
+  } catch {
+    return false
+  }
 }
 
 async function copyTemplate(

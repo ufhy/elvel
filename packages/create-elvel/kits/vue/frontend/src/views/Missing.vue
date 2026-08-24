@@ -1,23 +1,27 @@
-<template>
-  <section>
-    <h1>No such page</h1>
+<script setup lang="ts">
+import { Button } from '@/components/ui/button'
 
-    <p class="muted">
-      The server answered with the application because it cannot know which
-      addresses this router owns — so saying "no such page" is the router's job.
+/**
+ * The client's own 404.
+ *
+ * The server answers every unknown path with the document, because it cannot know
+ * which paths this router owns. So the router has to be the one to say "no such
+ * page", and it needs a page to say it with.
+ */
+</script>
+
+<template>
+  <div class="flex min-h-svh flex-col items-center justify-center gap-4 p-6 text-center">
+    <p class="text-muted-foreground text-sm font-medium">404</p>
+    <h1 class="text-2xl font-semibold tracking-tight">No such page</h1>
+
+    <p class="text-muted-foreground max-w-sm text-sm">
+      The server answered with the application, and the router found nothing at this
+      address.
     </p>
 
-    <RouterLink to="/dashboard">Back to the dashboard</RouterLink>
-  </section>
+    <Button as-child variant="outline">
+      <RouterLink to="/dashboard">Back to the dashboard</RouterLink>
+    </Button>
+  </div>
 </template>
-
-<style scoped>
-h1 {
-  font-size: 1.5rem;
-  margin: 0 0 1rem;
-}
-
-.muted {
-  color: var(--muted);
-}
-</style>

@@ -3,8 +3,16 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+
+    // The alias shadcn-vue writes its imports through. It has to agree with
+    // `resolve.alias` in `vite.config.ts`, or the editor and the bundler disagree.
+    //
+    // No `baseUrl`: TypeScript 7 removed it — `TS5102` — and `paths` now resolves
+    // relative to this file, which is what it meant here anyway.
+    "paths": { "@/*": ["./src/*"] },
+
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
 
     "jsx": "preserve",
     "strict": true,
@@ -13,7 +21,24 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+
+    // `./router.ts` — the extension is written, because that is what Bun and Vite
+    // both resolve. Allowed rather than stripped, so one spelling works everywhere.
+    "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
+  /**
+   * `env.d.ts` is in here, and its absence was a bug.
+   *
+   * It holds the `declare module '*.vue'` shim, and without the file in `include`
+   * the compiler never read it — so every `.vue` import failed to resolve and
+   * `bun run typecheck` had never once passed in this project.
+   *
+   * That shim is also the ceiling: it types a component as
+   * `DefineComponent<{}, {}, unknown>`, so props are not checked across a `.vue`
+   * boundary. Checking them needs `vue-tsc`, which cannot run under TypeScript 7 —
+   * it imports `typescript/lib/tsc`, which no longer exists. When it can, add it
+   * and this shim goes.
+   */
+  "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts", "vite.config.ts"]
 }

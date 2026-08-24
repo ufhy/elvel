@@ -1646,6 +1646,57 @@ field keep their alert.
 `css.parser.tailwindDirectives`, or `bun run lint` goes red on a stylesheet that
 is correct.
 
+### Every document needs a `<head>`, and not every document has a caller
+
+`spa.head` in config, not an argument to `document()`. The document a 404 renders
+comes from the exception handler, which has no call site to hang options on — so a
+favicon named at the controller reached the dashboard and no other page, and the
+browser asked for `/favicon.ico` on every one of them. An option a caller can pass
+is not enough when one of the callers is the framework.
+
+### A layer can also take a file away
+
+Layering was additive only, and a kit can be *smaller* than what it builds on.
+`--kit=vue` renders its own dashboard, so the `auth` layer's `dashboard.tsx`
+underneath it was shipped and never rendered — a developer edits it and nothing
+changes on screen. `removes` in a layer's `manifest.json` deletes those, applied
+after that layer's own copy so it never has to avoid naming its own files. Paths
+that climb out of the target are refused rather than trusted.
+
+### shadcn-vue cannot be compiled without classic TypeScript
+
+Not a preference, and not fixable in config. A shadcn-vue component writes
+`defineProps<SidebarProps>()` where the type is imported from `reka-ui`, and for a
+**bare specifier** the SFC compiler has exactly one way to read that package:
+TypeScript's own module resolution. Its own message says so — *"TypeScript is
+required as a peer dep for vue in order to support resolving types from module
+imports."*
+
+TypeScript 7 is a native binary no JavaScript runtime can import, so `ts.sys`
+comes back empty and the build fails once per component with typed props — 23
+errors. Passing `script.fs` to `@vitejs/plugin-vue` covers *relative* imports and
+gets no further; there is no filesystem-only path for a package. So the client
+project pins `typescript@5` and `vue-tsc` in its own devDependencies, separate
+from the application's. The same root cause is why `vue-tsc` cannot run in a
+TypeScript 7 project at all.
+
+### A `.vue` shim in `env.d.ts` that nothing read
+
+The Vue kit shipped `declare module '*.vue'` and `bun run typecheck` had never
+once passed in that project: `include` listed `src/**/*.ts`, `src/**/*.vue` and
+`vite.config.ts`, and not `env.d.ts`, so the compiler never read the shim. Worth
+knowing in both directions — the shim also types every component as
+`DefineComponent<{}, {}, unknown>`, so with `vue-tsc` present it hides the props
+it was there to describe.
+
+### `.vue` files are copied byte-for-byte, and have to be
+
+`SUBSTITUTABLE` covers `.json`, `.ts`, `.md`, `.example`, `.txt` and extensionless
+files — not `.vue`, because `{{ name }}` is Vue's interpolation syntax as well as
+the scaffolder's placeholder. So a component cannot carry the application's name;
+the server sends it in the SPA payload instead, which is better anyway — renaming
+the application is one edit in `.env` rather than a search through the client.
+
 ## Inside the checkout is not the same as inside a workspace
 
 The scaffolder treated any target under the framework checkout as a workspace

@@ -72,7 +72,16 @@ export class Spa {
         entry: config<string>('spa.entry', 'src/main.ts'),
         mountId: config<string>('spa.mountId', 'app'),
         title: options.title ?? config<string>('spa.title', ''),
-        head: options.head,
+        /**
+         * The application's own `<head>` markup, from config when a caller says
+         * nothing.
+         *
+         * Every document needs it, and not every document is returned by a
+         * controller: the exception handler renders one for any unknown path, and it
+         * has no options to pass. With this only on the call, a favicon reached the
+         * dashboard and nothing else.
+         */
+        head: options.head ?? config<string>('spa.head', ''),
         payload
       },
       {

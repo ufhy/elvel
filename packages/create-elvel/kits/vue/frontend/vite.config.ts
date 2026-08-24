@@ -1,4 +1,7 @@
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import elvel from '@elvel/vite'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 
 /**
@@ -14,7 +17,41 @@ import vue from '@vitejs/plugin-vue'
  */
 export default {
   plugins: [
+    /**
+     * Vue, and the reason this project pins classic TypeScript.
+     *
+     * `defineProps<SidebarProps>()` in a shadcn-vue component extends a type
+     * imported from `reka-ui`, and the SFC compiler has to read that package to
+     * find it. For a bare specifier it has exactly one way to do that — TypeScript's
+     * own module resolution — and it says so: *"TypeScript is required as a peer dep
+     * for vue in order to support resolving types from module imports."* There is no
+     * filesystem-only path; passing `script.fs` covers relative imports and nothing
+     * else.
+     *
+     * The framework runs on TypeScript 7, which is a native binary no JavaScript
+     * runtime can import — so `ts.sys` comes back empty and the build fails with 23
+     * errors, one per component with typed props. Hence `typescript@5` and `vue-tsc`
+     * in *this* project's devDependencies, separate from the application's. It buys
+     * something back, too: `vue-tsc` runs, so props are checked across a `.vue`
+     * boundary rather than shimmed away.
+     */
     vue(),
+
+    /**
+     * Tailwind v4, as its own Vite plugin rather than through PostCSS.
+     *
+     * It finds class names by scanning every text file from here down — `.vue`
+     * included, because it reads them as text rather than parsing them — so there
+     * is no `content` list to keep in step with where the components live.
+     *
+     * One consequence worth knowing: it **skips anything `.gitignore` covers**. An
+     * application scaffolded inside the Elvel repository lands under an ignored
+     * directory, so its own components are invisible to Tailwind and the stylesheet
+     * comes out nearly empty. Outside the repository — which is every real
+     * application — there is nothing to do.
+     */
+    tailwindcss(),
+
     /**
      * Two entries, for the two halves of the application.
      *
@@ -23,5 +60,23 @@ export default {
      * question of which of two configs wrote what.
      */
     elvel({ input: ['src/main.ts', 'src/server.ts'] })
-  ]
+  ],
+
+  resolve: {
+    alias: {
+      /**
+       * `@/components/ui/button` — the import path shadcn-vue writes.
+       *
+       * Its CLI reads this alias from `components.json` and refuses to run without
+       * it, and every component it has already written imports through it. It must
+       * agree with `paths` in `tsconfig.json`, or the editor and the bundler
+       * disagree about the same import.
+       *
+       * Resolved from this file's own URL rather than from `process.cwd()`, and
+       * through `fileURLToPath` rather than `new URL(…).pathname` — the latter
+       * yields `/C:/…` on Windows, which resolves to nothing.
+       */
+      '@': resolve(fileURLToPath(new URL('.', import.meta.url)), 'src')
+    }
+  }
 }

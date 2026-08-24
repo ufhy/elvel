@@ -16,12 +16,37 @@ import { join } from 'node:path'
  *
  * So this is the guard. It fails on the machine that has the demos, which is the
  * only machine that can create the problem, and it says what to do about it.
+ *
+ * It reads the **staged** lockfile, not the one on disk. Reading the working copy
+ * was the first version and it cried wolf: the file is polluted for as long as a
+ * demo is installed, which is the whole time anybody is working with one, so every
+ * unrelated `bun test` came back red. A guard that is always red is a guard nobody
+ * reads. What matters is what a commit would carry — and with nothing staged, the
+ * index is `HEAD`, so an already-committed mistake still fails here.
  */
 const ROOT = join(import.meta.dir, '..')
 
+/** The lockfile as a commit would carry it: the index, or `HEAD` when unstaged. */
+function stagedLockfile(): string | undefined {
+  const shown = Bun.spawnSync({
+    cmd: ['git', 'show', ':bun.lock'],
+    cwd: ROOT,
+    stdout: 'pipe',
+    stderr: 'ignore'
+  })
+
+  return shown.exitCode === 0 ? shown.stdout.toString() : undefined
+}
+
 /** Workspace paths as the lockfile lists them, from its `"workspaces"` block. */
 async function workspacesInLockfile(): Promise<string[]> {
-  const source = await Bun.file(join(ROOT, 'bun.lock')).text()
+  /**
+   * The working copy is the fallback, not the subject.
+   *
+   * No git — an exported tarball, a checkout with no history — leaves nothing to
+   * compare against, and refusing to check anything at all would be worse.
+   */
+  const source = stagedLockfile() ?? (await Bun.file(join(ROOT, 'bun.lock')).text())
   const start = source.indexOf('"workspaces": {')
 
   expect<boolean>(start >= 0).toBe(true)
@@ -82,7 +107,7 @@ describe('bun.lock names only what a checkout has', () => {
     expect<string>(
       untracked.length === 0
         ? 'bun.lock names only committed workspaces'
-        : `bun.lock names ${untracked.join(', ')}, which no checkout has. Run: git checkout -- bun.lock`
+        : `bun.lock names ${untracked.join(', ')}, which no checkout has. Run: git checkout -- bun.lock && git add bun.lock`
     ).toBe('bun.lock names only committed workspaces')
   })
 })

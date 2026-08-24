@@ -1,0 +1,3 @@
+{
+  "removes": ["resources/views/pages/dashboard.tsx"]
+}

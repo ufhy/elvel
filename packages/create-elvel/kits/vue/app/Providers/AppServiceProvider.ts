@@ -1,5 +1,5 @@
 import { user } from '@elvel/auth'
-import { ServiceProvider } from '@elvel/core'
+import { config, ServiceProvider } from '@elvel/core'
 import { spa } from '@elvel/spa'
 
 export class AppServiceProvider extends ServiceProvider {
@@ -27,6 +27,15 @@ export class AppServiceProvider extends ServiceProvider {
       const person = user()
 
       return {
+        /**
+         * The application's name, so the client never hard-codes it.
+         *
+         * A `.vue` file is copied byte-for-byte by the scaffolder — it cannot carry
+         * a `{{ name }}` placeholder, because that is also Vue's interpolation
+         * syntax. Sending it means renaming the application is one edit in `.env`
+         * rather than a search through the client.
+         */
+        app: config('app.name', 'Elvel'),
         user: person === null ? null : { id: person.id, name: person.name, email: person.email }
       }
     })

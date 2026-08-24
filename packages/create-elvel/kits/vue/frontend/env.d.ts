@@ -1,15 +1,10 @@
 /// <reference types="vite/client" />
 
-/**
- * What `import Thing from './Thing.vue'` is.
+/*
+ * No `declare module '*.vue'` here, and that is deliberate.
  *
- * A single-file component is not TypeScript, so the compiler needs telling. This
- * is the shim `bun create vite` ships for the same reason.
+ * A shim like that types every component as `DefineComponent<{}, {}, unknown>`,
+ * which makes plain `tsc` stop complaining and also stops it checking a single
+ * prop. `vue-tsc` reads the components themselves, so the shim would only hide
+ * what it is here to find.
  */
-declare module '*.vue' {
-  import type { DefineComponent } from 'vue'
-
-  const component: DefineComponent<{}, {}, unknown>
-
-  export default component
-}

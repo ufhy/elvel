@@ -17,13 +17,8 @@ routes().names({ dashboard: '/dashboard' })
 
 export default controller('dashboard').get(
   '/dashboard',
-  /**
-   * The icon is named here because the document is not a page component.
-   *
-   * The server-rendered layout carries its own `<link rel="icon">`; without one
-   * here the browser asks for `/favicon.ico`, which nothing serves — a 404 in the
-   * console of an application that is working perfectly.
-   */
-  () => document({ head: '<link rel="icon" href="/favicon.svg" type="image/svg+xml" />' }),
+  // The icon, the title and the mount point all come from `config/spa.ts`, so
+  // every document carries them — including the one a 404 renders.
+  () => document(),
   middleware('auth')
 )

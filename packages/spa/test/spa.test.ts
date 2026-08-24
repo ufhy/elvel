@@ -176,6 +176,34 @@ describe('the addresses only the client router knows', () => {
     ).toBe(true)
   })
 
+  test('and it carries the head from config, which a 404 has no call to pass', async () => {
+    const icon = '<link rel="icon" href="/favicon.svg" />'
+    const app = await application({ head: icon })
+
+    app.useRoutes(new Elysia().get('/', () => document()))
+
+    // Both, and the second is the point: the document a 404 renders comes from the
+    // exception handler, which has no options to hang a favicon on. Named only at
+    // the call site, an icon reached the dashboard and no other page.
+    expect<boolean>((await (await app.handle(asBrowser('/'))).text()).includes(icon)).toBe(true)
+    expect<boolean>(
+      (await (await app.handle(asBrowser('/invoices/9'))).text()).includes(icon)
+    ).toBe(true)
+  })
+
+  test('a call still overrides it', async () => {
+    const app = await application({ head: '<meta name="from" content="config" />' })
+
+    app.useRoutes(
+      new Elysia().get('/', () => document({ head: '<meta name="from" content="call" />' }))
+    )
+
+    const html = await (await app.handle(asBrowser('/'))).text()
+
+    expect<boolean>(html.includes('content="call"')).toBe(true)
+    expect<boolean>(html.includes('content="config"')).toBe(false)
+  })
+
   test('a client asking for JSON keeps its 404', async () => {
     const app = await application()
 
