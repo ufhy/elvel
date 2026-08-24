@@ -65,12 +65,12 @@ export default {
    * ]
    * ```
    *
-   * What that buys: a guest on the sign-in screen downloads the auth bundle and not
-   * the application behind it, and `middleware` is enforced **before any JavaScript
-   * loads** — the same thing Laravel says with
-   * `Route::view('{path}', 'main')->middleware('auth')`.
+   * Two things that buys. A guest on the sign-in screen downloads the auth bundle
+   * and not the application behind it. And `middleware` is enforced **before any
+   * JavaScript loads** — the server refuses the address, so a guard on the client
+   * router is a convenience rather than the only thing standing there.
    *
-   * A prefixed area becomes a real route. The root area cannot: a `GET /*` loses to
+   * A prefixed area becomes a real route. The root area cannot: `GET /*` loses to
    * the static file plugin in development, so it is answered by the exception
    * handler, which runs its middleware itself. List the root last — or do not
    * bother, since they are sorted by length before use.
