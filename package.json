@@ -7,7 +7,8 @@
     "playground",
     "apps/*",
     "apps/*/frontend",
-    ".demo/*"
+    ".demo/*",
+    ".demo/*/frontend"
   ],
   "scripts": {
     "build:packages": "bun run --cwd packages/vite build",
