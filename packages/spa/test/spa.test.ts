@@ -46,7 +46,8 @@ beforeEach(async () => {
   await writeFile(
     join(root, 'public', 'build', 'manifest.json'),
     JSON.stringify({
-      'src/main.ts': { file: 'assets/main-abc.js', css: ['assets/main-def.css'], isEntry: true }
+      'src/main.ts': { file: 'assets/main-abc.js', css: ['assets/main-def.css'], isEntry: true },
+      'src/auth.ts': { file: 'assets/auth-def.js', isEntry: true }
     })
   )
 })

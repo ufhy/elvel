@@ -1,4 +1,6 @@
 import { config, ExceptionHandler } from '@elvel/core'
+import { middlewares } from '@elvel/http'
+import { areaFor } from './areas.ts'
 import { spa } from './spa.ts'
 
 /**
@@ -21,10 +23,55 @@ import { spa } from './spa.ts'
  * `super`.
  */
 export class SpaExceptionHandler extends ExceptionHandler {
-  override render(error: unknown, context: { request: Request }): Response | Promise<Response> {
+  override async render(error: unknown, context: { request: Request }): Promise<Response> {
     if (!this.wantsDocument(error, context.request)) return super.render(error, context)
 
-    return spa().document()
+    const area = areaFor(new URL(context.request.url).pathname)
+
+    /**
+     * The area's middleware, run here because nothing else will.
+     *
+     * A prefixed area is a real route and Elysia applies its middleware for it.
+     * The **root** area cannot be a route — a `GET /*` loses to the static plugin —
+     * so its guard has to run in this handler or not at all, and "not at all" means
+     * every address the client router owns is open to anybody. That is the shape
+     * Laravel writes as `Route::view('{path}', 'main')->middleware('auth')`.
+     *
+     * Resolved through the registry rather than imported, so an application's own
+     * middleware works here as well as `auth` and `guest` — and so this package
+     * needs no dependency on the one that defines them.
+     */
+    const refused = await this.refusedBy(area?.middleware ?? [], context)
+    if (refused) return refused
+
+    return spa().document({ entry: area?.entry, title: area?.title })
+  }
+
+  /**
+   * The first middleware that answers, if any.
+   *
+   * A hook may return a `Response` or throw — `authenticate` does the first for a
+   * browser and the second for a client asking for JSON. A throw here would climb
+   * back into the error pipeline this handler is already inside, so it is caught and
+   * rendered like any other error instead.
+   */
+  private async refusedBy(
+    names: string[],
+    context: { request: Request }
+  ): Promise<Response | undefined> {
+    if (names.length === 0) return undefined
+
+    for (const hook of middlewares().resolve(names)) {
+      try {
+        const answer = await hook(context)
+
+        if (answer instanceof Response) return answer
+      } catch (thrown) {
+        return super.render(thrown, context)
+      }
+    }
+
+    return undefined
   }
 
   /**

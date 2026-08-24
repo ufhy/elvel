@@ -8,6 +8,14 @@ export type DocumentOptions = {
   /** Overrides `spa.title` for this response. */
   title?: string
 
+  /**
+   * Overrides `spa.entry` — the Vite entry this shell loads.
+   *
+   * One entry per area, which is the point of declaring areas at all: a guest on
+   * the sign-in screen downloads the auth bundle and not the application behind it.
+   */
+  entry?: string
+
   /** Extra markup for `<head>`, after the asset tags. */
   head?: string
 
@@ -69,7 +77,7 @@ export class Spa {
     return view(
       Document,
       {
-        entry: config<string>('spa.entry', 'src/main.ts'),
+        entry: options.entry ?? config<string>('spa.entry', 'src/main.ts'),
         mountId: config<string>('spa.mountId', 'app'),
         title: options.title ?? config<string>('spa.title', ''),
         /**
