@@ -213,7 +213,8 @@ application does for every address only its own router knows.
 | `finishing` | after the response exists | saving is a write, and needs the status |
 
 A package registers into it at boot: `@elvel/http` resolves the session, puts it in
-scope and re-issues its cookie; `@elvel/auth` puts the signed-in user back.
+scope and re-issues its cookie — if there is a session to name, since one nothing
+wrote is neither saved nor cookied; `@elvel/auth` puts the signed-in user back.
 Measured before it existed, on one cookie: `GET /api/user` answered as the user
 while a document rendered by the 404 handler read guest, `csrf: ''`, and set no
 cookie at all.

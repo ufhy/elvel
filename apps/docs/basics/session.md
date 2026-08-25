@@ -39,7 +39,7 @@ on that path, which matters the moment an application renders a real page there.
 client-routed application does exactly that: the server cannot know which paths the
 client router owns, so every one of them arrives as a 404 and leaves as a document.
 
-Measured on a built application, one cookie, two requests:
+Measured on a built application before this was fixed, one cookie, two requests:
 
 | request | answered by | `csrfToken()` | `Set-Cookie` |
 | --- | --- | --- | --- |
@@ -53,6 +53,29 @@ The error path now resolves the session, enters its scope, and — if there is
 anything to save — saves it and re-issues the cookie. `request.lifecycle` is the
 seam, and [Views](/basics/views) needs nothing for it: `csrfToken()`, `errors()`
 and `old()` read the same scope they always did.
+
+### A session nobody touched is never written
+
+Reading from a session does not create one. Writing to it does — and so does asking
+for a CSRF token, because a token handed out has to still be there on the next
+request:
+
+```ts
+session.token()        // reads. '' if this session was never given one
+session.ensureToken()  // mints one if absent — what csrfToken() calls
+```
+
+So a page that renders a form gets a token, saves its session and sets a cookie, and
+a page that renders no form does none of the three. That is not a micro-optimisation:
+a response carrying `Set-Cookie` is one no shared cache will store, so a document
+built to be identical for everybody could never be cached until this was true.
+
+Measured on a scaffolded application at fifty concurrent callers: **323 requests a
+second before, 2,561 after** — the rate the same server serves a static file at.
+
+`_previous.url`, which is what `back()` reads, follows the same rule. It is recorded
+only for a session already worth writing — and `back()` matters after a form is
+refused, which is a page that has already asked for a token.
 
 Two rules keep it honest, and both are about flash data:
 
@@ -73,7 +96,21 @@ lifetime: Number(env('SESSION_LIFETIME', 7200)),
 cookie: env('SESSION_COOKIE', 'elvel_session'),
 ```
 
-`file`, `database`, `redis`, `cache` and `memory`.
+`file`, `database`, `redis`, `cache` and `memory`. The difference between them is
+three-fold, and nothing about the names says so — measured on one machine, fifty
+concurrent callers, on a page that uses its session:
+
+| driver | requests/second |
+| --- | --- |
+| `memory` | 1,111 |
+| `cache` → array | 1,066 |
+| `cache` → redis | 954 |
+| `database` (SQLite) | 347 |
+| `file` | 323 |
+
+A page that touches nothing is unaffected by any of it — nothing is written either
+way. `memory` also keeps every session in the process, unbounded until `session:gc`
+runs, which makes it a development and testing driver rather than a fast one.
 
 ::: warning `file` is right for one machine and wrong for two
 The session lives on whichever container wrote it, so behind a load balancer half

@@ -169,6 +169,17 @@ embed: false
 The document then carries no payload and no token: the same bytes for everybody, and
 therefore cacheable. That is what an installable, offline-capable application needs.
 
+::: tip It is cacheable by a CDN too, and only recently
+A shell used to arrive with a `Set-Cookie` on it — every visitor was given a session
+whether the page used one or not — and a response carrying `Set-Cookie` is a response
+no shared cache will store. `Cache-Control: public` and that header contradicted each
+other on every response.
+
+A session with nothing in it is no longer written and no longer named, so a guest
+fetching a shell gets neither. Measured on the same server: the guest path went from
+323 requests a second to 2,561, which is what it serves a static file at.
+:::
+
 It costs two requests before the first screen — who am I, and what am I looking at
 — and the token has to come from somewhere else, because a token is per session and
 would make the document per session again.
