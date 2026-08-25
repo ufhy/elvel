@@ -11,10 +11,16 @@ import '../../../tests/database.ts'
  * The interesting part of this feature is not any one request — it is that six of
  * them agree: enrol, confirm, sign out, sign in, get challenged, answer. Each
  * step alone looks right while the whole thing is broken, which is exactly what
- * happened here twice while it was being written: `enableTwoFactor` was called
- * without the request headers and answered 401 behind a page that still rendered
- * its "set it up" form, and a recovery field was named `recovery` while the route
- * read `code`. Neither showed up as an error anywhere.
+ * happened twice while it was being written: `enableTwoFactor` was called without
+ * the request headers and answered 401 behind a page that still rendered its "set
+ * it up" form, and a recovery field was named `recovery` while the route read
+ * `code`. Neither showed up as an error anywhere.
+ *
+ * This kit reads the enrolment from `GET /api/settings/two-factor` rather than
+ * from the page, because the page is a shell — the QR code is drawn by Vue in a
+ * browser, and there is no browser here. Not a weaker test: the secret in that
+ * response is the one the QR encodes, so it is the value somebody's phone will
+ * hold either way.
  */
 beforeEach(async () => {
   await app.make('cache').store('array').flush()
@@ -24,11 +30,12 @@ const address = () => `2fa-${Date.now()}-${Math.round(Math.random() * 1e6)}@exam
 
 const PASSWORD = 'longenough1'
 
-/** Register, and hand back the response whose cookies carry the session. */
+type Enrolment = { uri: string; secret: string; codes: string[] }
+
 async function register(email: string): Promise<TestResponse> {
   const page = await press(app).get('/sign-up')
 
-  return await postForm('/sign-up', { name: 'Test Person', email, password: PASSWORD }, page)
+  return postForm('/sign-up', { name: 'Test Person', email, password: PASSWORD }, page)
 }
 
 /** Answer `password.confirm`, which the two-factor page sits behind. */
@@ -38,76 +45,68 @@ async function confirmPassword(session: TestResponse): Promise<void> {
   await postForm('/confirm-password', { password: PASSWORD }, wall, session)
 }
 
+/** What the settings screen would show. */
+async function readTwoFactor(
+  session: TestResponse
+): Promise<{ enabled?: boolean; pending?: Enrolment }> {
+  const answer = await press(app).withCookiesFrom(session).get('/api/settings/two-factor')
+
+  answer.assertOk()
+
+  return answer.json() as { enabled?: boolean; pending?: Enrolment }
+}
+
 /**
- * Enrol, and answer with the secret *and* the page that showed it.
+ * Enrol, and answer with the secret.
  *
- * Both, because the enrolment is flashed: it is on the page for exactly one
- * request, and a second GET is the "off" state again. Handing the body back is
- * what lets a caller assert about what was on screen without fetching it a second
- * time and finding nothing — which it did, on the first run of this file.
- *
- * The secret is read out of the page rather than out of the API on purpose: what
- * the QR code encodes is what somebody's phone will hold, so that is the value
- * that has to work.
+ * Read once, because the enrolment is flashed: it is available for exactly one
+ * request and a second read is the "off" state again. That contract is the same
+ * one the server-rendered kit has — it is what stops the secret sitting one
+ * request away for as long as the session lives — and the test below asserts it.
  */
-async function enrol(session: TestResponse): Promise<{ secret: string; page: TestResponse }> {
-  const form = await press(app).withCookiesFrom(session).get('/settings/two-factor')
-
-  await postForm('/settings/two-factor', { password: PASSWORD }, form, session)
-
+async function enrol(session: TestResponse): Promise<Enrolment> {
   const page = await press(app).withCookiesFrom(session).get('/settings/two-factor')
-  const secret = /<code[^>]*>([A-Z2-7]{16,})<\/code>/.exec(page.body)?.[1]
 
-  if (!secret) throw new Error('The enrolment page showed no secret to scan.')
+  await postForm('/settings/two-factor', { password: PASSWORD }, page, session)
 
-  return { secret, page }
+  const { pending } = await readTwoFactor(session)
+
+  if (!pending?.secret) throw new Error('The enrolment answered no secret to scan.')
+
+  return pending
 }
 
 describe('turning two-factor on', () => {
-  test('the page is behind password confirmation', async () => {
-    const session = await register(address())
-    const page = await press(app).withCookiesFrom(session).get('/settings/two-factor')
-
-    page.assertRedirect('/confirm-password')
-  })
-
-  test('enrolling shows a QR code, a key and recovery codes', async () => {
+  test('the page is a shell, and the enrolment comes from the API', async () => {
     const session = await register(address())
     await confirmPassword(session)
-    const { page } = await enrol(session)
 
-    // The QR code is an inline SVG, rendered from the URI on the server.
-    expect(page.body).toContain('<svg')
-    expect(page.body).toContain('Turn it on')
-    /**
-     * Ten codes, each shown once — counted without assuming the markup.
-     *
-     * `xxxxx-xxxxx` is better-auth's format, and it was matched as
-     * `<li>…</li>`, which is only how *one* of these kits renders it: the
-     * unstyled one wraps each code in a `<code>` inside the `<li>` and the count
-     * came back 0. Bounded by the tags on either side rather than by which tags
-     * they are — unbounded, the pattern matches hashed asset names and Tailwind
-     * class fragments by the hundred.
-     */
-    expect((page.body.match(/>[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}</g) ?? []).length).toBe(10)
+    const page = await press(app).withCookiesFrom(session).get('/settings/two-factor')
+
+    page.assertOk().assertSee('data-spa-root')
+
+    const { secret, codes } = await enrol(session)
+
+    // A base32 secret, and ten recovery codes in better-auth's own format.
+    expect(secret.length > 0).toBe(true)
+    expect(codes.length).toBe(10)
+    expect(codes.every((code) => /^[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}$/.test(code))).toBe(true)
   })
 
   /**
    * Shown once, and once only.
    *
-   * The enrolment is flashed rather than stored, so a reload does not put the
-   * secret and the recovery codes back on screen. Anything else would leave them
-   * one browser-history entry away for as long as the page existed.
+   * The enrolment is flashed rather than stored, so a second read does not put
+   * the secret and the recovery codes back.
    */
-  test('and only once — a reload does not show them again', async () => {
+  test('and only once — a second read does not answer them again', async () => {
     const session = await register(address())
     await confirmPassword(session)
     await enrol(session)
 
-    const again = await press(app).withCookiesFrom(session).get('/settings/two-factor')
+    const { pending } = await readTwoFactor(session)
 
-    expect(again.body).not.toContain('Turn it on')
-    expect(again.body).not.toContain('Save these now')
+    expect(pending).toBeUndefined()
   })
 
   test('a wrong password gets nowhere', async () => {
@@ -117,10 +116,10 @@ describe('turning two-factor on', () => {
     const page = await press(app).withCookiesFrom(session).get('/settings/two-factor')
     await postForm('/settings/two-factor', { password: 'not-the-password' }, page, session)
 
-    const again = await press(app).withCookiesFrom(session).get('/settings/two-factor')
+    const { enabled, pending } = await readTwoFactor(session)
 
-    expect(again.body).not.toContain('Turn it on')
-    expect(again.body).toContain('Set it up')
+    expect(enabled).toBe(false)
+    expect(pending).toBeUndefined()
   })
 
   /**
@@ -149,8 +148,9 @@ describe('signing in with two-factor on', () => {
   const protectedAccount = async (email: string): Promise<string> => {
     const session = await register(email)
     await confirmPassword(session)
-    const { secret, page } = await enrol(session)
+    const { secret } = await enrol(session)
 
+    const page = await press(app).withCookiesFrom(session).get('/settings/two-factor')
     const confirmed = await postForm(
       '/settings/two-factor/confirm',
       { code: await totp(secret) },

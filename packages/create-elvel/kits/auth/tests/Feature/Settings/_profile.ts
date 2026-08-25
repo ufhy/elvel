@@ -3,6 +3,7 @@ import { test as press, type TestResponse } from '@elvel/testing'
 import { User } from '../../../app/Models/User.ts'
 import app from '../../../bootstrap/app.ts'
 import { UserFactory } from '../../../database/factories/UserFactory.ts'
+import { postForm } from '../../csrf.ts'
 import '../../../tests/database.ts'
 
 /**
@@ -11,7 +12,9 @@ import '../../../tests/database.ts'
  * These are yours to change: they came with the kit so that the pages it ships
  * are covered from the first day, and so there is a worked example of the two
  * things every test of an authenticated application has to do — carry cookies
- * between requests, and send the CSRF token that the form carried.
+ * between requests, and send the CSRF token. Both live in `tests/csrf.ts`, which
+ * is the one file the Vue kit replaces: its pages are shells, so the token is
+ * fetched from `/api/session` rather than read out of the form.
  *
  * `press(app)` runs a request through the same `handle()` a server would, so
  * the session, the middleware and the exception handler all take part. There is
@@ -34,15 +37,6 @@ beforeEach(async () => {
   await app.make('cache').store('array').flush()
 })
 
-/** The hidden CSRF field, as the form renders it. */
-function tokenIn(html: string): string {
-  const found = /name="_token" value="([^"]+)"/.exec(html)?.[1]
-
-  if (!found) throw new Error('No CSRF token on the page. Is SESSION_CSRF off?')
-
-  return found
-}
-
 /** A unique address per run, so a re-run is not a duplicate registration. */
 const address = () => `test-${Date.now()}-${Math.round(Math.random() * 1e6)}@example.com`
 
@@ -56,14 +50,7 @@ const address = () => `test-${Date.now()}-${Math.round(Math.random() * 1e6)}@exa
 async function register(email: string, password = 'longenough1'): Promise<TestResponse> {
   const page = await press(app).get('/sign-up')
 
-  return await press(app)
-    .withCookiesFrom(page)
-    .form('POST', '/sign-up', {
-      _token: tokenIn(page.body),
-      name: 'Test Person',
-      email,
-      password
-    })
+  return await postForm('/sign-up', { name: 'Test Person', email, password }, page)
 }
 
 describe('the User model', () => {

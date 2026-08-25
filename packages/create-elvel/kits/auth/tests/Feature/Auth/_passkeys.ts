@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { test as press, type TestResponse } from '@elvel/testing'
 import app from '../../../bootstrap/app.ts'
+import { postForm } from '../../csrf.ts'
 import '../../../tests/database.ts'
 
 /**
@@ -22,14 +23,6 @@ beforeEach(async () => {
   await app.make('cache').store('array').flush()
 })
 
-const tokenIn = (html: string): string => {
-  const found = /name="_token" value="([^"]+)"/.exec(html)?.[1]
-
-  if (!found) throw new Error('No CSRF token on the page. Is SESSION_CSRF off?')
-
-  return found
-}
-
 const address = () => `pk-${Date.now()}-${Math.round(Math.random() * 1e6)}@example.com`
 
 const PASSWORD = 'longenough1'
@@ -37,22 +30,13 @@ const PASSWORD = 'longenough1'
 async function register(email: string): Promise<TestResponse> {
   const page = await press(app).get('/sign-up')
 
-  return await press(app)
-    .withCookiesFrom(page)
-    .form('POST', '/sign-up', {
-      _token: tokenIn(page.body),
-      name: 'Test Person',
-      email,
-      password: PASSWORD
-    })
+  return await postForm('/sign-up', { name: 'Test Person', email, password: PASSWORD }, page)
 }
 
 async function confirmPassword(session: TestResponse): Promise<void> {
   const wall = await press(app).withCookiesFrom(session).get('/confirm-password')
 
-  await press(app)
-    .withCookiesFrom(session)
-    .form('POST', '/confirm-password', { _token: tokenIn(wall.body), password: PASSWORD })
+  await postForm('/confirm-password', { password: PASSWORD }, wall, session)
 }
 
 describe('the passkey settings page', () => {
@@ -98,13 +82,12 @@ describe('the passkey settings page', () => {
      */
     const withForms = await press(app).withCookiesFrom(session).get('/settings/profile')
 
-    const answer = await press(app)
-      .withCookiesFrom(session)
-      .form('POST', '/settings/passkeys', {
-        _token: tokenIn(withForms.body),
-        _method: 'DELETE',
-        id: 'no-such-passkey'
-      })
+    const answer = await postForm(
+      '/settings/passkeys',
+      { _method: 'DELETE', id: 'no-such-passkey' },
+      withForms,
+      session
+    )
 
     // A redirect carrying a message, not a 500 — the id comes from the page, so
     // a stale one is an ordinary thing to receive.
