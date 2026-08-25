@@ -95,6 +95,41 @@ describe('what the server does about it', () => {
       expect<boolean>(error instanceof PortInUseError).toBe(false)
     }
   })
+
+  /**
+   * The port this very process is already on is not somebody else's.
+   *
+   * `bun --hot` re-evaluates the module graph in place: the entry runs again,
+   * builds a fresh application and binds the same port while the previous
+   * server is still on it. Bun documents that as a handler swap rather than a
+   * second socket — "reloads the fetch handler ... without restarting the
+   * process" — but the probe cannot see the difference, and refusing here ended
+   * `dev` on the first edit with a message naming the developer's own server.
+   *
+   * Asserted as "not the framework's refusal", the way the `checkPort: false`
+   * case above is: the bind itself is the platform's business and differs
+   * between them. What is being tested is that Elvel got out of the way.
+   */
+  test('a second bind from the same process is a reload, not a conflict', async () => {
+    const first = new Application(process.cwd())
+
+    first.config.set('app.env', 'testing')
+
+    await first.listen(3286)
+
+    const second = new Application(process.cwd())
+
+    second.config.set('app.env', 'testing')
+
+    try {
+      await second.listen(3286)
+      second.router.server?.stop(true)
+    } catch (error) {
+      expect<boolean>(error instanceof PortInUseError).toBe(false)
+    }
+
+    first.router.server?.stop(true)
+  })
 })
 
 describe('the message', () => {

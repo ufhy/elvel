@@ -7,6 +7,21 @@ export class ServeCommand extends Command {
 
   static override description = 'Serve the application on the Bun development server'
 
+  /**
+   * The server outlives this command, and the entry point must not exit on it.
+   *
+   * This used to be `return new Promise(() => {})` — a promise nobody resolves,
+   * awaited all the way up to `process.exit(await kernel.run())`. It kept the
+   * process alive and it also broke `bun --hot`: Bun will not re-evaluate a
+   * module graph whose entry is still evaluating, so every change to a view, a
+   * controller or a route needed the server restarted, silently. Measured on
+   * this application — five edits, five stale responses, nothing on the terminal
+   * to say why.
+   *
+   * `Bun.serve` keeps the event loop alive by itself, so returning is enough.
+   */
+  static override holdsProcess = true
+
   async handle(): Promise<number> {
     const port = this.stringOption('port')
     const host = this.stringOption('host')
@@ -40,7 +55,14 @@ export class ServeCommand extends Command {
     this.comment('  Press Ctrl+C to stop.')
     this.line()
 
-    // Hand control to the event loop; the process stays alive on the server.
-    return new Promise<number>(() => {})
+    /**
+     * Returns, rather than waiting forever.
+     *
+     * The server is bound, and a bound server holds the event loop on its own —
+     * so the process stays up without this command staying in it. What that buys
+     * is the entry point finishing its evaluation, which is the one thing
+     * `bun --hot` needs before it will reload anything.
+     */
+    return 0
   }
 }

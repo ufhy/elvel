@@ -241,3 +241,64 @@ describe('discovery', () => {
     expect(kernel.all()).toHaveLength(0)
   })
 })
+
+/**
+ * A command that leaves something running, and one that meant to but could not.
+ *
+ * The distinction is the whole point: the entry point exits the process on a
+ * command's behalf, and doing that to `serve` would close the server it had just
+ * opened — while *not* doing it to a `serve` that failed to bind would hang the
+ * terminal on the one failure worth reporting.
+ */
+class Serves extends Command {
+  static override signature = 'app:serves'
+  static override description = 'Starts something and returns'
+  static override holdsProcess = true
+
+  handle(): number {
+    return 0
+  }
+}
+
+class FailsToServe extends Command {
+  static override signature = 'app:fails-to-serve'
+  static override description = 'Meant to hold the process, but could not start'
+  static override holdsProcess = true
+
+  handle(): number {
+    return 1
+  }
+}
+
+describe('commands that outlive themselves', () => {
+  test('a command may declare that the process must stay alive', async () => {
+    kernel.register(Serves)
+
+    expect(await kernel.run(['app:serves'])).toBe(0)
+    expect(kernel.holdsProcess).toBe(true)
+  })
+
+  test('but not when it failed: nothing is running, so nothing holds the loop', async () => {
+    kernel.register(FailsToServe)
+
+    expect(await kernel.run(['app:fails-to-serve'])).toBe(1)
+    expect(kernel.holdsProcess).toBe(false)
+  })
+
+  test('an ordinary command is finished when it returns', async () => {
+    kernel.register(Greet)
+
+    await kernel.run(['app:greet'])
+
+    expect(kernel.holdsProcess).toBe(false)
+  })
+
+  test('a command that throws does not leave the flag set', async () => {
+    kernel.register(Serves, Fails)
+
+    await kernel.run(['app:serves'])
+    await kernel.run(['app:fail'])
+
+    expect(kernel.holdsProcess).toBe(false)
+  })
+})

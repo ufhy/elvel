@@ -1167,12 +1167,34 @@ they import names, and reachable modules survive — so this only bites anyone
 building the packages themselves, which is why it is written down rather than
 worked around.
 
-**`bun --hot` looks like the answer and silently is not.** The process stays up,
-the routes do not change: a handler edited under `--hot` keeps answering with the
-old body, indefinitely, with no error and no reload line in the log. Elysia
-builds its route table once at boot, and re-evaluating a module does not rewire a
-server that is already listening. `--watch` restarts the process instead and
-picks the change up in 2676 ms, which is why `bun run dev` uses it.
+**`bun --hot` will not reload a program whose entry point never finishes.** This
+entry used to blame Elysia's route table, and that was wrong. The symptom was
+real — an edited view, controller or route kept answering with the old body
+indefinitely, no error, no reload line — but the cause was one line in `serve`:
+`return new Promise(() => {})`, a promise nobody resolves, awaited all the way up
+to `process.exit(await kernel.run())`. Bun re-evaluates a module graph; it will
+not re-evaluate one that is still evaluating, and the entry's top-level `await`
+had not settled since boot.
+
+Measured, in a five-line reproduction outside the framework: the same server
+under `--hot` reloads in place when the entry returns, and never reloads when the
+entry ends in a pending top-level `await`. Nothing about Elysia, nothing about
+Windows, nothing about dynamic imports or a dot-directory — all four were tried
+and cleared first.
+
+The fix is `Command.holdsProcess`: `serve` returns 0 as soon as it is listening,
+`Bun.serve` holds the event loop by itself, and the entry point sets
+`process.exitCode` instead of exiting. A change now reaches the next request in
+**72 ms**, and `bun run dev` keeps `--hot` — `--watch`, the previous answer,
+restarts the process and took 2676 ms.
+
+Two things had to move with it. The port guard treats a port *this* process
+already bound as a reload rather than a conflict, because otherwise the first
+edit ended `dev` with "port 3000 is already in use" naming the developer's own
+server — Bun documents the second `Bun.serve` on that port as a handler swap, not
+a second socket. And `holdsProcess` is only honoured when the command returned 0,
+so a `serve` that could not bind still exits 1 instead of hanging the terminal on
+the one failure worth reporting.
 
 
 ## Building the packages does not pay, and here are the numbers

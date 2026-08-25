@@ -389,13 +389,32 @@ export class Application implements ApplicationContract {
      * `netstat` showed both. What it looks like from the terminal is a server that
      * cannot be killed, because the old one keeps answering.
      */
-    if (this.config.get<boolean>('http.checkPort', true) !== false) {
+    /**
+     * Except when the thing holding it is this process, one reload ago.
+     *
+     * `bun --hot` re-evaluates the module graph in place: the entry runs again,
+     * builds a fresh application, and binds the same port — while the server
+     * from the previous evaluation is still listening on it, in this very
+     * process. The probe cannot tell that apart from a second terminal, so
+     * without this every edit ended `dev` with "port 3000 is already in use",
+     * naming the developer's own server.
+     *
+     * `Bun.serve` handles the rebind itself under `--hot`, replacing the handler
+     * rather than opening a second socket. Recorded on `globalThis` because that
+     * is what survives a reload — a module-level `Set` is re-created empty by
+     * the very reload it needs to remember.
+     */
+    const bound = boundPorts()
+
+    if (this.config.get<boolean>('http.checkPort', true) !== false && !bound.has(resolvedPort)) {
       const probeHost = resolvedHost === '' ? '127.0.0.1' : resolvedHost
 
       if (await portInUse(resolvedPort, probeHost)) {
         throw new PortInUseError(portInUseMessage(resolvedPort, resolvedHost))
       }
     }
+
+    bound.add(resolvedPort)
 
     this.router.listen(
       resolvedHost === '' ? resolvedPort : { port: resolvedPort, hostname: resolvedHost }
@@ -535,4 +554,22 @@ export class ApplicationBuilder {
 
     return app
   }
+}
+
+/**
+ * The ports this *process* has already bound, across hot reloads.
+ *
+ * On `globalThis` deliberately: `bun --hot` re-evaluates modules and re-creates
+ * module-level state, so a `Set` declared here would be empty again on exactly
+ * the reload that needs to consult it. The global object is what Bun preserves.
+ *
+ * Read by `listen()`, to tell "somebody else is on this port" apart from "I am,
+ * from the evaluation before this one".
+ */
+function boundPorts(): Set<number> {
+  const host = globalThis as { __elvelBoundPorts?: Set<number> }
+
+  host.__elvelBoundPorts ??= new Set<number>()
+
+  return host.__elvelBoundPorts
 }

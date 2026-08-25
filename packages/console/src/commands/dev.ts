@@ -49,11 +49,16 @@ export function devSummary(input: {
  * the half that matters — a Ctrl+C that leaves a worker holding a job is worse
  * than never having started it.
  *
- * The server runs under `bun --hot`, which re-evaluates changed modules in place
- * rather than restarting the process. Measured on a scaffolded application, a
- * change to a view reaches the next request in about 105ms that way against
- * about 195ms for `--watch`, and five successive edits left the routes, the
- * container and the 404 handler intact.
+ * The server runs under `bun --hot`, which re-evaluates the module graph in
+ * place rather than restarting the process.
+ *
+ * That only works because `serve` returns instead of waiting forever. Bun will
+ * not re-evaluate a graph whose entry point is still evaluating, and the entry
+ * awaits the command — so while `serve` ended in a promise nobody resolved,
+ * `--hot` did nothing at all: measured on a scaffolded application, a change to
+ * a view, then to a controller, then to a route, all three still serving the old
+ * response after five seconds, with nothing on the terminal to say why. See
+ * `Command.holdsProcess`.
  *
  * Vite is what actually reloads the browser: the template's `refresh` plugin
  * watches the files that produce HTML and pushes a full reload down the socket

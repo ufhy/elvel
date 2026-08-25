@@ -9,6 +9,7 @@ import { formatUsage, InputParseError, missingArguments, parseSignature } from '
 export type CommandConstructor = (new () => Command) & {
   signature: string
   description: string
+  holdsProcess?: boolean
 }
 
 /**
@@ -20,6 +21,25 @@ export type CommandConstructor = (new () => Command) & {
 export class Kernel {
   private readonly commands = new Map<string, CommandConstructor>()
   private readonly output = new Output()
+
+  /**
+   * Did the command that just ran leave something running?
+   *
+   * Read by the entry point, which exits the process on a command's behalf. For
+   * `serve` that would kill the server the command had just started, so it asks
+   * first:
+   *
+   * ```ts
+   * const code = await kernel.run()
+   *
+   * if (kernel.holdsProcess) process.exitCode = code
+   * else process.exit(code)
+   * ```
+   *
+   * Here rather than on the command instance because the instance is private to
+   * `execute()` and gone by the time `run()` answers.
+   */
+  holdsProcess = false
 
   constructor(private readonly app: Application) {}
 
@@ -125,6 +145,8 @@ export class Kernel {
 
   /** Run one resolved command, with its missing arguments filled in. */
   private async execute(command: CommandConstructor, rest: string[]): Promise<number> {
+    this.holdsProcess = false
+
     try {
       const supplied = await this.promptForMissing(command, rest)
 
@@ -132,7 +154,19 @@ export class Kernel {
         this.run([nested, ...nestedArgv])
       )
       const status = await instance.handle()
-      return typeof status === 'number' ? status : 0
+      const code = typeof status === 'number' ? status : 0
+
+      /**
+       * Only when it actually got going.
+       *
+       * `serve` declares that it holds the process, and it also returns 1 when
+       * the port is taken — nothing is listening then, so nothing is holding the
+       * loop, and staying alive for it would hang the terminal on the one
+       * failure a developer most needs to see reported.
+       */
+      this.holdsProcess = command.holdsProcess === true && code === 0
+
+      return code
     } catch (error) {
       if (error instanceof InputParseError) {
         this.output.error(error.message)

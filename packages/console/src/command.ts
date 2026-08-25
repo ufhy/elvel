@@ -42,6 +42,26 @@ export abstract class Command implements CommandContract {
    */
   static isolatable = false
 
+  /**
+   * Does this command leave something running after `handle()` returns?
+   *
+   * `serve` does: the server holds the event loop, so the process must stay
+   * alive after the command is finished with it. Every other command is done
+   * when it returns, and the entry point exits on its behalf.
+   *
+   * Declared rather than inferred, because the alternative is a process that
+   * hangs. Left to guess by "is anything still holding the loop?", a command
+   * that forgot to close a database pool would never exit and would look
+   * identical to this.
+   *
+   * Why a command may not simply never return: `bun --hot` will not re-evaluate
+   * a module graph whose entry point is still evaluating, and the entry awaits
+   * this. Measured — with `serve` returning `new Promise(() => {})`, every edit
+   * to a view, a controller or a route needed a restart, and the reload said
+   * nothing about why it had done nothing.
+   */
+  static holdsProcess = false
+
   protected readonly output = new Output()
 
   protected app!: Application
