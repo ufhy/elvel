@@ -117,6 +117,23 @@ export {
   ResourceCollection
 } from './resource.ts'
 export { route, routes } from './route-helpers.ts'
+export { compileRoutes } from './router/compile.ts'
+export {
+  current,
+  currentRouteName,
+  currentRouteNamed,
+  currentRouteUri,
+  withCurrentRoute
+} from './router/current.ts'
+export {
+  type GroupAttributes,
+  Route,
+  RouteGroupBuilder,
+  registeredPatterns,
+  resetRouter
+} from './router/registrar.ts'
+export { ResourceBuilder, type ResourceMethod } from './router/resource.ts'
+export { type HttpMethod, type RouteAction, RouteDefinition } from './router/route.ts'
 export { RouteRegistry } from './routes.ts'
 export {
   cspNonce,

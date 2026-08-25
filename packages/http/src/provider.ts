@@ -26,6 +26,7 @@ import { maintenancePlugin } from './maintenance.ts'
 import { methodOverridePlugin } from './method-override.ts'
 import { MiddlewareRegistry } from './middleware.ts'
 import { PREVIOUS_URL_KEY } from './redirect.ts'
+import { compileRoutes } from './router/compile.ts'
 import { RouteRegistry } from './routes.ts'
 import { enterRequestScope } from './scope.ts'
 import { newNonce, type SecurityConfig, securityHeaders } from './security.ts'
@@ -42,6 +43,8 @@ declare module '@elvel/contracts' {
     cookies: CookieJar
     limiters: LimiterRegistry
     routes: RouteRegistry
+    /** Compiles what `Route.*` declared. Read by `withRoutes`. */
+    'routes.compiler': () => Elysia
   }
 }
 
@@ -210,6 +213,37 @@ export class HttpServiceProvider extends ServiceProvider {
       registry.origin = this.config<string>('app.url', '').replace(/\/$/, '')
 
       return registry
+    })
+
+    /**
+     * What turns a bare `routes/web.ts` into a mounted plugin.
+     *
+     * ```ts
+     * // routes/web.ts — no export, as in Laravel
+     * Route.get('/', [PageController, 'index'])
+     * ```
+     *
+     * `Application.create` looks for this after importing a routes file that
+     * exported nothing. Bound rather than imported there because routing lives in
+     * this package and the bootstrapper is `@elvel/core`: the dependency runs one
+     * way only.
+     */
+    let compiled = 0
+
+    /**
+     * A name per file, not one name for all of them.
+     *
+     * Elysia deduplicates plugins by name, and an application with
+     * `routes/web.ts`, `routes/auth.ts` and `routes/settings.ts` compiles three —
+     * all called `web` before this counter existed. They survived, but only
+     * because the seeds differed; a name shared by two plugins is a route table
+     * that silently loses half its routes, and it is not a risk worth leaving in
+     * for the sake of a tidier string.
+     */
+    this.app.instance('routes.compiler', () => {
+      compiled += 1
+
+      return compileRoutes(`routes:${compiled}`)
     })
   }
 

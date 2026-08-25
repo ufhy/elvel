@@ -35,7 +35,15 @@ export type RouteModule =
   | Elysia<any, any, any, any, any, any>
   | ((app: Application) => Elysia<any, any, any, any, any, any>)
 
-export type RouteLoader = () => Promise<{ default: RouteModule }>
+/**
+ * A routes file: `() => import('../routes/web.ts')`.
+ *
+ * `default` is optional because a file written the Laravel way exports nothing —
+ * `Route.get(…)` declares as the module evaluates, and the framework compiles the
+ * collection afterwards. A module that does export a plugin is mounted directly,
+ * so a package shipping one needs no rewriting.
+ */
+export type RouteLoader = () => Promise<{ default?: RouteModule }>
 
 /** `{ app: () => import('../config/app.ts') }` — see `withConfig`. */
 export type ConfigLoaders = Record<string, () => Promise<{ default?: unknown }>>
@@ -549,7 +557,40 @@ export class ApplicationBuilder {
     // 7. routes — last, so handlers can resolve anything a provider bound
     for (const loader of this.routeLoaders) {
       const module = await loader()
-      app.useRoutes(module.default)
+
+      /**
+       * A routes file need not export anything.
+       *
+       * ```ts
+       * // routes/web.ts
+       * Route.get('/', [PageController, 'index'])
+       * ```
+       *
+       * That is `routes/web.php`, and it is the DX this framework is copying.
+       * `Route.*` collects what the file declared while it was imported, and the
+       * compiler — bound by `HttpServiceProvider` as `routes.compiler` — turns the
+       * collection into a plugin. Asked of the container rather than imported,
+       * because routing lives in `@elvel/http` and this file is `@elvel/core`:
+       * the dependency only runs in that direction.
+       *
+       * A module that *does* export a default is still mounted as it always was,
+       * so a package shipping an Elysia plugin needs no rewriting.
+       */
+      if (module.default !== undefined) {
+        app.useRoutes(module.default)
+
+        continue
+      }
+
+      if (!app.bound('routes.compiler')) {
+        throw new Error(
+          'A routes file exported nothing, and no route compiler is bound. ' +
+            'Register HttpServiceProvider in bootstrap/providers.ts, or give the ' +
+            'file a default of its own — an Elysia plugin.'
+        )
+      }
+
+      app.useRoutes(app.make('routes.compiler')())
     }
 
     return app

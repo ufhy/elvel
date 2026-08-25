@@ -480,11 +480,22 @@ export class Model {
   static async resolveRouteBinding<T extends typeof Model>(
     this: T,
     value: string,
-    field?: string
+    field?: string,
+    trashed = false
   ): Promise<InstanceType<T> | undefined> {
     const column = field ?? this.routeKeyName()
 
-    return (await this.query().where(column, value).first()) ?? undefined
+    /**
+     * `trashed` comes from `withTrashed()` on the route.
+     *
+     * The screen that restores a deleted row has to be able to find it, and a
+     * binding that excludes it turns `/posts/{post}/restore` into a 404 for
+     * exactly the rows it exists for. Off by default, because every other route
+     * wants the deleted one to stay gone.
+     */
+    const query = trashed && this.softDeletes ? this.withTrashed() : this.query()
+
+    return (await query.where(column, value).first()) ?? undefined
   }
 
   /**

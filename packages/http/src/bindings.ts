@@ -16,7 +16,14 @@ declare module '@elvel/contracts' {
 export type RouteBindable = {
   name?: string
   routeKeyName(): string
-  resolveRouteBinding(value: string, field?: string): Promise<unknown>
+  /**
+   * `trashed` is Laravel's `withTrashed()` on the route, passed through.
+   *
+   * Optional in the contract because most bound things are not soft-deletable — a
+   * hand-written resolver that ignores it still satisfies this, and a model that
+   * honours it is what makes the restore screen work.
+   */
+  resolveRouteBinding(value: string, field?: string, trashed?: boolean): Promise<unknown>
   resolveChildRouteBinding?(
     parent: unknown,
     relation: string,
@@ -86,6 +93,47 @@ export function bindings(): BindingRegistry {
 const resolved = new WeakMap<Request, Map<string, unknown>>()
 
 /**
+ * What the *route* said about its own bindings, for this request.
+ *
+ * `{post:slug}` and `->scopeBindings()` are properties of a route, and the
+ * binding middleware is an alias that knows only the request. Rather than give
+ * every application a second middleware to remember, the router leaves the two
+ * facts here and `resolveBindings` reads them.
+ *
+ * A `WeakMap` keyed by the request, like `resolved` above: nothing to clear, and
+ * nothing that outlives the request it belongs to.
+ */
+const described = new WeakMap<Request, RouteBindingHints>()
+
+export type RouteBindingHints = {
+  /** `{ post: 'slug' }` for `/posts/{post:slug}` — bind by that column. */
+  fields?: Record<string, string>
+
+  /** `withTrashed()` on the route: a soft-deleted row may resolve. */
+  trashed?: boolean
+
+  /**
+   * Resolve each child through its parent — Laravel's `scopeBindings()`.
+   *
+   * Keyed by the child parameter: `{ comment: { parent: 'photo', relation: 'comments' } }`
+   * for `/photos/{photo}/comments/{comment}`. Derived from the URI by the router,
+   * because that is where the relation name is written down.
+   */
+  scope?: Record<string, { parent: string; relation: string }>
+}
+
+/**
+ * Called by the compiled router, before the binding middleware runs.
+ *
+ * Separate from `resolveBindings` so the middleware stays an alias an application
+ * can put where it likes — including nowhere, which is the point of it being a
+ * middleware at all.
+ */
+export function describeRouteBindings(request: Request, hints: RouteBindingHints): void {
+  described.set(request, hints)
+}
+
+/**
  * The model a route parameter resolved to.
  *
  * ```ts
@@ -138,17 +186,22 @@ export async function resolveBindings(
   const store = new Map<string, unknown>()
   resolved.set(request, store)
 
+  const hints = described.get(request) ?? {}
   const entries = Object.entries(params).filter(([name]) => registry.has(name))
 
   const scoped = entries.filter(([name]) => {
     const registration = registry.get(name)
 
-    return registration?.kind === 'model' && registration.scope !== undefined
+    // Scoped by the registration, or by the route saying `scopeBindings()`.
+    return (
+      (registration?.kind === 'model' && registration.scope !== undefined) ||
+      hints.scope?.[name] !== undefined
+    )
   })
   const plain = entries.filter((entry) => !scoped.includes(entry))
 
   for (const [name, value] of [...plain, ...scoped]) {
-    store.set(name, await resolveOne(registry, name, value, store, request))
+    store.set(name, await resolveOne(registry, name, value, store, request, hints))
   }
 }
 
@@ -157,7 +210,8 @@ async function resolveOne(
   name: string,
   value: string,
   store: Map<string, unknown>,
-  request: Request
+  request: Request,
+  hints: RouteBindingHints = {}
 ): Promise<unknown> {
   const registration = registry.get(name) as Registration
 
@@ -169,7 +223,18 @@ async function resolveOne(
     return answer
   }
 
-  const { model, scope } = registration
+  const field = hints.fields?.[name]
+
+  /**
+   * The route's scope, when the registration did not declare one.
+   *
+   * `bindings().model('comment', Comment, { parent: 'article', relation: 'comments' })`
+   * is the permanent form: that model is *always* a child. `scopeBindings()` on a
+   * route is the per-route form, and it wins nothing — it fills in where the
+   * registration said nothing, so a model declared scoped stays scoped.
+   */
+  const { model } = registration
+  const scope = registration.scope ?? hints.scope?.[name]
 
   /**
    * A scoped child is resolved through its parent's relation.
@@ -193,13 +258,13 @@ async function resolveOne(
       throw new Error(`[${name}] cannot be scoped: its model has no resolveChildRouteBinding.`)
     }
 
-    const child = await model.resolveChildRouteBinding(parent, scope.relation, value)
+    const child = await model.resolveChildRouteBinding(parent, scope.relation, value, field)
     if (child === undefined || child === null) throw missing(name, value)
 
     return child
   }
 
-  const found = await model.resolveRouteBinding(value)
+  const found = await model.resolveRouteBinding(value, field, hints.trashed)
   if (found === undefined || found === null) throw missing(name, value)
 
   return found
