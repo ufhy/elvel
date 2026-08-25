@@ -149,7 +149,9 @@ export function spa(): Spa {
  * Render the document directly, for a controller that has nothing to add.
  *
  * ```ts
- * export default controller('app').get('/', () => document())
+ * // routes/web.ts
+ * Route.get('/', () => document())
+ * Route.get('/dashboard', [DashboardController, 'index']).middleware('auth')
  * ```
  */
 export function document(options: DocumentOptions = {}): Promise<Response> {

@@ -1,6 +1,5 @@
-import { controller } from '@elvel/core'
 import { Rule, ValidationError, validator } from '@elvel/validation'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 
 /**
  * Exercise surface for the two-phase validation story, asserted by
@@ -11,7 +10,7 @@ import { t } from 'elysia'
  * OpenAPI document. Phase two is `validator()`, which handles everything TypeBox
  * cannot express — cross-field rules, and anything that must read the database.
  */
-export default controller('check', '/check')
+export default new Elysia({ name: 'check', prefix: '/check' })
   .post(
     '/register',
     async ({ body, status }) => {

@@ -1,8 +1,9 @@
-import { controller, NotFoundException } from '@elvel/core'
+import { NotFoundException } from '@elvel/core'
 import { render, view } from '@elvel/view'
+import { Elysia } from 'elysia'
 import { Bare, Hello } from '../resources/views/pages/hello.tsx'
 
-export default controller('fixture:page')
+export default new Elysia({ name: 'fixture:page' })
   .get('/', () => view(Hello, { title: 'Greeting', who: 'World', items: ['a', 'b'] }))
   .get('/escaped', () => view(Hello, { title: 'Greeting', who: '<b>x</b>', items: [] }))
   .get('/bare', () => view(Bare))

@@ -14,7 +14,6 @@ export {
   type RouteModule
 } from './application.ts'
 export { Config } from './config.ts'
-export { controller, routeGroup } from './controller.ts'
 export { defer, deferredCount, flushDeferred, forgetDeferred } from './defer.ts'
 export { Env, env, parseEnvFile } from './env.ts'
 export {

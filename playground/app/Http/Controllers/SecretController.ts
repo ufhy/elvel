@@ -1,9 +1,9 @@
 import { cache } from '@elvel/cache'
-import { controller, NotFoundException } from '@elvel/core'
+import { NotFoundException } from '@elvel/core'
 import { db } from '@elvel/database'
 import { decrypt, encrypt, encrypter } from '@elvel/encryption'
 import { dispatch } from '@elvel/queue'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { SyncSecret } from '../../Jobs/SyncSecret.ts'
 import { Article } from '../../Models/Article.ts'
 
@@ -15,7 +15,7 @@ import { Article } from '../../Models/Article.ts'
  * encrypted at rest, and a queued job whose payload the queue cannot read.
  * Asserted by `scripts/smoke.ts` and driven over the network.
  */
-export default controller('secret')
+export default new Elysia({ name: 'secret' })
   /** Encrypt and decrypt a value, and show what the payload looks like. */
   .post(
     '/check/secret/roundtrip',

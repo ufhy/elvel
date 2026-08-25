@@ -1,6 +1,6 @@
-import { controller, NotFoundException } from '@elvel/core'
+import { NotFoundException } from '@elvel/core'
 import { DatabaseNotification, notifications, notify, route } from '@elvel/notifications'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 import { ArticlePublished } from '../../Notifications/ArticlePublished.ts'
 
@@ -36,7 +36,7 @@ class Recipient {
   }
 }
 
-export default controller('notification')
+export default new Elysia({ name: 'notification' })
   /** Notify one recipient, or several. */
   .post(
     '/check/notifications/:id',

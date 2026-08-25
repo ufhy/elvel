@@ -1,7 +1,7 @@
 import { user } from '@elvel/auth'
-import { controller } from '@elvel/core'
 import { bound, middleware, routes, signedRoute, signedUrl } from '@elvel/http'
 import { view } from '@elvel/view'
+import { Elysia } from 'elysia'
 import { Middleware } from '../../../resources/views/pages/middleware.tsx'
 
 /**
@@ -38,7 +38,7 @@ routes().names({
  *   POST /api/auth/sign-up/email  {"name","email","password"}
  *   POST /api/auth/sign-in/email  {"email","password"}
  */
-export default controller('middleware-demo')
+export default new Elysia({ name: 'middleware-demo' })
   /**
    * The page that makes the rest visible.
    *

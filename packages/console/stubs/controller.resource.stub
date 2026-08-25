@@ -1,41 +1,53 @@
-import { controller } from '@elvel/core'
-import { t } from 'elysia'
-
 /**
  * {{ class }} — resource controller.
  *
- * Validation schemas live next to the route they guard. When the validation
- * package lands, the `body` schemas below become FormRequest references.
+ * The seven methods `Route.resource` looks for. Register them all with one line:
+ *
+ *   // routes/web.ts
+ *   Route.resource('{{ plural }}', {{ class }})
+ *
+ * That gives `/{{ plural }}`, `/{{ plural }}/create`, `/{{ plural }}/{id}` and the
+ * rest, named `{{ plural }}.index` through `{{ plural }}.destroy`. Narrow it with
+ * `.only([…])` or `.except([…])`, and use `Route.apiResource` to leave out the two
+ * that only exist to render forms.
+ *
+ * Validation belongs beside the route, not here:
+ *
+ *   Route.resource('{{ plural }}', {{ class }})
+ *   Route.post('/{{ plural }}', [{{ class }}, 'store'])
+ *     .validate({ body: t.Object({ name: t.String({ minLength: 1 }) }) })
  */
-export default controller('{{ kebab }}', '/{{ plural }}')
-  .get('/', () => {
+export default class {{ class }} {
+  index() {
     return { data: [] }
-  })
-  .get('/:id', ({ params }) => {
+  }
+
+  /** The form for a new one. */
+  create() {
+    return { data: null }
+  }
+
+  store({ body, status }: { body: unknown; status: Status }) {
+    return status(201, { data: body })
+  }
+
+  show({ params }: { params: { id: string } }) {
     return { data: { id: params.id } }
-  })
-  .post(
-    '/',
-    ({ body, status }) => {
-      return status(201, { data: body })
-    },
-    {
-      body: t.Object({
-        name: t.String({ minLength: 1, error: 'The name field is required.' })
-      })
-    }
-  )
-  .put(
-    '/:id',
-    ({ params, body }) => {
-      return { data: { id: params.id, ...body } }
-    },
-    {
-      body: t.Object({
-        name: t.Optional(t.String({ minLength: 1 }))
-      })
-    }
-  )
-  .delete('/:id', ({ status }) => {
+  }
+
+  /** The form for an existing one. */
+  edit({ params }: { params: { id: string } }) {
+    return { data: { id: params.id } }
+  }
+
+  update({ params, body }: { params: { id: string }; body: object }) {
+    return { data: { id: params.id, ...body } }
+  }
+
+  destroy({ status }: { status: Status }) {
     return status(204, null)
-  })
+  }
+}
+
+/** Elysia's status helper, as this file uses it. */
+type Status = <T>(code: number, body: T) => unknown

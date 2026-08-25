@@ -1,6 +1,6 @@
-import { controller, NotFoundException } from '@elvel/core'
+import { NotFoundException } from '@elvel/core'
 import { redirect, route, routes, sessionOf, validateRequest } from '@elvel/http'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 import type { Comment } from '../../Models/Comment.ts'
 import { Tag } from '../../Models/Tag.ts'
@@ -28,7 +28,7 @@ routes().names({
   'articles.restore': '/check/articles/:id/restore'
 })
 
-export default controller('article')
+export default new Elysia({ name: 'article' })
   /** Paginated, with a relation count, straight through the model. */
   .get('/check/articles', async ({ query }) => {
     const articles = Article.query().withCount('comments').orderBy('id')

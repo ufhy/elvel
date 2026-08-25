@@ -1,10 +1,11 @@
 import { broadcaster } from '@elvel/broadcasting'
 import { cache } from '@elvel/cache'
-import { app, controller } from '@elvel/core'
+import { app } from '@elvel/core'
 import { db } from '@elvel/database'
 import { dispatch, events } from '@elvel/events'
 import { log, MemoryDriver } from '@elvel/log'
 import { queue } from '@elvel/queue'
+import { Elysia } from 'elysia'
 import { OrderShipped } from '../../Events/OrderShipped.ts'
 import { RoomPinged } from '../../Events/RoomPinged.ts'
 import { RecordShipments } from '../../Listeners/RecordShipments.ts'
@@ -12,7 +13,7 @@ import { RecordShipments } from '../../Listeners/RecordShipments.ts'
 /**
  * Exercise surface for events and logging, asserted by `scripts/smoke.ts`.
  */
-export default controller('signal', '/signal')
+export default new Elysia({ name: 'signal', prefix: '/signal' })
   /** A class event reaching a discovered listener. */
   .get('/dispatch', async () => {
     const responses = await dispatch(new OrderShipped(42, 'DHL'))

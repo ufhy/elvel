@@ -141,23 +141,35 @@ describe('make:controller', () => {
     await run(new MakeControllerCommand(), ['BlogPost'])
     const source = await read('app/Http/Controllers/BlogPostController.ts')
 
-    expect(source).toContain("controller('blog-post')")
-    expect(source).toContain("'/blog-posts'")
+    expect(source).toContain('export default class BlogPostController')
+    expect(source).toContain("Route.get('/blog-posts'")
   })
 
   test('--resource selects the resource stub and pluralises the prefix', async () => {
     await run(new MakeControllerCommand(), ['Category', '--resource'])
     const source = await read('app/Http/Controllers/CategoryController.ts')
 
-    expect(source).toContain("controller('category', '/categories')")
-    expect(source).toContain('.post(')
-    expect(source).toContain('.delete(')
+    /**
+     * The seven methods `Route.resource` looks for, by name.
+     *
+     * Asserted as methods rather than as verbs: the stub no longer registers
+     * anything — `Route.resource('categories', CategoryController)` does — and a
+     * controller missing one of these answers a route that exists with
+     * "has no method".
+     */
+    expect(source).toContain('export default class CategoryController')
+
+    for (const method of ['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']) {
+      expect(source).toContain(`  ${method}(`)
+    }
   })
 
   test('-r is the same as --resource', async () => {
     await run(new MakeControllerCommand(), ['Tag', '-r'])
 
-    expect(await read('app/Http/Controllers/TagController.ts')).toContain("'/tags'")
+    expect(await read('app/Http/Controllers/TagController.ts')).toContain(
+      "Route.resource('tags', TagController)"
+    )
   })
 })
 

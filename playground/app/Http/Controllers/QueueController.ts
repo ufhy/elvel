@@ -1,8 +1,8 @@
 import { cache } from '@elvel/cache'
-import { controller, defer, NotFoundException } from '@elvel/core'
+import { defer, NotFoundException } from '@elvel/core'
 import { db } from '@elvel/database'
 import { chain, dispatch, dispatchSync, queue } from '@elvel/queue'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { ChainStep } from '../../Jobs/ChainStep.ts'
 import { FlakyProbe } from '../../Jobs/FlakyProbe.ts'
 import { ImportRow } from '../../Jobs/ImportRow.ts'
@@ -19,7 +19,7 @@ import { Article } from '../../Models/Article.ts'
  * Pass `?connection=redis` (or `sync`, `database`) to move the same routes onto
  * another driver. Asserted by `scripts/smoke.ts` and driven over the network.
  */
-export default controller('queue')
+export default new Elysia({ name: 'queue' })
   /** Queue one job and return immediately — the whole point of a queue. */
   .post(
     '/check/queue/digest',

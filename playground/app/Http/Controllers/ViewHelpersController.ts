@@ -1,7 +1,6 @@
-import { controller } from '@elvel/core'
 import { redirect } from '@elvel/http'
 import { view } from '@elvel/view'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { editableMarkup, ViewHelpers } from '../../../resources/views/pages/view-helpers.tsx'
 
 /**
@@ -13,7 +12,7 @@ import { editableMarkup, ViewHelpers } from '../../../resources/views/pages/view
  * on purpose so the next GET has a flashed error for `whenError` to find, which
  * is the only way to exercise it end to end.
  */
-export default controller('view-helpers')
+export default new Elysia({ name: 'view-helpers' })
   .get('/check/view-helpers', async () =>
     view(ViewHelpers, { title: 'View helpers', editable: await editableMarkup() })
   )

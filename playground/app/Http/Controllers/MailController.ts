@@ -1,8 +1,8 @@
-import { controller, NotFoundException } from '@elvel/core'
+import { NotFoundException } from '@elvel/core'
 import { attachFromDisk, expectMessage, mail, mailer, mailTo } from '@elvel/mail'
 import { queue } from '@elvel/queue'
 import { disk } from '@elvel/storage'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { ArticlePublished } from '../../Mail/ArticlePublished.ts'
 import { InvoiceMail } from '../../Mail/InvoiceMail.ts'
 import { Article } from '../../Models/Article.ts'
@@ -15,7 +15,7 @@ import { Article } from '../../Models/Article.ts'
  * without it the configured mailer is used, which is `log` here. Asserted by
  * `scripts/smoke.ts` and driven over the network with `elvel serve` + curl.
  */
-export default controller('mail')
+export default new Elysia({ name: 'mail' })
   /** Send now, and answer with what the transport reported. */
   .post(
     '/check/mail/send/:id',

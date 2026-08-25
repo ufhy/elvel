@@ -62,8 +62,15 @@ export type ThrottleOptions = {
  * Rate limit the routes of the plugin it is used in.
  *
  * ```ts
- * controller('api').use(throttle({ max: 60, decay: 60 }))
- * controller('uploads').use(throttle('uploads'))   // a named limiter
+ * new Elysia().use(throttle({ max: 60, decay: 60 }))
+ * new Elysia().use(throttle('uploads'))            // a named limiter
+ * ```
+ *
+ * For one route or one group, `throttle:60,1` as middleware says the same thing
+ * and reads better beside the route it guards:
+ *
+ * ```ts
+ * Route.post('/sign-in', [SignInController, 'store']).middleware('throttle:6,1')
  * ```
  *
  * Transcribed from `Illuminate\Routing\Middleware\ThrottleRequests`, including

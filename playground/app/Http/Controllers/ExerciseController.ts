@@ -1,6 +1,7 @@
-import { config, controller, NotFoundException } from '@elvel/core'
+import { config, NotFoundException } from '@elvel/core'
 import { Arr, collect, Str } from '@elvel/support'
 import { render, view } from '@elvel/view'
+import { Elysia } from 'elysia'
 import { DelayedGreeting, Exercise } from '../../../resources/views/pages/exercise.tsx'
 
 /**
@@ -16,7 +17,7 @@ import { DelayedGreeting, Exercise } from '../../../resources/views/pages/exerci
  *
  * Keep this file in sync with `scripts/smoke.ts` — the assertions live there.
  */
-export default controller('exercise', '/exercise')
+export default new Elysia({ name: 'exercise', prefix: '/exercise' })
   .get('/view', () =>
     view(Exercise, {
       title: 'Exercise',

@@ -1,5 +1,5 @@
-import { controller, routeGroup } from '@elvel/core'
 import { clientIp, limiters, throttle } from '@elvel/http'
+import { Elysia } from 'elysia'
 
 /**
  * Generated with `elvel make:controller LimitController`, then extended.
@@ -12,27 +12,19 @@ import { clientIp, limiters, throttle } from '@elvel/http'
  * this file against one budget — which is how the first draft of this file
  * reported one limit's numbers for another limit's route.
  */
-export default controller('limit')
+export default new Elysia({ name: 'limit' })
   /** An inline limit: three requests, then 429 until the window closes. */
   .use(
-    routeGroup()
+    new Elysia()
       .use(throttle({ max: 3, decay: 60, prefix: 'probe:' }))
       .get('/check/limit/probe', () => ({ ok: true }))
   )
 
   /** A named limiter with two windows the request must satisfy at once. */
-  .use(
-    routeGroup()
-      .use(throttle('uploads'))
-      .get('/check/limit/uploads', () => ({ ok: true }))
-  )
+  .use(new Elysia().use(throttle('uploads')).get('/check/limit/uploads', () => ({ ok: true })))
 
   /** An exemption stated out loud: localhost is unlimited here. */
-  .use(
-    routeGroup()
-      .use(throttle('internal'))
-      .get('/check/limit/internal', () => ({ ok: true }))
-  )
+  .use(new Elysia().use(throttle('internal')).get('/check/limit/internal', () => ({ ok: true })))
 
   /** What the framework thinks the caller's address is. */
   .get('/check/limit/ip', ({ request, server }) => ({

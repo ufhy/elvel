@@ -1,6 +1,6 @@
-import { controller } from '@elvel/core'
 import { csrfToken, redirect, sessionOf, validateRequest } from '@elvel/http'
 import { view } from '@elvel/view'
+import { Elysia } from 'elysia'
 import { Subscribe } from '../../../resources/views/pages/subscribe.tsx'
 import { SubscribeRequest } from '../Requests/SubscribeRequest.ts'
 
@@ -10,7 +10,7 @@ import { SubscribeRequest } from '../Requests/SubscribeRequest.ts'
  * The form-and-redirect loop: GET renders, POST validates, and a failure goes back
  * to the GET with the messages and the input flashed for exactly one request.
  */
-export default controller('subscribe')
+export default new Elysia({ name: 'subscribe' })
   .get('/subscribe', () => {
     /**
      * `csrfToken()`, not `session.token()`.

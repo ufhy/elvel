@@ -201,26 +201,27 @@ export function middlewares(): MiddlewareRegistry {
 /**
  * Middleware for a route or a group — the equivalent of `->middleware([...])`.
  *
+ * Most applications never call this. `Route.middleware('auth')` in a routes file
+ * is the front door, and it uses this underneath:
+ *
  * ```ts
- * controller('posts')
- *   .get('/mine', handler, middleware('auth', 'verified'))
- *   .post('/', handler, { ...middleware('auth', 'throttle:6,1'), body: schema })
+ * Route.get('/mine', [PostController, 'mine']).middleware('auth', 'verified')
+ *
+ * Route.middleware('auth', 'can:admin').group(() => {
+ *   Route.get('/admin', [AdminController, 'index'])
+ * })
  * ```
  *
  * It returns `{ beforeHandle }` because that is Elysia's own per-route slot: the
  * hooks run in order, and one that returns a `Response` stops the rest from
  * running at all. Nothing here reimplements a pipeline — `@elvel/support`'s
- * `Pipeline` exists for values, and a request already has a chain to join.
+ * `Pipeline` exists for values, and a request already has a chain to join. That
+ * shape is also what lets it be handed straight to an Elysia `guard()` by anything
+ * mounting a plugin of its own.
  *
- * For a whole group, hand the same object to `guard()`:
- *
- * ```ts
- * controller('admin').guard(middleware('auth', 'can:admin'), (routes) => routes.get(…))
- * ```
- *
- * Resolution is deferred to the first request, not done here: a controller is
- * built while providers are still registering, and an alias asked for at module
- * scope would not exist yet.
+ * Resolution is deferred to the first request, not done here: routes are compiled
+ * while providers are still registering, and an alias asked for at module scope
+ * would not exist yet.
  */
 export function middleware(...names: string[]): { beforeHandle: MiddlewareHook[] } {
   let resolved: MiddlewareHook[] | undefined

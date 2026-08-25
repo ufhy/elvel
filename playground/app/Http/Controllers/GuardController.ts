@@ -1,6 +1,6 @@
 import { authorize, can, requireUser, user } from '@elvel/auth'
-import { controller, NotFoundException } from '@elvel/core'
-import { t } from 'elysia'
+import { NotFoundException } from '@elvel/core'
+import { Elysia, t } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 
 /**
@@ -16,7 +16,7 @@ import { Article } from '../../Models/Article.ts'
  *   POST /api/auth/sign-up/email  {"name","email","password"}
  *   POST /api/auth/sign-in/email  {"email","password"}
  */
-export default controller('guard')
+export default new Elysia({ name: 'guard' })
   /** Who am I? A guest gets a 401 from `requireUser()`. */
   .get('/check/me', () => {
     const current = requireUser()

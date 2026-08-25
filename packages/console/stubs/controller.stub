@@ -1,19 +1,27 @@
-import { controller } from '@elvel/core'
-
 /**
  * {{ class }}
  *
- * A controller is an Elysia instance: handlers keep full context inference and
- * the instance name lets Elysia deduplicate the routes if it is mounted twice.
+ * A controller is a plain class, and a route names one of its methods:
  *
- * To render a view, import the component and hand it to `view()` — the props
- * are typechecked at the call site:
+ *   // routes/web.ts
+ *   Route.get('/{{ plural }}', [{{ class }}, 'index'])
+ *
+ * Each method receives Elysia's request context — `{ params, query, body, request,
+ * set }` — so what the framework knows about the request is destructured from its
+ * argument. One instance is built per route and reused, so keep them stateless.
+ *
+ * To render a view, import the component and hand it to `view()`; the props are
+ * typechecked at the call site:
  *
  *   import { view } from '@elvel/view'
  *   import { {{ studly }} } from '../../../resources/views/pages/{{ kebab }}.tsx'
  *
- *   .get('/', () => view({{ studly }}, { title: '{{ studly }}' }))
+ *   index() {
+ *     return view({{ studly }}, { title: '{{ studly }}' })
+ *   }
  */
-export default controller('{{ kebab }}').get('/{{ plural }}', () => ({
-  data: []
-}))
+export default class {{ class }} {
+  index() {
+    return { data: [] }
+  }
+}

@@ -1,8 +1,8 @@
 import { concurrency } from '@elvel/concurrency'
-import { controller } from '@elvel/core'
 import { hash } from '@elvel/hashing'
 import { image, probe } from '@elvel/image'
 import { process } from '@elvel/process'
+import { Elysia } from 'elysia'
 
 /**
  * The four packages the playground never booted.
@@ -17,7 +17,7 @@ import { process } from '@elvel/process'
  * these are for is the thing those cannot show — that the provider registers,
  * the config resolves, and the binding is there in a real application.
  */
-export default controller('tooling', '/check/tooling')
+export default new Elysia({ name: 'tooling', prefix: '/check/tooling' })
   /** A password hashed and verified, which is the whole of the package's job. */
   .get('/hash', async () => {
     const hashed = await hash().make('longenough1')

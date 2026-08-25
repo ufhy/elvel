@@ -1,5 +1,5 @@
-import { controller } from '@elvel/core'
 import { __, choice, trans } from '@elvel/translation'
+import { Elysia } from 'elysia'
 
 /**
  * Generated with `bun run playground make:controller LanguageController`, then
@@ -13,7 +13,7 @@ import { __, choice, trans } from '@elvel/translation'
  * worth exercising here rather than in a unit test: one process serves everybody,
  * and a locale left set would answer the next request in the last one's language.
  */
-export default controller('language').get('/check/lang/:locale', ({ params, query }) => {
+export default new Elysia({ name: 'language' }).get('/check/lang/:locale', ({ params, query }) => {
   const previous = trans().getLocale()
   const count = Number(query.count ?? 2)
 

@@ -1,5 +1,5 @@
 import { cache, LockTimeoutError, limiter } from '@elvel/cache'
-import { controller } from '@elvel/core'
+import { Elysia } from 'elysia'
 import { Article } from '../../Models/Article.ts'
 
 /**
@@ -10,7 +10,7 @@ import { Article } from '../../Models/Article.ts'
  * `database`) picks one, so the same routes exercise all four. Asserted by
  * `scripts/smoke.ts` and driven over the network with `elvel serve` + curl.
  */
-export default controller('cache')
+export default new Elysia({ name: 'cache' })
   /** `remember` around a real query: the second call does not touch the database. */
   .get('/check/cache/articles', async ({ query }) => {
     const store = typeof query.store === 'string' ? query.store : undefined

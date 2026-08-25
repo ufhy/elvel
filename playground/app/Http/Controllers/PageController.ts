@@ -1,5 +1,5 @@
-import { controller } from '@elvel/core'
 import { view } from '@elvel/view'
+import { Elysia } from 'elysia'
 import { Landing } from '../../../resources/views/pages/landing.tsx'
 
 /**
@@ -9,6 +9,6 @@ import { Landing } from '../../../resources/views/pages/landing.tsx'
  * This file stays `.ts`: components are plain functions, so no JSX syntax is
  * needed here. Rename it to `.tsx` if you would rather write markup inline.
  */
-export default controller('page')
+export default new Elysia({ name: 'page' })
   .get('/', () => view(Landing, { title: 'Welcome' }))
   .get('/health', () => ({ status: 'ok' }))

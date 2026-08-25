@@ -1,4 +1,3 @@
-import { controller } from '@elvel/core'
 import {
   clientPrefix,
   clientUrl,
@@ -10,6 +9,7 @@ import {
   queueCookie,
   redirect
 } from '@elvel/http'
+import { Elysia } from 'elysia'
 
 /**
  * Cookies that hide their contents, named error bags and proxy-aware URLs —
@@ -19,7 +19,7 @@ import {
  * encrypted and bound to its own name, so what the browser holds is opaque and
  * cannot be edited into something else.
  */
-export default controller('cookie', '/cookies')
+export default new Elysia({ name: 'cookie', prefix: '/cookies' })
   /** Queue a cookie. The response says what the value was; the header does not. */
   .get('/set', ({ query }) => {
     queueCookie('preference', String(query.value ?? 'dark'), { maxAge: 3600 })

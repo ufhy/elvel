@@ -1,4 +1,4 @@
-import { controller, NotFoundException } from '@elvel/core'
+import { NotFoundException } from '@elvel/core'
 import { validateRequest } from '@elvel/http'
 import {
   disk,
@@ -8,7 +8,7 @@ import {
   PathOutsideDiskError,
   storage
 } from '@elvel/storage'
-import { t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { UploadAvatarRequest } from '../Requests/UploadAvatarRequest.ts'
 
 /**
@@ -19,7 +19,7 @@ import { UploadAvatarRequest } from '../Requests/UploadAvatarRequest.ts'
  * exercise every driver. Asserted by `scripts/smoke.ts` and driven over the
  * network with `elvel serve` + curl.
  */
-export default controller('file')
+export default new Elysia({ name: 'file' })
   /**
    * The same upload, checked by phase two before anything is stored.
    *

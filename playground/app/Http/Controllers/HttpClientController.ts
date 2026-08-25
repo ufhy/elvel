@@ -1,5 +1,5 @@
-import { controller } from '@elvel/core'
 import { ConnectionError, HttpResponse, http, RequestError } from '@elvel/http-client'
+import { Elysia } from 'elysia'
 
 /**
  * Generated with `bun run playground make:controller HttpClientController`, then
@@ -14,7 +14,7 @@ import { ConnectionError, HttpResponse, http, RequestError } from '@elvel/http-c
  * then succeeds, and the client is told to try three times — which is the whole
  * reason to have a client rather than call `fetch` and hope.
  */
-export default controller('http-client')
+export default new Elysia({ name: 'http-client' })
   // ------------------------------------------------------------- the upstream
 
   .get('/check/client/upstream/ok', () => ({ hello: 'world' }))
