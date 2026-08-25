@@ -147,15 +147,30 @@ export class Session {
     return this.name
   }
 
+  /**
+   * Read what is stored, and touch nothing.
+   *
+   * A session is **not** given a token here, and that is the difference between a
+   * visitor costing a write and costing nothing. Starting used to mint one, which
+   * marks the session changed, which saves it — so every first-time visitor to any
+   * page wrote a session file and went away with a `Set-Cookie`, whether the page
+   * had a form on it or not.
+   *
+   * What that cost, measured on a scaffolded application at fifty concurrent
+   * callers: the guest path ran at 323 requests a second against 1,100 for the same
+   * page once a cookie existed. And a response carrying `Set-Cookie` is a response
+   * no shared cache will store — so a document deliberately built to be cacheable,
+   * the same bytes for everybody, could never be cached by a CDN.
+   *
+   * The token is minted by `ensureToken()` instead, which `csrfToken()` calls. A
+   * page that renders a form still gets one, and still saves. A page that does not
+   * leaves the session untouched.
+   */
   async start(): Promise<this> {
     if (this.started) return this
 
     this.data = (await this.driver.read(this.id)) ?? {}
     this.started = true
-
-    // A session always has a CSRF token, so a form can be rendered before
-    // anything is written to it.
-    if (typeof this.data._token !== 'string') this.regenerateToken()
 
     return this
   }
@@ -220,6 +235,18 @@ export class Session {
     return this
   }
 
+  /**
+   * Is there flash data waiting to age?
+   *
+   * Asked before deciding to skip a save. Ageing happens *inside* `save()` — it
+   * drops what the last request flashed and promotes what this one did — so a
+   * session left unsaved keeps a message that has already been shown, and shows it
+   * again on the next request.
+   */
+  hasFlashData(): boolean {
+    return this.flashKeys('new').length > 0 || this.flashKeys('old').length > 0
+  }
+
   private flashKeys(kind: 'new' | 'old'): string[] {
     const value = this.data[`_flash.${kind}`]
 
@@ -242,8 +269,30 @@ export class Session {
     return this
   }
 
+  /**
+   * The token this session has, or an empty string.
+   *
+   * Reads, and only reads. A session that was never asked for a token has none —
+   * and `tokensMatch` treats an empty expectation as a refusal, so a write arriving
+   * for a session that never issued one is rejected rather than compared against
+   * something invented on the spot.
+   */
   token(): string {
     return String(this.data._token ?? '')
+  }
+
+  /**
+   * The token, minting one if this session has none — what `csrfToken()` calls.
+   *
+   * Separate from `token()` because minting *writes*: it marks the session changed,
+   * so the response saves it and issues a cookie. That is exactly right for a page
+   * about to render a form, and exactly wrong for a page that will not — which is
+   * why the two are different methods rather than one that guesses.
+   */
+  ensureToken(): string {
+    if (typeof this.data._token !== 'string') this.regenerateToken()
+
+    return this.token()
   }
 
   regenerateToken(): this {

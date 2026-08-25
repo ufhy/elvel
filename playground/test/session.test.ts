@@ -122,7 +122,14 @@ describe('flash data', () => {
 
 describe('the cookie itself', () => {
   it('is http-only and same-site, which is not decorative', async () => {
-    const response = await test(app).get('/')
+    /**
+     * A page that asks for a token, not the front page.
+     *
+     * A session with nothing in it is not written and gets no cookie — which is
+     * what keeps an anonymous visit free and its document cacheable by a shared
+     * cache. So the flags are asserted on a response that has a reason to set one.
+     */
+    const response = await test(app).getJson('/session/token')
     const cookie = response.headers.getSetCookie().find((one) => one.startsWith('elvel_session'))
 
     expect(cookie).toBeDefined()

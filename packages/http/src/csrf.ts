@@ -86,9 +86,14 @@ export function tokensMatch(
  * a form three components deep should not need the token threaded through every
  * one of them, and a form that silently omits it fails with a 419 that looks
  * like a framework bug.
+ *
+ * **Asking for it creates it.** A session is not given a token when it starts, so
+ * a page that renders no form leaves the session untouched — no write, no cookie,
+ * and a response a shared cache may keep. Calling this says the opposite: this page
+ * is about to hand out a token, so the session it belongs to has to survive.
  */
 export function csrfToken(): string {
-  return currentScope()?.session.token() ?? ''
+  return currentScope()?.session.ensureToken() ?? ''
 }
 
 /**

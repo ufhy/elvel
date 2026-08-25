@@ -400,10 +400,28 @@ describe('Session', () => {
     driver = new MemorySessionDriver()
   })
 
-  test('a fresh session has a CSRF token', async () => {
+  test('a fresh session has no token until one is asked for', async () => {
     const session = await new Session(Session.newId(), driver).start()
 
-    expect(session.token()).toHaveLength(40)
+    /**
+     * Starting used to mint one, and minting marks the session changed — so every
+     * first-time visitor to any page wrote a session and went away with a cookie,
+     * whether the page had a form on it or not. Measured at fifty concurrent
+     * callers, that was 323 requests a second against 1,100; and a response with a
+     * `Set-Cookie` is one no shared cache will store.
+     */
+    expect(session.token()).toBe('')
+    expect(session.isDirty()).toBe(false)
+
+    // Asking creates it, and asking is what a page rendering a form does.
+    expect(session.ensureToken()).toHaveLength(40)
+    expect(session.isDirty()).toBe(true)
+  })
+
+  test('and asking twice is the same token', async () => {
+    const session = await new Session(Session.newId(), driver).start()
+
+    expect(session.ensureToken()).toBe(session.ensureToken())
   })
 
   test('values survive a save and reload', async () => {
@@ -603,7 +621,7 @@ describe('CSRF', () => {
 
   test('the token is accepted from the body or the header', async () => {
     const store = await session()
-    const token = store.token()
+    const token = store.ensureToken()
 
     expect(tokensMatch(store, { method: 'POST', path: '/x', body: { _token: token } })).toBe(true)
     expect(

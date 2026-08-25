@@ -1841,6 +1841,38 @@ Checked against the globs now, and said out loud when it is not true: *"Inside t
 checkout, but not one of its workspaces — so the published packages will be
 required."* Which is a working application, just not a linked one.
 
+## A session nobody touched is not written, and gets no cookie
+
+Starting a session used to mint a CSRF token, and `onAfterHandle` used to record
+`_previous.url` on every `GET`. Both mark the session changed, so both saved it —
+and every first-time visitor to every page wrote a session and left with a
+`Set-Cookie`, whether the page had a form on it or not.
+
+Two costs, and the second is worse than the first. Measured on a scaffolded
+application at fifty concurrent callers, the guest path ran at **323 requests a
+second**; with the writes removed it runs at **2,561**, which is the same rate the
+server serves a static file at — the session was the whole difference. And a
+response carrying `Set-Cookie` is a response no shared cache will store, so an SPA
+document deliberately built to be identical for everybody, and shipped with
+`Cache-Control: public`, could never be cached by a CDN. The two headers
+contradicted each other on every response.
+
+What replaced it:
+
+- `start()` mints nothing. `token()` reads; `ensureToken()` mints, and `csrfToken()`
+  calls that — so a page rendering a form still gets a token and still saves.
+- `_previous.url` is recorded only for a session that is already dirty. `back()`
+  matters after a form is refused, and a page with a form has asked for a token.
+- The cookie is issued only for a session that was written, or one that already
+  exists.
+- Flash data is checked rather than assumed: ageing happens *inside* `save()`, so a
+  session holding a message and skipped would show that message twice.
+
+The change is visible to any code that read `session.token()` expecting one to be
+there. Two places in this repository did — the playground's `/session/token`
+endpoint and a test — and both were right to be corrected: an endpoint whose
+purpose is to hand out a token should say so.
+
 ## Tailwind decides where to look, and it decides badly
 
 Tailwind v4 needs no `content` list because it finds class names itself. What it

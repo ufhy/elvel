@@ -105,7 +105,21 @@ describe('the cookie flags an application can decide', () => {
     await app.boot()
     app.handleExceptions()
 
-    app.useRoutes(new Elysia().get('/page', () => currentScope()?.session.id ?? ''))
+    /**
+     * The page writes something, because a page that writes nothing gets no cookie.
+     *
+     * That is the point of the flags being on this response at all: a session with
+     * nothing in it is not written and not named, which is what keeps an anonymous
+     * visit free and its document cacheable. Reading `session.id` is not touching
+     * the session — asking for a CSRF token, or putting a value, is.
+     */
+    app.useRoutes(
+      new Elysia().get('/page', () => {
+        currentScope()?.session.put('seen', true)
+
+        return currentScope()?.session.id ?? ''
+      })
+    )
 
     const response = await app.handle(new Request('http://localhost/page'))
 

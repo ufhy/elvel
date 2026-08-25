@@ -4,7 +4,39 @@ export default {
   /** Turn the session middleware off entirely for a pure API. */
   enabled: env('SESSION_ENABLED', true),
 
-  /** `file` or `memory`. */
+  /**
+   * Where sessions are kept: `file`, `database`, `redis`, `cache` or `memory`.
+   *
+   * `file` writes one file per session under `storage/framework/sessions`. It needs
+   * nothing installed, which is why it is the default, and it is the wrong answer
+   * the moment the application runs in more than one process: a session written on
+   * one machine does not exist on the other, and people are signed out at random.
+   *
+   * `redis` — or `cache`, naming any store in `config/cache.ts` — is the answer for
+   * anything with real traffic. Shared between processes, and the store's own expiry
+   * does the collecting.
+   *
+   * `database` shares them too, through a table `elvel session:table` creates. It is
+   * the slowest of the shared options, and the one that puts session writes on the
+   * same connection as the application's own queries.
+   *
+   * `memory` is for tests and single-process development. It keeps every session in
+   * the process, unbounded until `session:gc` runs, and loses all of them on restart.
+   *
+   * Measured on a scaffolded application at fifty concurrent callers, on one
+   * machine, reading a page that uses its session:
+   *
+   * | driver             | requests/second |
+   * | ------------------ | --------------- |
+   * | `memory`           | 1,111           |
+   * | `cache` → array    | 1,066           |
+   * | `cache` → redis    | 954             |
+   * | `database` (SQLite)| 347             |
+   * | `file`             | 323             |
+   *
+   * A page that touches nothing is unaffected by any of this: a session with nothing
+   * in it is never written and never given a cookie.
+   */
   driver: env('SESSION_DRIVER', 'file'),
 
   /** Where the file driver writes. Defaults to storage/framework/sessions. */

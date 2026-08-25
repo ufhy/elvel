@@ -582,12 +582,30 @@ export class HttpServiceProvider extends ServiceProvider {
            */
           if (!session.isPersisted()) {
             /**
-             * Where `back()` goes next, by the rule the handler path uses — plus
-             * one: a page nobody can return to is not worth remembering. A 404 or
-             * a 500 is that page; a client-routed application's deep link,
-             * rendered here as a 200, is not.
+             * Where `back()` goes next — recorded only for a session that already
+             * has something in it.
+             *
+             * Recording it unconditionally is what this used to do, and it made
+             * every `GET` dirty, which saved a session for every visitor to every
+             * page. Together with a token minted at `start()` that meant a
+             * first-time visitor to a page with no form on it wrote a session file
+             * and left with a cookie — 323 requests a second against 1,100, and a
+             * `Set-Cookie` on a document built to be cached by a CDN.
+             *
+             * Tying it to `isDirty()` costs nothing real: `back()` matters after a
+             * form is refused, and a page with a form has already asked for a CSRF
+             * token, which is what makes its session dirty. A page that asked for
+             * nothing is not a page anybody is sent back to.
+             *
+             * Still not recorded for a 404 or a 500 — a page nobody can return to
+             * is not worth remembering — nor for a cross-origin request.
              */
-            if (request.method === 'GET' && !isCorsRequest(request) && response.status < 400) {
+            if (
+              session.isDirty() &&
+              request.method === 'GET' &&
+              !isCorsRequest(request) &&
+              response.status < 400
+            ) {
               session.put(
                 PREVIOUS_URL_KEY,
                 new URL(request.url).pathname + new URL(request.url).search
@@ -602,15 +620,21 @@ export class HttpServiceProvider extends ServiceProvider {
              * unconditionally: a `419` for a missing CSRF token ate the flash a
              * successful write had just set, and a browser asking for a favicon
              * that does not exist would have done the same.
-             *
-             * A brand-new session is dirty by definition — `start()` gives it a
-             * token — so the case this exists for, a document rendered here for a
-             * first-time visitor, is still written and still gets its cookie.
              */
             if (session.isDirty()) await session.save()
           }
 
-          response.headers.append('set-cookie', cookieFor(session))
+          /**
+           * No cookie for a session with nothing in it.
+           *
+           * The cookie is what makes a response uncacheable by anything shared, and
+           * handing one out for a session that was never written names an id the
+           * next request would find empty anyway. The moment anything real happens —
+           * a token, a flash, signing in — the session is dirty and the cookie goes.
+           */
+          if (session.isDirty() || session.isPersisted() || session.hasFlashData()) {
+            response.headers.append('set-cookie', cookieFor(session))
+          }
         })
     }
 
@@ -700,22 +724,46 @@ export class HttpServiceProvider extends ServiceProvider {
         })
         .onAfterHandle({ as: 'global' }, async ({ request, session, set }) => {
           /**
-           * Remember where this request was, so the *next* one can go `back()`.
+           * A session nobody touched is left alone — not recorded, not written, and
+           * not given a cookie.
            *
-           * Only for a page a browser can return to: recording a POST would send
-           * `back()` to a URL that only answers a form submission, and recording an
-           * asset or an API call would send it somewhere nobody was looking at.
+           * This ran unconditionally, and it is what made every visitor cost a
+           * write. The `put` below marks the session changed, so the `save` always
+           * had something to do, so every response carried a `Set-Cookie` — on a
+           * page with no form, for a visitor who was never going to come back.
+           * Measured at fifty concurrent callers: 323 requests a second against
+           * 1,100 once a cookie existed, and a document built to be cached by a CDN
+           * that no shared cache would ever store.
+           *
+           * Flash data is the exception that has to be checked, not assumed. Ageing
+           * happens *inside* `save()`, so a session holding a message and skipped
+           * here would show that message again on the next request.
            */
-          if (request.method === 'GET' && !isCorsRequest(request)) {
-            session.put(
-              PREVIOUS_URL_KEY,
-              new URL(request.url).pathname + new URL(request.url).search
-            )
+          const worthWriting = session.isDirty() || session.hasFlashData()
+
+          if (worthWriting) {
+            /**
+             * Remember where this request was, so the *next* one can go `back()`.
+             *
+             * Only for a page a browser can return to: recording a POST would send
+             * `back()` to a URL that only answers a form submission, and recording
+             * an asset or an API call would send it somewhere nobody was looking at.
+             *
+             * And only for a session that already has something in it. `back()`
+             * matters after a form is refused, and a page with a form has asked for
+             * a CSRF token — which is what made its session worth writing.
+             */
+            if (request.method === 'GET' && !isCorsRequest(request)) {
+              session.put(
+                PREVIOUS_URL_KEY,
+                new URL(request.url).pathname + new URL(request.url).search
+              )
+            }
+
+            await session.save()
+
+            set.headers['set-cookie'] = cookieFor(session)
           }
-
-          await session.save()
-
-          set.headers['set-cookie'] = cookieFor(session)
         })
     )
   }

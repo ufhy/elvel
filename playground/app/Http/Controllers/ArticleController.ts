@@ -235,7 +235,10 @@ export default controller('article')
   .get('/session/token', (context) => {
     const session = sessionOf(context)
 
-    return { token: session.token(), visits: session.get<number>('visits', 0) }
+    // `ensureToken`, not `token`: this endpoint exists to hand one out, so the
+    // session has to be given one and saved. A session that starts without a token
+    // is what keeps a page with no form from writing anything at all.
+    return { token: session.ensureToken(), visits: session.get<number>('visits', 0) }
   })
 
   .post('/session/visit', (context) => {
