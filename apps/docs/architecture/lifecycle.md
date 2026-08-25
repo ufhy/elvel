@@ -151,9 +151,10 @@ export class ReportServiceProvider extends ServiceProvider {
 ## Providers a package leaves out
 
 `HttpServiceProvider` is the one worth naming. **Routing lives in `@elvel/core`** —
-the root Elysia instance and `controller()` are there — so an application that
-leaves the http provider out still serves pages, and loses sessions, cookies,
-CSRF, the rate limiters and the middleware registry.
+the root Elysia instance and the bootstrapper are there — so an application that
+leaves the http provider out loses sessions, cookies, CSRF, the rate limiters, the
+middleware registry **and the `Route` facade**: a routes file that exports nothing
+needs the compiler that provider binds, and says so rather than mounting nothing.
 
 That is why `middleware('auth')` fails per request rather than at boot in such an
 application, with a message that says which provider is missing instead of

@@ -22,7 +22,7 @@ boot(): void {
 
 ```ts
 // routes/web.ts — the only route the client needs
-export default controller('app').get('/', () => document())
+Route.get('/', () => document())
 ```
 
 That is the whole server side. The payload is registered **once** and used by every
@@ -77,12 +77,40 @@ conditions decide whether a 404 becomes the document:
 | not under `spa.apiPrefixes` | a missing endpoint is a missing endpoint |
 | no file extension | a stale `/build/assets/index-abc.js` must stay a 404, not become a page |
 
-Three earlier shapes are recorded in the source because each looked right and none
-worked: a `GET /*` route loses to the static file plugin, registering it earlier
-shadows every real file, and an `onError` hook in a provider never fires — the
-framework wires its own handler in before any provider registers.
-
 A 500 is still a 500. Only a 404 becomes a document.
+
+### Or a route, if you would rather write one
+
+```ts
+Route.view('/', MainLayout, { title: 'Home' })
+Route.view('/{path}', MainLayout, { title: 'Home' }).where('path', '.*')
+```
+
+This is Laravel's `Route::view('{path}', 'main')`, and it works: a request for a
+path with no file on disk falls through to the router, in development exactly as
+in production. It did not always — `@elysiajs/static` used to claim `/*` in
+development and answer its own 404s, so the same source answered `/deep/link` in
+production and 404 locally. `packages/view/test/static-fallthrough.test.ts` is
+what keeps that fixed.
+
+A route is the right shape when the catch-all needs **middleware** — an admin
+panel behind `auth`, which an exception handler cannot express:
+
+```ts
+Route.middleware('auth').group(() => {
+  Route.view('/admin/{path}', AdminLayout, { title: 'Admin' }).where('path', '.*')
+})
+```
+
+What you give up is the four conditions above. A bare `/*` answers a page for
+`/build/assets/index-abc.js` too, exactly as `Route::view('{path}', 'main')` does
+in Laravel — so a stale asset URL renders HTML to a browser waiting for
+JavaScript. Prefixed routes for the parts that need guarding, and the handler for
+the global fallback, is the combination that keeps both.
+
+An `onError` hook in a provider is the one shape that cannot work at all: the
+framework wires its own handler into Elysia's error pipeline before any provider
+registers, and the first handler to answer wins.
 
 ## The client
 

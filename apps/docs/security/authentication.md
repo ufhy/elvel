@@ -221,7 +221,7 @@ there is no request.
 ## Middleware
 
 ```ts
-export default controller('dashboard').get('/dashboard', handler, middleware('auth'))
+Route.get('/dashboard', [DashboardController, 'index']).middleware('auth')
 ```
 
 | Middleware | What it does |

@@ -5,7 +5,7 @@ Middleware is named, and applied by name:
 ```ts
 import { middleware } from '@elvel/http'
 
-export default controller('dashboard')
+// routes/web.ts
   .get('/dashboard', handler, middleware('auth'))
   .post('/settings', handler, middleware('auth', 'verified', 'throttle:6,1'))
 ```
@@ -103,9 +103,9 @@ does not solve this, which is why Laravel keeps a priority list too.
 ## Rate limiting
 
 ```ts
-controller('api')
-  .use(throttle({ max: 60, decay: 60 }))
-  .get('/orders', handler)
+Route.middleware('throttle:60,1').group(() => {
+  Route.get('/orders', [OrderController, 'index'])
+})
 ```
 
 Or a named limiter, defined once in a provider:

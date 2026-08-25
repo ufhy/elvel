@@ -122,7 +122,7 @@ here:
 The route is a real `PATCH`, and nothing in the handler knows a form was involved:
 
 ```ts
-controller('profile').patch('/settings/profile', async ({ body }) => { … })
+Route.patch('/settings/profile', [ProfileController, 'update'])
 ```
 
 Four things worth knowing:

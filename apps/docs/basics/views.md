@@ -18,7 +18,8 @@ export function Welcome({ title }: { title: string }) {
 ```ts
 import { view } from '@elvel/view'
 
-export default controller('page').get('/', () => view(Welcome, { title: 'Welcome' }))
+// routes/web.ts
+Route.get('/', () => view(Welcome, { title: 'Welcome' }))
 ```
 
 The component is passed **by reference, not by name**. A renamed prop or a
@@ -195,11 +196,16 @@ ours.
 bun run dev        # server (bun --hot) + Vite + queue + scheduler, one terminal
 ```
 
-1. **`bun --hot` reloads the server.** It re-evaluates the changed modules in
-   place rather than restarting the process, so the next request renders the new
-   markup. Measured on a scaffolded application: a view change reaches the next
-   request in about **105ms**, against about **195ms** for `--watch`, and five
-   successive edits left the routes, the container and the 404 handler intact.
+1. **`bun --hot` reloads the server.** It re-evaluates the module graph in place
+   rather than restarting the process, so the next request renders the new markup.
+   Measured on a scaffolded application: a view change reaches the next request in
+   **72ms**, and five successive edits each landed. `--watch`, the alternative,
+   restarts the process and took 2676ms.
+
+   This works only because `serve` returns once it is listening. Bun will not
+   re-evaluate a graph whose entry point is still evaluating, and `serve` used to
+   end in a promise nobody resolved — so `--hot` did nothing at all, silently, and
+   every edit needed a restart. See `Command.holdsProcess`.
 2. **A Vite plugin tells the browser.** `vite.config.ts` watches
    `resources/views`, `app`, `routes` and `config`, and pushes
    `{ type: 'full-reload' }` down the socket `@vite/client` already holds.
@@ -381,9 +387,21 @@ is showing yesterday's JavaScript in development, this is the first thing to che
 ## Static files
 
 The provider answers files under `public/` itself and mounts `@elysiajs/static`
-behind it for what it does not: a range request, and a path that is not a file.
-Turn it off with `view.serveStatic: false` when something in front of the
-application already serves them.
+behind it for what it does not: a range request. Turn it off with
+`view.serveStatic: false` when something in front of the application already
+serves them.
+
+**A path with no file on disk belongs to the router.** That is Laravel's shape —
+nginx `try_files $uri $uri/ /index.php`, Valet `file_exists(...) ? path : false` —
+and it is what makes `.get('/*')` work, in development exactly as in production.
+The plugin is mounted with `alwaysStatic: true` for it: a route per file that
+exists, never a `/*` that answers its own misses. With `false` it claimed that
+path in development only, and an application whose catch-all was `.get('/*')`
+served `/deep/link` in production and 404 locally, from one source.
+
+The reason `false` was there — an asset added while the server runs — costs
+nothing now: the provider's own handler stats the path per request, so a file
+written after boot is served without a restart.
 
 Answering them here is what makes two things possible. A served file carries the
 [security headers](/security/headers) — the static plugin's routes skip the

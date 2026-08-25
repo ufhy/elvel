@@ -6,7 +6,7 @@ Laravel is one package. Elvel is twenty-nine, and this page is why.
 | --- | --- |
 | `@elvel/contracts` | Interfaces only. Breaks dependency cycles between packages. |
 | `@elvel/support` | `Str`, `Arr`, `Collection`, `Macroable`, `Conditionable`. |
-| `@elvel/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, `controller()`, helpers. |
+| `@elvel/core` | `Application`, `ServiceProvider`, `Config`, `Env`, exception handler, helpers. |
 | `@elvel/database` | Connections, query builder, models, schema builder and migrator on Bun.SQL. |
 | `@elvel/http` | `FormRequest`, `JsonResource`, sessions, signed and encrypted cookies, CSRF, rate limiting, CORS, trusted proxies. |
 | `@elvel/validation` | Two-phase validation: ~50 rules, `unique`/`exists`, error bags. |
