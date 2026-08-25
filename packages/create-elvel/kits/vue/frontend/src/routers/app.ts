@@ -64,7 +64,19 @@ const routes: RouteRecordRaw[] = [
    * know which paths this router owns. So the router has to be the one to say "no
    * such page", and it needs a page to say it with.
    */
-  { path: '/:rest(.*)', name: 'missing', component: () => import('../views/Missing.vue') }
+  {
+    path: '/:rest(.*)',
+    name: 'missing',
+    component: () => import('../views/Missing.vue'),
+    /**
+     * The one route that has to name itself.
+     *
+     * An unknown address is answered by the exception handler, which has no call
+     * site to pass a title through — so the document arrives without one and the tab
+     * shows the URL until this replaces it.
+     */
+    meta: { title: 'No such page' }
+  }
 ]
 
 export const router = createRouter({

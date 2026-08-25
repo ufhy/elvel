@@ -93,6 +93,21 @@ export class Spa {
          */
         entry: options.entry ?? config<string>('spa.entry', 'src/main.ts'),
         mountId: config<string>('spa.mountId', 'app'),
+        /**
+         * The title, from the caller — and nothing supplies a default.
+         *
+         * `config/spa.ts` ships no `title` key, so a page that names none renders no
+         * `<title>` at all and the tab shows the URL. That is the honest outcome: a
+         * shell has no idea what page it is about to become, and a single title for
+         * every address is wrong on all but one of them.
+         *
+         * Name it where the page is rendered. The one address that cannot — anything
+         * the client router owns, answered by the exception handler — is named by the
+         * client instead, from its own route.
+         *
+         * The read stays, so an application that wants one fallback can add
+         * `title:` back to its own config.
+         */
         title: options.title ?? config<string>('spa.title', ''),
         /**
          * The application's own `<head>` markup, from config when a caller says

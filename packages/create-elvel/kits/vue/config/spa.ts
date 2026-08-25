@@ -9,8 +9,6 @@ import { env } from '@elvel/core'
  * client asks for JSON like any other caller.
  */
 export default {
-  title: env('SPA_TITLE', '{{ name }}'),
-
   mountId: env('SPA_MOUNT', 'app'),
 
   /**

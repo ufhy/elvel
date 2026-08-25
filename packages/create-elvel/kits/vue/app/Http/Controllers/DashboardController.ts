@@ -17,8 +17,14 @@ routes().names({ dashboard: '/dashboard' })
 
 export default controller('dashboard').get(
   '/dashboard',
-  // The icon, the title and the mount point all come from `config/spa.ts`, so
-  // every document carries them — including the one a 404 renders.
-  () => document(),
+  /**
+   * The title is named here, because a document without one shows its URL.
+   *
+   * `config/spa.ts` ships no `title`, so nothing supplies a default: a page that
+   * says nothing renders no `<title>` at all, and the tab reads
+   * `localhost:3000/dashboard` until the router replaces it. The icon and the mount
+   * point still come from config.
+   */
+  () => document({ title: 'Dashboard' }),
   middleware('auth')
 )

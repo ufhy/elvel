@@ -9,9 +9,6 @@ import { env } from '@elvel/core'
  * answers a document; after that the client asks for JSON like any other caller.
  */
 export default {
-  /** The `<title>` of the document, and the only text the shell carries. */
-  title: env('SPA_TITLE', ''),
-
   /** Where the client mounts. `<div id="app">`, unless your entry says otherwise. */
   mountId: env('SPA_MOUNT', 'app'),
 
