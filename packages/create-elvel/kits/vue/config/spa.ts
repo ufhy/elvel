@@ -50,12 +50,17 @@ export default {
    * only thing standing there is a check in the client router, which is a check
    * running on the visitor's own machine.
    *
+   * No `entry` on it: unset, an area falls through to `spa.entry` above, and naming
+   * the same value twice in one file is a second place to change it. An area with a
+   * bundle of its own — an admin panel under `/admin-panel` — is where that field
+   * earns its place.
+   *
    * The auth screens are not an area: they are real routes at the root
    * (`/sign-in`, `/sign-up`, …) with their own `guest` guard, and
    * `Auth/AuthPageController` gives them their own entry — so a guest downloads the
    * auth bundle and not the application behind it.
    */
-  areas: [{ path: '/', entry: env('SPA_ENTRY', 'src/main.ts'), middleware: ['auth'] }],
+  areas: [{ path: '/', middleware: ['auth'] }],
 
   /**
    * Markup every document carries in its `<head>`, after the asset tags.
