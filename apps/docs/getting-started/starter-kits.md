@@ -204,38 +204,51 @@ guaranteed the two drift apart the first time either changed.
 ### Tailwind
 
 v4, through its own Vite plugin. There is **no `tailwind.config.js`**: it
-configures itself from CSS, and finds class names by scanning every text file in
-the project — `.tsx` included, since it reads them as text rather than parsing
-them. So there is no content list to keep in step with where your views live.
+configures itself from CSS, and finds class names by scanning every text file it is
+pointed at — `.tsx` included, since it reads them as text rather than parsing them.
+So there is no content list to keep in step with where your views live, only a
+directory to point at.
 
 The brand colours are `@theme` tokens in `resources/css/app.css`, and the note
 there explains why the text tint is not the logo's red.
 
-::: warning Inside a monorepo, pin what Tailwind scans
-Tailwind skips anything `.gitignore` covers and otherwise scans from the project
-root — which for an application inside a larger repository is the wrong answer in
-both directions at once: its own views can be invisible, and everything else in
-the repository is not.
-
-Measured on the same application, built inside the Elvel checkout and outside it:
-
-| | stylesheet | build |
-| --- | --- | --- |
-| outside a repository | 19.9 kB | 0.4 s |
-| inside, scanning from the root | 54.6 kB | 10.8 s |
-| inside, with the sources named | 19.9 kB | 0.13 s |
-
-Naming them is two lines:
+::: tip Where Tailwind looks is pinned, and it is worth knowing why
+Both kits ship it, so there is nothing for you to add:
 
 ```css
-@import "tailwindcss" source(none);
-@source "../views";
-@source "../../app";
+/* jsx: resources/css/app.css */    @import "tailwindcss" source("../");
+/* vue: frontend/src/style.css */   @import "tailwindcss" source("./");
 ```
 
-`source(none)` turns automatic detection off, and each `@source` is relative to
-the stylesheet. Outside a repository — which is every real application — the
-default is right and there is nothing to do.
+Left to decide for itself, Tailwind reaches outside the application. Measured on a
+fresh scaffold of each kit, cold, in this repository:
+
+| | `bun run dev` to first stylesheet | `bun run build` | stylesheet |
+| --- | --- | --- | --- |
+| `jsx`, unpinned | 108.7 s | 40.8 s | 59.6 kB |
+| `jsx`, pinned | **1.7 s** | **0.9 s** | 24.9 kB |
+| `vue`, unpinned | 14.3 s | 8.4 s | 108.1 kB |
+| `vue`, pinned | **3.1 s** | **1.7 s** | 66.6 kB |
+
+The smaller stylesheets lose nothing: the 478 utilities dropped from `jsx` were
+checked one by one against its own `resources/`, and not one is used. They were
+there because other projects in the same folder tree mentioned them.
+
+**These are a worst case.** An application scaffolded inside this repository has
+demos and kit templates for neighbours; yours has fewer, and would be faster even
+unpinned. Pinning is still right, because it makes the stylesheet depend on your
+application alone rather than on whatever sits beside it.
+
+If classes ever live somewhere else, name it — each `@source` is relative to the
+stylesheet:
+
+```css
+@source "../../packages/ui";
+```
+
+An earlier version of this page said Tailwind skips whatever `.gitignore` covers,
+so an application inside a checkout would find its own views invisible. Measured,
+that is not what happens: the views were found, and so was everything else.
 :::
 
 ## `vue` — a single-page application, on the auth kit

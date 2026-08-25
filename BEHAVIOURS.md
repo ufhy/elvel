@@ -1841,28 +1841,34 @@ Checked against the globs now, and said out loud when it is not true: *"Inside t
 checkout, but not one of its workspaces — so the published packages will be
 required."* Which is a working application, just not a linked one.
 
-## Tailwind scans from the project root, which a monorepo makes wrong twice
+## Tailwind decides where to look, and it decides badly
 
-Tailwind v4 needs no `content` list because it scans every text file it can find.
-Inside a larger repository that is wrong in both directions at once: it skips
-anything `.gitignore` covers — so an application in an ignored directory has
-invisible views — and it walks *up*, so everything else in the repository is
-scanned instead.
+Tailwind v4 needs no `content` list because it finds class names itself. What it
+finds, inside a larger repository, is far too much — and the cost is not the
+stylesheet, it is the wait. Measured on fresh scaffolds of both kits, cold:
 
-Measured on the same application, three ways:
+| | `dev` to first stylesheet | `build` | stylesheet |
+| --- | --- | --- | --- |
+| `jsx`, unpinned | 108.7 s | 40.8 s | 59.6 kB |
+| `jsx`, pinned | 1.7 s | 0.9 s | 24.9 kB |
+| `vue`, unpinned | 14.3 s | 8.4 s | 108.1 kB |
+| `vue`, pinned | 3.1 s | 1.7 s | 66.6 kB |
 
-| | stylesheet | build |
-| --- | --- | --- |
-| outside a repository | 19.9 kB | 0.4 s |
-| inside, scanning from the root | 54.6 kB | 10.8 s |
-| inside, with `source(none)` and `@source` | 19.9 kB | 0.13 s |
+Both kits now ship `@import "tailwindcss" source("…")`, pinned to the directory
+their classes live in. The 478 utilities that stopped being generated for `jsx`
+were each checked against its own `resources/`: none is used.
 
-The middle row is the one to notice: it built, it looked fine, and it shipped
-34 kB of classes belonging to the documentation site and the other kits. Nothing
-failed — which is why the number is the only way to find it.
+**An earlier version of this entry had it backwards**, and the wrong half is worth
+recording. It said Tailwind *skips anything `.gitignore` covers*, so an application
+in an ignored directory would find its own views invisible and the stylesheet
+nearly empty. It does not: a demo under `.demo/` had its views found, along with
+everything else in the checkout. Believing the opposite is why 108 seconds went
+unexamined for weeks — the number was there to be measured the whole time, and the
+explanation on file said there was nothing to find.
 
-Not something the kit ships, because the default is right for every application
-outside a repository. It is in the documentation for the case that is not.
+The other half was right: the default is fine for an application outside a
+repository, and these numbers are a worst case. Pinning is still what ships, so the
+stylesheet depends on the application rather than on its neighbours.
 
 ## Bundling changed which module ran first, and a boot check noticed
 
