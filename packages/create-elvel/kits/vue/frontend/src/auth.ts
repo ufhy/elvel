@@ -21,4 +21,12 @@ applyStoredAppearance()
 
 await boot()
 
-createApp(AuthApp).use(authRouter).mount('#app')
+/**
+ * Mounted on what the document marked, not on a name repeated here.
+ *
+ * `spa.mountId` decides the id on the server, and a client naming `#app` in a
+ * second file has to agree with it or the application silently never appears — no
+ * error, no console message. `[data-spa-root]` is on the same element whatever the
+ * id says.
+ */
+createApp(AuthApp).use(authRouter).mount('[data-spa-root]')

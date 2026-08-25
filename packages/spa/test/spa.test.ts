@@ -72,7 +72,10 @@ describe('the document', () => {
     expect<boolean>(html.includes('/build/assets/main-abc.js')).toBe(true)
     expect<boolean>(html.includes('/build/assets/main-def.css')).toBe(true)
     expect<boolean>(html.includes('<title>Invoices</title>')).toBe(true)
-    expect<boolean>(html.includes('<div id="app">')).toBe(true)
+    // Both: the id a stylesheet reaches for, and the marker a client mounts on
+    // without having to repeat that id in a second file.
+    expect<boolean>(html.includes('id="app"')).toBe(true)
+    expect<boolean>(html.includes('data-spa-root')).toBe(true)
 
     const payload = JSON.parse(
       /id="page-data">(.*?)<\/script>/s.exec(html)?.[1]?.replaceAll('\\u003c', '<') ?? '{}'

@@ -65,7 +65,19 @@ export function Document({ entry, mountId, title, payload, head }: DocumentProps
           </script>
         )}
 
-        <div id={mountId} />
+        {/*
+          The id, and a marker that does not depend on it.
+
+          `mount('#app')` in a client hard-codes the same string this renders, in a
+          second file, with nothing checking that the two agree — and changing
+          `spa.mountId` then produces a `<div>` the client never finds. No error, no
+          console message: the application simply does not appear. Measured by
+          setting `SPA_MOUNT=akar` and watching a blank page.
+
+          `mount('[data-spa-root]')` needs no agreement. The id stays, because it is
+          what a stylesheet or an external script would reach for.
+        */}
+        <div id={mountId} data-spa-root />
       </body>
     </html>
   )
