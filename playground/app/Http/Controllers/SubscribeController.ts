@@ -1,5 +1,5 @@
 import { controller } from '@elvel/core'
-import { redirect, sessionOf, validateRequest } from '@elvel/http'
+import { csrfToken, redirect, sessionOf, validateRequest } from '@elvel/http'
 import { view } from '@elvel/view'
 import { Subscribe } from '../../../resources/views/pages/subscribe.tsx'
 import { SubscribeRequest } from '../Requests/SubscribeRequest.ts'
@@ -11,10 +11,16 @@ import { SubscribeRequest } from '../Requests/SubscribeRequest.ts'
  * to the GET with the messages and the input flashed for exactly one request.
  */
 export default controller('subscribe')
-  .get('/subscribe', (context) => {
-    const session = sessionOf(context)
-
-    return view(Subscribe, { title: 'Subscribe', token: session.token() })
+  .get('/subscribe', () => {
+    /**
+     * `csrfToken()`, not `session.token()`.
+     *
+     * A session is not given a token until something asks for one, so that a page
+     * with no form on it costs no write and no cookie. Reading `token()` here got
+     * an empty string and the form posted back a `419`; `csrfToken()` is the call
+     * that says "this page is handing one out".
+     */
+    return view(Subscribe, { title: 'Subscribe', token: csrfToken() })
   })
 
   .post('/subscribe', async (context) => {

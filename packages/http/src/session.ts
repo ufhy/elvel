@@ -122,6 +122,9 @@ export class Session {
   /** Set by `save()`. Read by the error path, which must not save twice. */
   private persisted = false
 
+  /** Did this request arrive with a session the store already had? */
+  private stored = false
+
   /**
    * Reassignable, because a session can be given a new one.
    *
@@ -169,7 +172,10 @@ export class Session {
   async start(): Promise<this> {
     if (this.started) return this
 
-    this.data = (await this.driver.read(this.id)) ?? {}
+    const found = await this.driver.read(this.id)
+
+    this.stored = found !== null && found !== undefined
+    this.data = found ?? {}
     this.started = true
 
     return this
@@ -233,6 +239,19 @@ export class Session {
     this.changed = true
 
     return this
+  }
+
+  /**
+   * Was this session already in the store when the request arrived?
+   *
+   * Asked when deciding whether to re-issue the cookie. A session that exists gets
+   * its cookie again even on a request that changed nothing — which refreshes its
+   * `Max-Age`, so somebody reading pages does not get logged out mid-session. A
+   * session that does not exist, and that this request did not create, gets nothing:
+   * that is what keeps an anonymous visit free and its document cacheable.
+   */
+  wasStored(): boolean {
+    return this.stored
   }
 
   /**

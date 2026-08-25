@@ -632,7 +632,12 @@ export class HttpServiceProvider extends ServiceProvider {
            * next request would find empty anyway. The moment anything real happens —
            * a token, a flash, signing in — the session is dirty and the cookie goes.
            */
-          if (session.isDirty() || session.isPersisted() || session.hasFlashData()) {
+          if (
+            session.isDirty() ||
+            session.isPersisted() ||
+            session.hasFlashData() ||
+            session.wasStored()
+          ) {
             response.headers.append('set-cookie', cookieFor(session))
           }
         })
@@ -761,7 +766,17 @@ export class HttpServiceProvider extends ServiceProvider {
             }
 
             await session.save()
+          }
 
+          /**
+           * The cookie goes to anybody who has a session, not only to a request that
+           * wrote one.
+           *
+           * Re-issuing it refreshes `Max-Age`, so reading pages for an hour does not
+           * end with being logged out. What is left out is the case this is all for:
+           * a visitor with no session, on a page that did not give them one.
+           */
+          if (worthWriting || session.wasStored()) {
             set.headers['set-cookie'] = cookieFor(session)
           }
         })
