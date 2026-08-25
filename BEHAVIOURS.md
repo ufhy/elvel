@@ -1682,7 +1682,17 @@ It declared a prefix, a bundle and a guard per region of an application — the 
 Laravel writes as `Route::view('{path}', 'main')->middleware('auth')` beside
 `Route::view('/auth/{path}', 'auth')`. Prefixed areas became real routes; the root
 area was applied by the exception handler, which ran its middleware itself, because
-a `GET /*` route loses to the static file plugin in development.
+a `GET /*` route lost to the static file plugin in development.
+
+That last clause was a framework bug, found later and fixed: `@elysiajs/static`
+with `alwaysStatic: false` claims `/*` and answers its own misses, so routing
+depended on `APP_ENV` — `/deep/link` served the page in production and 404 in
+development, from one source. Laravel never has this because static files are not
+routes there: nginx is `try_files $uri $uri/ /index.php`, Valet's `isStaticFile()`
+is `file_exists(...) ? path : false`. `alwaysStatic: true` is that shape — a route
+per file that exists, and a miss falls through. A bare `.get('/*')` now works in
+both environments, so the root area's exception handler was never the only way; it
+is still the way that keeps the four guards.
 
 It worked, was tested, and is gone at the maintainer's decision. Worth recording is
 what it was the only answer to, so that nobody rediscovers the gap and calls it a

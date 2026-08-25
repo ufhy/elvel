@@ -78,9 +78,29 @@ export class ViewServiceProvider extends ServiceProvider {
         assets: root,
         prefix,
         indexHTML: false,
-        // Resolve files per request in development so newly added assets are
-        // picked up without a restart; precompute the route table in production.
-        alwaysStatic: production,
+        /**
+         * A route per existing file, in every environment — never a `/*`.
+         *
+         * `false` makes the plugin resolve per request, and to do that it claims
+         * `/*`. That claim answers its own 404s, which puts it in front of every
+         * route the application registered afterwards: measured, an application
+         * whose only catch-all was `.get('/*')` answered it in production and
+         * **404 in development**, from the same source. A framework whose routing
+         * depends on the environment is a framework that cannot be developed
+         * against.
+         *
+         * Laravel never has this problem because static files are not routes
+         * there. Its nginx configuration is `try_files $uri $uri/ /index.php` and
+         * Valet's `isStaticFile()` is `file_exists(...) ? path : false` — the file
+         * if it is there, the router if it is not. `true` is the shape of that
+         * here: the table holds only files that exist, so a miss falls through.
+         *
+         * What `false` was for — an asset added while the server is running — is
+         * covered by `compressedAssets` above, which is an `onRequest` that stats
+         * the path per request and answers everything it can resolve. This plugin
+         * is left with range requests, which it implements and that does not.
+         */
+        alwaysStatic: true,
         directive,
         maxAge
       })

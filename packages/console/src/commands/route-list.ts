@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import pc from 'picocolors'
 import { Command } from '../command.ts'
 
@@ -40,7 +42,7 @@ function middlewareOf(route: unknown): string[] {
 
 export class RouteListCommand extends Command {
   static override signature =
-    'route:list {--method= : Filter by HTTP method} {--path= : Filter by path substring} {--middleware= : Only routes guarded by this middleware}'
+    'route:list {--method= : Filter by HTTP method} {--path= : Filter by path substring} {--middleware= : Only routes guarded by this middleware} {--assets : Include the static files under public/}'
 
   static override description = 'List all registered routes'
 
@@ -49,8 +51,29 @@ export class RouteListCommand extends Command {
     const pathFilter = this.stringOption('path')
     const middlewareFilter = this.stringOption('middleware')
 
+    /**
+     * A file in `public/` is a route, and listing it is noise.
+     *
+     * The static plugin is mounted with `alwaysStatic: true` so that a path with
+     * no file falls through to the router — which means it registers one route per
+     * file that exists, and they all land in Elysia's table. Measured on a
+     * scaffolded application: `route:list` printed seven rows for two routes,
+     * five of them `favicon.svg`, `robots.txt` and the build output.
+     *
+     * Decided by asking the filesystem rather than by matching path prefixes: the
+     * build directory is configurable and `public/` can hold anything, so a
+     * prefix list would be wrong in both directions. `--assets` prints them.
+     */
+    const publicPath = this.app.config.get<string>('view.publicPath', this.app.publicPath())
+    const servesFile = (route: { path: string }) =>
+      route.path !== '/' &&
+      !route.path.includes(':') &&
+      !route.path.includes('*') &&
+      existsSync(join(publicPath, decodeURIComponent(route.path)))
+
     // Elysia exposes its compiled route table directly — no registry of our own.
     const routes = this.app.router.routes
+      .filter((route) => this.flag('assets') || !servesFile(route))
       .filter((route) => methodFilter === '' || route.method.toUpperCase() === methodFilter)
       .filter((route) => pathFilter === '' || route.path.includes(pathFilter))
       .filter(

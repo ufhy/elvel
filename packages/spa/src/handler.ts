@@ -9,12 +9,22 @@ import { spa } from './spa.ts'
  * get the document rather than a 404. The same document `/` renders, so a deep link
  * boots from the same data.
  *
- * Three earlier shapes are recorded because each looked right and none worked. A
- * `GET /*` route loses to the static file plugin, which already claims that path —
- * measured, `/invoices/9` answered a JSON 404. Registering it earlier instead
- * shadows every real file. And an `onError` hook in a provider never fires at all:
- * the framework wires its own handler into Elysia's error pipeline before any
- * provider registers, and the first handler to answer wins.
+ * A `GET /*` route is the other way to do this, and it does work — Laravel's
+ * `Route::view('{path}', 'main')`. It did not once: `@elysiajs/static` claimed
+ * `/*` in development and answered its own misses, so `/invoices/9` came back a
+ * JSON 404 there while the same source served the page in production. That was a
+ * bug in this framework and it is fixed — `alwaysStatic: true` in
+ * `@elvel/view`'s provider, guarded by `packages/view/test/static-fallthrough.test.ts`.
+ *
+ * What a handler still buys over that route is the four conditions below. A bare
+ * `/*` answers a page for `/build/assets/index-abc.js` as well, which is a browser
+ * waiting for JavaScript and getting HTML. What the *route* buys is middleware: an
+ * admin panel behind `auth` cannot be expressed here. Prefixed routes for those,
+ * this for the global fallback.
+ *
+ * An `onError` hook in a provider is the one shape that cannot work at all: the
+ * framework wires its own handler into Elysia's error pipeline before any provider
+ * registers, and the first handler to answer wins.
  *
  * So this replaces the handler. `render` is the documented seam — Laravel's
  * `Handler::render` in another language — and everything it does not claim goes to
