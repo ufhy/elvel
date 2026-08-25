@@ -9,9 +9,6 @@ import { env } from '@elvel/core'
  * client asks for JSON like any other caller.
  */
 export default {
-  /** The client's entry, as its Vite manifest names it. */
-  entry: env('SPA_ENTRY', 'src/main.ts'),
-
   title: env('SPA_TITLE', '{{ name }}'),
 
   mountId: env('SPA_MOUNT', 'app'),

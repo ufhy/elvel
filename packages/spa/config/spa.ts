@@ -9,15 +9,6 @@ import { env } from '@elvel/core'
  * answers a document; after that the client asks for JSON like any other caller.
  */
 export default {
-  /**
-   * The client's entry, as its Vite manifest names it.
-   *
-   * `vite()` turns this into the right tags in both environments — the dev server
-   * while one is running, the built file afterwards — which is also what carries
-   * whatever the other Vite plugins injected.
-   */
-  entry: env('SPA_ENTRY', 'src/main.ts'),
-
   /** The `<title>` of the document, and the only text the shell carries. */
   title: env('SPA_TITLE', ''),
 

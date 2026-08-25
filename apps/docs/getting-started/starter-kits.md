@@ -335,17 +335,23 @@ A request belongs to the page that made it, so navigation is free:
 ### Two bundles, and the server decides which
 
 ```ts
-// config/spa.ts        the application
-entry: env('SPA_ENTRY', 'src/main.ts')
-
 // Auth/AuthPageController.ts        the auth screens
 document({ title: 'Sign in', entry: 'src/auth.ts' })
+
+// DashboardController.ts            the application — src/main.ts by default
+document()
 ```
 
-`spa.entry` is what a `document()` call takes when it names none — the dashboard,
-the settings screens, and every address the Vue router owns. The auth screens are
-real routes at the root (`/sign-in`, `/sign-up`, …) and override it, so a guest
-signing in downloads seven forms and not the application behind them.
+A page that boots from a different bundle says so where it is rendered. Everything
+else takes `src/main.ts`, which is what `document()` uses when no entry is named —
+the dashboard, the settings screens, and every address the Vue router owns. So a
+guest signing in downloads seven forms and not the application behind them.
+
+There is no `entry` in `config/spa.ts`: every scaffolded application names its
+client `src/main.ts`, so the key only repeated the default. Rename your client and
+you can add `entry:` back — that is the one thing a call site cannot cover, since the
+document a 404 renders comes from the exception handler and has no arguments to
+pass.
 
 ::: warning What guards a client-routed address
 Only the routes the server has. `/dashboard` and `/settings/*` are real routes with

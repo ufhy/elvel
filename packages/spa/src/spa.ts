@@ -77,6 +77,20 @@ export class Spa {
     return view(
       Document,
       {
+        /**
+         * The entry, from the caller or from the default.
+         *
+         * `config/spa.ts` no longer ships an `entry` key: every application the
+         * scaffolder writes names its client `src/main.ts`, so the key only ever
+         * repeated this default. A page that boots from a different bundle says so
+         * where it is rendered — `document({ entry: 'src/auth.ts' })` — which is how
+         * the auth screens in `--kit=vue` get a bundle of their own.
+         *
+         * The read stays, so an application that renames its client can add
+         * `entry:` back to its own `config/spa.ts`. That is the one thing a call
+         * site cannot cover: the document a 404 renders comes from the exception
+         * handler, which has no arguments to pass.
+         */
         entry: options.entry ?? config<string>('spa.entry', 'src/main.ts'),
         mountId: config<string>('spa.mountId', 'app'),
         title: options.title ?? config<string>('spa.title', ''),
