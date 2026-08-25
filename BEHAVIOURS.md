@@ -1654,6 +1654,29 @@ field keep their alert.
 `css.parser.tailwindDirectives`, or `bun run lint` goes red on a stylesheet that
 is correct.
 
+### `spa.areas` was built and then removed
+
+It declared a prefix, a bundle and a guard per region of an application — the shape
+Laravel writes as `Route::view('{path}', 'main')->middleware('auth')` beside
+`Route::view('/auth/{path}', 'auth')`. Prefixed areas became real routes; the root
+area was applied by the exception handler, which ran its middleware itself, because
+a `GET /*` route loses to the static file plugin in development.
+
+It worked, was tested, and is gone at the maintainer's decision. Worth recording is
+what it was the only answer to, so that nobody rediscovers the gap and calls it a
+bug: **an address the client router owns and the server does not has no server-side
+guard.** Measured as a guest on a scaffolded application: `/dashboard` 302 and
+`/settings/profile` 302, because those are real routes with `middleware('auth')` —
+and `/dashboard/reports` **200**, because nothing on the server claims it.
+
+What that costs is the shell, not data: the client boots, asks `/api/session`, takes
+the 401 and leaves for `/sign-in`, and every endpoint behind it carries its own
+guard. An application that needs more gives the address a route.
+
+The two things areas also did, and how they are done now: one bundle per region is
+`document({ entry })` at the call site, which is what `AuthPageController` uses; and
+the default for a call that names none is `spa.entry`.
+
 ### A client-only page still needs a route, or a guest can reach it
 
 `/settings/appearance` posts nothing and reads nothing — a theme is the browser's
@@ -1686,8 +1709,8 @@ value, because signing in rotates the session id and the token rotates with it.
 **A guest cannot obtain a CSRF token at all** unless something unguarded hands it
 over. `/api/session` was behind `auth` on the reasoning that a guest has no session
 to describe — and sign-in then answered `419 CSRF token mismatch` on a fresh visit.
-The guard belonged on the document route, which `spa.areas` already provides;
-`user: null` is a real answer.
+The guard belonged on the routes that read something, not on the endpoint that says
+who is asking; `user: null` is a real answer.
 
 ### A client-side navigation runs no server middleware
 

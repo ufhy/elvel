@@ -335,18 +335,33 @@ A request belongs to the page that made it, so navigation is free:
 ### Two bundles, and the server decides which
 
 ```ts
-// config/spa.ts
-areas: [{ path: '/', entry: 'src/main.ts', middleware: ['auth'] }]
+// config/spa.ts        the application
+entry: env('SPA_ENTRY', 'src/main.ts')
+
+// Auth/AuthPageController.ts        the auth screens
+document({ title: 'Sign in', entry: 'src/auth.ts' })
 ```
 
-Every address the Vue router owns — `/dashboard`, `/settings/*`, anything you add —
-is refused to a guest **by the server**, before a byte of JavaScript loads. A guard
-in the client router runs on the visitor's machine; this one does not.
+`spa.entry` is what a `document()` call takes when it names none — the dashboard,
+the settings screens, and every address the Vue router owns. The auth screens are
+real routes at the root (`/sign-in`, `/sign-up`, …) and override it, so a guest
+signing in downloads seven forms and not the application behind them.
 
-The auth screens are the other bundle. They are real routes at the root
-(`/sign-in`, `/sign-up`, …), so `Auth/AuthPageController` hands them
-`entry: 'src/auth.ts'` — a guest signing in downloads seven forms and not the
-application behind them.
+::: warning What guards a client-routed address
+Only the routes the server has. `/dashboard` and `/settings/*` are real routes with
+`middleware('auth')` on their controllers, so a guest is refused. An address the Vue
+router owns and the server does not — `/dashboard/reports`, anything you add to the
+router alone — is answered with the shell, and the only guard on it is the one
+running in the visitor's browser.
+
+Measured on a scaffolded application, as a guest: `/dashboard` 302,
+`/settings/profile` 302, `/dashboard/reports` **200**.
+
+No data leaks — the client boots, asks `/api/session`, gets a 401 and leaves for
+`/sign-in`, and every endpoint behind it is guarded on its own route. What is served
+is the shell. If that is not good enough for your application, give the address a
+server route with the guard on it.
+:::
 
 ### Without changing the `auth` kit it is built on
 
