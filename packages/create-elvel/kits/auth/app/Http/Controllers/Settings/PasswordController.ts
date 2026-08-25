@@ -1,9 +1,9 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
-import { controller } from '@elvel/core'
-import { errors, middleware, redirect } from '@elvel/http'
+import { errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
-import { t } from 'elysia'
 import { Password } from '../../../../resources/views/pages/settings/password.tsx'
+
+type Change = { current: string; password: string; password_confirmation: string }
 
 /**
  * Changing the password.
@@ -13,61 +13,40 @@ import { Password } from '../../../../resources/views/pages/settings/password.ts
  * on success and the new cookie is copied across, or the person is signed out by
  * the very act of changing it.
  */
-export default controller('settings-password')
-  .get(
-    '/settings/password',
-    ({ query }) => {
-      return view(Password, {
-        title: 'Password',
-        saved: query.saved === '1',
-        error: errors().first('password')
-      })
-    },
-    middleware('auth')
-  )
+export default class PasswordController {
+  edit({ query }: { query: Record<string, string | undefined> }) {
+    return view(Password, {
+      title: 'Password',
+      saved: query.saved === '1',
+      error: errors().first('password')
+    })
+  }
 
-  .put(
-    '/settings/password',
-    async ({ body, request }) => {
-      if (body.password !== body.password_confirmation) {
-        return redirect('/settings/password')
-          .withErrors({ password: 'The two passwords do not match.' })
-          .toResponse()
-      }
-
-      const answer = await api().changePassword({
-        // Every other session goes: a password change is usually a response to
-        // somebody else having had access.
-        body: {
-          currentPassword: body.current,
-          newPassword: body.password,
-          revokeOtherSessions: true
-        },
-        headers: request.headers,
-        asResponse: true
-      })
-
-      if (!answer.ok) {
-        return redirect('/settings/password')
-          .withErrors({ password: await messageFrom(answer, 'That current password was wrong.') })
-          .toResponse()
-      }
-
-      return withSession(
-        answer,
-        await redirect('/settings/password?saved=1').seeOther().toResponse()
-      )
-    },
-    {
-      // Fortify throttles this one at six a minute too: a change form that takes
-      // the current password is a place to guess it.
-      ...middleware('auth', 'throttle:6,1'),
-      body: t.Object({
-        current: t.String(),
-        password: t.String(),
-        password_confirmation: t.String()
-      })
+  async update({ body, request }: { body: Change; request: Request }) {
+    if (body.password !== body.password_confirmation) {
+      return redirect('/settings/password')
+        .withErrors({ password: 'The two passwords do not match.' })
+        .toResponse()
     }
-  )
 
-// ----------------------------------------------------------------- security
+    const answer = await api().changePassword({
+      // Every other session goes: a password change is usually a response to
+      // somebody else having had access.
+      body: {
+        currentPassword: body.current,
+        newPassword: body.password,
+        revokeOtherSessions: true
+      },
+      headers: request.headers,
+      asResponse: true
+    })
+
+    if (!answer.ok) {
+      return redirect('/settings/password')
+        .withErrors({ password: await messageFrom(answer, 'That current password was wrong.') })
+        .toResponse()
+    }
+
+    return withSession(answer, await redirect('/settings/password?saved=1').seeOther().toResponse())
+  }
+}

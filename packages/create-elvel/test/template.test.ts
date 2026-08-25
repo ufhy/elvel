@@ -1038,27 +1038,21 @@ describe('the welcome page', () => {
 
     // And the kit that has those pages names them, or the header stays empty in
     // the one application that should show it.
-    const named = await Promise.all(
-      [
-        ['Auth/SignInController.ts', 'login'],
-        ['Auth/RegisterController.ts', 'register'],
-        ['DashboardController.ts', 'dashboard']
-      ].map(async ([file, name]) => {
-        const source = await Bun.file(
-          resolve(
-            import.meta.dir,
-            '..',
-            'kits',
-            'auth',
-            'app',
-            'Http',
-            'Controllers',
-            file as string
-          )
-        ).text()
+    /**
+     * Named beside the route, in the routes file.
+     *
+     * They used to be `routes().names({ login: '/sign-in' })` at the top of three
+     * controllers, which is where a name has to live when a controller declares its
+     * own paths. It does not any more, so this reads the file that does — and the
+     * name now sits on the line that defines the route, where a rename cannot miss
+     * it.
+     */
+    const routesFile = await Bun.file(
+      resolve(import.meta.dir, '..', 'kits', 'auth', 'routes', 'auth.ts')
+    ).text()
 
-        return `${name}: ${source.includes(`${name}:`) && source.includes('routes().names(')}`
-      })
+    const named = ['login', 'register', 'dashboard'].map(
+      (name) => `${name}: ${routesFile.includes(`.name('${name}')`)}`
     )
 
     expect<string[]>(named).toEqual(['login: true', 'register: true', 'dashboard: true'])

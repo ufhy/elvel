@@ -37,105 +37,29 @@ const KITS_DIR = resolve(import.meta.dir, '..', 'kits')
  * page it ships replaces the one underneath and everything it does not mention
  * it inherits.
  */
-const KITS: Record<
-  string,
-  { label: string; describe: string; routes: string[]; layers?: string[] }
-> = {
-  none: { label: 'None — a landing page', describe: '', routes: [] },
+const KITS: Record<string, { label: string; describe: string; layers?: string[] }> = {
+  none: { label: 'None — a landing page', describe: '' },
+
   auth: {
     label: 'Auth — sign in, sign up, a dashboard',
-    describe: 'server-rendered auth pages over better-auth',
-    /**
-     * Five controllers rather than one, split by what a page is *for*.
-     *
-     * They were one file of 619 lines and nineteen routes — everything from the
-     * sign-in form to closing an account. Laravel's own kit has no such file:
-     * Fortify holds the auth logic, each page is its own component, and the
-     * settings routes live apart in `routes/settings.php`.
-     */
-    routes: [
-      '  .use(Auth/ConfirmPasswordController)',
-      '  .use(Auth/PasswordResetController)',
-      '  .use(Auth/RegisterController)',
-      '  .use(Auth/SignInController)',
-      '  .use(Auth/TwoFactorChallengeController)',
-      '  .use(Auth/VerifyEmailController)',
-      '  .use(DashboardController)',
-      '  .use(Settings/PasskeyController)',
-      '  .use(Settings/PasswordController)',
-      '  .use(Settings/ProfileController)',
-      '  .use(Settings/SecurityController)',
-      '  .use(Settings/TwoFactorController)'
-    ]
+    describe: 'server-rendered auth pages over better-auth'
   },
+
   jsx: {
     label: 'JSX — the auth kit, with Tailwind and a component set',
     describe: 'server-rendered JSX styled with Tailwind, over better-auth',
-    /**
-     * The auth kit's routes, because this *is* the auth kit with a different
-     * front end. Listed rather than derived: `registerKitRoutes` writes them into
-     * `routes/web.ts`, and a layer that inherited a controller still has to
-     * mount it.
-     */
-    routes: [
-      '  .use(Auth/ConfirmPasswordController)',
-      '  .use(Auth/PasswordResetController)',
-      '  .use(Auth/RegisterController)',
-      '  .use(Auth/SignInController)',
-      '  .use(Auth/TwoFactorChallengeController)',
-      '  .use(Auth/VerifyEmailController)',
-      '  .use(DashboardController)',
-      // This kit's own, and the only route the auth kit has no use for: a theme
-      // is a Tailwind concern, and the auth kit ships no stylesheet to theme.
-      '  .use(Settings/AppearanceController)',
-      '  .use(Settings/PasskeyController)',
-      '  .use(Settings/PasswordController)',
-      '  .use(Settings/ProfileController)',
-      '  .use(Settings/SecurityController)',
-      '  .use(Settings/TwoFactorController)'
-    ],
     layers: ['auth', 'jsx']
   },
 
   vue: {
     label: 'Vue — the auth kit, with a Vite + Vue client',
     describe: 'server-rendered auth over better-auth, and a Vue SPA behind it',
-    /**
-     * The auth kit's routes, plus one of this kit's own — mounted last.
-     *
-     * `AuthPageController` takes over the seven auth **pages** and nothing else:
-     * every action stays with the controllers above it, unedited and uncopied. It
-     * comes last because in Elysia the last registration of a path wins, which is
-     * the whole mechanism. Moving it up this list silently gives the pages back.
-     *
-     * `DashboardController` is replaced rather than shadowed — that one is this
-     * kit's file already.
-     */
-    routes: [
-      '  .use(Auth/ConfirmPasswordController)',
-      '  .use(Auth/PasswordResetController)',
-      '  .use(Auth/RegisterController)',
-      '  .use(Auth/SignInController)',
-      '  .use(Auth/TwoFactorChallengeController)',
-      '  .use(Auth/VerifyEmailController)',
-      '  .use(DashboardController)',
-      '  .use(Settings/PasskeyController)',
-      '  .use(Settings/PasswordController)',
-      '  .use(Settings/ProfileController)',
-      '  .use(Settings/SecurityController)',
-      '  .use(Settings/TwoFactorController)',
-      '  .use(Auth/AuthPageController)',
-      '  .use(Settings/SettingsPageController)',
-      '  .use(Api/SessionController)',
-      '  .use(Api/SettingsController)'
-    ],
     layers: ['auth', 'vue']
   },
 
   api: {
     label: 'API — token auth, JSON, no views',
-    describe: 'bearer-token auth over better-auth, answering JSON',
-    routes: ['  .use(ApiAuthController)']
+    describe: 'bearer-token auth over better-auth, answering JSON'
   }
 }
 
@@ -323,7 +247,7 @@ async function main(): Promise<number> {
       written -= await applyLayerRemovals(layer, target)
     }
 
-    await registerKitRoutes(target, entry?.routes ?? [])
+    await registerKitRouteFiles(target)
     written += (await mergeKitManifest(target, entry?.layers ?? [kit as string])) ? 1 : 0
   }
 
@@ -1025,80 +949,46 @@ async function exists(path: string): Promise<boolean> {
 process.exit(await main())
 
 /**
- * Mount a kit's controllers in `routes/web.ts`.
+ * Name a kit's own route files in `bootstrap/app.ts`.
  *
- * Rewritten rather than shipped as part of the kit: the routes file is the one
- * place the base template and every kit both need to touch, and a kit that
- * replaced it wholesale would silently drop anything the base had added.
+ * A kit that ships routes ships them as `routes/api.ts`, `routes/auth.ts`,
+ * `routes/settings.ts` — the way Laravel's own starter kits are laid out, and for
+ * the reason they are: nineteen routes in one file is what `routes/web.php` became
+ * before Breeze split it, and somebody looking for the settings pages should find
+ * a file called settings.
+ *
+ * Discovered rather than declared. A kit adds a route file by adding the file and
+ * nothing here has to be told about it, which is the arrangement that survives a
+ * fifth kit. The old shape was a list of `.use(Controller)` lines per kit in this
+ * file, kept in sync by hand — and the day the auth kit grew a controller, three
+ * kits needed editing.
+ *
+ * Order is not cosmetic. Files are named after `routes/web.ts` and sorted among
+ * themselves, and Elysia lets the last registration of a path win: that is what
+ * lets the Vue kit's `routes/spa.ts` take over the seven auth *pages* while every
+ * action stays with the auth kit's own routes, unedited and uncopied.
  */
-async function registerKitRoutes(target: string, routes: string[]): Promise<void> {
-  if (routes.length === 0) return
+async function registerKitRouteFiles(target: string): Promise<void> {
+  const own = new Set(['web.ts', 'console.ts'])
+  const found: string[] = []
 
-  const path = join(target, 'routes', 'web.ts')
+  for await (const entry of new Bun.Glob('*.ts').scan({ cwd: join(target, 'routes') })) {
+    if (!own.has(entry)) found.push(entry)
+  }
+
+  if (found.length === 0) return
+
+  const path = join(target, 'bootstrap', 'app.ts')
   const source = await Bun.file(path).text()
+  const anchor = "  .withRoutes(() => import('../routes/web.ts'))"
 
-  /**
-   * A kit names a controller by its path under `app/Http/Controllers`.
-   *
-   * `Auth/SignInController` rather than `SignInController`, because the auth kit
-   * groups its controllers the way Laravel's does — `Auth/` and `Settings/` —
-   * and a flat list of nine files in one directory is what that grouping exists
-   * to avoid. The import name is the last segment; the path is the whole thing.
-   */
-  const declared = routes.map((line) => {
-    const path = line
-      .trim()
-      .replace(/^\.use\(/, '')
-      .replace(/\)$/, '')
+  if (!source.includes(anchor)) {
+    throw new Error(`Cannot register kit routes: ${path} does not name routes/web.ts.`)
+  }
 
-    return { path, name: path.split('/').at(-1) as string }
-  })
+  const lines = found
+    .sort((one, two) => one.localeCompare(two))
+    .map((file) => `  .withRoutes(() => import('../routes/${file}'))`)
 
-  /**
-   * Inserted in sorted order, not appended.
-   *
-   * The scaffolded application runs the same linter this repository does, and its
-   * import-sorting rule failed on a file the scaffolder itself wrote — so a new
-   * project's very first `bun run lint` reported a problem the developer did not
-   * create and cannot explain.
-   */
-  const anchor = "import PageController from '../app/Http/Controllers/PageController.ts'"
-  const sorted = [...declared, { path: 'PageController', name: 'PageController' }].sort(
-    /**
-     * By *path*, which is what the formatter sorts by.
-     *
-     * Sorting by the imported name looks equivalent and is not: with the
-     * controllers grouped into `Auth/` and `Settings/` the two orders differ,
-     * and a new project then failed its own `bun run lint` on the very file the
-     * scaffolder had written.
-     */
-    (one, two) => one.path.localeCompare(two.path)
-  )
-
-  const imports = sorted
-    .map(({ name, path }) => `import ${name} from '../app/Http/Controllers/${path}.ts'`)
-    .join('\n')
-
-  const mounted = source
-    .replace(anchor, imports)
-    /**
-     * One line while it fits, broken across lines when it does not.
-     *
-     * A scaffolded application ships the same formatter this repository uses,
-     * and that formatter collapses a chain that fits and breaks one that does
-     * not — so either shape is wrong for the other case, and a new project then
-     * fails its own `bun run lint` on a file nobody has touched. It has happened
-     * both ways round: once with one controller written across lines, and again
-     * the day the auth kit went from one controller to five.
-     */
-    .replace("export default new Elysia({ name: 'routes:web' }).use(PageController)", () => {
-      const mounts = ['.use(PageController)', ...declared.map(({ name }) => `.use(${name})`)]
-      const oneLine = `export default new Elysia({ name: 'routes:web' })${mounts.join('')}`
-
-      return oneLine.length <= 100
-        ? oneLine
-        : `export default new Elysia({ name: 'routes:web' })\n${mounts.map((mount) => `  ${mount}`).join('\n')}`
-    })
-
-  await Bun.write(path, `${mounted.trimEnd()}\n`)
+  await Bun.write(path, source.replace(anchor, [anchor, ...lines].join('\n')))
 }

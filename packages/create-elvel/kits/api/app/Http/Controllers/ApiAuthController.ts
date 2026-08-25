@@ -1,7 +1,4 @@
 import { api, userOf } from '@elvel/auth'
-import { controller } from '@elvel/core'
-import { middleware } from '@elvel/http'
-import { t } from 'elysia'
 
 /**
  * What better-auth says when it refuses, as JSON rather than as a page.
@@ -21,6 +18,9 @@ async function refusal(answer: Response, fallback: string): Promise<Response> {
   )
 }
 
+type RegisterBody = { name: string; email: string; password: string }
+type LoginBody = { email: string; password: string }
+
 /**
  * Auth for an API client — no sessions, no cookies, no pages.
  *
@@ -35,77 +35,61 @@ async function refusal(answer: Response, fallback: string): Promise<Response> {
  * Everything lives under `/api`, which `config/session.ts` already exempts from
  * CSRF — that check exists for a browser that sends cookies without being asked,
  * and a bearer token is never sent that way.
+ *
+ * The paths, the throttling and the body schemas are in `routes/api.ts`. A
+ * controller says what happens; the routes file says when.
  */
-export default controller('api-auth')
-  .post(
-    '/api/register',
-    async ({ body, request }) => {
-      const answer = await api().signUpEmail({
-        body: { name: body.name, email: body.email, password: body.password },
-        headers: request.headers,
-        asResponse: true
-      })
+export default class ApiAuthController {
+  async register({ body, request }: { body: RegisterBody; request: Request }) {
+    const answer = await api().signUpEmail({
+      body: { name: body.name, email: body.email, password: body.password },
+      headers: request.headers,
+      asResponse: true
+    })
 
-      if (!answer.ok) return await refusal(answer, 'That account could not be created.')
+    if (!answer.ok) return await refusal(answer, 'That account could not be created.')
 
-      return Response.json(
-        {
-          token: answer.headers.get('set-auth-token'),
-          user: ((await answer.json()) as { user?: unknown }).user ?? null
-        },
-        { status: 201 }
-      )
-    },
-    {
-      // Rate limited like the rest: registration is a write, and an open one is
-      // a way to fill somebody's table.
-      ...middleware('throttle:6,1'),
-      body: t.Object({ name: t.String(), email: t.String(), password: t.String() })
-    }
-  )
-
-  .post(
-    '/api/login',
-    async ({ body, request }) => {
-      const answer = await api().signInEmail({
-        body: { email: body.email, password: body.password },
-        /**
-         * The headers travel, as they do in the web kit.
-         *
-         * better-auth records the user agent and address from whatever request
-         * it is handed; called without them every session row reads "Unknown",
-         * which is a list of dates nobody can act on.
-         */
-        headers: request.headers,
-        asResponse: true
-      })
-
-      if (!answer.ok) return await refusal(answer, 'Those details did not match.')
-
-      return Response.json({
+    return Response.json(
+      {
         token: answer.headers.get('set-auth-token'),
         user: ((await answer.json()) as { user?: unknown }).user ?? null
-      })
-    },
-    {
-      // Six a minute, as Fortify does it. Without this `/api/login` is a
-      // credential-stuffing endpoint.
-      ...middleware('throttle:6,1'),
-      body: t.Object({ email: t.String(), password: t.String() })
-    }
-  )
+      },
+      { status: 201 }
+    )
+  }
+
+  async login({ body, request }: { body: LoginBody; request: Request }) {
+    const answer = await api().signInEmail({
+      body: { email: body.email, password: body.password },
+      /**
+       * The headers travel, as they do in the web kit.
+       *
+       * better-auth records the user agent and address from whatever request it
+       * is handed; called without them every session row reads "Unknown", which
+       * is a list of dates nobody can act on.
+       */
+      headers: request.headers,
+      asResponse: true
+    })
+
+    if (!answer.ok) return await refusal(answer, 'Those details did not match.')
+
+    return Response.json({
+      token: answer.headers.get('set-auth-token'),
+      user: ((await answer.json()) as { user?: unknown }).user ?? null
+    })
+  }
 
   /** Who the token belongs to — the endpoint every client calls first. */
-  .get('/api/user', (context) => Response.json({ user: userOf(context) }), middleware('auth'))
+  user(context: object) {
+    return Response.json({ user: userOf(context as never) })
+  }
 
-  .post(
-    '/api/logout',
-    async ({ request }) => {
-      // Revoked at the source: the token is the session, so signing out ends it
-      // for good rather than asking the client to forget it.
-      await api().signOut({ headers: request.headers, asResponse: true })
+  async logout({ request }: { request: Request }) {
+    // Revoked at the source: the token is the session, so signing out ends it
+    // for good rather than asking the client to forget it.
+    await api().signOut({ headers: request.headers, asResponse: true })
 
-      return new Response(null, { status: 204 })
-    },
-    middleware('auth')
-  )
+    return new Response(null, { status: 204 })
+  }
+}

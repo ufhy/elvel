@@ -40,23 +40,52 @@ offers — `bootstrap/providers.ts` decides. Adding a package adds its commands.
 
 ## Routing and controllers
 
-A controller is an Elysia instance, which is what keeps the request context typed
-inside handlers. `routes/web.ts` mounts them.
+Routes are declared in `routes/web.ts`, and the file exports nothing — the same
+shape as Laravel's `routes/web.php`.
+
+```ts
+// routes/web.ts
+import { Route } from '@elvel/http'
+import PageController from '../app/Http/Controllers/PageController.ts'
+
+Route.get('/', [PageController, 'index']).name('home')
+Route.get('/health', [PageController, 'health'])
+```
 
 ```ts
 // app/Http/Controllers/PageController.ts
-import { controller } from '@elvel/core'
 import { view } from '@elvel/view'
 import { Welcome } from '../../../resources/views/pages/welcome.tsx'
 
-export default controller('page')
-  .get('/', () => view(Welcome, { title: 'Welcome' }))
-  .get('/health', () => ({ status: 'ok' }))
+export default class PageController {
+  index() {
+    return view(Welcome, { title: 'Welcome' })
+  }
+
+  health() {
+    return { status: 'ok' }
+  }
+}
 ```
 
-The name passed to `controller()` drives Elysia's plugin deduplication, so it has
-to be unique. Controllers stay `.ts`; only files that contain JSX syntax need
-`.tsx`.
+A controller is a plain class. Each method receives Elysia's request context, so
+`{ params, query, body, request, set }` is destructured from its argument. One
+instance is built per route and reused — keep them stateless.
+
+Groups, names, constraints and resources all read the way they do in Laravel:
+
+```ts
+Route.middleware('auth').prefix('admin').name('admin.').group(() => {
+  Route.resource('photos', PhotoController)
+})
+
+Route.get('/users/{id}', [UserController, 'show']).name('users.show').whereNumber('id')
+Route.view('/{path}', MainLayout, { title: 'App' }).where('path', '.*')
+Route.fallback(() => view(NotFound, {}))
+```
+
+`bun run elvel route:list` prints the table. Controllers stay `.ts`; only files
+that contain JSX syntax need `.tsx`.
 
 ## Views
 
@@ -193,7 +222,8 @@ bun run elvel db:seed
 And on a page:
 
 ```ts
-export default controller('page').get('/', async () =>
+// routes/web.ts
+Route.get('/', async () =>
   view(Welcome, { title: 'Welcome', posts: await Post.query().latest().get() })
 )
 ```

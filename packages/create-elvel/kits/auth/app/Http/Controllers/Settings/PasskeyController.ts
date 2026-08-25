@@ -1,8 +1,6 @@
 import { api, messageFrom } from '@elvel/auth'
-import { controller } from '@elvel/core'
-import { errors, middleware, redirect } from '@elvel/http'
+import { errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
-import { t } from 'elysia'
 import { Passkeys } from '../../../../resources/views/pages/settings/passkeys.tsx'
 
 /** What the page needs about one credential. Everything else is device detail. */
@@ -22,48 +20,38 @@ export type PasskeyRow = {
  * requests, so they are an ordinary page and an ordinary form, and they keep
  * working with JavaScript off.
  *
- * Behind `password.confirm`, like the rest of the security settings: adding a way
- * into an account, or taking the last one away, is exactly what somebody with a
- * borrowed unlocked browser would do.
+ * `routes/settings.ts` puts these behind `password.confirm`, like the rest of the
+ * security settings: adding a way into an account, or taking the last one away, is
+ * exactly what somebody with a borrowed unlocked browser would do.
  */
-export default controller('settings-passkeys')
-  .get(
-    '/settings/passkeys',
-    async ({ request, query }) => {
-      const listed = (await api().listPasskeys({ headers: request.headers })) as unknown
+export default class PasskeyController {
+  async index({ request, query }: { request: Request; query: Record<string, string | undefined> }) {
+    const listed = (await api().listPasskeys({ headers: request.headers })) as unknown
 
-      return view(Passkeys, {
-        title: 'Passkeys',
-        passkeys: rowsFrom(listed),
-        removed: query.removed === '1',
-        error: errors().first('passkey')
-      })
-    },
-    middleware('auth', 'password.confirm')
-  )
+    return view(Passkeys, {
+      title: 'Passkeys',
+      passkeys: rowsFrom(listed),
+      removed: query.removed === '1',
+      error: errors().first('passkey')
+    })
+  }
 
-  .delete(
-    '/settings/passkeys',
-    async ({ body, request }) => {
-      const answer = await api().deletePasskey({
-        body: { id: body.id },
-        headers: request.headers,
-        asResponse: true
-      })
+  async destroy({ body, request }: { body: { id: string }; request: Request }) {
+    const answer = await api().deletePasskey({
+      body: { id: body.id },
+      headers: request.headers,
+      asResponse: true
+    })
 
-      if (!answer.ok) {
-        return redirect('/settings/passkeys')
-          .withErrors({ passkey: await messageFrom(answer, 'That passkey was not removed.') })
-          .toResponse()
-      }
-
-      return redirect('/settings/passkeys?removed=1').seeOther().toResponse()
-    },
-    {
-      ...middleware('auth', 'password.confirm'),
-      body: t.Object({ id: t.String() })
+    if (!answer.ok) {
+      return redirect('/settings/passkeys')
+        .withErrors({ passkey: await messageFrom(answer, 'That passkey was not removed.') })
+        .toResponse()
     }
-  )
+
+    return redirect('/settings/passkeys?removed=1').seeOther().toResponse()
+  }
+}
 
 /**
  * Narrow what better-auth listed into what the page renders.

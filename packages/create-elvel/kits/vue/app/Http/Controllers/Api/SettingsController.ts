@@ -1,20 +1,5 @@
 import { api, sessionSummaries, user, userOf } from '@elvel/auth'
-import { controller } from '@elvel/core'
-import { currentScope, middleware } from '@elvel/http'
-
-/**
- * What the settings screens read.
- *
- * Four endpoints rather than four page payloads, which is the difference between a
- * single-page application and a server-driven one. A payload belongs to the
- * document it was embedded in, so a client navigation arrives with the previous
- * page's data; a request belongs to the page that made it.
- *
- * The guards are the same ones the pages themselves are behind. `password.confirm`
- * on three of them is not caution: reading which devices are signed in, and the
- * secret of an enrolment in progress, is where a borrowed unlocked browser does
- * real damage.
- */
+import { currentScope } from '@elvel/http'
 
 /** One passkey, as a page needs it — and not the row better-auth stores. */
 function passkeyRows(listed: unknown) {
@@ -39,50 +24,54 @@ function passkeyRows(listed: unknown) {
   })
 }
 
-export default controller('api-settings')
-  .get(
-    '/api/settings/profile',
-    (context) => {
-      const person = userOf(context)
+/**
+ * What the settings screens read.
+ *
+ * Four endpoints rather than four page payloads, which is the difference between a
+ * single-page application and a server-driven one. A payload belongs to the
+ * document it was embedded in, so a client navigation arrives with the previous
+ * page's data; a request belongs to the page that made it.
+ *
+ * The guards in `routes/spa.ts` are the same ones the pages themselves are behind.
+ * `password.confirm` on three of them is not caution: reading which devices are
+ * signed in, and the secret of an enrolment in progress, is where a borrowed
+ * unlocked browser does real damage.
+ */
+export default class SettingsController {
+  profile(context: object) {
+    const person = userOf(context as never)
 
-      return { name: person.name, email: person.email, emailVerified: person.emailVerified }
-    },
-    middleware('auth')
-  )
+    return { name: person.name, email: person.email, emailVerified: person.emailVerified }
+  }
 
-  .get(
-    '/api/settings/sessions',
-    async ({ request }) => ({
+  async sessions({ request }: { request: Request }) {
+    return {
       sessions: sessionSummaries(
         (await api().listSessions({ headers: request.headers })) as unknown,
         request.headers
       )
-    }),
-    middleware('auth', 'password.confirm')
-  )
+    }
+  }
 
-  .get(
-    '/api/settings/passkeys',
-    async ({ request }) => ({
+  async passkeys({ request }: { request: Request }) {
+    return {
       passkeys: passkeyRows((await api().listPasskeys({ headers: request.headers })) as unknown)
-    }),
-    middleware('auth', 'password.confirm')
-  )
+    }
+  }
 
-  .get(
-    '/api/settings/two-factor',
-    () => ({
+  twoFactor() {
+    return {
       enabled: user()?.twoFactorEnabled === true,
       /**
        * The enrolment in progress, flashed by the step before it.
        *
        * In the session for exactly one request: the secret and the ten recovery
-       * codes are shown once and never again. Reading it here consumes it, which is
-       * the same contract the server-rendered page had.
+       * codes are shown once and never again. Reading it here consumes it, which
+       * is the same contract the server-rendered page had.
        */
       pending: currentScope()?.session.get('two-factor.pending') as
         | { uri: string; secret: string; codes: string[] }
         | undefined
-    }),
-    middleware('auth', 'password.confirm')
-  )
+    }
+  }
+}

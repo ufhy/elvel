@@ -1,5 +1,3 @@
-import { controller } from '@elvel/core'
-import { middleware } from '@elvel/http'
 import { view } from '@elvel/view'
 import { Appearance } from '../../../../resources/views/pages/settings/appearance.tsx'
 
@@ -15,8 +13,8 @@ import { Appearance } from '../../../../resources/views/pages/settings/appearanc
  * that renders the account's sidebar and its own account menu has no business
  * answering a guest.
  */
-export default controller('settings-appearance').get(
-  '/settings/appearance',
-  () => view(Appearance, { title: 'Appearance' }),
-  middleware('auth')
-)
+export default class AppearanceController {
+  show() {
+    return view(Appearance, { title: 'Appearance' })
+  }
+}

@@ -1,9 +1,9 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
-import { controller } from '@elvel/core'
-import { currentScope, errors, middleware, redirect, routes } from '@elvel/http'
+import { currentScope, errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
-import { t } from 'elysia'
 import { SignUp } from '../../../../resources/views/pages/auth/sign-up.tsx'
+
+type Details = { name: string; email: string; password: string }
 
 /**
  * Creating an account.
@@ -13,53 +13,41 @@ import { SignUp } from '../../../../resources/views/pages/auth/sign-up.tsx'
  * the policy rejects — comes back to the form with its message through the
  * session, the same way a validation failure does anywhere else.
  */
-routes().names({ register: '/sign-up' })
+export default class RegisterController {
+  create() {
+    return view(SignUp, { title: 'Create an account', error: errors().first('email') })
+  }
 
-export default controller('auth-register')
-  .get(
-    '/sign-up',
-    () => view(SignUp, { title: 'Create an account', error: errors().first('email') }),
-    middleware('guest')
-  )
+  async store({ body, request }: { body: Details; request: Request }) {
+    const answer = await api().signUpEmail({
+      body: { name: body.name, email: body.email, password: body.password },
+      headers: request.headers,
+      asResponse: true
+    })
 
-  .post(
-    '/sign-up',
-    async ({ body, request }) => {
-      const answer = await api().signUpEmail({
-        body: { name: body.name, email: body.email, password: body.password },
-        headers: request.headers,
-        asResponse: true
-      })
-
-      if (!answer.ok) {
-        return redirect('/sign-up')
-          .withErrors({ email: await messageFrom(answer, 'That account could not be created.') })
-          .withInput({ name: body.name, email: body.email })
-          .toResponse()
-      }
-
-      /**
-       * A new session id, now that this browser is somebody.
-       *
-       * Session fixation: an id chosen before signing in is an id somebody else
-       * may have chosen, and if it still names the session afterwards then
-       * whoever chose it is signed in as this user. The CSRF token rotates with
-       * it, so a token picked up while signed out no longer authorises writes
-       * while signed in.
-       *
-       * Every path that turns an anonymous browser into a signed-in one needs
-       * this, not just the password one — and the account with two factors is the
-       * one most worth protecting.
-       */
-      await currentScope()?.session.regenerate()
-
-      // Signing up signs you in, so the cookie travels the same way.
-      return withSession(answer, await redirect('/dashboard').seeOther().toResponse())
-    },
-    {
-      ...middleware('guest', 'throttle:6,1'),
-      body: t.Object({ name: t.String(), email: t.String(), password: t.String() })
+    if (!answer.ok) {
+      return redirect('/sign-up')
+        .withErrors({ email: await messageFrom(answer, 'That account could not be created.') })
+        .withInput({ name: body.name, email: body.email })
+        .toResponse()
     }
-  )
 
-// ------------------------------------------------------ forgotten password
+    /**
+     * A new session id, now that this browser is somebody.
+     *
+     * Session fixation: an id chosen before signing in is an id somebody else
+     * may have chosen, and if it still names the session afterwards then
+     * whoever chose it is signed in as this user. The CSRF token rotates with
+     * it, so a token picked up while signed out no longer authorises writes
+     * while signed in.
+     *
+     * Every path that turns an anonymous browser into a signed-in one needs
+     * this, not just the password one — and the account with two factors is the
+     * one most worth protecting.
+     */
+    await currentScope()?.session.regenerate()
+
+    // Signing up signs you in, so the cookie travels the same way.
+    return withSession(answer, await redirect('/dashboard').seeOther().toResponse())
+  }
+}

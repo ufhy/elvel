@@ -1,6 +1,5 @@
 import { api, userOf } from '@elvel/auth'
-import { controller } from '@elvel/core'
-import { errors, middleware, redirect } from '@elvel/http'
+import { errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { VerifyEmail } from '../../../../resources/views/pages/auth/verify-email.tsx'
 
@@ -11,33 +10,24 @@ import { VerifyEmail } from '../../../../resources/views/pages/auth/verify-email
  * the session is real, and what is missing is proof that somebody reads the
  * inbox. `verified` middleware is what keeps a page behind that proof.
  */
-export default controller('verify-email')
-  .get(
-    '/verify-email',
-    (context) => {
-      const { query } = context
+export default class VerifyEmailController {
+  notice(context: { query: Record<string, string | undefined> }) {
+    const { query } = context
 
-      return view(VerifyEmail, {
-        title: 'Confirm your address',
-        email: userOf(context).email,
-        sent: query.sent === '1',
-        error: errors().first('email')
-      })
-    },
-    middleware('auth')
-  )
+    return view(VerifyEmail, {
+      title: 'Confirm your address',
+      email: userOf(context as never).email,
+      sent: query.sent === '1',
+      error: errors().first('email')
+    })
+  }
 
-  .post(
-    '/verify-email/resend',
-    async (context) => {
-      await api().sendVerificationEmail({
-        body: { email: userOf(context).email, callbackURL: '/dashboard' },
-        asResponse: true
-      })
+  async resend(context: object) {
+    await api().sendVerificationEmail({
+      body: { email: userOf(context as never).email, callbackURL: '/dashboard' },
+      asResponse: true
+    })
 
-      return redirect('/verify-email?sent=1').seeOther().toResponse()
-    },
-    middleware('auth', 'throttle:6,1')
-  )
-
-// ------------------------------------------------------------------ profile
+    return redirect('/verify-email?sent=1').seeOther().toResponse()
+  }
+}

@@ -1,5 +1,4 @@
 import { maybeUserOf } from '@elvel/auth'
-import { controller } from '@elvel/core'
 import { routes } from '@elvel/http'
 import { view } from '@elvel/view'
 import { Welcome } from '../../../resources/views/pages/welcome.tsx'
@@ -12,20 +11,24 @@ import { Welcome } from '../../../resources/views/pages/welcome.tsx'
  * the signed-in user or null, without the `auth` middleware that would turn the
  * front page into a wall.
  *
- * The route names come from the auth controllers, registered beside the routes
- * themselves. If one is renamed and its name is not, `routes().verify()` refuses
- * to boot rather than leaving a header linking somewhere that answers 404.
+ * The route names are given in `routes/auth.ts`, beside the routes themselves. If
+ * one is renamed and its name is not, `routes().verify()` refuses to boot rather
+ * than leaving a header linking somewhere that answers 404.
  */
-export default controller('page')
-  .get('/', (context) =>
-    view(Welcome, {
+export default class PageController {
+  index(context: object) {
+    return view(Welcome, {
       title: 'Welcome',
-      user: maybeUserOf(context),
+      user: maybeUserOf(context as never),
       links: {
         login: routes().path('login'),
         register: routes().path('register'),
         dashboard: routes().path('dashboard')
       }
     })
-  )
-  .get('/health', () => ({ status: 'ok' }))
+  }
+
+  health() {
+    return { status: 'ok' }
+  }
+}

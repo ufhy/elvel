@@ -2390,7 +2390,7 @@ try {
   )
 
   check('a generator can be asked what it would do', pretended.includes('would be created'))
-  check('and shows the contents', pretended.includes("controller('smoke-pretend'"))
+  check('and shows the contents', pretended.includes('class SmokePretendController'))
   check(
     'without writing anything',
     !(await Bun.file(app.appPath('Http', 'Controllers', 'SmokePretendController.ts')).exists())
@@ -2400,10 +2400,15 @@ try {
   const controllerSource = await Bun.file(generated[0] as string).text()
   check('make:controller --resource writes a file', controllerSource.length > 0)
   check(
-    'resource stub names the controller instance',
-    controllerSource.includes("controller('smoke-thing'")
+    'resource stub writes the seven methods Route.resource looks for',
+    ['index', 'create', 'store', 'show', 'edit', 'update', 'destroy'].every((method) =>
+      controllerSource.includes(`  ${method}(`)
+    )
   )
-  check('resource stub pluralises the prefix', controllerSource.includes("'/smoke-things'"))
+  check(
+    'resource stub pluralises the resource name',
+    controllerSource.includes("Route.resource('smoke-things'")
+  )
 
   await captureOutput(() => elvel.run(['make:controller', 'nested/SmokeNested']))
   check('nested names create subdirectories', await Bun.file(generated[1] as string).exists())
@@ -2851,7 +2856,9 @@ try {
     kitManifest.dependencies['better-auth'] !== undefined
   )
 
-  const kitRoutes = await Bun.file(join(kitTarget, 'routes/web.ts')).text()
+  const kitRoutes = await Bun.file(join(kitTarget, 'routes/auth.ts')).text()
+  const kitSettingsRoutes = await Bun.file(join(kitTarget, 'routes/settings.ts')).text()
+  const kitBootstrap = await Bun.file(join(kitTarget, 'bootstrap/app.ts')).text()
 
   /**
    * Nine controllers, grouped as Laravel groups them.
@@ -2861,12 +2868,27 @@ try {
    * checked rather than one, so the grouping itself stays covered.
    */
   check(
-    'the kit mounts its controllers, from their directories',
-    kitRoutes.includes('.use(SignInController)') &&
-      kitRoutes.includes("Controllers/Auth/SignInController.ts'") &&
-      kitRoutes.includes("Controllers/Settings/ProfileController.ts'")
+    'the kit routes its controllers, from their directories',
+    kitRoutes.includes("Controllers/Auth/SignInController.ts'") &&
+      kitRoutes.includes("[SignInController, 'create']") &&
+      kitSettingsRoutes.includes("Controllers/Settings/ProfileController.ts'") &&
+      kitSettingsRoutes.includes("[ProfileController, 'edit']")
   )
-  check('and leaves the base template mounted', kitRoutes.includes('.use(PageController)'))
+
+  /**
+   * A file per area, and the base template's still named.
+   *
+   * The kit ships `routes/auth.ts` and `routes/settings.ts` and the scaffolder
+   * names both in `bootstrap/app.ts` — the split Laravel's own starter kits have.
+   * `routes/web.ts` staying named is what keeps the welcome page: a kit that
+   * replaced the routes file wholesale would drop it silently.
+   */
+  check(
+    'and leaves the base template routed',
+    kitBootstrap.includes("import('../routes/web.ts')") &&
+      kitBootstrap.includes("import('../routes/auth.ts')") &&
+      kitBootstrap.includes("import('../routes/settings.ts')")
+  )
 
   /**
    * The JSX kit, scaffolded and **typechecked**.
@@ -2897,8 +2919,8 @@ try {
       (await Bun.file(
         join(jsxTarget, 'app/Http/Controllers/Settings/AppearanceController.ts')
       ).exists()) &&
-      (await Bun.file(join(jsxTarget, 'routes/web.ts')).text()).includes(
-        '.use(AppearanceController)'
+      (await Bun.file(join(jsxTarget, 'routes/appearance.ts')).text()).includes(
+        "[AppearanceController, 'show']"
       )
   )
 
