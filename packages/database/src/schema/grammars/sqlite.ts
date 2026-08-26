@@ -23,6 +23,23 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
         return 'tinyint(1)'
       case 'string':
       case 'char':
+        return 'varchar'
+      case 'tinyText':
+        return 'text'
+      case 'ulid':
+        return 'char(26)'
+      case 'year':
+        return 'integer'
+      case 'ipAddress':
+        return 'varchar'
+      case 'macAddress':
+        return 'varchar'
+      case 'dateTimeTz':
+        return 'datetime'
+      case 'timeTz':
+        return 'time'
+      case 'timestampTz':
+        return 'datetime'
       case 'uuid':
       case 'enum':
         return 'varchar'
@@ -117,4 +134,20 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
    * like now, and a grammar sees only the blueprint. `SchemaBuilder` does it.
    */
   override readonly rebuildsToChange = true
+  /**
+   * SQLite's full-text search is a virtual table, not an index.
+   *
+   * FTS5 creates a *separate* table that mirrors the columns being searched, so
+   * there is nothing to add to this one. Saying so beats emitting an index that
+   * the server accepts and that no search will ever use.
+   */
+  protected override compileFullText(): string {
+    throw new Error(
+      'SQLite has no full-text index. Its full-text search is an FTS5 virtual table, which a migration creates with a raw statement.'
+    )
+  }
+
+  protected override compileRenameIndex(): string {
+    throw new Error('SQLite cannot rename an index. Drop it and create it under the new name.')
+  }
 }

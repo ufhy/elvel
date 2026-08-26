@@ -99,6 +99,15 @@ export abstract class SchemaGrammar {
         case 'index':
           statements.push(this.compileIndex(blueprint, command))
           break
+        case 'fullText':
+          statements.push(this.compileFullText(blueprint, command))
+          break
+        case 'dropFullText':
+          statements.push(this.compileDropFullText(blueprint, command.index))
+          break
+        case 'renameIndex':
+          statements.push(this.compileRenameIndex(blueprint, command.from, command.to))
+          break
         case 'foreign':
           if (!blueprint.creating) statements.push(this.compileForeign(blueprint, command))
           break
@@ -286,6 +295,37 @@ export abstract class SchemaGrammar {
     command: Extract<Command, { name: 'index' }>
   ): string {
     return `create index ${this.wrap(command.index)} on ${this.wrapTable(blueprint.table)} (${this.columnize(command.columns)})`
+  }
+
+  /**
+   * A full-text index, which no two of these dialects spell alike.
+   *
+   * MySQL has `fulltext`; Postgres has no such index type at all and wants a GIN
+   * index over `to_tsvector`; SQLite has only the FTS5 virtual-table extension,
+   * which is a different table rather than an index on this one. So the base
+   * refuses rather than emitting something plausible, and each grammar that can
+   * do it says how.
+   */
+  protected compileFullText(
+    _blueprint: Blueprint,
+    _command: Extract<Command, { name: 'fullText' }>
+  ): string {
+    throw new Error(`${this.constructor.name} does not support full-text indexes.`)
+  }
+
+  protected compileDropFullText(blueprint: Blueprint, index: string): string {
+    return this.compileDropIndex(blueprint, index)
+  }
+
+  /**
+   * Renaming an index, which is one statement on some dialects and two on others.
+   *
+   * Postgres and MySQL 5.7+ both take `rename index`; SQLite has no such
+   * statement, so its grammar overrides this to say so rather than emitting SQL
+   * that fails at the server.
+   */
+  protected compileRenameIndex(blueprint: Blueprint, from: string, to: string): string {
+    return `alter table ${this.wrapTable(blueprint.table)} rename index ${this.wrap(from)} to ${this.wrap(to)}`
   }
 
   protected foreignKeySql(command: Extract<Command, { name: 'foreign' }>): string {

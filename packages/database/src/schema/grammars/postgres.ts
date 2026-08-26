@@ -1,4 +1,4 @@
-import type { Blueprint, ColumnAttributes } from '../blueprint.ts'
+import type { Blueprint, ColumnAttributes, Command } from '../blueprint.ts'
 import { type Modifier, SchemaGrammar } from '../grammar.ts'
 
 export class PostgresSchemaGrammar extends SchemaGrammar {
@@ -24,6 +24,22 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
         return column.length ? `varchar(${column.length})` : 'varchar'
       case 'char':
         return `char(${column.length ?? 255})`
+      case 'tinyText':
+        return 'varchar(255)'
+      case 'ulid':
+        return 'char(26)'
+      case 'year':
+        return 'integer'
+      case 'ipAddress':
+        return 'inet'
+      case 'macAddress':
+        return 'macaddr'
+      case 'dateTimeTz':
+        return 'timestamp with time zone'
+      case 'timeTz':
+        return 'time with time zone'
+      case 'timestampTz':
+        return 'timestamp with time zone'
       case 'uuid':
         return 'uuid'
       case 'vector':
@@ -154,5 +170,29 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
     )
 
     return [`alter table ${table} ${changes.join(', ')}`]
+  }
+  /**
+   * `create index … using gin (to_tsvector('english', col || ' ' || col))`.
+   *
+   * Postgres has no full-text *index type*: what makes a text search fast is a GIN
+   * index over the `tsvector` the query will compute. The language matters and
+   * cannot be guessed, so `english` is the default Laravel uses too — an
+   * application indexing another language wants its own `rawIndex`.
+   */
+  protected override compileFullText(
+    blueprint: Blueprint,
+    command: Extract<Command, { name: 'fullText' }>
+  ): string {
+    const columns = command.columns
+      .map((column) => `coalesce(${this.wrap(column)}, '')`)
+      .join(" || ' ' || ")
+
+    return `create index ${this.wrap(command.index)} on ${this.wrapTable(blueprint.table)} using gin (to_tsvector('english', ${columns}))`
+  }
+
+  protected override compileRenameIndex(_blueprint: Blueprint, from: string, to: string): string {
+    // Postgres renames the index itself, not through the table it belongs to —
+    // which is why the blueprint goes unread here and is read everywhere else.
+    return `alter index ${this.wrap(from)} rename to ${this.wrap(to)}`
   }
 }

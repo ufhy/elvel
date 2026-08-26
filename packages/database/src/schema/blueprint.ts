@@ -23,6 +23,14 @@ export type ColumnType =
   | 'binary'
   | 'enum'
   | 'vector'
+  | 'tinyText'
+  | 'ulid'
+  | 'year'
+  | 'ipAddress'
+  | 'macAddress'
+  | 'dateTimeTz'
+  | 'timeTz'
+  | 'timestampTz'
 
 export type ColumnAttributes = {
   name: string
@@ -59,6 +67,9 @@ export type Command =
   | { name: 'primary'; columns: string[]; index?: string }
   | { name: 'unique'; columns: string[]; index: string }
   | { name: 'index'; columns: string[]; index: string }
+  | { name: 'fullText'; columns: string[]; index: string }
+  | { name: 'dropFullText'; index: string }
+  | { name: 'renameIndex'; from: string; to: string }
   | {
       name: 'foreign'
       columns: string[]
@@ -390,6 +401,169 @@ export class Blueprint {
   }
 
   /** `*_type` + `*_id` for a polymorphic relation. */
+  // ------------------------------------------------------- the newer columns
+
+  /** `char(26)`, which is exactly what a ULID is. */
+  ulid(name = 'ulid'): ColumnDefinition {
+    return this.addColumn('ulid', name)
+  }
+
+  /**
+   * `ipAddress` and `macAddress` name the intent, and the type follows.
+   *
+   * Postgres has `inet` and `macaddr` and will reject a malformed value; MySQL
+   * and SQLite have neither and store a string. Naming the intent is what lets an
+   * application get the stricter column on the database that has one without
+   * writing the migration twice.
+   */
+  ipAddress(name = 'ip_address'): ColumnDefinition {
+    return this.addColumn('ipAddress', name)
+  }
+
+  macAddress(name = 'mac_address'): ColumnDefinition {
+    return this.addColumn('macAddress', name)
+  }
+
+  year(name: string): ColumnDefinition {
+    return this.addColumn('year', name)
+  }
+
+  tinyText(name: string): ColumnDefinition {
+    return this.addColumn('tinyText', name)
+  }
+
+  /**
+   * The time-zone-aware trio.
+   *
+   * Only Postgres actually keeps a zone: `timestamp with time zone` stores an
+   * instant, while MySQL's `timestamp` and SQLite's `datetime` store what they
+   * were given. The method is still worth having — it says which of the two an
+   * application meant, and on Postgres it is the difference between a correct
+   * instant and a wrong one across a daylight-saving change.
+   */
+  dateTimeTz(name: string): ColumnDefinition {
+    return this.addColumn('dateTimeTz', name)
+  }
+
+  timeTz(name: string): ColumnDefinition {
+    return this.addColumn('timeTz', name)
+  }
+
+  timestampTz(name: string): ColumnDefinition {
+    return this.addColumn('timestampTz', name)
+  }
+
+  // ---------------------------------------------------------- the shorthands
+
+  integerIncrements(name: string): ColumnDefinition {
+    return this.addColumn('integer', name).autoIncrement()
+  }
+
+  mediumIncrements(name: string): ColumnDefinition {
+    return this.addColumn('mediumInteger', name).autoIncrement()
+  }
+
+  smallIncrements(name: string): ColumnDefinition {
+    return this.addColumn('smallInteger', name).autoIncrement()
+  }
+
+  tinyIncrements(name: string): ColumnDefinition {
+    return this.addColumn('tinyInteger', name).autoIncrement()
+  }
+
+  unsignedMediumInteger(name: string): ColumnDefinition {
+    return this.mediumInteger(name).unsigned()
+  }
+
+  unsignedSmallInteger(name: string): ColumnDefinition {
+    return this.smallInteger(name).unsigned()
+  }
+
+  unsignedTinyInteger(name: string): ColumnDefinition {
+    return this.tinyInteger(name).unsigned()
+  }
+
+  /** A uuid or a ulid that will hold somebody else's key. */
+  foreignUuid(name: string): ColumnDefinition {
+    return this.addColumn('uuid', name)
+  }
+
+  foreignUlid(name: string): ColumnDefinition {
+    return this.addColumn('ulid', name)
+  }
+
+  // ------------------------------------------------------------- timestamps
+
+  nullableTimestamps(): void {
+    this.timestamp('created_at').nullable()
+    this.timestamp('updated_at').nullable()
+  }
+
+  timestampsTz(): void {
+    this.timestampTz('created_at').nullable()
+    this.timestampTz('updated_at').nullable()
+  }
+
+  nullableTimestampsTz(): void {
+    this.timestampsTz()
+  }
+
+  /** `created_at`/`updated_at` as datetimes rather than timestamps. */
+  datetimes(): void {
+    this.dateTime('created_at').nullable()
+    this.dateTime('updated_at').nullable()
+  }
+
+  softDeletesTz(name = 'deleted_at'): ColumnDefinition {
+    return this.timestampTz(name).nullable()
+  }
+
+  softDeletesDatetime(name = 'deleted_at'): ColumnDefinition {
+    return this.dateTime(name).nullable()
+  }
+
+  // ----------------------------------------------------------- morph columns
+
+  /** `morphs` with an integer key, which is what `morphs` already is. */
+  numericMorphs(name: string): void {
+    this.morphs(name)
+  }
+
+  nullableNumericMorphs(name: string): void {
+    this.nullableMorphs(name)
+  }
+
+  /**
+   * A polymorphic key that is a uuid or a ulid rather than an integer.
+   *
+   * Which one a table needs is decided by the *related* tables' keys, not by this
+   * one — so a project using uuids everywhere would otherwise have to write the
+   * two columns and their index out by hand every time.
+   */
+  uuidMorphs(name: string): void {
+    this.string(`${name}_type`)
+    this.uuid(`${name}_id`)
+    this.index([`${name}_type`, `${name}_id`])
+  }
+
+  nullableUuidMorphs(name: string): void {
+    this.string(`${name}_type`).nullable()
+    this.uuid(`${name}_id`).nullable()
+    this.index([`${name}_type`, `${name}_id`])
+  }
+
+  ulidMorphs(name: string): void {
+    this.string(`${name}_type`)
+    this.ulid(`${name}_id`)
+    this.index([`${name}_type`, `${name}_id`])
+  }
+
+  nullableUlidMorphs(name: string): void {
+    this.string(`${name}_type`).nullable()
+    this.ulid(`${name}_id`).nullable()
+    this.index([`${name}_type`, `${name}_id`])
+  }
+
   morphs(name: string): void {
     this.string(`${name}_type`)
     this.unsignedBigInteger(`${name}_id`)
@@ -452,6 +626,59 @@ export class Blueprint {
   }
 
   // -------------------------------------------------------------------- drops
+
+  /**
+   * A full-text index — `fullText(['title', 'body'])`.
+   *
+   * The SQL is nothing like itself across dialects: MySQL has `fulltext`,
+   * Postgres wants a GIN index over `to_tsvector`, and SQLite has no such index
+   * at all — its full-text search is a separate virtual table. Its grammar throws
+   * and names that, rather than emitting an index no search would use.
+   */
+  fullText(columns: string[], index?: string): this {
+    this.commands.push({
+      name: 'fullText',
+      columns,
+      index: index ?? this.indexName('fulltext', columns)
+    })
+
+    return this
+  }
+
+  dropFullText(index: string | string[]): this {
+    const name = Array.isArray(index) ? this.indexName('fulltext', index) : index
+
+    this.commands.push({ name: 'dropFullText', index: name })
+
+    return this
+  }
+
+  /** `renameIndex('old', 'new')`. SQLite cannot, and says so. */
+  renameIndex(from: string, to: string): this {
+    this.commands.push({ name: 'renameIndex', from, to })
+
+    return this
+  }
+
+  /** The three `drop` shorthands that pair with the columns above. */
+  dropMorphs(name: string): this {
+    return this.dropIndex(this.indexName('index', [`${name}_type`, `${name}_id`])).dropColumn(
+      `${name}_type`,
+      `${name}_id`
+    )
+  }
+
+  dropRememberToken(): this {
+    return this.dropColumn('remember_token')
+  }
+
+  dropTimestampsTz(): this {
+    return this.dropColumn('created_at', 'updated_at')
+  }
+
+  dropSoftDeletesTz(name = 'deleted_at'): this {
+    return this.dropColumn(name)
+  }
 
   dropColumn(...columns: string[]): this {
     this.commands.push({ name: 'dropColumn', columns: columns.flat() })

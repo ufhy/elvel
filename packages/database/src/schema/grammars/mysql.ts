@@ -1,4 +1,4 @@
-import type { Blueprint, ColumnAttributes } from '../blueprint.ts'
+import type { Blueprint, ColumnAttributes, Command } from '../blueprint.ts'
 import { type Modifier, SchemaGrammar } from '../grammar.ts'
 
 export class MySqlSchemaGrammar extends SchemaGrammar {
@@ -35,6 +35,22 @@ export class MySqlSchemaGrammar extends SchemaGrammar {
         return `varchar(${column.length ?? 255})`
       case 'char':
         return `char(${column.length ?? 255})`
+      case 'tinyText':
+        return 'tinytext'
+      case 'ulid':
+        return 'char(26)'
+      case 'year':
+        return 'year'
+      case 'ipAddress':
+        return 'varchar(45)'
+      case 'macAddress':
+        return 'varchar(17)'
+      case 'dateTimeTz':
+        return 'datetime'
+      case 'timeTz':
+        return 'time'
+      case 'timestampTz':
+        return 'timestamp'
       case 'uuid':
         return 'char(36)'
       case 'enum':
@@ -141,5 +157,11 @@ export class MySqlSchemaGrammar extends SchemaGrammar {
     return [
       `alter table ${this.wrapTable(blueprint.table)} modify ${this.columnSql(blueprint, column)}`
     ]
+  }
+  protected override compileFullText(
+    blueprint: Blueprint,
+    command: Extract<Command, { name: 'fullText' }>
+  ): string {
+    return `alter table ${this.wrapTable(blueprint.table)} add fulltext ${this.wrap(command.index)} (${this.columnize(command.columns)})`
   }
 }

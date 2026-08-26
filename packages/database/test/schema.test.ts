@@ -444,3 +444,198 @@ describe('SchemaBuilder against a real database', () => {
     ])
   })
 })
+
+/**
+ * The columns added to reach Laravel's `Blueprint`, and why they are methods
+ * rather than `string()` calls with a comment.
+ *
+ * Each one names an *intent* whose column type is not the same on two dialects.
+ * The types are Laravel's, read from its three schema grammars — `typeIpAddress`
+ * answers `inet` on Postgres and `varchar` elsewhere, and no amount of reading
+ * the documentation says so.
+ */
+describe('the newer column types', () => {
+  test('ipAddress and macAddress are real types on Postgres and strings elsewhere', () => {
+    const plan = blueprint((table) => {
+      table.ipAddress('last_seen_from')
+      table.macAddress('adapter')
+    })
+
+    expect(postgres.compile(plan)[0]).toContain('"last_seen_from" inet not null')
+    expect(postgres.compile(plan)[0]).toContain('"adapter" macaddr not null')
+
+    expect(mysql.compile(plan)[0]).toContain('`last_seen_from` varchar(45) not null')
+    expect(mysql.compile(plan)[0]).toContain('`adapter` varchar(17) not null')
+
+    expect(sqlite.compile(plan)[0]).toContain('"last_seen_from" varchar not null')
+  })
+
+  test('ulid is a fixed 26 characters everywhere, which is what a ULID is', () => {
+    const plan = blueprint((table) => {
+      table.ulid()
+      table.foreignUlid('owner_ulid')
+    })
+
+    for (const grammar of [sqlite, mysql, postgres]) {
+      expect(grammar.compile(plan)[0]).toContain('char(26)')
+    }
+  })
+
+  test('year and tinyText follow the dialect that has them', () => {
+    const plan = blueprint((table) => {
+      table.year('graduated')
+      table.tinyText('nickname')
+    })
+
+    expect(mysql.compile(plan)[0]).toContain('`graduated` year not null')
+    expect(mysql.compile(plan)[0]).toContain('`nickname` tinytext not null')
+
+    // Neither exists in Postgres or SQLite; the nearest honest type is used.
+    expect(postgres.compile(plan)[0]).toContain('"graduated" integer not null')
+    expect(postgres.compile(plan)[0]).toContain('"nickname" varchar(255) not null')
+    expect(sqlite.compile(plan)[0]).toContain('"nickname" text not null')
+  })
+
+  /**
+   * Only Postgres actually keeps a zone.
+   *
+   * `timestamp with time zone` stores an instant; MySQL's `timestamp` and
+   * SQLite's `datetime` store what they were handed. The method is still worth
+   * having because on the database that can tell the difference, it is the
+   * difference between a correct instant and a wrong one across a daylight-saving
+   * change.
+   */
+  test('the Tz trio is only a zone on Postgres', () => {
+    const plan = blueprint((table) => {
+      table.timestampTz('happened_at')
+      table.timeTz('opens_at')
+      table.dateTimeTz('closes_at')
+    })
+
+    const pg = postgres.compile(plan)[0] as string
+
+    expect(pg).toContain('"happened_at" timestamp with time zone')
+    expect(pg).toContain('"opens_at" time with time zone')
+    expect(pg).toContain('"closes_at" timestamp with time zone')
+
+    expect(mysql.compile(plan)[0]).toContain('`happened_at` timestamp')
+    expect(sqlite.compile(plan)[0]).toContain('"closes_at" datetime')
+  })
+
+  test('string is still varchar — the fall-through it shares was not disturbed', () => {
+    const plan = blueprint((table) => {
+      table.string('name')
+      table.char('code', 4)
+    })
+
+    // A regression this file caught once: adding tinyText inside this group made
+    // every string column a text column on SQLite.
+    expect(sqlite.compile(plan)[0]).toContain('"name" varchar not null')
+    expect(sqlite.compile(plan)[0]).toContain('"code" varchar not null')
+  })
+})
+
+describe('the shorthands', () => {
+  test('the unsigned and increments families reach the same columns', () => {
+    const plan = blueprint((table) => {
+      table.unsignedTinyInteger('level')
+      table.unsignedSmallInteger('rank')
+      table.unsignedMediumInteger('score')
+      table.smallIncrements('ticket')
+    })
+
+    const sql = mysql.compile(plan)[0] as string
+
+    expect(sql).toContain('`level` tinyint unsigned not null')
+    expect(sql).toContain('`rank` smallint unsigned not null')
+    expect(sql).toContain('`score` mediumint unsigned not null')
+    expect(sql).toContain('auto_increment')
+  })
+
+  test('the morph variants differ in the key, which the related table decides', () => {
+    const integers = blueprint((table) => {
+      table.morphs('taggable')
+    })
+    const uuids = blueprint((table) => {
+      table.uuidMorphs('taggable')
+    })
+    const ulids = blueprint((table) => {
+      table.ulidMorphs('taggable')
+    })
+
+    expect(postgres.compile(integers)[0]).toContain('"taggable_id" bigint')
+    expect(postgres.compile(uuids)[0]).toContain('"taggable_id" uuid')
+    expect(postgres.compile(ulids)[0]).toContain('"taggable_id" char(26)')
+
+    // All three index the pair, which is the point of the helper.
+    expect(postgres.compile(uuids).some((sql) => sql.includes('create index'))).toBe(true)
+  })
+
+  test('nullableTimestamps and datetimes name what they are', () => {
+    const stamps = blueprint((table) => {
+      table.nullableTimestamps()
+    })
+    const dates = blueprint((table) => {
+      table.datetimes()
+    })
+
+    expect(postgres.compile(stamps)[0]).toContain('"created_at" timestamp')
+    expect(postgres.compile(dates)[0]).toContain('"created_at" timestamp')
+    expect(mysql.compile(dates)[0]).toContain('`created_at` datetime')
+  })
+})
+
+describe('full-text indexes, which no two dialects share', () => {
+  const plan = blueprint((table) => {
+    table.string('title')
+    table.text('body')
+    table.fullText(['title', 'body'])
+  }, 'articles')
+
+  test('MySQL has an index type for it', () => {
+    expect(mysql.compile(plan).some((sql) => sql.includes('add fulltext'))).toBe(true)
+  })
+
+  /**
+   * Postgres has no full-text index type at all.
+   *
+   * What makes a search fast there is a GIN index over the `tsvector` the query
+   * computes — so that is what this emits, with `coalesce` because a null column
+   * would otherwise make the whole concatenation null.
+   */
+  test('Postgres builds a GIN index over to_tsvector', () => {
+    const sql = postgres.compile(plan).find((one) => one.includes('gin')) as string
+
+    expect(sql).toContain("to_tsvector('english'")
+    expect(sql).toContain('coalesce')
+  })
+
+  /**
+   * And SQLite cannot, so it says which feature to reach for instead.
+   *
+   * "Not supported" without the alternative is where somebody gives up; FTS5 is a
+   * virtual table, which a migration creates with a raw statement.
+   */
+  test('SQLite refuses, and names FTS5', () => {
+    expect(() => sqlite.compile(plan)).toThrow('FTS5')
+  })
+})
+
+describe('renameIndex', () => {
+  const plan = new Blueprint('users')
+
+  plan.renameIndex('users_email_index', 'users_email_unique')
+
+  test('MySQL renames through the table, Postgres renames the index', () => {
+    expect(mysql.compile(plan)[0]).toBe(
+      'alter table `users` rename index `users_email_index` to `users_email_unique`'
+    )
+    expect(postgres.compile(plan)[0]).toBe(
+      'alter index "users_email_index" rename to "users_email_unique"'
+    )
+  })
+
+  test('and SQLite cannot, which it says rather than emitting SQL that fails', () => {
+    expect(() => sqlite.compile(plan)).toThrow('cannot rename an index')
+  })
+})
