@@ -1,3 +1,4 @@
+import { type Metadata, mergeMetadata, metadataAt } from './metadata.ts'
 import { compileUri, isWildcard, type ParsedUri, parseUri, rootFor } from './uri.ts'
 
 /**
@@ -40,6 +41,9 @@ export class RouteDefinition {
 
   routeName?: string
   domainPattern?: string
+
+  /** Arbitrary values a page knows about itself — see `metadata.ts`. */
+  routeMetadata: Metadata = {}
   controllerClass?: new (
     ...args: never[]
   ) => object
@@ -178,6 +182,36 @@ export class RouteDefinition {
    */
   can(ability: string, ...args: string[]): this {
     return this.middleware([`can:${[ability, ...args].join(',')}`])
+  }
+
+  /**
+   * `metadata({ head: { title: 'Users' } })` — Laravel 13's `Route::metadata`.
+   *
+   * Merged over whatever the group set, deeply. The rules are in `metadata.ts`,
+   * with the two that surprise: a list replaces a list, and an empty object
+   * clears the group's value rather than inheriting it.
+   */
+  metadata(values: Metadata): this {
+    /**
+     * Guarded at run time as well as in the type.
+     *
+     * TypeScript stops this for anyone compiling, and `Attribute [metadata]
+     * expects an array` is the error Laravel raises for the same mistake — worth
+     * keeping for a caller reaching this from JavaScript, where a string would
+     * otherwise be spread into characters.
+     */
+    if (typeof values !== 'object' || values === null || Array.isArray(values)) {
+      throw new TypeError('metadata() expects an object.')
+    }
+
+    this.routeMetadata = mergeMetadata(this.routeMetadata, values)
+
+    return this
+  }
+
+  /** Everything, a branch, or a leaf by dotted path: `getMetadata('head.title')`. */
+  getMetadata(key?: string, fallback?: unknown): unknown {
+    return metadataAt(this.routeMetadata, key, fallback)
   }
 
   domain(pattern: string): this {

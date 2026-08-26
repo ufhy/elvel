@@ -125,6 +125,7 @@ export {
   currentRouteUri,
   withCurrentRoute
 } from './router/current.ts'
+export { type Metadata, mergeMetadata, metadataAt } from './router/metadata.ts'
 export {
   type GroupAttributes,
   Route,

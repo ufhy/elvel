@@ -1,4 +1,5 @@
 import { routes as routeRegistry } from '../route-helpers.ts'
+import { type Metadata, mergeMetadata } from './metadata.ts'
 import { type ResourceBuilder, resourceBuilder } from './resource.ts'
 import { redirectResponse, renderView } from './responses.ts'
 import { type HttpMethod, type RouteAction, RouteDefinition } from './route.ts'
@@ -25,6 +26,7 @@ export type GroupAttributes = {
   middleware?: string | string[]
   withoutMiddleware?: string | string[]
   domain?: string
+  metadata?: Metadata
   controller?: new (...args: never[]) => object
   where?: Record<string, string>
   scopeBindings?: boolean
@@ -72,6 +74,7 @@ function declare(methods: HttpMethod[], uri: string, action: RouteAction): Route
     if (group.middleware !== undefined) route.middleware(group.middleware)
     if (group.withoutMiddleware !== undefined) route.withoutMiddleware(group.withoutMiddleware)
     if (group.domain !== undefined) route.domain(group.domain)
+    if (group.metadata !== undefined) route.metadata(group.metadata)
     if (group.where !== undefined) route.where(group.where)
     if (group.missing !== undefined) route.missing(group.missing)
     if (group.scopeBindings === true) route.scopeBindings()
@@ -135,6 +138,21 @@ export class RouteGroupBuilder {
 
   domain(domain: string): RouteGroupBuilder {
     return this.with({ domain })
+  }
+
+  /**
+   * Metadata for everything in the group, which each route may add to.
+   *
+   * Merged here as well as on the route, so a nested group deepens its parent's
+   * rather than replacing it — `testCanSetRouteMetadataOnGroup` is the shape.
+   */
+  metadata(values: Metadata): RouteGroupBuilder {
+    return this.with({
+      metadata:
+        this.attributes.metadata === undefined
+          ? values
+          : mergeMetadata(this.attributes.metadata, values)
+    })
   }
 
   controller(controller: new (...args: never[]) => object): RouteGroupBuilder {
@@ -398,6 +416,7 @@ export const Route = {
   withoutMiddleware: (...names: Array<string | string[]>) =>
     new RouteGroupBuilder().withoutMiddleware(...names),
   domain: (domain: string) => new RouteGroupBuilder().domain(domain),
+  metadata: (values: Metadata) => new RouteGroupBuilder().metadata(values),
   controller: (controller: new (...args: never[]) => object) =>
     new RouteGroupBuilder().controller(controller),
   scopeBindings: () => new RouteGroupBuilder().scopeBindings(),
