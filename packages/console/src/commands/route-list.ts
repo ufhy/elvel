@@ -100,16 +100,63 @@ export class RouteListCommand extends Command {
     // empty for every row.
     const anyMiddleware = guarded.some((names) => names.length > 0)
 
+    /**
+     * The route's name, which is what `route()` is called with.
+     *
+     * Read back from the name table by comparing paths: Elysia's route table has
+     * no idea a name exists, and the registry is keyed the other way round. The
+     * comparison ignores what a parameter is *called* — the registry stores
+     * `/users/{id}` and Elysia has `/users/:id` — because a rename of the
+     * parameter is not a different route.
+     *
+     * Worth the lookup: thirty-one named routes in the auth kit alone, and a
+     * listing that cannot show them makes `route('settings.twoFactor.confirm')`
+     * something to be guessed at.
+     */
+    const registered = this.app.bound('routes') ? this.app.make('routes').registered() : []
+    const named = new Map<string, string>()
+
+    for (const entry of registered) {
+      const shape = shapeOf(entry.path)
+
+      /**
+       * Keyed by shape *and* verb, because a path is not one route.
+       *
+       * `/settings/profile` is three of them — a page, an update and a delete —
+       * under three names. Keyed by path alone the last one registered won, and
+       * the listing labelled the GET row `settings.profile.destroy`.
+       *
+       * A name registered without verbs still gets a path-only key, so an older
+       * registration keeps showing up rather than vanishing from the listing.
+       */
+      if (entry.methods.length === 0) named.set(shape, entry.name)
+
+      for (const method of entry.methods) named.set(`${method.toUpperCase()} ${shape}`, entry.name)
+    }
+
+    const names = routes.map((route) => {
+      const shape = shapeOf(route.path)
+
+      return named.get(`${route.method.toUpperCase()} ${shape}`) ?? named.get(shape) ?? ''
+    })
+    const anyNames = names.some((name) => name !== '')
+
+    const headers = ['METHOD', 'PATH']
+
+    if (anyNames) headers.push('NAME')
+    if (anyMiddleware) headers.push('MIDDLEWARE')
+
     this.line()
     this.table(
-      anyMiddleware ? ['METHOD', 'PATH', 'MIDDLEWARE'] : ['METHOD', 'PATH'],
+      headers,
       routes.map((route, index) => {
         const paint = METHOD_COLORS[route.method.toUpperCase()] ?? pc.white
-        const names = guarded[index] ?? []
+        const row = [paint(route.method), route.path]
 
-        return anyMiddleware
-          ? [paint(route.method), route.path, pc.dim(names.join(', '))]
-          : [paint(route.method), route.path]
+        if (anyNames) row.push(pc.cyan(names[index] ?? ''))
+        if (anyMiddleware) row.push(pc.dim((guarded[index] ?? []).join(', ')))
+
+        return row
       })
     )
     this.line()
@@ -118,4 +165,18 @@ export class RouteListCommand extends Command {
 
     return 0
   }
+}
+
+/**
+ * A path by its shape, so the two spellings of a parameter compare equal.
+ *
+ * The name table stores what a developer wrote — `/users/{id}` — and Elysia's
+ * table holds what it matches on — `/users/:id`. Comparing the strings finds
+ * nothing; comparing their shapes finds the route.
+ */
+function shapeOf(path: string): string {
+  return path
+    .replace(/\{[^}]+\}/g, ':param')
+    .replace(/:[A-Za-z0-9_]+\??/g, ':param')
+    .replace(/\/+$/, '')
 }

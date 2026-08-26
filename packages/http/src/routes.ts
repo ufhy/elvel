@@ -15,6 +15,17 @@ export class RouteRegistry {
   private readonly paths = new Map<string, string>()
 
   /**
+   * The verbs each name answers, when whoever registered it said.
+   *
+   * Kept apart from `paths` because nothing that builds a URL needs it: `route()`
+   * asks for a name and gets a path. What needs it is `route:list`, which reads
+   * the table the other way round — and a path alone cannot answer, because
+   * `/settings/profile` is three routes under three names. Measured: the listing
+   * labelled the GET row `settings.profile.destroy`.
+   */
+  private readonly methods = new Map<string, string[]>()
+
+  /**
    * Name a path.
    *
    * ```ts
@@ -25,7 +36,7 @@ export class RouteRegistry {
    * one name means `route()` silently returns whichever was registered last, and
    * the one that loses is a link nobody notices is wrong.
    */
-  name(name: string, path: string): this {
+  name(name: string, path: string, methods: string[] = []): this {
     const existing = this.paths.get(name)
 
     if (existing !== undefined && existing !== path) {
@@ -35,6 +46,8 @@ export class RouteRegistry {
     }
 
     this.paths.set(name, path)
+
+    if (methods.length > 0) this.methods.set(name, methods)
 
     return this
   }
@@ -56,6 +69,20 @@ export class RouteRegistry {
 
   all(): Record<string, string> {
     return Object.fromEntries(this.paths)
+  }
+
+  /**
+   * Every name with its path and the verbs it answers — for `route:list`.
+   *
+   * A list rather than a map, because two names may share a path and the caller
+   * is matching from the other direction.
+   */
+  registered(): Array<{ name: string; path: string; methods: string[] }> {
+    return [...this.paths].map(([name, path]) => ({
+      name,
+      path,
+      methods: this.methods.get(name) ?? []
+    }))
   }
 
   /**
