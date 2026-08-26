@@ -5,6 +5,7 @@ import { raw } from '../query/expression.ts'
 import type { VectorMetric } from '../query/types.ts'
 import { attributeEncrypter, formatDateTime } from './casts.ts'
 import type { Model, ModelClass } from './model.ts'
+import type { EagerConstraint } from './relations.ts'
 
 export type Paginated<M> = {
   data: Collection<M>
@@ -42,6 +43,9 @@ export class ModelBuilder<M extends Model> {
   private query?: QueryBuilder<Row>
   private readonly pending: Array<(query: QueryBuilder<Row>) => void> = []
   private readonly eagerLoad = new Set<string>()
+
+  /** A constraint per eager-loaded relation, from the object form of `with`. */
+  private readonly eagerConstraints = new Map<string, EagerConstraint>()
   private trashed: 'exclude' | 'include' | 'only' = 'exclude'
   private readonly withoutScopes = new Set<string>()
   private readonly aggregates: Array<{
@@ -819,6 +823,122 @@ export class ModelBuilder<M extends Model> {
     return found.morphColumns()
   }
 
+  /**
+   * `withWhereHas('posts', cb)` — filter by the relation *and* load it, once.
+   *
+   * Two things that are almost always wanted together and are easy to write out
+   * of step: `whereHas` narrows the parents, `with` loads the children, and a
+   * constraint written into one and not the other gives a page listing authors
+   * who have published posts alongside all of their drafts.
+   */
+  withWhereHas(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    this.whereHas(relation, callback)
+
+    return callback === undefined
+      ? this.with(relation)
+      : this.with({ [relation]: callback as EagerConstraint })
+  }
+
+  /** The same for the sugar form: `withWhereRelation('posts', 'published', 1)`. */
+  withWhereRelation(relation: string, column: string, operator?: unknown, value?: unknown): this {
+    this.whereRelation(relation, column, operator, value)
+
+    return this.with({
+      [relation]: (query) => {
+        applyRelationCondition(query, column, operator, value)
+      }
+    })
+  }
+
+  /**
+   * `whereAttachedTo(tag)` — the rows joined to this one through a pivot.
+   *
+   * The many-to-many counterpart of `whereBelongsTo`, and it compiles to
+   * `has(relation, query => query.whereKey(keys))` rather than to a join on the
+   * pivot: the pivot is the relation's business, and `has` already knows it.
+   *
+   * The relation name is guessed as the plural of the class — `Tag` gives
+   * `tags` — which is Laravel's guess too, and refused rather than approximated
+   * when the relation is not a many-to-many.
+   */
+  whereAttachedTo(related: Model | Iterable<Model>, relation?: string): this {
+    return this.addAttachedTo(related, relation, 'and')
+  }
+
+  orWhereAttachedTo(related: Model | Iterable<Model>, relation?: string): this {
+    return this.addAttachedTo(related, relation, 'or')
+  }
+
+  private addAttachedTo(
+    related: Model | Iterable<Model>,
+    relation: string | undefined,
+    boolean: 'and' | 'or'
+  ): this {
+    const list = iterableOf(related)
+    const first = list[0]
+
+    if (first === undefined) {
+      throw new Error('whereAttachedTo() was given an empty list, which would match nothing.')
+    }
+
+    const name = relation ?? pluralRelationNameFor(first)
+    const probe = new (this.model as unknown as new () => Model)()
+    const found = probe.resolveRelation(name) as unknown as {
+      attachedKeys?: () => { pivotColumn: string; relatedKey: string }
+    }
+
+    if (typeof found.attachedKeys !== 'function') {
+      throw new Error(
+        `Relation [${name}] on ${this.model.name} is not a belongsToMany, so whereAttachedTo() cannot use it.`
+      )
+    }
+
+    const { pivotColumn, relatedKey } = found.attachedKeys()
+    const keys = list.map((one) => one.attributes[relatedKey]).filter((value) => value != null)
+    const constrain = (query: ModelBuilder<never>) => {
+      ;(query as unknown as { whereIn: (column: string, values: unknown[]) => void }).whereIn(
+        pivotColumn,
+        keys
+      )
+    }
+
+    return boolean === 'or' ? this.orHas(name, constrain) : this.has(name, constrain)
+  }
+
+  /**
+   * The general form the `with*` aggregates are built on — Laravel's `withAggregate`.
+   *
+   * `withAggregate('posts', 'votes', 'sum')` is `withSum('posts', 'votes')`. Worth
+   * exposing for the function this framework has no shorthand for — a database's
+   * own `string_agg`, or a `percentile_cont` — rather than making that reach for
+   * `selectRaw` and rebuild the correlated subquery by hand.
+   */
+  withAggregate(relation: string, column: string, fn = 'count'): this {
+    this.aggregates.push({
+      relation,
+      fn,
+      column,
+      alias: `${relation}_${fn}_${column === '*' ? 'all' : column}`
+    })
+
+    return this
+  }
+
+  /**
+   * Copy another builder's constraints onto this one — `mergeConstraintsFrom`.
+   *
+   * For the case Laravel added it for: applying a relation's own constraints to a
+   * query built elsewhere, so a scope defined once is not written twice.
+   */
+  mergeConstraintsFrom<Other extends Model>(other: ModelBuilder<Other>): this {
+    for (const apply of (other as unknown as { pending: Array<(query: QueryBuilder<Row>) => void> })
+      .pending) {
+      this.defer(apply)
+    }
+
+    return this
+  }
+
   private addRelationExists(
     relation: string,
     callback: ((query: ModelBuilder<never>) => void) | undefined,
@@ -1018,8 +1138,31 @@ export class ModelBuilder<M extends Model> {
 
   // ------------------------------------------------------------- eager loading
 
-  with(...relations: string[]): this {
-    for (const relation of relations.flat()) this.eagerLoad.add(relation)
+  /**
+   * `with('posts')`, or `with({ posts: (query) => query.where('published', 1) })`.
+   *
+   * The constrained form is Laravel's `with(['posts' => fn ($q) => …])`, and it is
+   * not a convenience: without it the only way to eager-load *part* of a relation
+   * is to load all of it and filter in memory, which is the cost the eager load
+   * existed to avoid.
+   *
+   * The constraint reaches the child query itself, so `orderBy` and `limit` inside
+   * it apply per parent for the relations where that is meaningful.
+   */
+  with(...relations: Array<string | Record<string, EagerConstraint>>): this {
+    for (const relation of relations.flat()) {
+      if (typeof relation === 'string') {
+        this.eagerLoad.add(relation)
+
+        continue
+      }
+
+      for (const [name, constrain] of Object.entries(relation)) {
+        this.eagerLoad.add(name)
+        this.eagerConstraints.set(name, constrain)
+      }
+    }
+
     return this
   }
 
@@ -1040,7 +1183,7 @@ export class ModelBuilder<M extends Model> {
       const relation = models[0]?.resolveRelation(head as string)
       if (!relation) continue
 
-      await relation.eagerLoad(models, head as string)
+      await relation.eagerLoad(models, head as string, this.eagerConstraints.get(name))
 
       if (rest.length === 0) continue
 
@@ -1593,4 +1736,21 @@ function morphAliasFor(
   const model = resolve(type)
 
   return model === undefined ? type : (model as typeof Model).getMorphClass()
+}
+
+/**
+ * `Tag` implies the relation `tags` — the plural, for a many-to-many.
+ *
+ * `whereBelongsTo` guesses the singular because the child holds one key;
+ * `whereAttachedTo` guesses the plural because a pivot holds many. Both are
+ * guesses, and both take an explicit name for the tables that need one.
+ */
+function pluralRelationNameFor(related: Model): string {
+  const name = related.constructor.name
+  const camel = name.charAt(0).toLowerCase() + name.slice(1)
+
+  if (/[^aeiou]y$/i.test(camel)) return `${camel.slice(0, -1)}ies`
+  if (/(s|x|z|ch|sh)$/i.test(camel)) return `${camel}es`
+
+  return `${camel}s`
 }

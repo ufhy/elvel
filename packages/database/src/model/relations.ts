@@ -6,6 +6,16 @@ import { formatDateTime } from './casts.ts'
 import { Model, type ModelClass, Pivot } from './model.ts'
 
 /**
+ * A constraint on an eager load — `with({ posts: (query) => query.latest() })`.
+ *
+ * Laravel writes it `with(['posts' => fn ($q) => $q->latest()])`, and it is not a
+ * convenience: without it the only way to eager-load *some* of a relation is to
+ * load all of it and filter in memory, which is the whole cost the eager load was
+ * meant to avoid.
+ */
+export type EagerConstraint = (query: ModelBuilder<never>) => void
+
+/**
  * A relation is a query plus the knowledge of how to attach its results to a
  * parent — the second half being what eager loading needs.
  */
@@ -26,7 +36,7 @@ export abstract class Relation<R extends Model> {
    * results back by key. Parents whose key is null are skipped: matching them
    * against a null foreign key would attach unrelated rows.
    */
-  abstract eagerLoad(models: Model[], name: string): Promise<void>
+  abstract eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void>
 
   /**
    * How to correlate this relation in a subquery, which is what `whereHas` and
@@ -112,7 +122,7 @@ export abstract class HasOneOrMany<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.localKey)
 
     if (keys.length === 0) {
@@ -120,9 +130,14 @@ export abstract class HasOneOrMany<R extends Model> extends Relation<R> {
       return
     }
 
-    const children = await ((this.related as typeof Model).query() as ModelBuilder<R>)
-      .whereIn(this.foreignKey, keys)
-      .get()
+    const query = ((this.related as typeof Model).query() as ModelBuilder<R>).whereIn(
+      this.foreignKey,
+      keys
+    )
+
+    constrain?.(query as never)
+
+    const children = await query.get()
 
     const grouped = this.dictionary(children.all(), this.foreignKey)
 
@@ -166,8 +181,12 @@ export class HasOne<R extends Model> extends HasOneOrMany<R> {
     return (await this.query().first()) ?? this.buildDefault()
   }
 
-  override async eagerLoad(models: Model[], name: string): Promise<void> {
-    await super.eagerLoad(models, name)
+  override async eagerLoad(
+    models: Model[],
+    name: string,
+    constrain?: EagerConstraint
+  ): Promise<void> {
+    await super.eagerLoad(models, name, constrain)
 
     // Collapse each collection to its first member, as matchOne does.
     for (const model of models) {
@@ -232,7 +251,7 @@ export class BelongsTo<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.foreignKey)
 
     if (keys.length === 0) {
@@ -240,9 +259,14 @@ export class BelongsTo<R extends Model> extends Relation<R> {
       return
     }
 
-    const owners = await ((this.related as typeof Model).query() as ModelBuilder<R>)
-      .whereIn(this.ownerKey, keys)
-      .get()
+    const query = ((this.related as typeof Model).query() as ModelBuilder<R>).whereIn(
+      this.ownerKey,
+      keys
+    )
+
+    constrain?.(query as never)
+
+    const owners = await query.get()
 
     const byKey = new Map<string, R>()
     for (const owner of owners.all()) {
@@ -263,6 +287,26 @@ export class BelongsTo<R extends Model> extends Relation<R> {
 
 /** `post.tags()` — many-to-many through a pivot table. */
 export class BelongsToMany<R extends Model> extends Relation<R> {
+  /**
+   * Where to constrain a `whereAttachedTo`, and what marks this a many-to-many.
+   *
+   * Two halves. Something that says "this is a pivot relation" without an
+   * `instanceof` — `builder.ts` imports these as types only, and importing the
+   * class would be a cycle. And the column to constrain, which is on the **pivot**:
+   * `existsConstraint` above correlates the pivot table, so inside that subquery
+   * the related table is not in scope at all. Measured as
+   * `SQLiteError: no such column: tags.id`.
+   *
+   * Constraining the pivot is also one join fewer than reaching the related table
+   * to ask the same question.
+   */
+  attachedKeys(): { pivotColumn: string; relatedKey: string } {
+    return {
+      pivotColumn: `${this.pivotTable}.${this.relatedPivotKey}`,
+      relatedKey: this.relatedKey
+    }
+  }
+
   /** Extra pivot columns to read back, beyond the two keys. */
   protected pivotColumns: string[] = []
   /** Constraints on the pivot table itself, as `wherePivot()` adds them. */
@@ -612,7 +656,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.parentKey)
 
     if (keys.length === 0) {
@@ -641,6 +685,9 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     // The same constraints the lazy path applies, or an eager load would return
     // rows a `->get()` on the same relation refuses — including a morph's type.
     this.applyPivotConstraints(eager)
+
+    // The caller's constraint last, so it can narrow the pivot's but not escape it.
+    constrain?.(eager as never)
 
     const rows = await eager.get()
 
@@ -797,7 +844,7 @@ export class MorphTo extends Relation<Model> {
     )
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const byType = new Map<string, Model[]>()
 
     for (const model of models) {
@@ -823,10 +870,21 @@ export class MorphTo extends Relation<Model> {
       }
 
       const key = (related as typeof Model).primaryKey
-      const owners = await (related as typeof Model)
+      const query = (related as typeof Model)
         .query()
         .whereIn(key, this.keysOf(group, this.idColumn))
-        .get()
+
+      /**
+       * Once per type, which is the only place it can go.
+       *
+       * A morphTo fans out into one query per distinct type, so a constraint has
+       * to be applied to each — and a constraint naming a column only one type has
+       * will fail on the others, which is why the callback is handed the query
+       * rather than a column name.
+       */
+      constrain?.(query as never)
+
+      const owners = await query.get()
 
       const byKey = new Map<string, Model>()
       for (const owner of owners.all()) byKey.set(String(owner.attributes[key]), owner)
@@ -883,7 +941,7 @@ export abstract class MorphOneOrMany<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.localKey)
 
     if (keys.length === 0) {
@@ -891,10 +949,13 @@ export abstract class MorphOneOrMany<R extends Model> extends Relation<R> {
       return
     }
 
-    const children = await ((this.related as typeof Model).query() as ModelBuilder<R>)
+    const query = ((this.related as typeof Model).query() as ModelBuilder<R>)
       .where(this.typeColumn, this.morphType)
       .whereIn(this.idColumn, keys)
-      .get()
+
+    constrain?.(query as never)
+
+    const children = await query.get()
 
     const grouped = this.dictionary(children.all(), this.idColumn)
 
@@ -922,8 +983,12 @@ export class MorphOne<R extends Model> extends MorphOneOrMany<R> {
     return this.query().first()
   }
 
-  override async eagerLoad(models: Model[], name: string): Promise<void> {
-    await super.eagerLoad(models, name)
+  override async eagerLoad(
+    models: Model[],
+    name: string,
+    constrain?: EagerConstraint
+  ): Promise<void> {
+    await super.eagerLoad(models, name, constrain)
 
     for (const model of models) {
       const value = model.getRelation(name)
@@ -986,7 +1051,7 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.localKey)
 
     if (keys.length === 0) {
@@ -994,7 +1059,7 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
       return
     }
 
-    const rows = await ((this.related as typeof Model).query() as ModelBuilder<R>)
+    const query = ((this.related as typeof Model).query() as ModelBuilder<R>)
       .select(
         `${this.relatedTable}.*`,
         `${this.throughTable}.${this.firstKey} as through_parent_key`
@@ -1006,7 +1071,10 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
         `${this.relatedTable}.${this.secondKey}`
       )
       .whereIn(`${this.throughTable}.${this.firstKey}`, keys)
-      .get()
+
+    constrain?.(query as never)
+
+    const rows = await query.get()
 
     const grouped = new Map<string, R[]>()
 
@@ -1071,10 +1139,14 @@ export class HasOneThrough<R extends Model> extends HasManyThrough<R> {
     return (await this.query().first()) ?? this.buildDefault()
   }
 
-  override async eagerLoad(models: Model[], name: string): Promise<void> {
+  override async eagerLoad(
+    models: Model[],
+    name: string,
+    constrain?: EagerConstraint
+  ): Promise<void> {
     // Reuse the many version, then narrow: the dictionary it builds is grouped by
     // parent already, so the first of each group is the answer.
-    await super.eagerLoad(models, name)
+    await super.eagerLoad(models, name, constrain)
 
     for (const model of models) {
       const loaded = model.getRelation(name) as Collection<R> | undefined
@@ -1226,7 +1298,7 @@ export class HasOneOfMany<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.localKey)
 
     if (keys.length === 0) {
@@ -1237,12 +1309,24 @@ export class HasOneOfMany<R extends Model> extends Relation<R> {
 
     // One query for every parent, and the join keeps it to one row each — which is
     // the entire reason for the subquery.
-    const rows = await this.constrain(
+    /**
+     * Two constraints, and they are not the same one.
+     *
+     * `this.constrain` is the subquery that makes this "of many" — the join that
+     * keeps one row per parent. `constrain` is the caller's, from
+     * `with({ latestPost: … })`, and it goes on afterwards so it can narrow that
+     * result rather than replace the mechanism.
+     */
+    const query = this.constrain(
       ((this.related as typeof Model).query() as ModelBuilder<R>).whereIn(
         `${this.relatedTable}.${this.foreignKey}`,
         keys
       )
-    ).get()
+    )
+
+    constrain?.(query as never)
+
+    const rows = await query.get()
 
     const byParent = new Map<string, R>()
 
@@ -1354,7 +1438,7 @@ export class MorphToManyThrough<R extends Model> extends Relation<R> {
     }
   }
 
-  async eagerLoad(models: Model[], name: string): Promise<void> {
+  async eagerLoad(models: Model[], name: string, constrain?: EagerConstraint): Promise<void> {
     const keys = this.keysOf(models, this.localKey)
 
     if (keys.length === 0) return
@@ -1365,7 +1449,7 @@ export class MorphToManyThrough<R extends Model> extends Relation<R> {
      * The parent's key is selected alongside the related row, because the join
      * loses it otherwise and there would be nothing to group the results by.
      */
-    const rows = await ((this.related as typeof Model).query() as ModelBuilder<R>)
+    const query = ((this.related as typeof Model).query() as ModelBuilder<R>)
       .select(
         `${this.relatedTable}.*`,
         `${this.throughTable}.${this.throughForeignKey} as __through_key`
@@ -1384,7 +1468,10 @@ export class MorphToManyThrough<R extends Model> extends Relation<R> {
       )
       .where(`${this.pivotTable}.${this.morphName}_type`, morphType)
       .whereIn(`${this.throughTable}.${this.throughForeignKey}`, keys)
-      .get()
+
+    constrain?.(query as never)
+
+    const rows = await query.get()
 
     const grouped = new Map<string, R[]>()
 
