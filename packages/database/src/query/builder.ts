@@ -322,14 +322,23 @@ export class QueryBuilder<T extends Row = Row> {
     return this.whereNull(column, 'and', true)
   }
 
-  whereIn(column: string, values: Value[]): this {
-    this.query.wheres.push({ type: 'in', column, values, not: false, boolean: 'and' })
+  whereIn(column: string, values: Value[], boolean: Boolean_ = 'and'): this {
+    this.query.wheres.push({ type: 'in', column, values, not: false, boolean })
     return this
   }
 
-  whereNotIn(column: string, values: Value[]): this {
-    this.query.wheres.push({ type: 'in', column, values, not: true, boolean: 'and' })
+  whereNotIn(column: string, values: Value[], boolean: Boolean_ = 'and'): this {
+    this.query.wheres.push({ type: 'in', column, values, not: true, boolean })
     return this
+  }
+
+  /** `or`-joined, which is what `orWhereBelongsTo` needs. */
+  orWhereIn(column: string, values: Value[]): this {
+    return this.whereIn(column, values, 'or')
+  }
+
+  orWhereNotIn(column: string, values: Value[]): this {
+    return this.whereNotIn(column, values, 'or')
   }
 
   whereBetween(column: string, values: [Value, Value]): this {
@@ -351,16 +360,34 @@ export class QueryBuilder<T extends Row = Row> {
     return this
   }
 
-  whereExists(callback: (query: QueryBuilder) => void, not = false): this {
+  whereExists(
+    callback: (query: QueryBuilder) => void,
+    not = false,
+    boolean: Boolean_ = 'and'
+  ): this {
     const nested = new QueryBuilder(this.connection)
     callback(nested)
 
-    this.query.wheres.push({ type: 'exists', query: nested.components, not, boolean: 'and' })
+    this.query.wheres.push({ type: 'exists', query: nested.components, not, boolean })
     return this
   }
 
   whereNotExists(callback: (query: QueryBuilder) => void): this {
     return this.whereExists(callback, true)
+  }
+
+  /**
+   * The same, joined with `or` — what `orWhereHas` compiles to.
+   *
+   * The clause already carried a `boolean`; nothing could set it to `'or'` until
+   * now, which is why `orWhereHas` was missing rather than merely unwritten.
+   */
+  orWhereExists(callback: (query: QueryBuilder) => void, not = false): this {
+    return this.whereExists(callback, not, 'or')
+  }
+
+  orWhereNotExists(callback: (query: QueryBuilder) => void): this {
+    return this.whereExists(callback, true, 'or')
   }
 
   private whereNested(callback: (query: QueryBuilder<T>) => void, boolean: Boolean_): this {

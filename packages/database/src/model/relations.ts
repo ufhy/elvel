@@ -196,6 +196,18 @@ export class BelongsTo<R extends Model> extends Relation<R> {
       .where(this.ownerKey, this.parent.attributes[this.foreignKey]) as ModelBuilder<R>
   }
 
+  /**
+   * The two column names, for a caller filtering from the child's side.
+   *
+   * `whereBelongsTo(author)` constrains the child's foreign key to the parent's
+   * owner key, and only the relation knows which columns those are — asking it
+   * beats a caller guessing `author_id`, which is exactly the guess that breaks
+   * on a relation declared with explicit keys.
+   */
+  keys(): { foreignKey: string; ownerKey: string } {
+    return { foreignKey: this.foreignKey, ownerKey: this.ownerKey }
+  }
+
   async get(): Promise<R | undefined> {
     if (this.parent.attributes[this.foreignKey] == null) return undefined
 
@@ -743,9 +755,46 @@ export class MorphTo extends Relation<Model> {
     return this.query().first()
   }
 
+  /**
+   * The two columns and the types this relation can point at.
+   *
+   * Read by `whereHasMorph` and `whereMorphedTo`, which are the way to query a
+   * morphTo at all — `existsConstraint` below refuses, and rightly: one `exists`
+   * cannot span tables. Those methods constrain the *type* column first and then
+   * query one table per type, which is why they need to see all three of these.
+   */
+  morphColumns(): {
+    typeColumn: string
+    idColumn: string
+    types: Record<string, ModelClass<Model>>
+    /**
+     * A stored type name to its class, by the relation's map then the global one.
+     *
+     * Handed out rather than left to the caller: the builder would need `Model` as
+     * a *value* to reach `morphClassFor`, and `model.ts` imports the builder — so
+     * that import is a cycle. This side already has both maps in hand.
+     */
+    resolve: (type: string) => ModelClass<Model> | undefined
+  } {
+    return {
+      typeColumn: this.typeColumn,
+      idColumn: this.idColumn,
+      types: this.types,
+      resolve: (type: string) => this.classFor(type)
+    }
+  }
+
   existsConstraint(): never {
-    // `whereHas` on a morphTo would have to union across every type table.
-    throw new Error('whereHas/withCount are not supported on a morphTo relation.')
+    /**
+     * `whereHas` on a morphTo would have to union across every type table.
+     *
+     * `whereHasMorph('taggable', [Post, Video])` is the method that does that, and
+     * it is named in this message because "not supported" without the alternative
+     * is where somebody gives up and writes raw SQL.
+     */
+    throw new Error(
+      'whereHas/withCount are not supported on a morphTo relation. Use whereHasMorph(relation, [Type, …]) instead.'
+    )
   }
 
   async eagerLoad(models: Model[], name: string): Promise<void> {

@@ -448,10 +448,382 @@ export class ModelBuilder<M extends Model> {
     return this.addRelationExists(relation, callback, true)
   }
 
+  /**
+   * The `or` half of the family — Laravel's `orHas` and friends.
+   *
+   * Four methods that were missing rather than declined, and there is no way
+   * round them: "posts, or comments" cannot be said with `whereHas` twice, and
+   * writing the `exists` subquery by hand means knowing the foreign key the
+   * relation already knows.
+   */
+  orHas(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    return this.addRelationExists(relation, callback, false, 'or')
+  }
+
+  orWhereHas(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    return this.orHas(relation, callback)
+  }
+
+  orDoesntHave(relation: string): this {
+    return this.addRelationExists(relation, undefined, true, 'or')
+  }
+
+  orWhereDoesntHave(relation: string, callback?: (query: ModelBuilder<never>) => void): this {
+    return this.addRelationExists(relation, callback, true, 'or')
+  }
+
+  /**
+   * `whereRelation('posts', 'is_published', true)` — Laravel's `whereRelation`.
+   *
+   * The same as `whereHas` with a one-line callback, and worth having for the
+   * reason Laravel added it: the callback form buries the condition inside a
+   * closure, and a filter on a relation is the commonest thing anybody writes.
+   */
+  whereRelation(relation: string, column: string, operator?: unknown, value?: unknown): this {
+    return this.whereHas(relation, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  orWhereRelation(relation: string, column: string, operator?: unknown, value?: unknown): this {
+    return this.orWhereHas(relation, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  whereDoesntHaveRelation(
+    relation: string,
+    column: string,
+    operator?: unknown,
+    value?: unknown
+  ): this {
+    return this.whereDoesntHave(relation, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  orWhereDoesntHaveRelation(
+    relation: string,
+    column: string,
+    operator?: unknown,
+    value?: unknown
+  ): this {
+    return this.orWhereDoesntHave(relation, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  // ------------------------------------------------------------ morph filters
+
+  /**
+   * `whereHasMorph('taggable', [Post, Video])` — Laravel's `whereHasMorph`.
+   *
+   * The method a morphTo needs, because `whereHas` cannot serve one: the rows
+   * point at different tables and no single `exists` spans them. So this
+   * constrains the **type** column and runs one `exists` per type, joined with
+   * `or` — which is what `hasMorph` does in `QueriesRelationships`.
+   *
+   * `'*'` means every type the relation declares. Laravel finds them by querying
+   * `select distinct taggable_type`, and that is one round trip before the real
+   * query, on a column that may not be indexed. The relation already lists its
+   * types here, so this reads them instead — which also means a type with no rows
+   * yet still gets its subquery, where Laravel's would silently leave it out.
+   *
+   * The callback receives the query **and the type**, so a constraint can differ
+   * per table: a column on `posts` may not exist on `videos`.
+   */
+  whereHasMorph(
+    relation: string,
+    types: MorphTypes,
+    callback?: (query: ModelBuilder<never>, type: string) => void
+  ): this {
+    return this.addMorphExists(relation, types, callback, false, 'and')
+  }
+
+  orWhereHasMorph(
+    relation: string,
+    types: MorphTypes,
+    callback?: (query: ModelBuilder<never>, type: string) => void
+  ): this {
+    return this.addMorphExists(relation, types, callback, false, 'or')
+  }
+
+  whereDoesntHaveMorph(
+    relation: string,
+    types: MorphTypes,
+    callback?: (query: ModelBuilder<never>, type: string) => void
+  ): this {
+    return this.addMorphExists(relation, types, callback, true, 'and')
+  }
+
+  orWhereDoesntHaveMorph(
+    relation: string,
+    types: MorphTypes,
+    callback?: (query: ModelBuilder<never>, type: string) => void
+  ): this {
+    return this.addMorphExists(relation, types, callback, true, 'or')
+  }
+
+  /** `hasMorph` and `doesntHaveMorph` are the same four without the `where` in front. */
+  hasMorph(
+    relation: string,
+    types: MorphTypes,
+    callback?: (query: ModelBuilder<never>, type: string) => void
+  ): this {
+    return this.whereHasMorph(relation, types, callback)
+  }
+
+  orHasMorph(
+    relation: string,
+    types: MorphTypes,
+    callback?: (query: ModelBuilder<never>, type: string) => void
+  ): this {
+    return this.orWhereHasMorph(relation, types, callback)
+  }
+
+  doesntHaveMorph(relation: string, types: MorphTypes): this {
+    return this.whereDoesntHaveMorph(relation, types)
+  }
+
+  orDoesntHaveMorph(relation: string, types: MorphTypes): this {
+    return this.orWhereDoesntHaveMorph(relation, types)
+  }
+
+  /**
+   * `whereMorphedTo('taggable', post)` — which row it points at, not what it has.
+   *
+   * Four shapes, all of them Laravel's: a model, several models, a type name on
+   * its own, and `null` — which asks for the rows pointing at nothing, and is a
+   * `where … is null` on the type column rather than a comparison with the word
+   * "null".
+   */
+  whereMorphedTo(relation: string, model: MorphTarget, boolean: 'and' | 'or' = 'and'): this {
+    return this.addMorphedTo(relation, model, boolean, false)
+  }
+
+  orWhereMorphedTo(relation: string, model: MorphTarget): this {
+    return this.addMorphedTo(relation, model, 'or', false)
+  }
+
+  whereNotMorphedTo(relation: string, model: MorphTarget): this {
+    return this.addMorphedTo(relation, model, 'and', true)
+  }
+
+  orWhereNotMorphedTo(relation: string, model: MorphTarget): this {
+    return this.addMorphedTo(relation, model, 'or', true)
+  }
+
+  /** `whereMorphRelation('taggable', [Post], 'published', true)` — the sugar form. */
+  whereMorphRelation(
+    relation: string,
+    types: MorphTypes,
+    column: string,
+    operator?: unknown,
+    value?: unknown
+  ): this {
+    return this.whereHasMorph(relation, types, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  orWhereMorphRelation(
+    relation: string,
+    types: MorphTypes,
+    column: string,
+    operator?: unknown,
+    value?: unknown
+  ): this {
+    return this.orWhereHasMorph(relation, types, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  whereMorphDoesntHaveRelation(
+    relation: string,
+    types: MorphTypes,
+    column: string,
+    operator?: unknown,
+    value?: unknown
+  ): this {
+    return this.whereDoesntHaveMorph(relation, types, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  orWhereMorphDoesntHaveRelation(
+    relation: string,
+    types: MorphTypes,
+    column: string,
+    operator?: unknown,
+    value?: unknown
+  ): this {
+    return this.orWhereDoesntHaveMorph(relation, types, (query) => {
+      applyRelationCondition(query, column, operator, value)
+    })
+  }
+
+  private addMorphExists(
+    relation: string,
+    types: MorphTypes,
+    callback: ((query: ModelBuilder<never>, type: string) => void) | undefined,
+    negate: boolean,
+    boolean: 'and' | 'or'
+  ): this {
+    const morph = this.morphOf(relation)
+    const table = (this.model as typeof Model).getTable()
+    const resolved = resolveMorphTypes(types, morph.types, relation)
+
+    return this.defer((query) => {
+      const group = (nested: QueryBuilder<Row>) => {
+        for (const [alias, related] of resolved) {
+          nested.orWhere((branch) => {
+            branch.where(`${table}.${morph.typeColumn}`, '=', alias as never)
+
+            const build = (sub: QueryBuilder<Row>) => {
+              sub
+                .from((related as typeof Model).getTable())
+                .selectRaw('1')
+                .whereColumn(
+                  `${(related as typeof Model).getTable()}.${(related as typeof Model).primaryKey}`,
+                  '=',
+                  `${table}.${morph.idColumn}`
+                )
+
+              if (callback) {
+                const inner = new ModelBuilder(related as never)
+                callback(inner as never, alias)
+                inner.applyTo(sub)
+              }
+            }
+
+            if (negate) branch.whereNotExists(build as never)
+            else branch.whereExists(build as never)
+          })
+        }
+      }
+
+      if (boolean === 'or') query.orWhere(group as never)
+      else query.where(group as never)
+    })
+  }
+
+  private addMorphedTo(
+    relation: string,
+    model: MorphTarget,
+    boolean: 'and' | 'or',
+    negate: boolean
+  ): this {
+    const morph = this.morphOf(relation)
+    const table = (this.model as typeof Model).getTable()
+    const typeColumn = `${table}.${morph.typeColumn}`
+
+    /**
+     * `null` asks for the rows that point at nothing.
+     *
+     * A comparison would never match — the column holds a type name or nothing at
+     * all — so this is the one shape that has to become `is null`.
+     */
+    if (model === null) {
+      return this.defer((query) => {
+        // `negate`, not `!negate`: `whereMorphedTo(…, null)` asks for the rows
+        // pointing at nothing, so it is `is null`. Inverted, it answered every
+        // row *except* the one the caller asked for.
+        query.whereNull(typeColumn, boolean, negate)
+      })
+    }
+
+    if (typeof model === 'string') {
+      const alias = morphAliasFor(model, morph.resolve)
+
+      return this.defer((query) => {
+        if (boolean === 'or') query.orWhere(typeColumn, negate ? '!=' : '=', alias as never)
+        else query.where(typeColumn, negate ? '!=' : '=', alias as never)
+      })
+    }
+
+    const models = iterableOf(model)
+
+    if (models.length === 0) {
+      throw new Error('whereMorphedTo() was given an empty list, which would match nothing.')
+    }
+
+    /**
+     * Grouped by type, because the keys only mean anything beside their type.
+     *
+     * Two models of different types share an `id` space by accident; a flat
+     * `type in (…) and id in (…)` would match a post whose id happens to equal a
+     * video's. Laravel groups for the same reason.
+     */
+    const byType = new Map<string, unknown[]>()
+
+    for (const one of models) {
+      const alias = (one.constructor as typeof Model).getMorphClass()
+      const keys = byType.get(alias) ?? []
+
+      keys.push(one.attributes[(one.constructor as typeof Model).primaryKey])
+      byType.set(alias, keys)
+    }
+
+    return this.defer((query) => {
+      const group = (nested: QueryBuilder<Row>) => {
+        for (const [alias, keys] of byType) {
+          nested.orWhere((branch) => {
+            branch
+              .where(typeColumn, '=', alias as never)
+              .whereIn(`${table}.${morph.idColumn}`, keys as never[])
+          })
+        }
+      }
+
+      const apply = boolean === 'or' ? query.orWhere.bind(query) : query.where.bind(query)
+
+      if (!negate) {
+        apply(group as never)
+
+        return
+      }
+
+      /**
+       * "Not any of these", written as the negation of each branch.
+       *
+       * `¬(A ∨ B)` is `¬A ∧ ¬B`, and the second form is the one this query
+       * builder can say: there is no `not (…)` clause in the grammar, only a
+       * negated comparison. Negating the branches instead needs no grammar change
+       * and compiles to the same rows.
+       */
+      apply(((nested: QueryBuilder<Row>) => {
+        for (const [alias, keys] of byType) {
+          nested.where((branch) => {
+            branch
+              .where(typeColumn, '!=', alias as never)
+              .orWhereNotIn(`${table}.${morph.idColumn}`, keys as never[])
+          })
+        }
+      }) as never)
+    })
+  }
+
+  /** The morphTo behind a name, or a message naming what it actually is. */
+  private morphOf(relation: string): MorphColumns {
+    const probe = new (this.model as unknown as new () => Model)()
+    const found = probe.resolveRelation(relation) as unknown as {
+      morphColumns?: () => MorphColumns
+    }
+
+    if (typeof found.morphColumns !== 'function') {
+      throw new Error(
+        `Relation [${relation}] on ${this.model.name} is not a morphTo, so the morph query methods cannot use it.`
+      )
+    }
+
+    return found.morphColumns()
+  }
+
   private addRelationExists(
     relation: string,
     callback: ((query: ModelBuilder<never>) => void) | undefined,
-    negate: boolean
+    negate: boolean,
+    boolean: 'and' | 'or' = 'and'
   ): this {
     return this.defer((query) => {
       const probe = new (this.model as unknown as new () => Model)()
@@ -474,8 +846,8 @@ export class ModelBuilder<M extends Model> {
         }
       }
 
-      if (negate) query.whereNotExists(build as never)
-      else query.whereExists(build as never)
+      if (boolean === 'or') query.orWhereExists(build as never, negate)
+      else query.whereExists(build as never, negate)
     })
   }
 
@@ -515,6 +887,82 @@ export class ModelBuilder<M extends Model> {
     return this
   }
 
+  /**
+   * `withExists('posts')` adds a `posts_exists` column — Laravel's `withExists`.
+   *
+   * Not `withCount(...) > 0`: counting makes the database walk every matching row
+   * to answer a question that stops at the first one. On a parent with thousands
+   * of children that is the whole difference.
+   */
+  withExists(...relations: string[]): this {
+    for (const relation of relations.flat()) {
+      this.aggregates.push({ relation, fn: 'exists', column: '*', alias: `${relation}_exists` })
+    }
+
+    return this
+  }
+
+  /**
+   * `whereBelongsTo(author)` — the child rows that belong to this parent.
+   *
+   * Laravel's own test asserts what it compiles to, and it is not an `exists`
+   * subquery: `whereIn('<table>.<foreignKey>', [<parent keys>])`. One model or a
+   * list of them, and the relation is found by the parent's own class unless it is
+   * named — which is what makes `whereBelongsTo(user, 'author')` necessary when a
+   * table holds two keys to the same one.
+   */
+  whereBelongsTo(parents: Model | Iterable<Model>, relation?: string): this {
+    return this.addBelongsTo(parents, relation, 'and')
+  }
+
+  orWhereBelongsTo(parents: Model | Iterable<Model>, relation?: string): this {
+    return this.addBelongsTo(parents, relation, 'or')
+  }
+
+  private addBelongsTo(
+    parents: Model | Iterable<Model>,
+    relation: string | undefined,
+    boolean: 'and' | 'or'
+  ): this {
+    /**
+     * A model, an array, or a `Collection` — whatever `get()` handed back.
+     *
+     * Laravel's own test passes a `Collection` here, and `Array.isArray` is false
+     * for one: the collection was treated as a single model, and the failure was
+     * `Relation [collection] is not defined` — the class name, read off the
+     * wrapper. Iterability is the property that actually distinguishes the two,
+     * because a model is not iterable.
+     */
+    const list = iterableOf(parents)
+    const first = list[0]
+
+    if (first === undefined) {
+      throw new Error('whereBelongsTo() needs at least one model to belong to.')
+    }
+
+    const name = relation ?? relationNameFor(first)
+    const probe = new (this.model as unknown as new () => Model)()
+    const found = probe.resolveRelation(name)
+
+    if (typeof (found as { keys?: unknown }).keys !== 'function') {
+      throw new Error(
+        `Relation [${name}] on ${this.model.name} is not a belongsTo, so whereBelongsTo() cannot use it.`
+      )
+    }
+
+    const { foreignKey, ownerKey } = (
+      found as unknown as { keys: () => { foreignKey: string; ownerKey: string } }
+    ).keys()
+
+    const table = (this.model as typeof Model).getTable()
+    const values = list.map((parent) => parent.attributes[ownerKey]).filter((key) => key != null)
+
+    return this.defer((query) => {
+      if (boolean === 'or') query.orWhereIn(`${table}.${foreignKey}`, values as never[])
+      else query.whereIn(`${table}.${foreignKey}`, values as never[])
+    })
+  }
+
   private applyAggregates(query: QueryBuilder<Row>): void {
     if (this.aggregates.length === 0) return
 
@@ -529,10 +977,29 @@ export class ModelBuilder<M extends Model> {
       const constraint = probe.resolveRelation(aggregate.relation).existsConstraint(table)
       const column = aggregate.column === '*' ? '*' : grammar.wrap(aggregate.column)
 
+      const where = `where ${grammar.wrap(constraint.foreign)} = ${grammar.wrap(constraint.local)}`
+
+      /**
+       * `exists` wraps the subquery; it is not a function applied inside one.
+       *
+       * `(select exists(*) …)` is not SQL. Laravel's own assertion for
+       * `withExists` reads `exists(select * from … where …) as "foo_exists"`, and
+       * the difference matters for more than syntax: this form lets the database
+       * stop at the first matching row, which is the whole reason to reach for it
+       * over `withCount`.
+       */
+      if (aggregate.fn === 'exists') {
+        query.selectRaw(
+          `exists(select * from ${grammar.wrapTable(constraint.table)} ${where})` +
+            ` as ${grammar.wrap(aggregate.alias)}`
+        )
+
+        continue
+      }
+
       query.selectRaw(
         `(select ${aggregate.fn}(${column}) from ${grammar.wrapTable(constraint.table)}` +
-          ` where ${grammar.wrap(constraint.foreign)} = ${grammar.wrap(constraint.local)})` +
-          ` as ${grammar.wrap(aggregate.alias)}`
+          ` ${where}) as ${grammar.wrap(aggregate.alias)}`
       )
     }
   }
@@ -1005,4 +1472,125 @@ function decodeCursor(
     // first page, not a 500.
     return undefined
   }
+}
+
+/**
+ * `where(column, value)` or `where(column, operator, value)`, on a relation query.
+ *
+ * The two-argument form is what `whereRelation('posts', 'published', true)` means,
+ * and it has to be told apart from the three-argument one at run time — the same
+ * overload every query builder carries, in one place so the four `*Relation`
+ * methods above cannot disagree about it.
+ */
+function applyRelationCondition(
+  query: ModelBuilder<never>,
+  column: string,
+  operator?: unknown,
+  value?: unknown
+): void {
+  if (value === undefined) {
+    ;(query as unknown as { where: (column: string, value: unknown) => void }).where(
+      column,
+      operator
+    )
+
+    return
+  }
+
+  ;(
+    query as unknown as { where: (column: string, operator: unknown, value: unknown) => void }
+  ).where(column, operator, value)
+}
+
+/**
+ * `whereBelongsTo(author)` with no name: the relation is guessed from the class.
+ *
+ * `Author` implies `author`, which is the convention Laravel guesses by too. It
+ * is only a guess — a table holding two keys to the same model has two relations
+ * and no way to choose between them — so `whereBelongsTo(user, 'editor')` is the
+ * form for that, and this throws rather than picking one.
+ */
+function relationNameFor(parent: Model): string {
+  const name = parent.constructor.name
+
+  return name.charAt(0).toLowerCase() + name.slice(1)
+}
+
+/** A model, an array of them, or any iterable — as an array. */
+function iterableOf(value: Model | Iterable<Model>): Model[] {
+  if (Array.isArray(value)) return value
+
+  const iterable = value as { [Symbol.iterator]?: unknown }
+
+  return typeof iterable[Symbol.iterator] === 'function'
+    ? [...(value as Iterable<Model>)]
+    : [value as Model]
+}
+
+/**
+ * What a morph query accepts as its list of types.
+ *
+ * A model class, several of them, or `'*'` for every type the relation declares.
+ */
+export type MorphTypes = ModelClass<Model> | Array<ModelClass<Model>> | '*'
+
+/** What a morphTo relation tells the builder about itself. */
+type MorphColumns = {
+  typeColumn: string
+  idColumn: string
+  types: Record<string, ModelClass<Model>>
+  resolve: (type: string) => ModelClass<Model> | undefined
+}
+
+/** What `whereMorphedTo` accepts: a model, several, a type name, or nothing. */
+export type MorphTarget = Model | Iterable<Model> | string | null
+
+/**
+ * The types to build a subquery for, as `[storedName, class]` pairs.
+ *
+ * `'*'` reads the relation's own declaration rather than asking the database for
+ * `select distinct taggable_type`, which is what Laravel does. Two reasons: it is
+ * a round trip before the real query, on a column that is often unindexed; and a
+ * type with no rows yet would be left out, so a query would quietly change shape
+ * the day somebody inserted one.
+ */
+function resolveMorphTypes(
+  types: MorphTypes,
+  declared: Record<string, ModelClass<Model>>,
+  relation: string
+): Array<[string, ModelClass<Model>]> {
+  if (types === '*') {
+    const all = Object.values(declared)
+
+    if (all.length === 0) {
+      throw new Error(
+        `Relation [${relation}] declares no types, so '*' has nothing to query. Name the types instead.`
+      )
+    }
+
+    return all.map((model) => [(model as typeof Model).getMorphClass(), model])
+  }
+
+  const list = Array.isArray(types) ? types : [types]
+
+  if (list.length === 0) {
+    throw new Error(`No types were given for [${relation}], which would match nothing.`)
+  }
+
+  return list.map((model) => [(model as typeof Model).getMorphClass(), model])
+}
+
+/**
+ * The name a type is stored under, given either the name or the class.
+ *
+ * `whereMorphedTo('taggable', 'posts')` may name the alias or the table, and a
+ * caller should not have to know which of the two the morph map registered.
+ */
+function morphAliasFor(
+  type: string,
+  resolve: (type: string) => ModelClass<Model> | undefined
+): string {
+  const model = resolve(type)
+
+  return model === undefined ? type : (model as typeof Model).getMorphClass()
 }
