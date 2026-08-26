@@ -111,4 +111,39 @@ export class SQLiteGrammar extends Grammar {
 
     return `${wrapped} = json_set(ifnull(${wrapped}, json('{}')), ${pairs.join(', ')})`
   }
+
+  /**
+   * `select * from (…)` — SQLite will not take a parenthesised select here.
+   *
+   * The base grammar's `(select …)` is a syntax error on the right of a `union`
+   * in SQLite, which is why this override exists rather than one form for all.
+   */
+  protected override wrapUnion(sql: string): string {
+    return `select * from (${sql})`
+  }
+
+  /**
+   * `strftime('%Y-%m-%d', col) = cast(? as text)` — SQLite has no date functions.
+   *
+   * The `cast` is not decoration. `strftime` answers text, and comparing text to
+   * a bound integer in SQLite compares *types* first: `'03' = 3` is false, so
+   * `whereMonth('created_at', 3)` would answer nothing at all. Laravel's SQLite
+   * grammar casts for the same reason.
+   */
+  protected override compileDateWhere(
+    part: 'date' | 'time' | 'day' | 'month' | 'year',
+    column: string,
+    operator: string,
+    parameter: string
+  ): string {
+    const format = {
+      date: '%Y-%m-%d',
+      time: '%H:%M:%S',
+      day: '%d',
+      month: '%m',
+      year: '%Y'
+    }[part]
+
+    return `strftime('${format}', ${this.wrap(column)}) ${operator} cast(${parameter} as text)`
+  }
 }

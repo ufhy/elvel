@@ -48,6 +48,34 @@ export abstract class Grammar {
 
   abstract get dialect(): 'sqlite' | 'mysql' | 'mariadb' | 'postgres'
 
+  /**
+   * `date(col) = ?` — the ANSI-ish form, which MySQL and MariaDB both take.
+   *
+   * SQLite has no such functions and Postgres spells the same thing three ways,
+   * so both override this. Taken from `Grammar::dateBasedWhere` and its two
+   * siblings rather than invented: getting `whereMonth` subtly wrong gives a
+   * query that returns *some* rows, which is the kind of bug that survives a
+   * review.
+   */
+  /**
+   * How a unioned select is written on the right of the keyword.
+   *
+   * Parenthesised for most dialects. SQLite overrides it: a bare `(select …)`
+   * there is a syntax error, so it wraps the select in a `from` instead.
+   */
+  protected wrapUnion(sql: string): string {
+    return `(${sql})`
+  }
+
+  protected compileDateWhere(
+    part: 'date' | 'time' | 'day' | 'month' | 'year',
+    column: string,
+    operator: string,
+    parameter: string
+  ): string {
+    return `${part}(${this.wrap(column)}) ${operator} ${parameter}`
+  }
+
   isValidOperator(operator: string): boolean {
     return this.operators.has(operator.toLowerCase())
   }
@@ -215,6 +243,24 @@ export abstract class Grammar {
       if (lock) parts.push(lock)
     }
 
+    /**
+     * The unions, after everything this query says about itself.
+     *
+     * Each side is wrapped, and how it is wrapped is a dialect's business: SQLite
+     * refuses a bare parenthesised select on the right of a `union` and needs
+     * `select * from (…)` instead. Laravel's grammars split the same way, and the
+     * bindings are appended in reading order — left query first, then each union —
+     * because a placeholder's position is what binds it.
+     */
+    if (query.unions && query.unions.length > 0) {
+      for (const union of query.unions) {
+        const compiled = this.compileSelect(union.query)
+
+        bindings.push(...compiled.bindings)
+        parts.push(`${union.all ? 'union all' : 'union'} ${this.wrapUnion(compiled.sql)}`)
+      }
+    }
+
     return { sql: parts.join(' '), bindings }
   }
 
@@ -269,6 +315,17 @@ export abstract class Grammar {
 
       case 'column':
         return `${this.wrap(where.first)} ${where.operator} ${this.wrap(where.second)}`
+
+      case 'date': {
+        bindings.push(where.value)
+
+        return this.compileDateWhere(
+          where.part,
+          where.column,
+          where.operator,
+          this.parameter(bindings.length)
+        )
+      }
 
       case 'null':
         return `${this.wrap(where.column)} is ${where.not ? 'not ' : ''}null`

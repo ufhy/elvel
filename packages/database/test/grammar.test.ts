@@ -10,6 +10,9 @@ const sqlite = new SQLiteGrammar()
 const mysql = new MySqlGrammar()
 const postgres = new PostgresGrammar()
 
+/** MariaDB inherits MySQL's grammar; asserted once, where the two could drift. */
+const mariadb = new MariaDbGrammar()
+
 function query(overrides: Partial<QueryComponents> = {}): QueryComponents {
   return { ...emptyQuery('users'), ...overrides }
 }
@@ -415,5 +418,143 @@ describe('JSON paths and containment', () => {
     expect(mysql.compileSelect(fullText()).sql).toContain('match (`title`, `body`) against (')
     expect(postgres.compileSelect(fullText()).sql).toContain('plainto_tsquery')
     expect(() => sqlite.compileSelect(fullText())).toThrow(/does not support full-text/)
+  })
+})
+
+/**
+ * The five date comparisons, and the reason they are a clause rather than a
+ * `whereRaw` at the call site: no two of these dialects agree.
+ *
+ * The SQL is Laravel's, from `Grammar::dateBasedWhere` and the two grammars that
+ * override it. Getting `whereMonth` subtly wrong returns *some* rows, which is the
+ * kind of mistake that survives a review — so each form is pinned here.
+ */
+describe('date comparisons', () => {
+  const compile = (grammar: Grammar, wheres: QueryComponents['wheres']) =>
+    grammar.compileSelect(query({ wheres }))
+
+  const dateWhere = (part: 'date' | 'time' | 'day' | 'month' | 'year', value: unknown) => [
+    {
+      type: 'date' as const,
+      part,
+      column: 'created_at',
+      operator: '=',
+      value,
+      boolean: 'and' as const
+    }
+  ]
+
+  test('MySQL extracts with a function of the same name', () => {
+    expect(compile(mysql, dateWhere('date', '2026-08-25')).sql).toEndWith(
+      'where date(`created_at`) = ?'
+    )
+    expect(compile(mysql, dateWhere('month', '08')).sql).toEndWith('where month(`created_at`) = ?')
+    expect(compile(mariadb, dateWhere('year', '2026')).sql).toEndWith(
+      'where year(`created_at`) = ?'
+    )
+  })
+
+  /**
+   * SQLite has no date functions, and the `cast` is not decoration.
+   *
+   * `strftime` answers text; comparing text to a bound integer compares types
+   * first, so `'08' = 8` is false and `whereMonth('created_at', 8)` would answer
+   * nothing at all.
+   */
+  test('SQLite uses strftime, and casts the bound value to text', () => {
+    expect(compile(sqlite, dateWhere('date', '2026-08-25')).sql).toEndWith(
+      'where strftime(\'%Y-%m-%d\', "created_at") = cast(? as text)'
+    )
+    expect(compile(sqlite, dateWhere('time', '10:30:00')).sql).toEndWith(
+      'where strftime(\'%H:%M:%S\', "created_at") = cast(? as text)'
+    )
+    expect(compile(sqlite, dateWhere('day', '25')).sql).toEndWith(
+      'where strftime(\'%d\', "created_at") = cast(? as text)'
+    )
+  })
+
+  /**
+   * Postgres has both forms and they are not interchangeable: a cast keeps the
+   * comparison against a date, while `extract` answers a number.
+   */
+  test('Postgres casts for a date or a time and extracts for the parts', () => {
+    expect(compile(postgres, dateWhere('date', '2026-08-25')).sql).toEndWith(
+      'where "created_at"::date = $1'
+    )
+    expect(compile(postgres, dateWhere('time', '10:30:00')).sql).toEndWith(
+      'where "created_at"::time = $1'
+    )
+    expect(compile(postgres, dateWhere('month', '08')).sql).toEndWith(
+      'where extract(month from "created_at") = $1'
+    )
+  })
+
+  test('the value is bound, never interpolated', () => {
+    const compiled = compile(sqlite, dateWhere('year', '2026'))
+
+    expect(compiled.bindings).toEqual(['2026'])
+  })
+})
+
+/**
+ * The `or` twins, sixteen of which were absent while their `and` forms were here.
+ *
+ * A gap with no workaround: "published, or written by me" is not two `where`
+ * calls, and the alternative was `orWhere(query => …)` with the clause rebuilt by
+ * hand inside it. The clause types already carried a `boolean`; nothing could set
+ * it.
+ *
+ * Asserted through the compiled SQL rather than by calling each method, because
+ * the mistake this guards against is a twin that pushes `'and'` — which no unit
+ * test of the method's return value would catch.
+ */
+describe('or-joined clauses', () => {
+  const compile = (grammar: Grammar, wheres: QueryComponents['wheres']) =>
+    grammar.compileSelect(query({ wheres }))
+
+  test('a second clause joined with or reads as or', () => {
+    const compiled = compile(sqlite, [
+      { type: 'basic', column: 'published', operator: '=', value: 1, boolean: 'and' },
+      { type: 'null', column: 'deleted_at', not: false, boolean: 'or' }
+    ])
+
+    expect(compiled.sql).toEndWith('where "published" = ? or "deleted_at" is null')
+  })
+
+  test('between, column and raw all carry it', () => {
+    expect(
+      compile(sqlite, [
+        { type: 'basic', column: 'a', operator: '=', value: 1, boolean: 'and' },
+        { type: 'between', column: 'b', values: [1, 2], not: false, boolean: 'or' }
+      ]).sql
+    ).toEndWith('or "b" between ? and ?')
+
+    expect(
+      compile(sqlite, [
+        { type: 'basic', column: 'a', operator: '=', value: 1, boolean: 'and' },
+        { type: 'column', first: 'x', operator: '=', second: 'y', boolean: 'or' }
+      ]).sql
+    ).toEndWith('or "x" = "y"')
+
+    expect(
+      compile(sqlite, [
+        { type: 'basic', column: 'a', operator: '=', value: 1, boolean: 'and' },
+        { type: 'raw', sql: 'json_valid(payload)', bindings: [], boolean: 'or' }
+      ]).sql
+    ).toEndWith('or json_valid(payload)')
+  })
+
+  test('and a having does too', () => {
+    const compiled = sqlite.compileSelect(
+      query({
+        groups: ['author_id'],
+        havings: [
+          { type: 'basic', column: 'total', operator: '>', value: 1, boolean: 'and' },
+          { type: 'null', column: 'total', not: true, boolean: 'or' }
+        ]
+      })
+    )
+
+    expect(compiled.sql).toEndWith('having "total" > ? or "total" is not null')
   })
 })

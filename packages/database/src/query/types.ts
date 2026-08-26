@@ -19,6 +19,21 @@ export type WhereClause =
   | { type: 'in'; column: string; values: unknown[]; not: boolean; boolean: Boolean_ }
   | { type: 'between'; column: string; values: [unknown, unknown]; not: boolean; boolean: Boolean_ }
   | { type: 'exists'; query: QueryComponents; not: boolean; boolean: Boolean_ }
+  /**
+   * `whereDate`, `whereTime`, `whereDay`, `whereMonth`, `whereYear`.
+   *
+   * One clause for the five, because the SQL differs only in which part of the
+   * timestamp is extracted — and it differs *per dialect*, which is the whole
+   * reason this is a clause and not a `whereRaw` at the call site.
+   */
+  | {
+      type: 'date'
+      part: 'date' | 'time' | 'day' | 'month' | 'year'
+      column: string
+      operator: string
+      value: unknown
+      boolean: Boolean_
+    }
   | { type: 'nested'; wheres: WhereClause[]; boolean: Boolean_ }
   | { type: 'raw'; sql: string; bindings: unknown[]; boolean: Boolean_ }
   | { type: 'jsonContains'; column: string; value: unknown; not: boolean; boolean: Boolean_ }
@@ -74,6 +89,15 @@ export type AggregateClause = {
  */
 export type QueryComponents = {
   from: string
+
+  /**
+   * Queries joined on with `union` — `select … union select …`.
+   *
+   * Each one keeps its own components rather than a compiled string, because the
+   * bindings have to be collected in the order the SQL reads them, and that is
+   * only knowable while compiling.
+   */
+  unions?: Array<{ query: QueryComponents; all: boolean }>
   /**
    * `from (subquery) as alias`, kept apart from `from`.
    *

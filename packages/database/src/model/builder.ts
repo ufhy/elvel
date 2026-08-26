@@ -1,5 +1,6 @@
 import { Collection } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
+import type { DateArgs } from '../query/builder.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { raw } from '../query/expression.ts'
 import type { VectorMetric } from '../query/types.ts'
@@ -171,6 +172,73 @@ export class ModelBuilder<M extends Model> {
   whereNotNull(column: string): this {
     return this.defer((query) => {
       query.whereNotNull(column)
+    })
+  }
+
+  /**
+   * The five date comparisons, forwarded to the query builder.
+   *
+   * Forwarded rather than inherited: a `ModelBuilder` is not a `QueryBuilder`, it
+   * defers to one — which is what lets a model add scopes and soft-delete
+   * handling around the same query. Every `where` here is one of these.
+   */
+  whereDate(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.whereDate(column, ...rest)
+    })
+  }
+
+  orWhereDate(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.orWhereDate(column, ...rest)
+    })
+  }
+
+  whereTime(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.whereTime(column, ...rest)
+    })
+  }
+
+  orWhereTime(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.orWhereTime(column, ...rest)
+    })
+  }
+
+  whereDay(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.whereDay(column, ...rest)
+    })
+  }
+
+  orWhereDay(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.orWhereDay(column, ...rest)
+    })
+  }
+
+  whereMonth(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.whereMonth(column, ...rest)
+    })
+  }
+
+  orWhereMonth(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.orWhereMonth(column, ...rest)
+    })
+  }
+
+  whereYear(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.whereYear(column, ...rest)
+    })
+  }
+
+  orWhereYear(column: string, ...rest: DateArgs): this {
+    return this.defer((query) => {
+      query.orWhereYear(column, ...rest)
     })
   }
 

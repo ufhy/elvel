@@ -175,4 +175,24 @@ export class PostgresGrammar extends Grammar {
 
     return `(${super.wrap(column)} ${operator} (${value}::text)::vector)`
   }
+
+  /**
+   * `col::date = ?` for a date or a time, `extract(month from col) = ?` otherwise.
+   *
+   * Two forms because Postgres has both and they are not interchangeable: a cast
+   * keeps the comparison against a date literal, while `extract` answers a number.
+   * Laravel's Postgres grammar splits them the same way.
+   */
+  protected override compileDateWhere(
+    part: 'date' | 'time' | 'day' | 'month' | 'year',
+    column: string,
+    operator: string,
+    parameter: string
+  ): string {
+    if (part === 'date' || part === 'time') {
+      return `${this.wrap(column)}::${part} ${operator} ${parameter}`
+    }
+
+    return `extract(${part} from ${this.wrap(column)}) ${operator} ${parameter}`
+  }
 }

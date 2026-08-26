@@ -139,6 +139,27 @@ export class QueryBuilder<T extends Row = Row> {
     return this
   }
 
+  /**
+   * The `or` twins.
+   *
+   * Sixteen of these were absent while their `and` forms were here, which is the
+   * shape of gap that has no workaround: "published, or written by me" is not two
+   * `where` calls, and the alternative is `orWhere(query => …)` with the clause
+   * rebuilt by hand inside it.
+   *
+   * Each one is its `and` sibling with the boolean flipped, and the clause types
+   * already carried the field.
+   */
+  orWhereJsonContains(column: string, value: unknown, not = false): this {
+    this.query.wheres.push({ type: 'jsonContains', column, value, not, boolean: 'or' })
+
+    return this
+  }
+
+  orWhereJsonDoesntContain(column: string, value: unknown): this {
+    return this.orWhereJsonContains(column, value, true)
+  }
+
   whereJsonDoesntContain(column: string, value: unknown): this {
     return this.whereJsonContains(column, value, true)
   }
@@ -227,6 +248,17 @@ export class QueryBuilder<T extends Row = Row> {
    * own form, and SQLite refuses with an explanation rather than pretending with
    * a LIKE.
    */
+  orWhereFullText(columns: string | string[], value: string): this {
+    this.query.wheres.push({
+      type: 'fullText',
+      columns: Array.isArray(columns) ? columns : [columns],
+      value,
+      boolean: 'or'
+    })
+
+    return this
+  }
+
   whereFullText(columns: string | string[], value: string): this {
     this.query.wheres.push({
       type: 'fullText',
@@ -308,6 +340,16 @@ export class QueryBuilder<T extends Row = Row> {
     return this.where(column, '!=', value)
   }
 
+  orWhereNot(column: string, value: Value): this {
+    return this.orWhere(column, '!=', value)
+  }
+
+  orWhereColumn(first: string, operator: Operator, second: string): this {
+    this.query.wheres.push({ type: 'column', first, operator, second, boolean: 'or' })
+
+    return this
+  }
+
   whereColumn(first: string, operator: Operator, second: string): this {
     this.query.wheres.push({ type: 'column', first, operator, second, boolean: 'and' })
     return this
@@ -341,6 +383,123 @@ export class QueryBuilder<T extends Row = Row> {
     return this.whereNotIn(column, values, 'or')
   }
 
+  /**
+   * `whereDate('created_at', '2026-08-25')` — the five date comparisons.
+   *
+   * Two arguments mean equals, three take an operator, which is the overload every
+   * `where` in this builder carries. A `Date` is formatted to the part being
+   * compared, because binding a full timestamp against `date(col)` matches nothing
+   * — the comparison is against the extracted value, not the original.
+   *
+   * The SQL is per dialect and is in the grammars: `date(col)` for MySQL,
+   * `strftime('%Y-%m-%d', col)` for SQLite, `col::date` for Postgres. Writing this
+   * as `whereRaw` at a call site is what those three lines exist to prevent.
+   */
+  whereDate(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('date', column, rest, 'and')
+  }
+
+  orWhereDate(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('date', column, rest, 'or')
+  }
+
+  whereTime(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('time', column, rest, 'and')
+  }
+
+  orWhereTime(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('time', column, rest, 'or')
+  }
+
+  whereDay(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('day', column, rest, 'and')
+  }
+
+  orWhereDay(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('day', column, rest, 'or')
+  }
+
+  whereMonth(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('month', column, rest, 'and')
+  }
+
+  orWhereMonth(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('month', column, rest, 'or')
+  }
+
+  whereYear(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('year', column, rest, 'and')
+  }
+
+  orWhereYear(column: string, ...rest: DateArgs): this {
+    return this.addDateWhere('year', column, rest, 'or')
+  }
+
+  private addDateWhere(
+    part: 'date' | 'time' | 'day' | 'month' | 'year',
+    column: string,
+    rest: DateArgs,
+    boolean: Boolean_
+  ): this {
+    /**
+     * The arity, without reading `arguments`.
+     *
+     * `whereDate(col, x)` means equals and `whereDate(col, '>', x)` takes an
+     * operator, and only the count tells them apart — `x` may itself be a string
+     * that looks like an operator. A rest parameter carries that count in the type
+     * as well as at run time, which `arguments.length` does not.
+     */
+    const [operator, resolved] = this.normaliseOperator(
+      rest[0] as Operator | Value,
+      rest[1] as Value,
+      rest.length + 1
+    )
+
+    this.query.wheres.push({
+      type: 'date',
+      part,
+      column,
+      operator,
+      value: formatDatePart(part, resolved),
+      boolean
+    })
+
+    return this
+  }
+
+  /**
+   * `union(other)` — the rows of both queries, duplicates removed.
+   *
+   * A builder or a callback that builds one, which is Laravel's pair of shapes.
+   * `unionAll` keeps the duplicates and is the cheaper of the two, because `union`
+   * has to sort to find them.
+   *
+   * The other query's own order and limit belong to that query; an order over the
+   * whole union is not supported here, and `orderBy` on this builder is written
+   * before the unions rather than after them.
+   */
+  union(other: QueryBuilder | ((query: QueryBuilder) => void), all = false): this {
+    const query = this.resolveUnion(other)
+
+    this.query.unions = [...(this.query.unions ?? []), { query: query.components, all }]
+
+    return this
+  }
+
+  unionAll(other: QueryBuilder | ((query: QueryBuilder) => void)): this {
+    return this.union(other, true)
+  }
+
+  private resolveUnion(other: QueryBuilder | ((query: QueryBuilder) => void)): QueryBuilder {
+    if (typeof other !== 'function') return other
+
+    const nested = new QueryBuilder(this.connection)
+
+    other(nested)
+
+    return nested
+  }
+
   whereBetween(column: string, values: [Value, Value]): this {
     this.query.wheres.push({ type: 'between', column, values, not: false, boolean: 'and' })
     return this
@@ -353,6 +512,36 @@ export class QueryBuilder<T extends Row = Row> {
 
   whereLike(column: string, value: string): this {
     return this.where(column, 'like', value)
+  }
+
+  orWhereLike(column: string, value: string): this {
+    return this.orWhere(column, 'like', value)
+  }
+
+  orWhereNull(column: string): this {
+    return this.whereNull(column, 'or')
+  }
+
+  orWhereNotNull(column: string): this {
+    return this.whereNull(column, 'or', true)
+  }
+
+  orWhereBetween(column: string, values: [Value, Value]): this {
+    this.query.wheres.push({ type: 'between', column, values, not: false, boolean: 'or' })
+
+    return this
+  }
+
+  orWhereNotBetween(column: string, values: [Value, Value]): this {
+    this.query.wheres.push({ type: 'between', column, values, not: true, boolean: 'or' })
+
+    return this
+  }
+
+  orWhereRaw(sql: string, bindings: unknown[] = []): this {
+    this.query.wheres.push({ type: 'raw', sql, bindings, boolean: 'or' })
+
+    return this
   }
 
   whereRaw(sql: string, bindings: unknown[] = []): this {
@@ -410,6 +599,18 @@ export class QueryBuilder<T extends Row = Row> {
 
   having(column: string, operator: Operator, value: Value): this {
     this.query.havings.push({ type: 'basic', column, operator, value, boolean: 'and' })
+    return this
+  }
+
+  orHaving(column: string, operator: Operator, value: Value): this {
+    this.query.havings.push({ type: 'basic', column, operator, value, boolean: 'or' })
+
+    return this
+  }
+
+  orHavingRaw(sql: string, bindings: unknown[] = []): this {
+    this.query.havings.push({ type: 'raw', sql, bindings, boolean: 'or' })
+
     return this
   }
 
@@ -683,6 +884,24 @@ export class QueryBuilder<T extends Row = Row> {
 
   havingNull(column: string): this {
     this.query.havings.push({ type: 'null', column, not: false, boolean: 'and' })
+
+    return this
+  }
+
+  orHavingNull(column: string): this {
+    this.query.havings.push({ type: 'null', column, not: false, boolean: 'or' })
+
+    return this
+  }
+
+  orHavingNotNull(column: string): this {
+    this.query.havings.push({ type: 'null', column, not: true, boolean: 'or' })
+
+    return this
+  }
+
+  orHavingBetween(column: string, values: [Value, Value]): this {
+    this.query.havings.push({ type: 'between', column, values, not: false, boolean: 'or' })
 
     return this
   }
@@ -974,4 +1193,43 @@ function literal(value: unknown): string {
   if (value === null || value === undefined) return 'null'
 
   return `'${String(value).replace(/'/g, "''")}'`
+}
+
+/** `(value)` or `(operator, value)` — the two shapes a date comparison takes. */
+export type DateArgs = [Operator | Value] | [Operator, Value]
+
+/**
+ * The part of a date a comparison is actually against.
+ *
+ * `whereMonth('created_at', new Date(...))` compares the *month*, so binding the
+ * whole timestamp would match nothing — the left side is `03`, the right side a
+ * full ISO string. Laravel formats in the same place and for the same reason.
+ *
+ * Day and month are padded to two digits, because that is what the extraction
+ * answers: `strftime('%m', …)` gives `03`, and `'03' = '3'` is false.
+ */
+function formatDatePart(part: 'date' | 'time' | 'day' | 'month' | 'year', value: unknown): unknown {
+  if (!(value instanceof Date)) {
+    // A number for a day or a month still has to be padded to match.
+    if ((part === 'day' || part === 'month') && typeof value === 'number') {
+      return String(value).padStart(2, '0')
+    }
+
+    return value
+  }
+
+  const iso = value.toISOString()
+
+  switch (part) {
+    case 'date':
+      return iso.slice(0, 10)
+    case 'time':
+      return iso.slice(11, 19)
+    case 'day':
+      return iso.slice(8, 10)
+    case 'month':
+      return iso.slice(5, 7)
+    default:
+      return iso.slice(0, 4)
+  }
 }
