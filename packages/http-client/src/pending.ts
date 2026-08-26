@@ -42,6 +42,19 @@ export type RequestOptions = BunOptions & {
   retry?: RetryOptions
   redirect?: RequestRedirect
   throwOnFailure?: boolean
+
+  /** Parts added by `attach()`, assembled into a `FormData` at send time. */
+  attachments?: Array<{ name: string; contents: BodyInit; filename?: string }>
+
+  /** `sink()` — where to write the body instead of holding it in memory. */
+  sink?: string
+
+  /** `maxRedirects()` — how many hops to follow, following them ourselves. */
+  maxRedirects?: number
+
+  /** Hooks, in the order they were added. */
+  beforeSending?: Array<(attempt: Attempt) => void>
+  afterResponse?: Array<(response: HttpResponse) => void>
 }
 
 /** What a fake answers with, and what the recorder keeps. */
@@ -146,6 +159,107 @@ export class PendingRequest {
    * reinventable: they are the runtime's, and a client that swallowed them would
    * be unusable inside a corporate network.
    */
+  /**
+   * `attach('avatar', file, 'me.png')` — a multipart part, fluently.
+   *
+   * `asMultipart(path, form)` already sends a `FormData` somebody built; this is
+   * the form Laravel uses, and it composes: several `attach` calls and the other
+   * fields go together without the caller assembling anything.
+   *
+   * The parts are kept and turned into a `FormData` at send time rather than now,
+   * because `PendingRequest` is immutable — building the form eagerly would mean
+   * copying a `FormData` on every subsequent call.
+   */
+  attach(name: string, contents: BodyInit, filename?: string): PendingRequest {
+    return this.derive({
+      attachments: [...(this.config.attachments ?? []), { name, contents, filename }]
+    })
+  }
+
+  /**
+   * `sink('/tmp/report.pdf')` — write the body to a file as it arrives.
+   *
+   * For a download that should not be held in memory first. The response still
+   * answers its status and headers; what it does not have is a body to read
+   * twice, because the bytes went to the file.
+   */
+  sink(path: string): PendingRequest {
+    return this.derive({ sink: path })
+  }
+
+  /**
+   * Accept a certificate this machine does not trust — `withoutVerifying`.
+   *
+   * For a development server or a private CA, and named rather than left to
+   * `withBunOptions({ tls: … })` so it is greppable: this is the switch somebody
+   * turns on to get past an error and then forgets in production.
+   *
+   * Measured before it was added: Bun's `fetch` refuses a self-signed certificate
+   * with "self signed certificate" and accepts it with this option, so the switch
+   * does what it says.
+   */
+  withoutVerifying(): PendingRequest {
+    return this.derive({ tls: { ...this.config.tls, rejectUnauthorized: false } })
+  }
+
+  /** `withCookies({ session: '…' })` — a `Cookie` header, spelt as cookies. */
+  withCookies(cookies: Record<string, string>): PendingRequest {
+    const pairs = Object.entries(cookies).map(([name, value]) => `${name}=${value}`)
+    const existing = this.config.headers?.cookie
+
+    return this.withHeader('cookie', [existing, ...pairs].filter(Boolean).join('; '))
+  }
+
+  /**
+   * `maxRedirects(3)` — follow, but not forever.
+   *
+   * Followed here rather than by the runtime, because `fetch` offers only "follow
+   * all" or "follow none": there is no count to pass it. So this asks for
+   * `manual` and walks the chain, which is also what makes the limit observable —
+   * the response you get back is the last hop, not an error about too many.
+   *
+   * A 303 becomes a GET and drops the body, as every client does: the whole point
+   * of that status is "your write is done, now go and read this instead".
+   */
+  maxRedirects(hops: number): PendingRequest {
+    return this.derive({ maxRedirects: hops, redirect: 'manual' })
+  }
+
+  /** Run before each attempt — Laravel's `beforeSending`. */
+  beforeSending(hook: (attempt: Attempt) => void): PendingRequest {
+    return this.derive({ beforeSending: [...(this.config.beforeSending ?? []), hook] })
+  }
+
+  /** Run on each response, whatever its status — Laravel's `afterResponse`. */
+  afterResponse(hook: (response: HttpResponse) => void): PendingRequest {
+    return this.derive({ afterResponse: [...(this.config.afterResponse ?? []), hook] })
+  }
+
+  /** `contentType('application/xml')`, which is a header with a name worth having. */
+  contentType(type: string): PendingRequest {
+    return this.withHeader('content-type', type)
+  }
+
+  /** Replace the headers rather than adding to them — Laravel's `replaceHeaders`. */
+  replaceHeaders(headers: Record<string, string>): PendingRequest {
+    return this.derive({ headers })
+  }
+
+  /** `asJson()` — say so explicitly, where a body would otherwise decide. */
+  asJson(): PendingRequest {
+    return this.withHeader('content-type', 'application/json').acceptJson()
+  }
+
+  /** Laravel's name for `withQuery`, kept so an example copies across. */
+  withQueryParameters(query: Record<string, string>): PendingRequest {
+    return this.withQuery(query)
+  }
+
+  /** Laravel's name for `withBunOptions`. */
+  withOptions(options: BunOptions): PendingRequest {
+    return this.withBunOptions(options)
+  }
+
   withBunOptions(options: BunOptions): PendingRequest {
     return this.derive(options)
   }
@@ -235,7 +349,33 @@ export class PendingRequest {
   async send(method: Method, path: string): Promise<HttpResponse> {
     const url = this.url(path)
     const headers = new Headers(this.config.headers)
-    const attempt: Attempt = { method, url, headers, body: this.config.body }
+
+    /**
+     * The parts, assembled now rather than when `attach` was called.
+     *
+     * And the `content-type` header is *removed*: a multipart body needs a
+     * boundary, which only the runtime knows once it has the form. Leaving a
+     * hand-set `multipart/form-data` there produces a body the far end cannot
+     * parse, with no error on this side.
+     */
+    let body = this.config.body
+
+    if (this.config.attachments && this.config.attachments.length > 0) {
+      const form = body instanceof FormData ? body : new FormData()
+
+      for (const part of this.config.attachments) {
+        if (part.filename !== undefined && typeof part.contents !== 'string') {
+          form.append(part.name, part.contents as Blob, part.filename)
+        } else {
+          form.append(part.name, part.contents as string | Blob)
+        }
+      }
+
+      headers.delete('content-type')
+      body = form
+    }
+
+    const attempt: Attempt = { method, url, headers, body }
 
     const retry = this.config.retry ?? { times: 1, delay: 0, throw: true }
     let lastError: unknown
@@ -275,8 +415,56 @@ export class PendingRequest {
     return response
   }
 
+  /**
+   * Walk a redirect chain by hand, up to `maxRedirects`.
+   *
+   * `fetch` takes "follow all" or "follow none" and no count, so a limit has to be
+   * enforced here. What comes back when the limit is reached is the last 3xx
+   * itself rather than an error — a caller that set a limit is asking to see where
+   * the chain went, and a thrown "too many redirects" hides it.
+   *
+   * A 303 becomes a GET and loses its body, which is what that status means.
+   */
+  private async follow(response: Response, attempt: Attempt): Promise<Response> {
+    const limit = this.config.maxRedirects
+
+    if (limit === undefined) return response
+
+    let current = response
+    let hops = 0
+
+    while (hops < limit && current.status >= 300 && current.status < 400) {
+      const location = current.headers.get('location')
+
+      if (location === null) return current
+
+      const next = new URL(location, attempt.url).toString()
+      const method = current.status === 303 ? 'GET' : attempt.method
+
+      current = await fetch(next, {
+        method,
+        headers: attempt.headers,
+        body: method === 'GET' || method === 'HEAD' ? undefined : attempt.body,
+        redirect: 'manual',
+        ...(this.config.tls === undefined ? {} : { tls: this.config.tls })
+      })
+
+      hops += 1
+    }
+
+    return current
+  }
+
   private async attempt(attempt: Attempt): Promise<HttpResponse> {
-    if (this.responder) return this.responder(attempt)
+    for (const hook of this.config.beforeSending ?? []) hook(attempt)
+
+    if (this.responder) {
+      const faked = await this.responder(attempt)
+
+      for (const hook of this.config.afterResponse ?? []) hook(faked)
+
+      return faked
+    }
 
     this.onStray?.(attempt)
 
@@ -297,7 +485,35 @@ export class PendingRequest {
         signal: this.config.timeout ? AbortSignal.timeout(this.config.timeout) : undefined
       })
 
-      return HttpResponse.of(response, attempt.url)
+      const followed = await this.follow(response, attempt)
+
+      /**
+       * The body goes to the file, and the response keeps everything else.
+       *
+       * Written from the stream and the `HttpResponse` then built with an empty
+       * body, deliberately: `HttpResponse.of` reads the body into a string, and
+       * doing both would hold in memory exactly what `sink` exists to avoid —
+       * measured as a five-second timeout, because the second read waited on a
+       * stream the first had already drained.
+       *
+       * So a sunk response answers its status and headers and has no body to
+       * read. The bytes are in the file.
+       */
+      if (this.config.sink !== undefined) {
+        await Bun.write(this.config.sink, followed)
+
+        const sunk = new HttpResponse(followed, '', attempt.url)
+
+        for (const hook of this.config.afterResponse ?? []) hook(sunk)
+
+        return sunk
+      }
+
+      const answer = await HttpResponse.of(followed, attempt.url)
+
+      for (const hook of this.config.afterResponse ?? []) hook(answer)
+
+      return answer
     } catch (error) {
       throw new ConnectionError(attempt.url, error)
     }
