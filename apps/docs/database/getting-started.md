@@ -48,6 +48,36 @@ from Laravel's source:
 An empty `whereIn` compiles to `0 = 1` rather than invalid SQL, and where
 operators are validated against a known list instead of interpolated.
 
+Comparing part of a date is the other place no two dialects agree:
+
+```ts
+await users.whereDate('created_at', '2026-08-25')
+await users.whereMonth('created_at', 8)      // a number, and it still matches
+await users.whereYear('created_at', '>', 2025)
+await users.whereTime('created_at', '>', '12:00:00')
+await users.whereDay('created_at', 25)
+```
+
+`date(col)` on MySQL, `strftime('%Y-%m-%d', col)` on SQLite, `col::date` and
+`extract(month from col)` on Postgres. SQLite's needs a `cast` as well, and that is
+not decoration: `strftime` answers text and SQLite compares types before values, so
+`'08' = 8` is false and an unpadded month would match **nothing** behind SQL that
+reads correctly.
+
+```ts
+await users.where('active', 1).union(other).get()
+await users.where('active', 1).unionAll((query) => query.from('archived_users')).get()
+```
+
+SQLite refuses a parenthesised select on the right of a `union` and needs
+`select * from (…)`; the base form is a syntax error there. Both sides' bindings are
+collected in reading order, because a placeholder is bound by its position — swapped,
+the query still runs and answers the wrong rows.
+
+Every `where` and `having` has its `or` twin: `orWhereNull`, `orWhereBetween`,
+`orWhereColumn`, `orWhereRaw`, `orWhereLike`, `orHaving`, `orHavingBetween` and the
+rest.
+
 ### Models
 
 The model layer has no brand name — it is `Model`, and the docs call them models.
@@ -100,7 +130,8 @@ accessors and mutators (`getFullNameAttribute`), `appends`, `getChanges` /
 
 `morphTo` eager loading issues one query per distinct type, which is the floor
 rather than a shortcoming: the rows point at different tables. Asking `whereHas`
-of a `morphTo` throws with an explanation instead of guessing a table.
+of a `morphTo` throws and names `whereHasMorph`, which does span them — see
+[Models](/database/models#filtering-a-polymorphic-relation).
 
 ### Factories and seeders
 

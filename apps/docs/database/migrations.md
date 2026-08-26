@@ -66,8 +66,11 @@ table.id()                      // bigIncrements primary key
 table.increments('id')  table.bigIncrements('id')
 table.uuid('id').primary()
 table.timestamps()              // created_at, updated_at
+table.nullableTimestamps()  table.timestampsTz()  table.datetimes()
 table.softDeletes()             // deleted_at
+table.softDeletesTz()  table.softDeletesDatetime()
 table.rememberToken()
+table.ulid()  table.foreignUuid('owner_id')  table.foreignUlid('team_ulid')
 ```
 
 Numbers and text:
@@ -75,9 +78,13 @@ Numbers and text:
 ```ts
 table.integer('views')  table.bigInteger('bytes')  table.smallInteger()  table.tinyInteger()
 table.unsignedInteger('count')  table.unsignedBigInteger('parent_id')
+table.unsignedTinyInteger('level')  table.unsignedSmallInteger('rank')
+table.unsignedMediumInteger('score')
+table.integerIncrements('id')  table.tinyIncrements()  table.smallIncrements()
 table.decimal('price', 10, 2)  table.float()  table.double()
 table.string('title', 255)  table.char('code', 2)
-table.text('body')  table.mediumText()  table.longText()
+table.tinyText('nickname')  table.text('body')  table.mediumText()  table.longText()
+table.year('graduated')
 ```
 
 Everything else:
@@ -88,8 +95,27 @@ table.date('on')  table.dateTime('at')  table.time('at')  table.timestamp('at')
 table.json('meta')  table.jsonb('meta')
 table.binary('blob')  table.enum('status', ['draft', 'published'])
 table.uuid('external_id')  table.vector('embedding', 1536)
+table.ipAddress('last_seen_from')  table.macAddress('adapter')
+table.timestampTz('happened_at')  table.dateTimeTz('closes_at')  table.timeTz('opens_at')
 table.morphs('taggable')  table.nullableMorphs('subject')
+table.uuidMorphs('taggable')  table.ulidMorphs('taggable')   // and the nullable* pair
 ```
+
+::: tip Several of these name an intent rather than a type
+`ipAddress` is `inet` on Postgres — which **rejects** a malformed value — and a
+`varchar` on MySQL and SQLite. `macAddress` is `macaddr` there and a string
+elsewhere. `year` and `tinyText` are real types on MySQL and the nearest honest
+thing on the other two.
+
+The `Tz` trio is the one worth reading twice: only Postgres actually keeps a zone.
+`timestamp with time zone` stores an instant, while MySQL's `timestamp` and
+SQLite's `datetime` store what they were handed. The method is still the right one
+to write — on the database that can tell the difference it is the difference
+between a correct instant and a wrong one across a daylight-saving change.
+
+Which morph variant a table needs is decided by the **related** tables' keys, not
+by this one: a project keyed on uuids wants `uuidMorphs`.
+:::
 
 Modifiers chain: `.nullable()`, `.default(v)`, `.unsigned()`, `.comment('…')`,
 `.collation('…')`, `.useCurrent()`, `.useCurrentOnUpdate()`, `.after('column')`,
@@ -112,7 +138,25 @@ table.foreign('author_id').references('id').on('users').restrictOnDelete()
 
 table.index('status')  table.unique(['team_id', 'slug'])  table.primary(['a', 'b'])
 table.indexName('posts_status_idx')
+
+table.fullText(['title', 'body'])
+table.renameIndex('posts_status_index', 'posts_state_index')
+
+table.dropMorphs('taggable')  table.dropRememberToken()
+table.dropTimestampsTz()  table.dropSoftDeletesTz()  table.dropFullText(['title', 'body'])
 ```
+
+::: warning `fullText` and `renameIndex` are not the same statement anywhere
+MySQL has a `fulltext` index type. Postgres has none — what makes a text search
+fast there is a **GIN index over `to_tsvector`**, which is what this emits, with
+`coalesce` because one null column would otherwise make the whole concatenation
+null. SQLite has neither: its full-text search is an **FTS5 virtual table**, a
+separate table rather than an index on this one, so the grammar throws and says so
+rather than creating an index no search would use.
+
+`renameIndex` is `alter table … rename index` on MySQL, `alter index … rename to`
+on Postgres, and impossible on SQLite — drop it and create it under the new name.
+:::
 
 `constrained()` guesses the table from the column name — `user_id` → `users` — and
 takes one when the guess is wrong.

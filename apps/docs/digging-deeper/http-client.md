@@ -39,6 +39,35 @@ http()
   .throwOnFailure()
 ```
 
+```ts
+http()
+  .attach('report', file, 'report.pdf')   // multipart, part by part
+  .attach('note', 'from the importer')
+  .post('/uploads')
+
+http().sink('/tmp/report.pdf').get('/reports/7')   // straight to a file
+http().maxRedirects(3).get('/short-link')
+http().withCookies({ session }).withoutVerifying().get('/dev-only')
+http().beforeSending(log).afterResponse(record).get('/users')
+```
+
+`attach` is the fluent form of `asMultipart`: several parts and the other fields go
+together without assembling a `FormData` yourself. It also **removes** any
+`content-type` you set, deliberately — only the runtime knows the boundary, and a
+hand-set `multipart/form-data` leaves a body the far end cannot parse with nothing
+failing on this side.
+
+`sink` writes the body to a file as it arrives and hands back a response with its
+status and headers and **no body to read**. That is the contract, not an oversight:
+reading it into a string as well would hold in memory exactly what `sink` exists to
+avoid.
+
+`maxRedirects` follows the chain here rather than in the runtime, because `fetch`
+offers "follow all" or "follow none" and no count. When the limit is reached you get
+the last redirect itself rather than an error — a caller who set a limit is asking
+to see where the chain went. A 303 becomes a GET and drops the body, which is what
+that status means.
+
 Every builder returns a new pending request, so a configured base is reusable
 without one call leaking settings into the next. `withBunOptions` passes anything
 Bun's `fetch` understands straight through, and `proxy(url)` is there for the
@@ -55,6 +84,18 @@ this package. The consequence for you is only this: passing `timeout` or `retry`
 through `withBunOptions` does nothing, and the builders are the ones that work.
 `proxy`, `unix` and `tls` are different — they reach into Bun's own networking and
 are forwarded untouched.
+
+There is no `connectTimeout`, and that is deliberate: Bun's `fetch` has no separate
+connect timeout, only an `AbortSignal` for the whole request. Adding one as an alias
+of `timeout()` would be a modifier that lies about what it does.
+:::
+
+::: danger `withoutVerifying` turns off certificate checking
+It is here for a development server or a private CA, and it does what it says —
+measured against a self-signed server, which Bun's `fetch` refuses without it and
+accepts with it. That also means any machine on the path can present its own
+certificate and be believed. Per request, never on a shared base, and never on the
+one that talks to production.
 :::
 
 ## Deciding what happened

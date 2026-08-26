@@ -107,10 +107,20 @@ A route's own `where` beats the global one.
 ::: warning One difference from Laravel
 In Laravel a constraint is part of **matching**: `/users/{id}` restricted to digits
 and `/users/{slug}` can both exist, and a non-numeric id falls through from the
-first to the second. Elysia's router matches once and its radix tree has no way
-back, so here a failed constraint is a **404**. Everything else about `where`
-behaves as Laravel's does; what is not supported is two routes that differ only by
-their constraints.
+first to the second. Here a failed constraint is a **404** instead.
+
+This is a limit of the router underneath, not a decision. Registering both routes
+and handling a request answers:
+
+```
+Cannot create route "/users/:slug" with parameter "slug" because a route already
+exists with a different parameter name ("id") in the same location
+```
+
+The pair cannot coexist at all, so there is nothing to fall through to. Closing
+the gap means replacing Elysia's router — and the typed context, schema validation
+and speed that come with it. Everything else about `where` behaves as Laravel's
+does.
 :::
 
 ## A route that only renders, and a route that only redirects
@@ -175,6 +185,37 @@ Route.group({ prefix: 'admin', middleware: 'auth' }, () => { … })
 
 A group's name is a **prefix** joined to each route's own, which is why group names
 end in a dot.
+
+## Metadata
+
+Values a *page* knows about itself, with nowhere else to live:
+
+```ts
+Route.metadata({ head: { robots: ['noindex'] } }).group(() => {
+  Route.get('/users', [UserController, 'index']).metadata({ head: { title: 'Users' } })
+})
+```
+
+```ts
+import { current } from '@elvel/http'
+
+current()?.getMetadata('head.title')     // 'Users'
+current()?.getMetadata('head')           // { robots: ['noindex'], title: 'Users' }
+current()?.getMetadata('head.robots', ['index'])   // with a fallback
+```
+
+A route's metadata merges **over** its group's, key by key and deeply. Two rules
+are not what the merge suggests, and both come from Laravel's own tests:
+
+- a **list replaces** a list — `robots: ['index', 'follow']` under
+  `robots: ['noindex']` leaves `['noindex']`, not three entries
+- an **empty object clears** rather than inherits, which is the only way for one
+  route to escape a group's value
+
+Reachable through `current()` is the point of it. A layout asking for
+`head.title` three components below the handler cannot be handed it through props
+without every component in between carrying it — and that is the plumbing that
+makes people hard-code the title instead.
 
 ## Middleware
 

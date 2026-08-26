@@ -63,6 +63,37 @@ collect([1, 2, 3, 4, 5])
   .all()                       // [10, 30, 50]
 ```
 
+## The rest of the collection
+
+```ts
+rows.doesntContain((r) => r.score > 90)
+rows.containsOneItem()  rows.containsManyItems()
+rows.select(['id', 'name'])       // several keys per item, where pluck takes one
+rows.before(item)  rows.after(item)   // a value or a predicate
+rows.splitIn(3)                   // groups filled in turn
+rows.multiply(2)
+rows.hasSole()  rows.firstOrFail()
+```
+
+`split(3)` balances three groups; `splitIn(3)` fills each before starting the next.
+Laying out columns wants the first, paging wants the second.
+
+::: warning `splice` and `transform` are deliberately absent
+Both mutate, which every other method here refuses to do — and the type system
+charges for it. A `T[]` parameter or a `(item: T) => T` callback makes `Collection`
+**invariant** in `T`, and `Collection<Model>` then stops being assignable to
+`Collection<Article>`: adding them broke six unrelated casts in the database
+package. `map()` into a new collection says the same thing and keeps the old one.
+
+`before` and `after` take `unknown` rather than `T` for the same reason, with
+overloads so a predicate still has its argument typed.
+:::
+
+The "strict" names — `containsStrict`, `doesntContainStrict`, `duplicatesStrict` —
+are aliases. In PHP the "strict" opts out of `'1' == 1`; there is no loose
+comparison here to opt out of, and they exist so an example copies across without a
+reader hunting for what changed.
+
 ## `Str`
 
 ```ts
@@ -73,6 +104,30 @@ Str.limit('a long sentence here', 8)   // 'a long s...'
 Str.random(40)                         // even, and rejection-sampled — see below
 Str.before / after / afterLast / chopEnd / matchCase / replacePlaceholders
 ```
+
+```ts
+Str.replaceFirst('a', 'b', 'banana')   // 'bbnana'  — and replaceLast/Start/End
+Str.replaceMatches(/\d+/g, 'n', 'a1b22')
+Str.padBoth('7', 5, '0')               // '00700'   — the odd one goes right
+Str.ucwords('hello world')  Str.ucsplit('FooBar')  Str.pascal / pluralStudly
+Str.matchAll('a1b22', /\d+/)           // ['1', '22'] — an array, never null
+Str.containsAll(text, ['quick', 'fox'])  Str.isUrl(value)  Str.numbers('+62 812')
+Str.substrCount('banana', 'an')  Str.substrReplace / reverse / repeat / unwrap
+Str.wordWrap(long, 72)  Str.chopStart(path, '/admin')
+Str.ltrim / rtrim        // over a set of characters, which String.trim cannot take
+Str.toBase64 / fromBase64
+Str.password(32)         // from crypto.getRandomValues, not Math.random
+```
+
+This was once "the subset the framework itself needs". The scope changed on
+purpose: an application reaching for `replaceFirst` and not finding it writes the
+four lines every project writes, and the fifth project gets an edge case wrong —
+an empty needle, a negative offset, a `match` that answers `null`.
+
+Still absent, each for a reason: `markdown` and `inlineMarkdown` need a parser this
+package will not depend on, `apa` encodes one style guide's title-case rules,
+`transliterate` needs a Unicode table, and the `freezeUuids` family is a testing
+seam that belongs with a design for deterministic ids.
 
 `Str.random` is what mints session identifiers and CSRF tokens, and it throws
 away the bytes that would bias the draw. The [security

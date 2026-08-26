@@ -77,7 +77,9 @@ function mount(instance: Elysia, route: RouteDefinition): Elysia {
     }
   }
 
-  if (route.routeName !== undefined) routeRegistry().name(route.routeName, route.uri)
+  if (route.routeName !== undefined) {
+    routeRegistry().name(route.routeName, route.uri, route.methods)
+  }
 
   return next
 }
@@ -216,10 +218,20 @@ function guarded(hooks: unknown[], route: RouteDefinition) {
  *
  * Laravel treats `where` as part of matching: `/users/{id}` constrained to digits
  * and `/users/{slug}` can both exist, and a non-numeric id falls through to the
- * second. Elysia matches once — its radix tree has no way back — so a failed
- * constraint is a 404 here instead of a fall-through. Every other use of `where`
- * behaves as Laravel's does; what is not supported is two routes that differ only
- * by their constraints, and that is written down rather than worked around.
+ * second. Here a failed constraint is a 404 instead.
+ *
+ * Not a choice, and measured rather than assumed. Registering those two routes
+ * together and then handling a request answers:
+ *
+ * ```
+ * Cannot create route "/users/:slug" with parameter "slug" because a route
+ * already exists with a different parameter name ("id") in the same location
+ * ```
+ *
+ * So the pair cannot coexist at all, let alone fall through — closing that gap
+ * means replacing Elysia's router, and with it the typed context, the schema
+ * validation and the speed that come from it. Every other use of `where` behaves
+ * as Laravel's does.
  */
 function constraintGuard(route: RouteDefinition) {
   const checks = Object.entries(route.wheres)
@@ -245,11 +257,13 @@ function constraintGuard(route: RouteDefinition) {
  * `Route.domain('{account}.example.com')`.
  *
  * A guard rather than part of matching, because Elysia's router keys on the path
- * alone. What that costs is written down in the docs: two domain groups claiming
- * the *same path* cannot both work — the first registered answers, and the guard
- * on it turns the other host into a 404 rather than trying the next route. A
- * tenant subdomain, which is one group whose paths are shared across every host,
- * is unaffected and is what this is for.
+ * alone. What that costs: two domain groups claiming the *same path* cannot both
+ * work — the first registered answers, and the guard on it turns the other host
+ * into a 404 rather than trying the next route.
+ *
+ * The same measurement that pins `where` pins this: a matched route cannot
+ * decline and let another try. A tenant subdomain — one group whose paths are
+ * shared across every host — is unaffected, and is what this is for.
  */
 function domainGuard(pattern: string) {
   const names: string[] = []

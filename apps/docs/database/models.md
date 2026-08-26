@@ -181,6 +181,86 @@ await article.comments().where('approved', true).get()
 await article.load('author')
 ```
 
+### Constraining an eager load
+
+```ts
+await Author.query().with({ posts: (query) => query.where('published', 1) }).get()
+```
+
+Without this the only way to load *part* of a relation is to load all of it and
+filter in memory, which is the cost the eager load exists to avoid. The constraint
+reaches the child query itself, so an `orderBy` inside it applies per parent.
+
+### Filtering by a relation
+
+```ts
+Author.query().whereHas('posts')                        // has at least one
+Author.query().whereHas('posts', q => q.where('published', 1))
+Author.query().orWhereHas('posts')                      // …or has one
+Author.query().whereDoesntHave('posts')
+Author.query().whereRelation('posts', 'published', 1)   // the same, shorter
+Author.query().withWhereHas('posts', q => q.where('published', 1))
+```
+
+Each has an `or` twin and a `doesntHave` form. `withWhereHas` is the one to reach
+for on a page: it filters the parents **and** loads the children with the same
+constraint, which is the pair that is easy to write out of step — a list of authors
+who have published something, shown alongside all of their drafts.
+
+```ts
+Post.query().whereBelongsTo(author)          // the child side of a belongsTo
+Author.query().whereAttachedTo(tag)          // the child side of a pivot
+Author.query().withExists('posts')           // a posts_exists column
+Author.query().withCount('posts')            // and the aggregates
+Author.query().withAggregate('posts', 'votes', 'sum')
+```
+
+`withExists` is not `withCount(…) > 0`: counting walks every matching row to answer
+a question that stops at the first one.
+
+### Filtering a polymorphic relation
+
+`whereHas` cannot serve a `morphTo` — the rows point at different tables and no
+single `exists` spans them — so it refuses, and names what to use instead:
+
+```ts
+Comment.query().whereHasMorph('commentable', [Post, Video])
+Comment.query().whereHasMorph('commentable', '*')        // every declared type
+
+Comment.query().whereHasMorph('commentable', [Post, Video], (query, type) => {
+  if (type === 'videos') query.where('seconds', '>', 60)
+  else query.where('body', 'like', '%long%')
+})
+
+Comment.query().whereMorphedTo('commentable', post)      // this exact row
+Comment.query().whereMorphedTo('commentable', null)      // pointing at nothing
+Comment.query().whereNotMorphedTo('commentable', post)
+```
+
+The callback is handed the **type** as well as the query, and that is the point:
+`seconds` exists on `videos` and not on `posts`, so a callback that could not tell
+them apart could only name columns every type shares.
+
+`whereMorphedTo` groups the models it was given **by type** before comparing keys,
+because two types share an id space by accident: a post with id 1 and a video with
+id 1 are different rows.
+
+`'*'` uses the types the relation declares rather than running
+`select distinct commentable_type` — one round trip fewer, and a type with no rows
+yet still gets its subquery.
+
+### Binding a route parameter
+
+```ts
+Route.get('/posts/{post:slug}', [PostController, 'show'])
+  .middleware('bindings')
+  .scopeBindings()
+  .withTrashed()
+  .missing(() => redirect('/posts').toResponse())
+```
+
+See [Routing](/basics/routing#route-model-binding) for what each of those does.
+
 ### Across a pivot
 
 ```ts
