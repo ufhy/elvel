@@ -116,6 +116,141 @@ export class Collection<T> implements Iterable<T> {
     return this.items.some(predicate)
   }
 
+  /**
+   * The negation of `contains`, which reads better than `!c.contains(…)`.
+   *
+   * Laravel's `containsStrict` and `doesntContainStrict` are the same two: the
+   * "strict" in those names is about PHP's loose `==`, and there is no loose
+   * comparison here to opt out of. They are aliases rather than absent so that an
+   * example copies across without a reader wondering what changed.
+   */
+  doesntContain(predicate: (item: T) => boolean): boolean {
+    return !this.contains(predicate)
+  }
+
+  containsStrict(predicate: (item: T) => boolean): boolean {
+    return this.contains(predicate)
+  }
+
+  doesntContainStrict(predicate: (item: T) => boolean): boolean {
+    return !this.contains(predicate)
+  }
+
+  /** Exactly one, and more than one — the two counts worth naming. */
+  containsOneItem(): boolean {
+    return this.items.length === 1
+  }
+
+  containsManyItems(): boolean {
+    return this.items.length > 1
+  }
+
+  /** `multiply(3)` repeats the collection, which is what a fixture often wants. */
+  multiply(times: number): Collection<T> {
+    const out: T[] = []
+
+    for (let round = 0; round < Math.max(0, times); round += 1) out.push(...this.items)
+
+    return new Collection(out)
+  }
+
+  /**
+   * `select(['id', 'name'])` — several keys per item, unlike `pluck`'s one.
+   *
+   * For handing a narrowed shape to a view or a JSON response without writing the
+   * `map` that builds the object, which is where a key gets misspelt.
+   */
+  select<K extends keyof T>(keys: K[]): Collection<Pick<T, K>> {
+    return new Collection(
+      this.items.map((item) => {
+        const picked = {} as Pick<T, K>
+
+        for (const key of keys) picked[key] = item[key]
+
+        return picked
+      })
+    )
+  }
+
+  /**
+   * The item before this one, or nothing at either end.
+   *
+   * The value is typed `unknown` rather than `T`, and that is not laziness: a
+   * `T` in an input position makes this class **invariant**, and
+   * `Collection<Model>` then stops being assignable to `Collection<Article>`.
+   * Measured — it broke six casts in `relations.ts` that have nothing to do with
+   * collections. The overloads put the type back where it is useful: a predicate
+   * has its argument typed as `T`, and a bare value is compared with `===` —
+   * which is what a search would do anyway.
+   */
+  before(predicate: (item: T) => boolean): T | undefined
+  before(value: unknown): T | undefined
+  before(value: unknown): T | undefined {
+    const at =
+      typeof value === 'function'
+        ? this.items.findIndex(value as (item: T) => boolean)
+        : this.items.findIndex((item) => (item as unknown) === value)
+
+    return at > 0 ? this.items[at - 1] : undefined
+  }
+
+  after(predicate: (item: T) => boolean): T | undefined
+  after(value: unknown): T | undefined
+  after(value: unknown): T | undefined {
+    const at =
+      typeof value === 'function'
+        ? this.items.findIndex(value as (item: T) => boolean)
+        : this.items.findIndex((item) => (item as unknown) === value)
+
+    return at === -1 || at === this.items.length - 1 ? undefined : this.items[at + 1]
+  }
+
+  /**
+   * `splitIn(3)` — groups of a fixed size, where `split(3)` makes three groups.
+   *
+   * The difference matters for laying out columns: `split` balances the groups and
+   * `splitIn` fills each one before starting the next.
+   */
+  splitIn(groups: number): Collection<Collection<T>> {
+    return this.chunk(Math.ceil(this.items.length / Math.max(1, groups)))
+  }
+
+  /** Is there exactly one match? — the question `sole` throws about. */
+  hasSole(predicate?: (item: T, index: number) => boolean): boolean {
+    return (predicate ? this.filter(predicate) : this).count() === 1
+  }
+
+  /**
+   * The first match, or a throw — `firstOrFail`.
+   *
+   * `first()` answers `undefined`, which a caller then has to narrow; this is for
+   * the place where absence is a bug rather than a case.
+   */
+  firstOrFail(predicate?: (item: T, index: number) => boolean): T {
+    const found = predicate ? this.filter(predicate).first() : this.first()
+
+    if (found === undefined) throw new ItemNotFoundError()
+
+    return found
+  }
+
+  /**
+   * `splice` and `transform` are deliberately absent.
+   *
+   * Both mutate, which every other method here refuses to do — and the type
+   * system charges for it: a `T[]` parameter or a `(item: T) => T` callback makes
+   * this class **invariant** in `T`, and `Collection<Model>` then stops being
+   * assignable to `Collection<Article>`. Measured: adding them broke six casts in
+   * `relations.ts` that had nothing to do with collections.
+   *
+   * `map()` into a new collection says the same thing, and the caller keeps the
+   * old one — which is usually what somebody wanted from `transform` anyway.
+   */
+  /** The strict twin of `duplicates`; see `containsStrict` for why it is an alias. */
+  duplicatesStrict(key: (item: T) => unknown = (item) => item): Collection<T> {
+    return this.duplicates(key)
+  }
+
   pluck<K extends keyof T>(key: K): Collection<T[K]> {
     return new Collection(this.items.map((item) => item[key]))
   }

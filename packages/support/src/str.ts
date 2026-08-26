@@ -1,6 +1,16 @@
 /**
- * String helpers. Port of the subset of `Illuminate\Support\Str` that the
- * framework itself needs (stub generation, route listing, view names).
+ * String helpers — `Illuminate\Support\Str`.
+ *
+ * This was once "the subset the framework itself needs", and the scope changed
+ * deliberately: an application reaching for `replaceFirst` or `padBoth` and not
+ * finding it writes the four lines every project writes, and the fifth project
+ * gets an edge case wrong.
+ *
+ * Still absent, each for a reason rather than by oversight: `markdown` and
+ * `inlineMarkdown` need a parser this package will not depend on; `apa` encodes
+ * one style guide's title-case rules; `transliterate` and `ascii` need a Unicode
+ * table; and `createUuidsUsing` with the `freeze*` family is a testing seam that
+ * belongs with a design for deterministic ids rather than here.
  */
 
 const IRREGULAR_PLURALS: Record<string, string> = {
@@ -450,5 +460,292 @@ export const Str = {
 
   doesntEndWith(value: string, needles: string | string[]): boolean {
     return !Str.endsWith(value, needles)
+  },
+
+  // --------------------------------------------------------------- replacing
+
+  /** `replaceFirst('a', 'b', 'banana')` → `'bbnana'`. */
+  replaceFirst(search: string, replace: string, subject: string): string {
+    if (search === '') return subject
+
+    const at = subject.indexOf(search)
+
+    return at === -1 ? subject : subject.slice(0, at) + replace + subject.slice(at + search.length)
+  },
+
+  /** The same from the other end — the one to reach for on a filename. */
+  replaceLast(search: string, replace: string, subject: string): string {
+    if (search === '') return subject
+
+    const at = subject.lastIndexOf(search)
+
+    return at === -1 ? subject : subject.slice(0, at) + replace + subject.slice(at + search.length)
+  },
+
+  /** Replace only where the subject *starts* with it. */
+  replaceStart(search: string, replace: string, subject: string): string {
+    return search !== '' && subject.startsWith(search)
+      ? replace + subject.slice(search.length)
+      : subject
+  },
+
+  replaceEnd(search: string, replace: string, subject: string): string {
+    return search !== '' && subject.endsWith(search)
+      ? subject.slice(0, -search.length) + replace
+      : subject
+  },
+
+  /** `replaceMatches(/\d+/g, 'n', 'a1b22')` → `'anbn'`. */
+  replaceMatches(
+    pattern: RegExp,
+    replace: string | ((match: string) => string),
+    subject: string
+  ): string {
+    return typeof replace === 'string'
+      ? subject.replace(pattern, replace)
+      : subject.replace(pattern, (match) => replace(match))
+  },
+
+  // ----------------------------------------------------------------- padding
+
+  /**
+   * `padBoth('7', 5, '0')` → `'00700'`.
+   *
+   * The odd character goes on the **right**, which is what PHP's `str_pad` does
+   * and therefore what a test ported from Laravel expects.
+   */
+  padBoth(value: string, length: number, pad = ' '): string {
+    const missing = length - value.length
+
+    if (missing <= 0 || pad === '') return value
+
+    const left = Math.floor(missing / 2)
+    const right = missing - left
+
+    return (
+      pad.repeat(Math.ceil(left / pad.length)).slice(0, left) +
+      value +
+      pad.repeat(Math.ceil(right / pad.length)).slice(0, right)
+    )
+  },
+
+  // -------------------------------------------------------------------- case
+
+  upper(value: string): string {
+    return value.toUpperCase()
+  },
+
+  lower(value: string): string {
+    return value.toLowerCase()
+  },
+
+  /** Every word's first letter, as `ucwords` does. */
+  ucwords(value: string, delimiters = ' \t\r\n\f\v'): string {
+    const set = new Set(delimiters.split(''))
+    let capitalise = true
+
+    return [...value]
+      .map((character) => {
+        if (set.has(character)) {
+          capitalise = true
+
+          return character
+        }
+
+        const answer = capitalise ? character.toUpperCase() : character
+
+        capitalise = false
+
+        return answer
+      })
+      .join('')
+  },
+
+  /** `ucsplit('FooBar')` → `['Foo', 'Bar']`. */
+  ucsplit(value: string): string[] {
+    return value.split(/(?=\p{Lu})/u).filter((part) => part !== '')
+  },
+
+  /** Laravel's other name for `studly`, so an example copies across. */
+  pascal(value: string): string {
+    return Str.studly(value)
+  },
+
+  /** `pluralStudly('UserGroup')` → `'UserGroups'`: only the last word changes. */
+  pluralStudly(value: string): string {
+    const parts = Str.ucsplit(value)
+    const last = parts.pop() ?? ''
+
+    return parts.join('') + Str.plural(last)
+  },
+
+  // -------------------------------------------------------------- inspecting
+
+  /** `containsAll('the quick fox', ['quick', 'fox'])` → true. */
+  containsAll(haystack: string, needles: string[]): boolean {
+    return needles.every((needle) => haystack.includes(needle))
+  },
+
+  /** Does the whole string match any of these? */
+  isMatch(value: string, pattern: RegExp | RegExp[]): boolean {
+    return (Array.isArray(pattern) ? pattern : [pattern]).some((one) => one.test(value))
+  },
+
+  /** Every match, or an empty array — never `null`, which `String.match` answers. */
+  matchAll(value: string, pattern: RegExp): string[] {
+    const global = pattern.global ? pattern : new RegExp(pattern.source, `${pattern.flags}g`)
+
+    return [...value.matchAll(global)].map((match) => match[1] ?? match[0])
+  },
+
+  /** Parseable, and with a scheme — the part that decides whether it is a URL. */
+  isUrl(value: string): boolean {
+    try {
+      return new URL(value).protocol !== ''
+    } catch {
+      return false
+    }
+  },
+
+  /** Every digit, and nothing else: `'a1b2'` → `'12'`. */
+  numbers(value: string): string {
+    return value.replace(/\D/g, '')
+  },
+
+  /** How many times a substring occurs, with no regex to escape. */
+  substrCount(haystack: string, needle: string): number {
+    if (needle === '') return 0
+
+    let count = 0
+    let at = haystack.indexOf(needle)
+
+    while (at !== -1) {
+      count += 1
+      at = haystack.indexOf(needle, at + needle.length)
+    }
+
+    return count
+  },
+
+  // ---------------------------------------------------------------- reshaping
+
+  reverse(value: string): string {
+    return [...value].reverse().join('')
+  },
+
+  repeat(value: string, times: number): string {
+    return times > 0 ? value.repeat(times) : ''
+  },
+
+  /** The twin of the `chopEnd` already here. */
+  chopStart(value: string, needles: string | string[]): string {
+    for (const needle of Array.isArray(needles) ? needles : [needles]) {
+      if (needle !== '' && value.startsWith(needle)) return value.slice(needle.length)
+    }
+
+    return value
+  },
+
+  /** `unwrap('"quoted"', '"')` → `'quoted'` — undoing what `wrap` did. */
+  unwrap(value: string, before: string, after = before): string {
+    let answer = value
+
+    if (before !== '' && answer.startsWith(before)) answer = answer.slice(before.length)
+    if (after !== '' && answer.endsWith(after)) answer = answer.slice(0, -after.length)
+
+    return answer
+  },
+
+  /** Splice by index rather than by search — `substrReplace`. */
+  substrReplace(value: string, replace: string, offset = 0, length?: number): string {
+    const span = length ?? value.length
+    const start = offset < 0 ? Math.max(0, value.length + offset) : Math.min(offset, value.length)
+    const end =
+      span < 0 ? Math.max(start, value.length + span) : Math.min(start + span, value.length)
+
+    return value.slice(0, start) + replace + value.slice(end)
+  },
+
+  /**
+   * Break long lines at a width — `wordWrap`.
+   *
+   * A word longer than the width is left whole unless `cut`, because splitting a
+   * URL in half is usually worse than one long line.
+   */
+  wordWrap(value: string, width = 75, brk = '\n', cut = false): string {
+    const lines: string[] = []
+
+    for (const paragraph of value.split('\n')) {
+      let line = ''
+
+      for (const word of paragraph.split(' ')) {
+        if (line === '') line = word
+        else if (`${line} ${word}`.length <= width) line = `${line} ${word}`
+        else {
+          lines.push(line)
+          line = word
+        }
+
+        while (cut && line.length > width) {
+          lines.push(line.slice(0, width))
+          line = line.slice(width)
+        }
+      }
+
+      lines.push(line)
+    }
+
+    return lines.join(brk)
+  },
+
+  // ------------------------------------------------------------------ base64
+
+  toBase64(value: string): string {
+    return Buffer.from(value, 'utf8').toString('base64')
+  },
+
+  fromBase64(value: string): string {
+    return Buffer.from(value, 'base64').toString('utf8')
+  },
+
+  /** `ltrim`/`rtrim` over a set of characters, which `String.trim` cannot take. */
+  ltrim(value: string, characters = ' \n\r\t\v\0'): string {
+    let at = 0
+
+    while (at < value.length && characters.includes(value[at] as string)) at += 1
+
+    return value.slice(at)
+  },
+
+  rtrim(value: string, characters = ' \n\r\t\v\0'): string {
+    let end = value.length
+
+    while (end > 0 && characters.includes(value[end - 1] as string)) end -= 1
+
+    return value.slice(0, end)
+  },
+
+  /**
+   * A random password from the classes a policy usually asks for.
+   *
+   * `crypto.getRandomValues`, not `Math.random`: this is a credential, and the
+   * difference between the two is whether somebody can predict it.
+   */
+  password(length = 32, letters = true, digits = true, symbols = true): string {
+    const pools: string[] = []
+
+    if (letters) pools.push('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+    if (digits) pools.push('0123456789')
+    if (symbols) pools.push('~!#$%^&*()-_.,<>?/[]{}:;|')
+
+    const alphabet = pools.join('')
+
+    if (alphabet === '') return ''
+
+    const bytes = new Uint32Array(length)
+
+    crypto.getRandomValues(bytes)
+
+    return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('')
   }
 }
