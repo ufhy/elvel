@@ -89,6 +89,7 @@ type Manifest = {
   description: string
   files?: string[]
   dependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
   scripts?: Record<string, string>
 }
 
@@ -227,6 +228,37 @@ async function verify(tarball: string, manifest: Manifest): Promise<string[]> {
    */
   for (const [name, range] of Object.entries(inside.dependencies ?? {})) {
     if (range.startsWith('workspace:')) problems.push(`${name} still ${range}`)
+  }
+
+  /**
+   * And the one that made alpha.14 unusable, which the check above walked past.
+   *
+   * `bun pm pack` is what turns `workspace:*` into a number, and it takes that
+   * number from the **installed** workspace rather than from the manifest on disk.
+   * So a release whose lockfile was not bumped with its manifests packs perfectly
+   * well and pins the previous version: twenty-two of alpha.14's packages went to
+   * npm declaring `1.0.0-alpha.13`, and installing one dragged in an alpha.13 copy
+   * of the rest. `PortInUseError` — added in alpha.14 — was missing from the
+   * `@elvel/core` that arrived, which is where it finally surfaced.
+   *
+   * Nothing above could see it: the protocol was gone, the version inside the
+   * manifest was right, and every dependency resolved. Only the *number* was old.
+   *
+   * So: a package in this repository depends on another at exactly the version
+   * being released. Never a range — these move together, and `^` across an alpha
+   * is how two incompatible copies end up in one tree.
+   */
+  const siblings = Object.entries({
+    ...(inside.dependencies ?? {}),
+    ...(inside.peerDependencies ?? {})
+  }).filter(([name]) => name === 'create-elvel' || name.startsWith('@elvel/'))
+
+  for (const [name, range] of siblings) {
+    if (range.startsWith('workspace:')) continue
+
+    if (range !== manifest.version) {
+      problems.push(`${name} pinned at ${range}, expected ${manifest.version}`)
+    }
   }
 
   return problems

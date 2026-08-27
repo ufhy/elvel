@@ -1,6 +1,6 @@
 {
   "name": "@elvel/core",
-  "version": "1.0.0-alpha.14",
+  "version": "1.0.0-alpha.15",
   "description": "Core kernel for the Elvel framework — container, providers, config, and the root router",
   "keywords": [
     "bun",

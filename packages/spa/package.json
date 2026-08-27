@@ -1,6 +1,6 @@
 {
   "name": "@elvel/spa",
-  "version": "1.0.0-alpha.14",
+  "version": "1.0.0-alpha.15",
   "description": "The document a client-routed application boots from, and the client that talks to it",
   "keywords": [
     "bun",

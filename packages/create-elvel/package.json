@@ -1,6 +1,6 @@
 {
   "name": "create-elvel",
-  "version": "1.0.0-alpha.14",
+  "version": "1.0.0-alpha.15",
   "description": "Scaffold an Elvel application — bun create elvel my-app",
   "keywords": [
     "bun",
