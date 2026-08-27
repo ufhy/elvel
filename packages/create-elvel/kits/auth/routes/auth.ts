@@ -28,18 +28,26 @@ Route.middleware('guest').group(() => {
   Route.get('/sign-in', [SignInController, 'create']).name('login')
   Route.post('/sign-in', [SignInController, 'store'])
     .middleware('throttle:6,1')
-    .validate({ body: t.Object({ email: t.String(), password: t.String() }) })
+    .validate({
+      body: t.Object({ email: t.String({ format: 'email' }), password: t.String({ minLength: 1 }) })
+    })
 
   Route.get('/sign-up', [RegisterController, 'create']).name('register')
   Route.post('/sign-up', [RegisterController, 'store'])
     .middleware('throttle:6,1')
-    .validate({ body: t.Object({ name: t.String(), email: t.String(), password: t.String() }) })
+    .validate({
+      body: t.Object({
+        name: t.String({ minLength: 1 }),
+        email: t.String({ format: 'email' }),
+        password: t.String({ minLength: 1 })
+      })
+    })
 
   Route.get('/forgot-password', [PasswordResetController, 'request']).name('password.request')
   Route.post('/forgot-password', [PasswordResetController, 'email'])
     .name('password.email')
     .middleware('throttle:6,1')
-    .validate({ body: t.Object({ email: t.String() }) })
+    .validate({ body: t.Object({ email: t.String({ format: 'email' }) }) })
 
   Route.get('/reset-password', [PasswordResetController, 'reset']).name('password.reset')
   Route.post('/reset-password', [PasswordResetController, 'update'])
@@ -47,9 +55,9 @@ Route.middleware('guest').group(() => {
     .middleware('throttle:6,1')
     .validate({
       body: t.Object({
-        token: t.String(),
-        password: t.String(),
-        password_confirmation: t.String()
+        token: t.String({ minLength: 1 }),
+        password: t.String({ minLength: 1 }),
+        password_confirmation: t.String({ minLength: 1 })
       })
     })
 
@@ -62,12 +70,12 @@ Route.middleware('guest').group(() => {
   Route.get('/two-factor-challenge', [TwoFactorChallengeController, 'create']).name('two-factor')
   Route.post('/two-factor-challenge', [TwoFactorChallengeController, 'store'])
     .middleware('throttle:6,1')
-    .validate({ body: t.Object({ code: t.String() }) })
+    .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
 
   Route.post('/two-factor-challenge/recovery', [TwoFactorChallengeController, 'recovery'])
     .name('two-factor.recovery')
     .middleware('throttle:6,1')
-    .validate({ body: t.Object({ code: t.String() }) })
+    .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
 })
 
 Route.middleware('auth').group(() => {
@@ -81,7 +89,7 @@ Route.middleware('auth').group(() => {
   Route.get('/confirm-password', [ConfirmPasswordController, 'show']).name('password.confirm')
   Route.post('/confirm-password', [ConfirmPasswordController, 'store'])
     .middleware('throttle:6,1')
-    .validate({ body: t.Object({ password: t.String() }) })
+    .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
 })
 
 /**

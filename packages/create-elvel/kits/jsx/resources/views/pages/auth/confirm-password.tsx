@@ -34,13 +34,7 @@ export function ConfirmPassword({ title }: ConfirmPasswordProps) {
       <form class="space-y-4" method="post" action="/confirm-password">
         {csrfField()}
 
-        <Input
-          name="password"
-          type="password"
-          label="Password"
-          autocomplete="current-password"
-          required
-        />
+        <Input name="password" type="password" label="Password" autocomplete="current-password" />
 
         <Button type="submit" class="w-full">
           Confirm

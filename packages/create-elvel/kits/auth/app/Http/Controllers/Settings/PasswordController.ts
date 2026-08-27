@@ -18,7 +18,7 @@ export default class PasswordController {
     return view(Password, {
       title: 'Password',
       saved: query.saved === '1',
-      error: errors().first('password')
+      error: errors().first()
     })
   }
 

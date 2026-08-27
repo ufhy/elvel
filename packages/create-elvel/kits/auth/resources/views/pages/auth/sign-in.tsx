@@ -31,7 +31,6 @@ export function SignIn({ title, error }: SignInProps) {
               name="email"
               value={old('email')}
               autocomplete="username webauthn"
-              required
               autofocus
             />
           </label>
@@ -39,7 +38,7 @@ export function SignIn({ title, error }: SignInProps) {
           <label>
             <span>Password</span>
             {/* Never refilled: a password in a session store is a password in a backup. */}
-            <input type="password" name="password" required />
+            <input type="password" name="password" />
           </label>
 
           <button type="submit">Sign in</button>

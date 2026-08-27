@@ -37,7 +37,7 @@ export function ConfirmPassword({ title, error }: ConfirmPasswordProps) {
 
           <label>
             <span>Password</span>
-            <input type="password" name="password" required autofocus />
+            <input type="password" name="password" autofocus />
           </label>
 
           <button type="submit">Confirm</button>

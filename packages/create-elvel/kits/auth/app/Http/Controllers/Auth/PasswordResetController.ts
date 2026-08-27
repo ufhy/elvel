@@ -1,4 +1,5 @@
 import { api, messageFrom } from '@elvel/auth'
+import { config } from '@elvel/core'
 import { errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { ForgotPassword } from '../../../../resources/views/pages/auth/forgot-password.tsx'
@@ -18,7 +19,7 @@ export default class PasswordResetController {
   request({ query }: { query: Query }) {
     return view(ForgotPassword, {
       title: 'Reset your password',
-      error: errors().first('email'),
+      error: errors().first(),
       sent: query.sent === '1'
     })
   }
@@ -37,23 +38,26 @@ export default class PasswordResetController {
      * ask whether somebody banks here — useful to nobody but the person
      * phishing them.
      */
-    return redirect('/forgot-password?sent=1').seeOther().toResponse()
+    return redirect(`${config('auth.forgotPasswordRoute', '/forgot-password')}?sent=1`)
+      .seeOther()
+      .toResponse()
   }
 
   reset({ query }: { query: Query }) {
     // better-auth appends the token to `redirectTo`; without one there is
     // nothing to reset and the form would post an empty token.
-    if (!query.token) return redirect('/forgot-password').toResponse()
+    if (!query.token)
+      return redirect(config('auth.forgotPasswordRoute', '/forgot-password')).toResponse()
 
     return view(ResetPassword, {
       title: 'Choose a new password',
       token: query.token,
-      error: errors().first('password')
+      error: errors().first()
     })
   }
 
   async update({ body }: { body: NewPassword }) {
-    const back = `/reset-password?token=${encodeURIComponent(body.token)}`
+    const back = `${config('auth.resetPasswordRoute', '/reset-password')}?token=${encodeURIComponent(body.token)}`
 
     if (body.password !== body.password_confirmation) {
       return redirect(back).withErrors({ password: 'The two passwords do not match.' }).toResponse()
@@ -74,6 +78,6 @@ export default class PasswordResetController {
 
     // Deliberately not signed in afterwards: whoever used the link proved they
     // read the inbox, not that they are the account's owner.
-    return redirect('/sign-in').seeOther().toResponse()
+    return redirect(config('auth.redirectGuestsTo', '/sign-in')).seeOther().toResponse()
   }
 }

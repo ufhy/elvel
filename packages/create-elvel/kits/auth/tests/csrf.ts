@@ -25,9 +25,21 @@ export async function postForm(
   page: TestResponse,
   carrier: TestResponse = page
 ): Promise<TestResponse> {
-  return press(app)
-    .withCookiesFrom(carrier)
-    .form('POST', path, { _token: tokenIn(page.body), ...fields })
+  return (
+    press(app)
+      .withCookiesFrom(carrier)
+      /**
+       * The `Accept` a browser sends, because that is what this is pretending to be.
+       *
+       * It decides which half of a validation failure comes back: a caller that
+       * accepts HTML is sent to its form with the messages and its old input, and
+       * one that does not gets the 422 with the bag. Without the header these posts
+       * were read as a script — so a test could pass while the page a person would
+       * have seen was an error document.
+       */
+      .withHeaders({ accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' })
+      .form('POST', path, { _token: tokenIn(page.body), ...fields })
+  )
 }
 
 /** The hidden CSRF field, as the form renders it. */

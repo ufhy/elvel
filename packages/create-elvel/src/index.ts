@@ -84,6 +84,7 @@ const RENAMES: Record<string, string> = {
   '_authentication.ts': 'authentication.test.ts',
   '_registration.ts': 'registration.test.ts',
   '_two-factor.ts': 'two-factor.test.ts',
+  '_messages.ts': 'messages.test.ts',
   '_passkeys.ts': 'passkeys.test.ts',
   '_profile.ts': 'profile.test.ts'
 }

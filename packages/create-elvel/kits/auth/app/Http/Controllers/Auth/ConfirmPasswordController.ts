@@ -1,4 +1,5 @@
 import { api, confirmPassword, messageFrom } from '@elvel/auth'
+import { config } from '@elvel/core'
 import { errors, intended, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { ConfirmPassword } from '../../../../resources/views/pages/auth/confirm-password.tsx'
@@ -12,7 +13,7 @@ import { ConfirmPassword } from '../../../../resources/views/pages/auth/confirm-
  */
 export default class ConfirmPasswordController {
   show() {
-    return view(ConfirmPassword, { title: 'Confirm password', error: errors().first('password') })
+    return view(ConfirmPassword, { title: 'Confirm password', error: errors().first() })
   }
 
   async store(context: { body: { password: string }; request: Request }) {
@@ -35,7 +36,7 @@ export default class ConfirmPasswordController {
     })
 
     if (!answer.ok) {
-      return redirect('/confirm-password')
+      return redirect(config('auth.passwordConfirmRoute', '/confirm-password'))
         .withErrors({ password: await messageFrom(answer, 'That password was wrong.') })
         .toResponse()
     }

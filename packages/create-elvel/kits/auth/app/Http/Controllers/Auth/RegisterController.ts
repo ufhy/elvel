@@ -1,4 +1,5 @@
-import { api, messageFrom, withSession } from '@elvel/auth'
+import { api, problemFrom, withSession } from '@elvel/auth'
+import { config } from '@elvel/core'
 import { currentScope, errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { SignUp } from '../../../../resources/views/pages/auth/sign-up.tsx'
@@ -15,7 +16,7 @@ type Details = { name: string; email: string; password: string }
  */
 export default class RegisterController {
   create() {
-    return view(SignUp, { title: 'Create an account', error: errors().first('email') })
+    return view(SignUp, { title: 'Create an account', error: errors().first() })
   }
 
   async store({ body, request }: { body: Details; request: Request }) {
@@ -26,8 +27,20 @@ export default class RegisterController {
     })
 
     if (!answer.ok) {
-      return redirect('/sign-up')
-        .withErrors({ email: await messageFrom(answer, 'That account could not be created.') })
+      const problem = await problemFrom(answer, 'That account could not be created.')
+
+      /**
+       * Under the field it is about.
+       *
+       * Everything better-auth refuses here used to land on `email`, so "Password
+       * too short" appeared beneath the address somebody had typed correctly. The
+       * code is what tells them apart — the message alone cannot, and matching on
+       * its wording would break the first time that wording changed.
+       */
+      const field = problem.code.startsWith('PASSWORD_') ? 'password' : 'email'
+
+      return redirect(config('auth.signUpRoute', '/sign-up'))
+        .withErrors({ [field]: problem.message })
         .withInput({ name: body.name, email: body.email })
         .toResponse()
     }

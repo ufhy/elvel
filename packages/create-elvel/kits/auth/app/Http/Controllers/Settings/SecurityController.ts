@@ -19,7 +19,7 @@ export default class SecurityController {
       title: 'Security',
       sessions: sessionSummaries(listed, request.headers),
       revoked: query.revoked === '1',
-      error: errors().first('session')
+      error: errors().first()
     })
   }
 

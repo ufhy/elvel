@@ -1,4 +1,5 @@
 import { api, userOf } from '@elvel/auth'
+import { config } from '@elvel/core'
 import { errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { VerifyEmail } from '../../../../resources/views/pages/auth/verify-email.tsx'
@@ -18,7 +19,7 @@ export default class VerifyEmailController {
       title: 'Confirm your address',
       email: userOf(context as never).email,
       sent: query.sent === '1',
-      error: errors().first('email')
+      error: errors().first()
     })
   }
 
@@ -28,6 +29,8 @@ export default class VerifyEmailController {
       asResponse: true
     })
 
-    return redirect('/verify-email?sent=1').seeOther().toResponse()
+    return redirect(`${config('auth.verifyRoute', '/verify-email')}?sent=1`)
+      .seeOther()
+      .toResponse()
   }
 }

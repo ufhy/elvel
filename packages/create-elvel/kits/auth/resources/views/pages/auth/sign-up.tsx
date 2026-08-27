@@ -23,17 +23,17 @@ export function SignUp({ title, error }: SignUpProps) {
 
           <label>
             <span>Name</span>
-            <input type="text" name="name" value={old('name')} required autofocus />
+            <input type="text" name="name" value={old('name')} autofocus />
           </label>
 
           <label>
             <span>Email</span>
-            <input type="email" name="email" value={old('email')} required />
+            <input type="email" name="email" value={old('email')} />
           </label>
 
           <label>
             <span>Password</span>
-            <input type="password" name="password" minlength="8" required />
+            <input type="password" name="password" minlength="8" />
           </label>
 
           <button type="submit">Create account</button>

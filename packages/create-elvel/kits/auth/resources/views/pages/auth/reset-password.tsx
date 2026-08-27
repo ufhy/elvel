@@ -28,12 +28,12 @@ export function ResetPassword({ title, token, error }: ResetPasswordProps) {
 
           <label>
             <span>New password</span>
-            <input type="password" name="password" minlength="8" required autofocus />
+            <input type="password" name="password" minlength="8" autofocus />
           </label>
 
           <label>
             <span>Confirm it</span>
-            <input type="password" name="password_confirmation" minlength="8" required />
+            <input type="password" name="password_confirmation" minlength="8" />
           </label>
 
           <button type="submit">Set the password</button>

@@ -69,7 +69,6 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
                       name="code"
                       inputmode="numeric"
                       autocomplete="one-time-code"
-                      required
                       autofocus
                     />
                   </label>
@@ -107,7 +106,7 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
 
               <label>
                 <span>Confirm your password</span>
-                <input type="password" name="password" autocomplete="current-password" required />
+                <input type="password" name="password" autocomplete="current-password" />
               </label>
 
               <button type="submit">Issue new codes</button>
@@ -121,7 +120,7 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
 
               <label>
                 <span>Confirm your password</span>
-                <input type="password" name="password" autocomplete="current-password" required />
+                <input type="password" name="password" autocomplete="current-password" />
               </label>
 
               <button type="submit">Turn off two-factor</button>
@@ -141,7 +140,7 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
 
               <label>
                 <span>Confirm your password</span>
-                <input type="password" name="password" autocomplete="current-password" required />
+                <input type="password" name="password" autocomplete="current-password" />
               </label>
 
               <button type="submit">Set it up</button>

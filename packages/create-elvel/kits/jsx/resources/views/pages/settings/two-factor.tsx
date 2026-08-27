@@ -90,7 +90,7 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
             <form class="max-w-xs space-y-4" method="post" action="/settings/two-factor/confirm">
               {csrfField()}
 
-              <Input name="code" label="Code from the app" autocomplete="one-time-code" required />
+              <Input name="code" label="Code from the app" autocomplete="one-time-code" />
 
               <Button type="submit">Turn it on</Button>
             </form>
@@ -121,7 +121,6 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
                 type="password"
                 label="Confirm your password"
                 autocomplete="current-password"
-                required
               />
 
               <Button variant="secondary" type="submit">
@@ -144,7 +143,6 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
                 type="password"
                 label="Confirm your password"
                 autocomplete="current-password"
-                required
               />
 
               <Button variant="danger" type="submit">
@@ -168,7 +166,6 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
               type="password"
               label="Confirm your password"
               autocomplete="current-password"
-              required
             />
 
             <Button type="submit">Set it up</Button>

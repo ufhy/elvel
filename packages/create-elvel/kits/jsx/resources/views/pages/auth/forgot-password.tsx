@@ -30,7 +30,7 @@ export function ForgotPassword({ title, sent }: ForgotPasswordProps) {
       <form class="space-y-4" method="post" action="/forgot-password">
         {csrfField()}
 
-        <Input name="email" type="email" label="Email" autocomplete="email" required />
+        <Input name="email" type="email" label="Email" autocomplete="email" />
 
         <Button type="submit" class="w-full">
           Email the link

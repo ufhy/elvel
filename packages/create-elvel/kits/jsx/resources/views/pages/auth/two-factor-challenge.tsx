@@ -31,7 +31,7 @@ export function TwoFactorChallenge({ title }: TwoFactorChallengeProps) {
 
         {/* `one-time-code` is what lets a phone offer the code it just received,
             and `numeric` gets the number pad rather than the alphabet. */}
-        <Input name="code" label="Code" autocomplete="one-time-code" required />
+        <Input name="code" label="Code" autocomplete="one-time-code" />
 
         <Button type="submit" class="w-full">
           Continue
@@ -56,7 +56,6 @@ export function TwoFactorChallenge({ title }: TwoFactorChallengeProps) {
             label="Recovery code"
             placeholder="One of the codes you saved"
             autocomplete="off"
-            required
           />
 
           <Button variant="secondary" type="submit" class="w-full">

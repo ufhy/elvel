@@ -35,15 +35,8 @@ export function Profile({ title, name, email, emailVerified, saved, pending }: P
             {csrfField()}
             {methodField('PATCH')}
 
-            <Input name="name" label="Name" value={name} autocomplete="name" required />
-            <Input
-              name="email"
-              type="email"
-              label="Email"
-              value={email}
-              autocomplete="email"
-              required
-            />
+            <Input name="name" label="Name" value={name} autocomplete="name" />
+            <Input name="email" type="email" label="Email" value={email} autocomplete="email" />
 
             {emailVerified ? null : (
               <p class="text-sm text-muted-foreground">
@@ -76,7 +69,6 @@ export function Profile({ title, name, email, emailVerified, saved, pending }: P
               type="password"
               label="Confirm your password"
               autocomplete="current-password"
-              required
             />
 
             <Button variant="danger" type="submit">

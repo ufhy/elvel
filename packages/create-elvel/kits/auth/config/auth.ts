@@ -116,6 +116,24 @@ const config = {
   /** Where the `guest` middleware sends somebody already signed in. */
   redirectUsersTo: '/dashboard',
 
+  /**
+   * The rest of the screens, so a redirect never spells one out.
+   *
+   * `redirectGuestsTo` above is the sign-in screen and these are its four
+   * neighbours. Together with `verifyRoute` and `passwordConfirmRoute` below they
+   * are every address this kit's controllers send a browser to, and the only place
+   * any of them is written down.
+   *
+   * Configuration rather than constants because a kit built on this one may put
+   * them somewhere else entirely: the Vue kit serves all five from one prefixed
+   * route and moves them under `/auth`, which is four lines in its own
+   * `AppServiceProvider` and no edit here.
+   */
+  signUpRoute: '/sign-up',
+  forgotPasswordRoute: '/forgot-password',
+  resetPasswordRoute: '/reset-password',
+  twoFactorRoute: '/two-factor-challenge',
+
   /** Where `verified` sends an unconfirmed address. */
   verifyRoute: '/verify-email',
 

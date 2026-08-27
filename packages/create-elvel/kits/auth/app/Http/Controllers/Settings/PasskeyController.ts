@@ -32,7 +32,7 @@ export default class PasskeyController {
       title: 'Passkeys',
       passkeys: rowsFrom(listed),
       removed: query.removed === '1',
-      error: errors().first('passkey')
+      error: errors().first()
     })
   }
 

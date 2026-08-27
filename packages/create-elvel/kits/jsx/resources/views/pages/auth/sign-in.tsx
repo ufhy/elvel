@@ -30,15 +30,9 @@ export function SignIn({ title }: SignInProps) {
           from the same dropdown as a saved address. `resources/js/passkeys.ts`
           only starts that flow when `data-passkey-autofill` is on the page.
         */}
-        <Input name="email" type="email" label="Email" autocomplete="username webauthn" required />
+        <Input name="email" type="email" label="Email" autocomplete="username webauthn" />
         {/* Never refilled: a password in a session store is a password in a backup. */}
-        <Input
-          name="password"
-          type="password"
-          label="Password"
-          autocomplete="current-password"
-          required
-        />
+        <Input name="password" type="password" label="Password" autocomplete="current-password" />
 
         <Button type="submit" class="w-full">
           Sign in

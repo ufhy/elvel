@@ -32,21 +32,18 @@ export function Password({ title, saved }: PasswordProps) {
               type="password"
               label="Current password"
               autocomplete="current-password"
-              required
             />
             <Input
               name="password"
               type="password"
               label="New password"
               autocomplete="new-password"
-              required
             />
             <Input
               name="password_confirmation"
               type="password"
               label="Confirm new password"
               autocomplete="new-password"
-              required
             />
 
             <Button type="submit">Change it</Button>

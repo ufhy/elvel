@@ -50,12 +50,12 @@ export function Profile({
 
           <label>
             <span>Name</span>
-            <input type="text" name="name" value={old('name') || name} required />
+            <input type="text" name="name" value={old('name') || name} />
           </label>
 
           <label>
             <span>Email</span>
-            <input type="email" name="email" value={old('email') || email} required />
+            <input type="email" name="email" value={old('email') || email} />
             {emailVerified ? (
               <small class="muted">Confirmed.</small>
             ) : (
@@ -83,7 +83,7 @@ export function Profile({
               mis-click away from a permanent loss. */}
           <label>
             <span>Password</span>
-            <input type="password" name="password" required />
+            <input type="password" name="password" />
           </label>
 
           <button type="submit" class="destructive">

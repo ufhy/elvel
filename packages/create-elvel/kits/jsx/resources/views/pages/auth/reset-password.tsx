@@ -26,19 +26,12 @@ export function ResetPassword({ title, token }: ResetPasswordProps) {
         {csrfField()}
         <input type="hidden" name="token" value={token} />
 
-        <Input
-          name="password"
-          type="password"
-          label="New password"
-          autocomplete="new-password"
-          required
-        />
+        <Input name="password" type="password" label="New password" autocomplete="new-password" />
         <Input
           name="password_confirmation"
           type="password"
           label="Confirm password"
           autocomplete="new-password"
-          required
         />
 
         <Button type="submit" class="w-full">

@@ -41,7 +41,7 @@ export default class TwoFactorController {
       title: 'Two-factor',
       enabled: user()?.twoFactorEnabled === true,
       pending,
-      error: errors().first('two-factor')
+      error: errors().first()
     })
   }
 

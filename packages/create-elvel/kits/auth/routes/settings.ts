@@ -24,11 +24,13 @@ Route.prefix('settings')
     Route.get('/profile', [ProfileController, 'edit']).name('profile')
     Route.patch('/profile', [ProfileController, 'update'])
       .name('profile.update')
-      .validate({ body: t.Object({ name: t.String(), email: t.String() }) })
+      .validate({
+        body: t.Object({ name: t.String({ minLength: 1 }), email: t.String({ format: 'email' }) })
+      })
 
     Route.delete('/profile', [ProfileController, 'destroy'])
       .name('profile.destroy')
-      .validate({ body: t.Object({ password: t.String() }) })
+      .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
 
     Route.get('/password', [PasswordController, 'edit']).name('password')
 
@@ -39,9 +41,9 @@ Route.prefix('settings')
       .middleware('throttle:6,1')
       .validate({
         body: t.Object({
-          current: t.String(),
-          password: t.String(),
-          password_confirmation: t.String()
+          current: t.String({ minLength: 1 }),
+          password: t.String({ minLength: 1 }),
+          password_confirmation: t.String({ minLength: 1 })
         })
       })
 
@@ -49,7 +51,7 @@ Route.prefix('settings')
       Route.get('/security', [SecurityController, 'show']).name('security')
       Route.post('/security/revoke', [SecurityController, 'revoke'])
         .name('security.revoke')
-        .validate({ body: t.Object({ id: t.String() }) })
+        .validate({ body: t.Object({ id: t.String({ minLength: 1 }) }) })
 
       Route.post('/security/revoke-others', [SecurityController, 'revokeOthers']).name(
         'security.revokeOthers'
@@ -58,23 +60,23 @@ Route.prefix('settings')
       Route.get('/passkeys', [PasskeyController, 'index']).name('passkeys')
       Route.delete('/passkeys', [PasskeyController, 'destroy'])
         .name('passkeys.destroy')
-        .validate({ body: t.Object({ id: t.String() }) })
+        .validate({ body: t.Object({ id: t.String({ minLength: 1 }) }) })
 
       Route.get('/two-factor', [TwoFactorController, 'show']).name('twoFactor')
       Route.post('/two-factor', [TwoFactorController, 'enable'])
         .name('twoFactor.enable')
-        .validate({ body: t.Object({ password: t.String() }) })
+        .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
 
       Route.post('/two-factor/confirm', [TwoFactorController, 'confirm'])
         .name('twoFactor.confirm')
-        .validate({ body: t.Object({ code: t.String() }) })
+        .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
 
       Route.post('/two-factor/recovery-codes', [TwoFactorController, 'recoveryCodes'])
         .name('twoFactor.recoveryCodes')
-        .validate({ body: t.Object({ password: t.String() }) })
+        .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
 
       Route.delete('/two-factor', [TwoFactorController, 'disable'])
         .name('twoFactor.disable')
-        .validate({ body: t.Object({ password: t.String() }) })
+        .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
     })
   })

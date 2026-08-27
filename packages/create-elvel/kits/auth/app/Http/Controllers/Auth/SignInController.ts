@@ -1,4 +1,5 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
+import { config } from '@elvel/core'
 import { currentScope, errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { SignIn } from '../../../../resources/views/pages/auth/sign-in.tsx'
@@ -16,7 +17,7 @@ type Credentials = { email: string; password: string }
  */
 export default class SignInController {
   create() {
-    return view(SignIn, { title: 'Sign in', error: errors().first('email') })
+    return view(SignIn, { title: 'Sign in', error: errors().first() })
   }
 
   async store({ body, request }: { body: Credentials; request: Request }) {
@@ -35,7 +36,7 @@ export default class SignInController {
     })
 
     if (!answer.ok) {
-      return redirect('/sign-in')
+      return redirect(config('auth.redirectGuestsTo', '/sign-in'))
         .withErrors({ email: await messageFrom(answer, 'Those details did not match.') })
         .withInput({ email: body.email })
         .toResponse()
@@ -52,7 +53,12 @@ export default class SignInController {
      * leaves somebody stuck on a challenge page that cannot identify them.
      */
     if (((await answer.clone().json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect) {
-      return withSession(answer, await redirect('/two-factor-challenge').seeOther().toResponse())
+      return withSession(
+        answer,
+        await redirect(config('auth.twoFactorRoute', '/two-factor-challenge'))
+          .seeOther()
+          .toResponse()
+      )
     }
 
     /**

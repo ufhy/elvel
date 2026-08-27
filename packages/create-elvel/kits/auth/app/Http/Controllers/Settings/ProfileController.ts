@@ -28,7 +28,7 @@ export default class ProfileController {
       emailVerified: person.emailVerified,
       pending: query.pending === '1',
       saved: query.saved === '1',
-      error: errors().first('name') ?? errors().first('email')
+      error: errors().first()
     })
   }
 
@@ -100,8 +100,10 @@ export default class ProfileController {
     })
 
     if (!answer.ok) {
+      // Under `password`, which is the field this form has. Filed under `name` it
+      // marked the wrong input on a form that has no name field at all.
       return redirect('/settings/profile')
-        .withErrors({ name: await messageFrom(answer, 'That password was wrong.') })
+        .withErrors({ password: await messageFrom(answer, 'That password was wrong.') })
         .toResponse()
     }
 

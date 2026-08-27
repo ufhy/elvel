@@ -36,7 +36,7 @@ export function ForgotPassword({ title, error, sent }: ForgotPasswordProps) {
 
             <label>
               <span>Email</span>
-              <input type="email" name="email" value={old('email')} required autofocus />
+              <input type="email" name="email" value={old('email')} autofocus />
             </label>
 
             <button type="submit">Send the link</button>

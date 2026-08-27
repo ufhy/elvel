@@ -24,15 +24,9 @@ export function SignUp({ title }: SignUpProps) {
       <form class="space-y-4" method="post" action="/sign-up">
         {csrfField()}
 
-        <Input name="name" label="Name" autocomplete="name" required />
-        <Input name="email" type="email" label="Email" autocomplete="email" required />
-        <Input
-          name="password"
-          type="password"
-          label="Password"
-          autocomplete="new-password"
-          required
-        />
+        <Input name="name" label="Name" autocomplete="name" />
+        <Input name="email" type="email" label="Email" autocomplete="email" />
+        <Input name="password" type="password" label="Password" autocomplete="new-password" />
 
         <Button type="submit" class="w-full">
           Create account

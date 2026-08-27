@@ -39,7 +39,6 @@ export function TwoFactorChallenge({ title, error }: TwoFactorChallengeProps) {
               name="code"
               inputmode="numeric"
               autocomplete="one-time-code"
-              required
               autofocus
             />
           </label>
@@ -57,7 +56,7 @@ export function TwoFactorChallenge({ title, error }: TwoFactorChallengeProps) {
 
           <label>
             <span>Recovery code</span>
-            <input type="text" name="code" autocomplete="off" required />
+            <input type="text" name="code" autocomplete="off" />
           </label>
 
           <button type="submit">Use a recovery code</button>

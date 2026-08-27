@@ -1,4 +1,5 @@
 import { api, messageFrom, withSession } from '@elvel/auth'
+import { config } from '@elvel/core'
 import { currentScope, errors, redirect } from '@elvel/http'
 import { view } from '@elvel/view'
 import { TwoFactorChallenge } from '../../../../resources/views/pages/auth/two-factor-challenge.tsx'
@@ -22,7 +23,7 @@ export default class TwoFactorChallengeController {
   create() {
     return view(TwoFactorChallenge, {
       title: 'Two-factor',
-      error: errors().first('code')
+      error: errors().first()
     })
   }
 
@@ -34,7 +35,7 @@ export default class TwoFactorChallengeController {
     })
 
     if (!answer.ok) {
-      return redirect('/two-factor-challenge')
+      return redirect(config('auth.twoFactorRoute', '/two-factor-challenge'))
         .withErrors({ code: await messageFrom(answer, 'That code did not work.') })
         .toResponse()
     }
@@ -74,7 +75,7 @@ export default class TwoFactorChallengeController {
     })
 
     if (!answer.ok) {
-      return redirect('/two-factor-challenge')
+      return redirect(config('auth.twoFactorRoute', '/two-factor-challenge'))
         .withErrors({ code: await messageFrom(answer, 'That recovery code did not work.') })
         .toResponse()
     }
