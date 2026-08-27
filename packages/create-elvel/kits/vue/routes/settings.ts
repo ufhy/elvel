@@ -22,7 +22,7 @@ import TwoFactorController from '../app/Http/Controllers/Settings/TwoFactorContr
  * Profile and password are behind `auth` alone, because each asks for a password
  * in its own form: the same protection arriving a different way.
  */
-Route.prefix('settings')
+Route.prefix('api/settings')
   .name('settings.')
   .middleware('auth')
   .group(() => {

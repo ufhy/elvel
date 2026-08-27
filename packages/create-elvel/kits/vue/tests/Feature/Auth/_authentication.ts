@@ -119,7 +119,7 @@ describe('the two view routes', () => {
 
 describe('CSRF', () => {
   test('a form posted without its token is refused', async () => {
-    const response = await press(app).form('POST', '/sign-in', {
+    const response = await press(app).form('POST', '/api/sign-in', {
       email: 'nobody@example.com',
       password: 'whatever'
     })

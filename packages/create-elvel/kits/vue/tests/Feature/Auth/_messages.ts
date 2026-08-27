@@ -51,7 +51,9 @@ async function send(
     ? press(app).withCookiesFrom(as).withCookiesFrom(session)
     : press(app).withCookiesFrom(session)
 
-  return client.json(method, path, { _token: token, ...body })
+  // `/api`, the way `lib/form.ts` sends it — the call sites name the screen's
+  // address and this puts the writes where the backend keeps them.
+  return client.json(method, `/api${path}`, { _token: token, ...body })
 }
 
 /** Just the bag, for the tests that only read sentences. */

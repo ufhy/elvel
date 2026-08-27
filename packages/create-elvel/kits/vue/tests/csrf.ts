@@ -36,10 +36,17 @@ export async function postForm(
    * answered 200. The session endpoint's copy goes second so its fresher value
    * wins.
    */
+  /**
+   * `/api` in front, the way `lib/form.ts` sends it.
+   *
+   * The five shared test files name the address a screen posts to — `/sign-in` —
+   * and this adds the prefix the client adds, so those files do not have to know
+   * where the backend keeps its writes.
+   */
   return press(app)
     .withCookiesFrom(carrier)
     .withCookiesFrom(from)
-    .form('POST', path, { _token: token, ...fields })
+    .form('POST', `/api${path}`, { _token: token, ...fields })
 }
 
 async function session(carrier: TestResponse): Promise<{ token: string; from: TestResponse }> {

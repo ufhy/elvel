@@ -31,64 +31,71 @@ import VerifyEmailController from '../app/Http/Controllers/Auth/VerifyEmailContr
  * it was right. Six a minute, Fortify's own number. A shell in front of it changes
  * nothing about that: the guessing happens against these endpoints.
  */
-Route.middleware('guest').group(() => {
-  Route.post('/sign-in', [SignInController, 'store'])
-    .middleware('throttle:6,1')
-    .validate({
-      body: t.Object({ email: t.String({ format: 'email' }), password: t.String({ minLength: 1 }) })
-    })
-
-  Route.post('/sign-up', [RegisterController, 'store'])
-    .middleware('throttle:6,1')
-    .validate({
-      body: t.Object({
-        name: t.String({ minLength: 1 }),
-        email: t.String({ format: 'email' }),
-        password: t.String({ minLength: 1 })
+Route.prefix('api')
+  .middleware('guest')
+  .group(() => {
+    Route.post('/sign-in', [SignInController, 'store'])
+      .middleware('throttle:6,1')
+      .validate({
+        body: t.Object({
+          email: t.String({ format: 'email' }),
+          password: t.String({ minLength: 1 })
+        })
       })
-    })
 
-  Route.post('/forgot-password', [PasswordResetController, 'email'])
-    .name('password.email')
-    .middleware('throttle:6,1')
-    .validate({ body: t.Object({ email: t.String({ format: 'email' }) }) })
-
-  Route.post('/reset-password', [PasswordResetController, 'update'])
-    .name('password.update')
-    .middleware('throttle:6,1')
-    .validate({
-      body: t.Object({
-        token: t.String({ minLength: 1 }),
-        password: t.String({ minLength: 1 }),
-        password_confirmation: t.String({ minLength: 1 })
+    Route.post('/sign-up', [RegisterController, 'store'])
+      .middleware('throttle:6,1')
+      .validate({
+        body: t.Object({
+          name: t.String({ minLength: 1 }),
+          email: t.String({ format: 'email' }),
+          password: t.String({ minLength: 1 })
+        })
       })
-    })
 
-  /**
-   * A guest, holding a cookie that says which account is halfway in.
-   *
-   * `guest` and not `auth`: `signInEmail` answers with no session at all when the
-   * account has two factors, so there is nobody signed in yet.
-   */
-  Route.post('/two-factor-challenge', [TwoFactorChallengeController, 'store'])
-    .middleware('throttle:6,1')
-    .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
+    Route.post('/forgot-password', [PasswordResetController, 'email'])
+      .name('password.email')
+      .middleware('throttle:6,1')
+      .validate({ body: t.Object({ email: t.String({ format: 'email' }) }) })
 
-  Route.post('/two-factor-challenge/recovery', [TwoFactorChallengeController, 'recovery'])
-    .name('two-factor.recovery')
-    .middleware('throttle:6,1')
-    .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
-})
+    Route.post('/reset-password', [PasswordResetController, 'update'])
+      .name('password.update')
+      .middleware('throttle:6,1')
+      .validate({
+        body: t.Object({
+          token: t.String({ minLength: 1 }),
+          password: t.String({ minLength: 1 }),
+          password_confirmation: t.String({ minLength: 1 })
+        })
+      })
 
-Route.middleware('auth').group(() => {
-  Route.post('/verify-email/resend', [VerifyEmailController, 'resend'])
-    .name('verification.send')
-    .middleware('throttle:6,1')
+    /**
+     * A guest, holding a cookie that says which account is halfway in.
+     *
+     * `guest` and not `auth`: `signInEmail` answers with no session at all when the
+     * account has two factors, so there is nobody signed in yet.
+     */
+    Route.post('/two-factor-challenge', [TwoFactorChallengeController, 'store'])
+      .middleware('throttle:6,1')
+      .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
 
-  Route.post('/confirm-password', [ConfirmPasswordController, 'store'])
-    .middleware('throttle:6,1')
-    .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
-})
+    Route.post('/two-factor-challenge/recovery', [TwoFactorChallengeController, 'recovery'])
+      .name('two-factor.recovery')
+      .middleware('throttle:6,1')
+      .validate({ body: t.Object({ code: t.String({ minLength: 1 }) }) })
+  })
+
+Route.prefix('api')
+  .middleware('auth')
+  .group(() => {
+    Route.post('/verify-email/resend', [VerifyEmailController, 'resend'])
+      .name('verification.send')
+      .middleware('throttle:6,1')
+
+    Route.post('/confirm-password', [ConfirmPasswordController, 'store'])
+      .middleware('throttle:6,1')
+      .validate({ body: t.Object({ password: t.String({ minLength: 1 }) }) })
+  })
 
 /**
  * Signing out is guarded by neither.
@@ -97,4 +104,6 @@ Route.middleware('auth').group(() => {
  * strange thing to do to somebody who asked to leave — and the CSRF check already
  * makes this a request only this application's own pages can send.
  */
-Route.post('/sign-out', [SignInController, 'destroy']).name('logout')
+Route.prefix('api').group(() => {
+  Route.post('/sign-out', [SignInController, 'destroy']).name('logout')
+})

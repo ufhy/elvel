@@ -89,7 +89,7 @@ describe('what stays a 404 for somebody signed in', () => {
     const session = await press(app).get('/api/session')
     const token = (session.json() as { csrf: string }).csrf
 
-    return press(app).withCookiesFrom(session).postJson('/sign-up', {
+    return press(app).withCookiesFrom(session).postJson('/api/sign-up', {
       _token: token,
       name: 'Ada',
       email: address(),
@@ -101,7 +101,23 @@ describe('what stays a 404 for somebody signed in', () => {
     const me = await signedIn()
 
     ;(await press(app).withCookiesFrom(me).getJson('/api/nothing')).assertNotFound()
-    ;(await press(app).withCookiesFrom(me).postJson('/api/nothing', {})).assertNotFound()
+
+    /**
+     * The write carries a token, because every write here does.
+     *
+     * `config/session.ts` exempts only better-auth's own mount from CSRF, so a
+     * tokenless `POST /api/nothing` is refused with `419` before any route is
+     * consulted — a true answer to a different question. The token turns this back
+     * into the one being asked: does a missing endpoint stay a 404.
+     */
+    const session = await press(app).withCookiesFrom(me).get('/api/session')
+    const token = (session.json() as { csrf: string }).csrf
+    const posted = await press(app)
+      .withCookiesFrom(me)
+      .withCookiesFrom(session)
+      .postJson('/api/nothing', { _token: token })
+
+    posted.assertNotFound()
   })
 
   test('and a file the build does not have', async () => {

@@ -45,7 +45,20 @@ export function useForm<T extends Record<string, unknown>>(
   for (const verb of ['post', 'put', 'patch', 'delete'] as const) {
     const send = form[verb]
 
-    form[verb] = (path: string) => confirmed(() => send(path))
+    /**
+     * `/api` in front, decided here rather than in each view.
+     *
+     * Every address this backend answers for a client lives under `/api` — the
+     * reads already did, and `routes/auth.ts` and `routes/settings.ts` put the
+     * writes there too. What that buys is one address per thing: `/sign-in` is a
+     * screen the Vue router owns and nothing else, and the document route no longer
+     * shares a path with a form post.
+     *
+     * The views still write `form.post('/sign-in')`, which is the address a reader
+     * recognises. `useForm` sends with `prefix: ''`, so the prefix has to be added
+     * to the path itself.
+     */
+    form[verb] = (path: string) => confirmed(() => send(`/api${path}`))
   }
 
   return form
