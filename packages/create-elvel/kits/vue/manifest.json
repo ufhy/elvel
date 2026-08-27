@@ -1,7 +1,21 @@
 {
   "removes": [
     "app/Http/Controllers/DashboardController.ts",
+    "resources/views/components/layout.tsx",
+    "resources/views/pages/auth/confirm-password.tsx",
+    "resources/views/pages/auth/forgot-password.tsx",
+    "resources/views/pages/auth/reset-password.tsx",
+    "resources/views/pages/auth/sign-in.tsx",
+    "resources/views/pages/auth/sign-up.tsx",
+    "resources/views/pages/auth/two-factor-challenge.tsx",
+    "resources/views/pages/auth/verify-email.tsx",
     "resources/views/pages/dashboard.tsx",
-    "resources/views/pages/settings/nav.tsx"
+    "resources/views/pages/settings/nav.tsx",
+    "resources/views/pages/settings/passkeys.tsx",
+    "resources/views/pages/settings/password.tsx",
+    "resources/views/pages/settings/profile.tsx",
+    "resources/views/pages/settings/security.tsx",
+    "resources/views/pages/settings/two-factor.tsx",
+    "resources/views/pages/welcome.tsx"
   ]
 }
