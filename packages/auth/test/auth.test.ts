@@ -11,7 +11,7 @@ import { type AuthUser, Gate } from '../src/gate.ts'
 import { AuthManager, type AuthSession } from '../src/manager.ts'
 import { Policy } from '../src/policy.ts'
 import { AuthorizationError, AuthorizationResponse } from '../src/response.ts'
-import { messageFrom, sessionSummaries, withSession } from '../src/responses.ts'
+import { messageFrom, problemFrom, sessionSummaries, withSession } from '../src/responses.ts'
 
 // -------------------------------------------------------------------- the gate
 
@@ -688,12 +688,90 @@ describe('the response glue a server-rendered application needs', () => {
     expect(carried.headers.get('location')).toBe('/dashboard')
   })
 
-  test('messageFrom prefers what better-auth said, and falls back quietly', async () => {
-    const said = Response.json({ message: 'That address is already taken.' }, { status: 400 })
+  /**
+   * `messageFrom` shows the caller's sentence unless the code says more.
+   *
+   * It used to prefer better-auth's `message` whenever there was one, and that is
+   * how these reached people who were only trying to sign up — measured against a
+   * running application:
+   *
+   * ```
+   * [body.email] Invalid email address; [body.password] Too small: expected string to have >=1 characters
+   * Invalid two factor cookie
+   * [body.newEmail] Invalid email address
+   * ```
+   *
+   * The last one leaks a field name that appears on no form. Meanwhile the
+   * sentences the controllers had written — "That account could not be created.",
+   * "That code did not work." — were never used at all.
+   */
+  test('messageFrom keeps the caller’s sentence for a code it does not know', async () => {
+    const blob = Response.json(
+      {
+        message: '[body.email] Invalid email address; [body.password] Too small',
+        code: 'VALIDATION_ERROR'
+      },
+      { status: 400 }
+    )
+
+    expect(await messageFrom(blob, 'That account could not be created.')).toBe(
+      'That account could not be created.'
+    )
+  })
+
+  test('and uses better-auth’s own for the codes that say more than a form can', async () => {
+    const taken = Response.json(
+      {
+        message: 'User already exists. Use another email.',
+        code: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
+      },
+      { status: 422 }
+    )
+    const short = Response.json(
+      { message: 'Password too short', code: 'PASSWORD_TOO_SHORT' },
+      { status: 400 }
+    )
+
+    // Whether an address is taken, and a bound this application does not set:
+    // neither is something the form could have known to say.
+    expect(await messageFrom(taken, 'That account could not be created.')).toBe(
+      'User already exists. Use another email.'
+    )
+    expect(await messageFrom(short, 'That account could not be created.')).toBe(
+      'Password too short'
+    )
+  })
+
+  test('a message with no code at all is not trusted either', async () => {
+    const said = Response.json({ message: 'Invalid two factor cookie' }, { status: 401 })
     const silent = new Response('not json at all', { status: 500 })
 
-    expect(await messageFrom(said, 'Something went wrong.')).toBe('That address is already taken.')
+    expect(await messageFrom(said, 'That code did not work.')).toBe('That code did not work.')
     expect(await messageFrom(silent, 'Something went wrong.')).toBe('Something went wrong.')
+  })
+
+  /**
+   * The code, for the half of the decision a message cannot make.
+   *
+   * "Password too short" filed under `email` was the other half of this bug: the
+   * message reads correctly and marks the wrong input. A controller branches on the
+   * code instead — and both come from one read, because a `Response` body can only
+   * be read once.
+   */
+  test('problemFrom hands back the code as well as the sentence', async () => {
+    const short = Response.json(
+      { message: 'Password too short', code: 'PASSWORD_TOO_SHORT' },
+      { status: 400 }
+    )
+    const problem = await problemFrom(short, 'That account could not be created.')
+
+    expect<string>(problem.code).toBe('PASSWORD_TOO_SHORT')
+    expect<string>(problem.message).toBe('Password too short')
+
+    const broken = await problemFrom(new Response('nope', { status: 500 }), 'Something went wrong.')
+
+    expect<string>(broken.code).toBe('')
+    expect<string>(broken.message).toBe('Something went wrong.')
   })
 
   test('sessionSummaries marks the browser doing the asking', () => {

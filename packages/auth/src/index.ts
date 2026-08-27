@@ -61,8 +61,10 @@ export { Policy, type PolicyLike, type PolicyResult, policyAllowsGuests } from '
 export { type AuthConfig, AuthServiceProvider } from './provider.ts'
 export { AuthorizationError, AuthorizationResponse } from './response.ts'
 export {
+  type AuthProblem,
   api,
   messageFrom,
+  problemFrom,
   type SessionSummary,
   sessionSummaries,
   withSession
