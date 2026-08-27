@@ -329,3 +329,123 @@ describe('error pages for a browser', () => {
     expect<boolean>(body.includes('&lt;script&gt;')).toBe(true)
   })
 })
+
+/**
+ * A schema failure, as a form can render it.
+ *
+ * Elysia's `ValidationError` carries a pretty-printed JSON dump in `message` — the
+ * schema, the value it was given, and the violation. Before this it *was* the
+ * answer: measured against a running application, a sign-up form with one field
+ * missing showed the person
+ *
+ * ```
+ * {\n  "type": "validation",\n  "on": "body",\n  "property": "/password",…
+ * ```
+ *
+ * and marked no field at all, because there was no bag to mark one from.
+ *
+ * Duck-typed here the way the handler reads it — `code` and `all` — rather than by
+ * constructing a real `ValidationError`: core does not depend on Elysia, and the
+ * shape is the contract.
+ */
+describe('an Elysia validation failure', () => {
+  const handler = () => new ExceptionHandler(new Application(process.cwd()))
+
+  const asked = new Request('http://localhost/sign-up', {
+    method: 'POST',
+    headers: { accept: 'application/json' }
+  })
+
+  const failure = (all: Array<Record<string, unknown>>) => ({
+    code: 'VALIDATION',
+    status: 422,
+    message: '{\n  "type": "validation",\n  "on": "body"\n}',
+    all
+  })
+
+  test('answers a sentence, not the schema dump', async () => {
+    const response = await handler().render(
+      failure([{ path: '/password', message: 'Expected required property' }]),
+      { request: asked }
+    )
+    const body = (await response.json()) as { message: string }
+
+    expect<number>(response.status).toBe(422)
+    expect<string>(body.message).toBe('The given data was invalid.')
+    // The dump is what this exists to keep out of the answer.
+    expect<boolean>(body.message.includes('"type"')).toBe(false)
+  })
+
+  test('and a bag keyed by field, so the right input is marked', async () => {
+    const response = await handler().render(
+      failure([
+        { path: '/password', message: 'Expected required property' },
+        { path: '/email', message: 'Expected string to match format "email"', value: 'nope' }
+      ]),
+      { request: asked }
+    )
+    const body = (await response.json()) as { errors: Record<string, string[]> }
+
+    expect<string[]>(Object.keys(body.errors).sort()).toEqual(['email', 'password'])
+    expect<string[]>(body.errors.password as string[]).toEqual(['The password field is required.'])
+    expect<string[]>(body.errors.email as string[]).toEqual(['The email field is not valid.'])
+  })
+
+  /**
+   * A bound of one is a blank field, and reads as one.
+   *
+   * `t.String({ minLength: 1 })` is how a route refuses an empty input, and "too
+   * short" there reads as though somebody had tried and fallen short.
+   */
+  test('a minimum of one reads as required, a larger one as too short', async () => {
+    const response = await handler().render(
+      failure([
+        {
+          path: '/name',
+          message: 'Expected string length greater or equal to 1',
+          schema: { minLength: 1 },
+          value: ''
+        },
+        {
+          // Not blank — short. Blank is read off the value and is always "required".
+          path: '/password',
+          message: 'Expected string length greater or equal to 8',
+          schema: { minLength: 8 },
+          value: 'ab'
+        }
+      ]),
+      { request: asked }
+    )
+    const body = (await response.json()) as { errors: Record<string, string[]> }
+
+    expect<string[]>(body.errors.name as string[]).toEqual(['The name field is required.'])
+    expect<string[]>(body.errors.password as string[]).toEqual(['The password field is too short.'])
+  })
+
+  test('a nested path becomes a dotted field name', async () => {
+    const response = await handler().render(
+      failure([{ path: '/address/city', message: 'Expected required property' }]),
+      { request: asked }
+    )
+    const body = (await response.json()) as { errors: Record<string, string[]> }
+
+    // What a bag is keyed by everywhere else, so one renderer handles both.
+    expect<string[]>(Object.keys(body.errors)).toEqual(['address.city'])
+    expect<string[]>(body.errors['address.city'] as string[]).toEqual([
+      'The city field is required.'
+    ])
+  })
+
+  test('a violation about the whole body is filed under form', async () => {
+    const response = await handler().render(
+      failure([{ path: '', message: 'Expected object', value: 'not an object' }]),
+      {
+        request: asked
+      }
+    )
+    const body = (await response.json()) as { errors: Record<string, string[]> }
+
+    // Keyed by the empty string it would mark no field and render nowhere.
+    expect<string[]>(Object.keys(body.errors)).toEqual(['form'])
+  })
+})

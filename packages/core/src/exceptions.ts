@@ -140,6 +140,28 @@ export class ExceptionHandler implements ExceptionHandlerContract {
      */
     if (carriesResponse(error)) return error[CARRIES_RESPONSE]()
 
+    /**
+     * A browser that failed a route schema goes back to its form — Laravel's rule.
+     *
+     * `FormRequest` has answered this way since it existed: an API client gets the
+     * 422 with the bag, a browser is sent back with the messages and what it typed.
+     * `Route.validate({ body: t.Object(…) })` had neither half, because Elysia
+     * refuses before any of that runs — measured, a blank sign-up form was answered
+     * with a page of error markup and everything typed into it was gone.
+     *
+     * Asked of the container rather than built here: the redirect needs the session
+     * and the negotiation rule, both of which live in `@elvel/http`, and core cannot
+     * depend on it. An application without that package simply has no binding and
+     * falls through to the 422 below.
+     *
+     * A route hook was the first attempt and never ran: this handler is wired into
+     * Elysia's error pipeline before any provider registers, and the first to answer
+     * wins — the same measurement `packages/spa/src/handler.ts` records.
+     */
+    const sentBack = this.sendBack(error, _context.request)
+
+    if (sentBack !== undefined) return sentBack
+
     const status = this.statusFor(error)
     const debug = this.app.hasDebugModeEnabled()
 
@@ -262,8 +284,37 @@ export class ExceptionHandler implements ExceptionHandlerContract {
     return 500
   }
 
+  /**
+   * The redirect a failed form gets, when something registered one.
+   *
+   * `validation.redirect` is bound by `@elvel/http`. It answers `undefined` for a
+   * caller that wants JSON, which is what makes an API keep its 422.
+   */
+  protected sendBack(error: unknown, request: Request): Promise<Response> | undefined {
+    const bag = schemaErrors(error)
+
+    if (bag === undefined || !this.app.bound('validation.redirect')) return undefined
+
+    const redirector = this.app.make('validation.redirect')
+    const posted = (error as { value?: unknown }).value
+
+    return redirector(bag, posted, request)
+  }
+
   protected messageFor(error: unknown, status: number, debug: boolean): string {
     if (error instanceof HttpException) return error.message
+
+    /**
+     * A schema failure says so in a sentence, not in a schema dump.
+     *
+     * Elysia's `message` for one is a pretty-printed JSON object; it belongs in a
+     * log, not in the space under a form field. The bag built by `schemaErrors`
+     * carries the per-field detail, so all this has to be is the summary line —
+     * and one that reads the same whether the client renders the bag or only this.
+     */
+    if ((error as { code?: unknown }).code === 'VALIDATION') {
+      return 'The given data was invalid.'
+    }
 
     if (status !== 500) {
       return ExceptionHandler.humanize(ExceptionHandler.messageOf(error))
@@ -289,7 +340,7 @@ export class ExceptionHandler implements ExceptionHandlerContract {
       return (bag as { messages(): Record<string, string[]> }).messages()
     }
 
-    return undefined
+    return schemaErrors(error)
   }
 
   /**
@@ -348,4 +399,103 @@ function escapeHtml(value: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+/**
+ * Elysia's own validation failure, as a bag a form can render.
+ *
+ * `Route.validate({ body: t.Object(…) })` fails with Elysia's `ValidationError`,
+ * whose `message` is a pretty-printed JSON dump of the schema, the value and the
+ * violation. Without this that dump *is* the answer — measured, a sign-up form
+ * with a field missing showed the person
+ * `{\n  "type": "validation",\n  "on": "body",\n  "property": "/password"…`
+ * and no field was marked at all, because there was no bag to mark it from.
+ *
+ * Duck-typed on `code` and `all`, like everything else here: core cannot depend
+ * on Elysia. `all` is one entry per violation, and `path` is a JSON pointer —
+ * `/password`, or `/address/city` for a nested object — so it becomes a dotted
+ * field name, which is what a bag is keyed by everywhere else.
+ */
+export function schemaErrors(error: unknown): Record<string, string[]> | undefined {
+  const candidate = error as { code?: unknown; all?: unknown }
+
+  if (candidate.code !== 'VALIDATION' || !Array.isArray(candidate.all)) return undefined
+
+  const bag: Record<string, string[]> = {}
+
+  for (const violation of candidate.all as Array<Record<string, unknown>>) {
+    const pointer = typeof violation.path === 'string' ? violation.path : ''
+    const field = pointer.replace(/^\//, '').replace(/\//g, '.')
+
+    /**
+     * A violation with no path is about the whole body.
+     *
+     * Elysia reports one when the body is not an object at all. Keyed under the
+     * empty string it would mark no field and render nowhere, so it goes under
+     * the name a form uses for its own summary.
+     */
+    const key = field === '' ? 'form' : field
+    const said = sayViolation(field, violation)
+
+    bag[key] = [...(bag[key] ?? []), said]
+  }
+
+  return Object.keys(bag).length > 0 ? bag : undefined
+}
+
+/**
+ * One violation, as a sentence rather than as a schema assertion.
+ *
+ * Three cases carry almost all of them, and each reads badly unchanged:
+ * `Expected required property`, a length bound, and a `format`. Anything else
+ * falls through to Elysia's own `summary`, which names the field and is at least
+ * a sentence — better than inventing prose for a rule this cannot see.
+ */
+function sayViolation(field: string, violation: Record<string, unknown>): string {
+  const name = field === '' ? 'value' : field.split('.').pop()
+  const message = typeof violation.message === 'string' ? violation.message : ''
+  const summary = typeof violation.summary === 'string' ? violation.summary : message
+
+  /**
+   * Absent or blank, whatever rule it was going to fail.
+   *
+   * Elysia words a missing property as the type it wanted — `Expected string`,
+   * with the summary `Expected property 'password' to be string but found:
+   * undefined`. Measured: that summary reached a sign-up form, and "found:
+   * undefined" is a sentence about the program rather than about what somebody
+   * typed.
+   *
+   * The empty string is here for consistency, and it is the commonest case of
+   * all: somebody submits a blank form. `format: 'email'` fails it before any
+   * length rule, so the email field said "is not valid" while the name and
+   * password beside it said "is required" — three empty inputs, two different
+   * explanations.
+   */
+  if (violation.value === undefined || violation.value === '') {
+    return `The ${name} field is required.`
+  }
+
+  if (/required property/i.test(message)) return `The ${name} field is required.`
+
+  if (/minimum length|greater or equal|too short/i.test(message)) {
+    /**
+     * A bound of one means "say something", not "say more".
+     *
+     * `t.String({ minLength: 1 })` is how a schema refuses a blank field, and
+     * "too short" for a field somebody left empty reads as though they had tried.
+     */
+    const schema = violation.schema as { minLength?: unknown } | undefined
+
+    if (schema?.minLength === 1) return `The ${name} field is required.`
+
+    return `The ${name} field is too short.`
+  }
+
+  if (/maximum length|lower or equal|too long/i.test(message)) {
+    return `The ${name} field is too long.`
+  }
+
+  if (/format|pattern/i.test(message)) return `The ${name} field is not valid.`
+
+  return summary === '' ? `The ${name} field is not valid.` : summary
 }

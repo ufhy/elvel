@@ -24,6 +24,7 @@ export {
   ForbiddenException,
   HttpException,
   NotFoundException,
+  schemaErrors,
   UnauthorizedException
 } from './exceptions.ts'
 export {

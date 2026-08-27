@@ -25,7 +25,8 @@ import { TokenMismatchError, tokensMatch } from './csrf.ts'
 import { maintenancePlugin } from './maintenance.ts'
 import { methodOverridePlugin } from './method-override.ts'
 import { MiddlewareRegistry } from './middleware.ts'
-import { PREVIOUS_URL_KEY } from './redirect.ts'
+import { expectsJson } from './negotiation.ts'
+import { PREVIOUS_URL_KEY, redirect } from './redirect.ts'
 import { compileRoutes } from './router/compile.ts'
 import { RouteRegistry } from './routes.ts'
 import { enterRequestScope } from './scope.ts'
@@ -45,6 +46,18 @@ declare module '@elvel/contracts' {
     routes: RouteRegistry
     /** Compiles what `Route.*` declared. Read by `withRoutes`. */
     'routes.compiler': () => Elysia
+    /**
+     * How a failed route schema goes back to the form — read by the handler.
+     *
+     * Bound here because the redirect needs the session and the negotiation rule,
+     * and `@elvel/core` cannot depend on this package. Answers `undefined` when the
+     * caller wants JSON, which is what leaves an API client its 422.
+     */
+    'validation.redirect': (
+      bag: Record<string, string[]>,
+      posted: unknown,
+      request: Request
+    ) => Promise<Response> | undefined
   }
 }
 
@@ -66,6 +79,28 @@ export class HttpServiceProvider extends ServiceProvider {
    */
   private registerMiddleware(): void {
     this.app.singleton('bindings', () => new BindingRegistry())
+
+    /**
+     * The other half of `Route.validate()` — Laravel's `failedValidation`.
+     *
+     * A `FormRequest` decides this for itself; a route schema is refused by Elysia
+     * before any of ours runs, so the decision is made once here and the exception
+     * handler asks for it. Same rule either way: JSON gets the 422, a browser gets
+     * its form back with the messages and what it typed.
+     *
+     * `toResponse(true)` saves the session, because nothing else does on the error
+     * path — the same reason `failedValidation` passes it.
+     */
+    this.app.instance('validation.redirect', (bag, posted, request) => {
+      if (expectsJson({ request })) return undefined
+
+      const back = redirect()
+        .back()
+        .withErrors(bag)
+        .withInput(typeof posted === 'object' && posted !== null ? { ...posted } : {})
+
+      return back.toResponse(true)
+    })
 
     this.app.singleton('middleware', () => {
       const registry = new MiddlewareRegistry()
