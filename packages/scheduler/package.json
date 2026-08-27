@@ -1,6 +1,6 @@
 {
   "name": "@elvel/scheduler",
-  "version": "1.0.0-alpha.15",
+  "version": "1.0.0-alpha.16",
   "description": "Laravel-style task scheduling for Elvel — cron expressions, fluent frequencies, schedule:run",
   "keywords": [
     "bun",

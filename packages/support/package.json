@@ -1,6 +1,6 @@
 {
   "name": "@elvel/support",
-  "version": "1.0.0-alpha.15",
+  "version": "1.0.0-alpha.16",
   "description": "Foundational utilities shared across Elvel — Collection, Str, Arr, mirrors Illuminate\\Support",
   "keywords": [
     "arr",

@@ -1,6 +1,6 @@
 {
   "name": "@elvel/notifications",
-  "version": "1.0.0-alpha.15",
+  "version": "1.0.0-alpha.16",
   "description": "Laravel-style notifications for Elvel — mail, database, broadcast and Telegram channels",
   "keywords": [
     "bun",
