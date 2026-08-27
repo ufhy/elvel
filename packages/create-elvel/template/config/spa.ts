@@ -38,14 +38,5 @@ export default {
    * turns that into a parse error three layers away from the mistake — the
    * expensive kind of confusing.
    */
-  apiPrefixes: ['/api/'],
-
-  /**
-   * Markup added to every document's `<head>`, after the asset tags.
-   *
-   * A favicon, a `<meta name="description">`, a theme colour — anything every page
-   * needs. Here rather than on each `document()` call, because the document a 404
-   * renders comes from the exception handler, which has no call to put it on.
-   */
-  head: env('SPA_HEAD', '')
+  apiPrefixes: ['/api/']
 }

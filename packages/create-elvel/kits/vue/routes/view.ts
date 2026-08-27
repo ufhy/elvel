@@ -48,7 +48,17 @@ Route.any(`/${config<string>('vite.buildDirectory', 'build')}/{path}`, () => {
 
 const shell = {
   mountId: config<string>('spa.mountId', 'app'),
-  head: config<string>('spa.head', ''),
+
+  /**
+   * What every document carries in its `<head>`, written where it is rendered.
+   *
+   * This was a `spa.head` config key, read on every document to solve a problem
+   * these two routes remove: the exception handler renders a document for an
+   * unknown address and has nowhere to hang an icon. Nothing unknown reaches it
+   * now — the routes below answer every address a browser can type — so the markup
+   * belongs at the call site, where a reader can see it.
+   */
+  head: '<link rel="icon" href="/favicon.svg" type="image/svg+xml" />',
   title: config<string>('app.name', 'Elvel')
 }
 

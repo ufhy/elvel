@@ -110,15 +110,17 @@ export class Spa {
          */
         title: options.title ?? config<string>('spa.title', ''),
         /**
-         * The application's own `<head>` markup, from config when a caller says
-         * nothing.
+         * `<head>` markup, from the caller only.
          *
-         * Every document needs it, and not every document is returned by a
-         * controller: the exception handler renders one for any unknown path, and it
-         * has no options to pass. With this only on the call, a favicon reached the
-         * dashboard and nothing else.
+         * There was a `spa.head` config key behind this. It was there because the
+         * exception handler renders a document for any unknown path and has no
+         * options to hang an icon on — but an application that answers its own
+         * addresses with `Route.view` passes the markup where it renders, and one
+         * that does not can put the icon in its own `Document` wrapper. A config
+         * key read on every document to serve a case one route makes disappear was
+         * not worth its own knob.
          */
-        head: options.head ?? config<string>('spa.head', ''),
+        head: options.head ?? '',
         payload
       },
       {

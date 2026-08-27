@@ -24,7 +24,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./config/*": "./config/*",
     "./vue": "./src/vue.ts"
   },
   "files": [

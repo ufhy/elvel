@@ -34,14 +34,5 @@ export default {
    * missing one has to arrive as a 404 the client can see rather than as HTML it
    * would fail to parse three layers from the mistake.
    */
-  apiPrefixes: ['/api/'],
-
-  /**
-   * Markup every document carries in its `<head>`, after the asset tags.
-   *
-   * Here rather than on each `document()` call: the document a 404 renders comes
-   * from the exception handler, which has no call to hang options on — so an icon
-   * named at the call site reached the dashboard and no other page.
-   */
-  head: env('SPA_HEAD', '<link rel="icon" href="/favicon.svg" type="image/svg+xml" />')
+  apiPrefixes: ['/api/']
 }
