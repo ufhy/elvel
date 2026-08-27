@@ -1,14 +1,13 @@
 /*
  * Not rendered in this kit, and here only because an import needs it.
  *
- * `AuthPageController` answers /reset-password with the document the Vue client boots from,
- * and the Vue page at `frontend/src/views/auth/ResetPassword.vue` is what you edit. The auth
- * kit's controller — which this kit uses unchanged, actions and all — still imports
- * this file, so the file has to exist.
+ * No route reaches this file. `routes/view.ts` answers every address with the
+ * shell the Vue client boots from, and `frontend/src/views/auth/ResetPassword.vue` is the page
+ * you edit. What still points here is an `import` in the auth kit's controller,
+ * which this kit uses unchanged for its actions — so the file has to exist, and
+ * has nothing to render.
  *
- * The full page it replaced is in the `auth` kit if you ever want it back: mount
- * `AuthPageController` earlier than that controller in `routes/web.ts`, or drop it,
- * and the server-rendered screen returns.
+ * The full page it replaced is in the `auth` kit if you ever want it back.
  */
 export function ResetPassword(_props: { title: string; token?: string; error?: string }): string {
   return ''

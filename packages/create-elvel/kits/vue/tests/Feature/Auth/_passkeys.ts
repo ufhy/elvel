@@ -25,7 +25,7 @@ const address = () => `passkey-${Date.now()}-${Math.round(Math.random() * 1e6)}@
 const PASSWORD = 'longenough1'
 
 async function register(email: string): Promise<TestResponse> {
-  const page = await press(app).get('/sign-up')
+  const page = await press(app).get('/auth/sign-up')
 
   return postForm('/sign-up', { name: 'Test Person', email, password: PASSWORD }, page)
 }

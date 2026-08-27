@@ -1,5 +1,6 @@
 import { onMounted, ref } from 'vue'
-import { NeedsPasswordConfirmation, Unauthenticated } from '@/api.ts'
+import { Unauthenticated } from '@/api.ts'
+import { confirmed } from '@/composables/usePasswordConfirm.ts'
 
 /**
  * Something a page reads from the server, with the three states it really has.
@@ -12,6 +13,10 @@ import { NeedsPasswordConfirmation, Unauthenticated } from '@/api.ts'
  * A 401 is not an error to display. The session expired while the page was open, and
  * the only useful response is to go where a signed-out visitor belongs — the server
  * will take it from there. Anything else is left for the caller to show.
+ *
+ * A 423 is not one either, and it is not handled here: `confirmed` asks for the
+ * password in a dialog and loads again. What reaches the `catch` is either a real
+ * failure or a wall somebody dismissed, and both belong in `failed`.
  */
 export function useResource<T>(load: () => Promise<T>) {
   const data = ref<T | null>(null)
@@ -21,26 +26,10 @@ export function useResource<T>(load: () => Promise<T>) {
     failed.value = ''
 
     try {
-      data.value = await load()
+      data.value = await confirmed(load)
     } catch (problem) {
       if (problem instanceof Unauthenticated) {
-        window.location.assign('/sign-in')
-
-        return
-      }
-
-      /**
-       * A 423 means the password needs confirming again, and the answer is to load
-       * this same address as a document.
-       *
-       * Not a jump to the confirmation screen: the server has the same guard on the
-       * document route, and answering it there redirects *and* remembers where this
-       * person was going. Jumping there directly arrives without that, and sends
-       * them somewhere else afterwards — measured, it landed on
-       * `/settings/security` after being stopped on `/settings/passkeys`.
-       */
-      if (problem instanceof NeedsPasswordConfirmation) {
-        window.location.assign(window.location.href)
+        window.location.assign('/auth/sign-in')
 
         return
       }

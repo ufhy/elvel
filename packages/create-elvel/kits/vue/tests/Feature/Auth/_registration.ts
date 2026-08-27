@@ -24,7 +24,7 @@ beforeEach(async () => {
 const address = () => `test-${Date.now()}-${Math.round(Math.random() * 1e6)}@example.com`
 
 async function register(email: string, password = 'longenough1'): Promise<TestResponse> {
-  const page = await press(app).get('/sign-up')
+  const page = await press(app).get('/auth/sign-up')
 
   return postForm('/sign-up', { name: 'Test Person', email, password }, page)
 }
@@ -56,6 +56,6 @@ describe('registration', () => {
     const again = await register(email)
 
     // Back to the form with an error, not a 500 and not a second account.
-    again.assertRedirect('/sign-up')
+    again.assertRedirect('/auth/sign-up')
   })
 })

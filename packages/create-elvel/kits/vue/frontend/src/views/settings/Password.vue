@@ -37,8 +37,11 @@ const form = useForm({ current: '', password: '', password_confirmation: '' })
           v-model="form.data.current"
           type="password"
           autocomplete="current-password"
-          required
+          :aria-invalid="Boolean(form.errors.current)"
         />
+        <p v-if="form.errors.current" class="text-destructive text-sm">
+          {{ form.errors.current }}
+        </p>
       </div>
 
       <div class="grid gap-2">
@@ -48,7 +51,6 @@ const form = useForm({ current: '', password: '', password_confirmation: '' })
           v-model="form.data.password"
           type="password"
           autocomplete="new-password"
-          required
           :aria-invalid="Boolean(form.errors.password)"
         />
         <p v-if="form.errors.password" class="text-destructive text-sm">
@@ -63,8 +65,11 @@ const form = useForm({ current: '', password: '', password_confirmation: '' })
           v-model="form.data.password_confirmation"
           type="password"
           autocomplete="new-password"
-          required
+          :aria-invalid="Boolean(form.errors.password_confirmation)"
         />
+        <p v-if="form.errors.password_confirmation" class="text-destructive text-sm">
+          {{ form.errors.password_confirmation }}
+        </p>
       </div>
 
       <div>

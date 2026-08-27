@@ -38,12 +38,12 @@ const fresh = useForm({ password: '' }, again)
     </Alert>
 
     <!-- Step two: prove the secret was scanned. -->
-    <div v-if="data === null" class="grid max-w-lg gap-3">
+    <div v-if="data === null && !failed" class="grid max-w-lg gap-3">
       <Skeleton class="h-4 w-64" />
       <Skeleton class="h-9 w-full" />
     </div>
 
-    <div v-else-if="data.pending" class="grid max-w-lg gap-4">
+    <div v-else-if="data !== null && data.pending" class="grid max-w-lg gap-4">
       <p class="text-sm">
         Scan this in your authenticator app, or type the secret in by hand, then enter
         the code it shows.
@@ -69,7 +69,6 @@ const fresh = useForm({ password: '' }, again)
           v-model="confirm.data.code"
           inputmode="numeric"
           autocomplete="one-time-code"
-          required
           :aria-invalid="Boolean(confirm.errors.code)"
         />
         <p v-if="confirm.errors.code" class="text-destructive text-sm">{{ confirm.errors.code }}</p>
@@ -83,7 +82,7 @@ const fresh = useForm({ password: '' }, again)
     </div>
 
     <!-- On: offer fresh recovery codes, or turning it off. -->
-    <div v-else-if="data.enabled" class="grid max-w-lg gap-6">
+    <div v-else-if="data !== null && data.enabled" class="grid max-w-lg gap-6">
       <p class="text-sm">Two-factor authentication is on for this account.</p>
 
       <form class="grid gap-2" @submit.prevent="fresh.post('/settings/two-factor/recovery-codes')">
@@ -96,7 +95,7 @@ const fresh = useForm({ password: '' }, again)
           v-model="fresh.data.password"
           type="password"
           autocomplete="current-password"
-          required
+          :aria-invalid="Boolean(fresh.errors.password)"
         />
         <p v-if="fresh.errors.password" class="text-destructive text-sm">
           {{ fresh.errors.password }}
@@ -115,7 +114,7 @@ const fresh = useForm({ password: '' }, again)
           v-model="disable.data.password"
           type="password"
           autocomplete="current-password"
-          required
+          :aria-invalid="Boolean(disable.errors.password)"
         />
         <p v-if="disable.errors.password" class="text-destructive text-sm">
           {{ disable.errors.password }}
@@ -130,14 +129,17 @@ const fresh = useForm({ password: '' }, again)
     </div>
 
     <!-- Off: step one. -->
-    <form v-else class="grid max-w-lg gap-2" @submit.prevent="enable.post('/settings/two-factor')">
+    <form
+      v-else-if="data !== null"
+      class="grid max-w-lg gap-2"
+      @submit.prevent="enable.post('/settings/two-factor')"
+    >
       <Label for="enable-password">Confirm your password to begin</Label>
       <Input
         id="enable-password"
         v-model="enable.data.password"
         type="password"
         autocomplete="current-password"
-        required
         :aria-invalid="Boolean(enable.errors.password)"
       />
       <p v-if="enable.errors.password" class="text-destructive text-sm">

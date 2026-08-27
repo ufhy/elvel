@@ -45,7 +45,6 @@ const recovery = useForm({ code: '' })
           v-model="totp.data.code"
           inputmode="numeric"
           autocomplete="one-time-code"
-          required
           autofocus
           :aria-invalid="Boolean(totp.errors.code)"
         />
@@ -64,7 +63,6 @@ const recovery = useForm({ code: '' })
           id="recovery-code"
           v-model="recovery.data.code"
           autocomplete="one-time-code"
-          required
           autofocus
           :aria-invalid="Boolean(recovery.errors.code)"
         />

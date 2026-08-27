@@ -45,7 +45,6 @@ const form = useForm(
           v-model="form.data.email"
           type="email"
           autocomplete="username"
-          required
           :aria-invalid="Boolean(form.errors.email)"
         />
         <p v-if="form.errors.email" class="text-destructive text-sm">{{ form.errors.email }}</p>
@@ -57,7 +56,7 @@ const form = useForm(
     </form>
 
     <p class="text-muted-foreground mt-4 text-center text-sm">
-      <a href="/sign-in" class="text-foreground hover:underline">Back to sign in</a>
+      <RouterLink to="/auth/sign-in" class="text-foreground hover:underline">Back to sign in</RouterLink>
     </p>
   </AuthLayout>
 </template>

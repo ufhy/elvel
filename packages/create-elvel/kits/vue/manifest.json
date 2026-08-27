@@ -1,3 +1,7 @@
 {
-  "removes": ["resources/views/pages/dashboard.tsx", "resources/views/pages/settings/nav.tsx"]
+  "removes": [
+    "app/Http/Controllers/DashboardController.ts",
+    "resources/views/pages/dashboard.tsx",
+    "resources/views/pages/settings/nav.tsx"
+  ]
 }

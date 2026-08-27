@@ -1,5 +1,6 @@
 import { type Form, type FormOptions, useForm as base } from '@elvel/spa/vue'
 import { csrf } from '@/api.ts'
+import { confirmed } from '@/composables/usePasswordConfirm.ts'
 
 /**
  * `useForm`, wired to this application's two answers.
@@ -22,9 +23,30 @@ export function useForm<T extends Record<string, unknown>>(
   initial: T,
   options: FormOptions = {}
 ): Form<T> {
-  return base(initial, {
+  const form = base(initial, {
     token: csrf,
     onRedirect: (to) => window.location.assign(to),
     ...options
   })
+
+  /**
+   * **The password wall.** Every write goes through `confirmed`, which asks in a
+   * dialog and then sends the same submission again.
+   *
+   * Wrapped in place rather than by returning a new object: `form` is reactive, and
+   * a spread of it is a snapshot that stops updating — the button would never
+   * re-enable and no error would ever appear.
+   *
+   * Without this a `423` threw with nothing catching it, so the form simply did
+   * nothing at all: measured on "generate new recovery codes" after the
+   * confirmation had timed out. `useResource` had its own handling for reads and
+   * writes had none.
+   */
+  for (const verb of ['post', 'put', 'patch', 'delete'] as const) {
+    const send = form[verb]
+
+    form[verb] = (path: string) => confirmed(() => send(path))
+  }
+
+  return form
 }

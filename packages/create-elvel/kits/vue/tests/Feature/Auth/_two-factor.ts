@@ -33,7 +33,7 @@ const PASSWORD = 'longenough1'
 type Enrolment = { uri: string; secret: string; codes: string[] }
 
 async function register(email: string): Promise<TestResponse> {
-  const page = await press(app).get('/sign-up')
+  const page = await press(app).get('/auth/sign-up')
 
   return postForm('/sign-up', { name: 'Test Person', email, password: PASSWORD }, page)
 }
@@ -136,7 +136,7 @@ describe('turning two-factor on', () => {
     await confirmPassword(session)
     await enrol(session)
 
-    const form = await press(app).get('/sign-in')
+    const form = await press(app).get('/auth/sign-in')
     const signedIn = await postForm('/sign-in', { email, password: PASSWORD }, form)
 
     signedIn.assertRedirect('/dashboard')
@@ -167,13 +167,13 @@ describe('signing in with two-factor on', () => {
     const email = address()
     const secret = await protectedAccount(email)
 
-    const form = await press(app).get('/sign-in')
+    const form = await press(app).get('/auth/sign-in')
     const challenged = await postForm('/sign-in', { email, password: PASSWORD }, form)
 
     // No session yet — what came back is the two-factor cookie and a redirect.
-    challenged.assertRedirect('/two-factor-challenge')
+    challenged.assertRedirect('/auth/two-factor-challenge')
 
-    const page = await press(app).withCookiesFrom(challenged).get('/two-factor-challenge')
+    const page = await press(app).withCookiesFrom(challenged).get('/auth/two-factor-challenge')
 
     expect(page.status).toBe(200)
 
@@ -191,12 +191,12 @@ describe('signing in with two-factor on', () => {
     const email = address()
     await protectedAccount(email)
 
-    const form = await press(app).get('/sign-in')
+    const form = await press(app).get('/auth/sign-in')
     const challenged = await postForm('/sign-in', { email, password: PASSWORD }, form)
 
-    const page = await press(app).withCookiesFrom(challenged).get('/two-factor-challenge')
+    const page = await press(app).withCookiesFrom(challenged).get('/auth/two-factor-challenge')
     const refused = await postForm('/two-factor-challenge', { code: '000000' }, page, challenged)
 
-    refused.assertRedirect('/two-factor-challenge')
+    refused.assertRedirect('/auth/two-factor-challenge')
   })
 })

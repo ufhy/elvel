@@ -7,12 +7,16 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useForm } from '@/lib/form.ts'
 
 /**
- * The wall in front of anything that would undo the account's security.
+ * The wall, for the one caller that cannot be shown a dialog.
  *
- * A gate, not a destination: the server answers a correct password with
- * `intended(…)` — wherever this person was headed when the wall came up — so the
- * client only has to follow what it is told, and this page needs to know nothing
- * about where that is.
+ * Inside the application this is a dialog — `components/PasswordConfirmDialog.vue`
+ * — because the client catches the `423` itself and nobody needs to leave the
+ * screen. This page is the other way in: a request that is not JSON is redirected
+ * by the server to `passwordConfirmRoute`, and a redirect has to land somewhere.
+ *
+ * So it follows what the server says. `intended(…)` is all there is to go on here,
+ * and it is right for this path: the server was asked for a document, so what it
+ * remembered is a document.
  *
  * `AuthLayout` rather than `AppLayout`, even though somebody is signed in. A
  * sidebar here would offer the navigation this page exists to interrupt.
@@ -34,7 +38,6 @@ const form = useForm({ password: '' })
           v-model="form.data.password"
           type="password"
           autocomplete="current-password"
-          required
           autofocus
           :aria-invalid="Boolean(form.errors.password)"
         />

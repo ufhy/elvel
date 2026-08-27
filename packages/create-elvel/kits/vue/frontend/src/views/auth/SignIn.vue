@@ -42,7 +42,6 @@ onMounted(() => passkey.offerFromField())
           v-model="form.data.email"
           type="email"
           autocomplete="username webauthn"
-          required
           :aria-invalid="Boolean(form.errors.email)"
         />
         <p v-if="form.errors.email" class="text-destructive text-sm">{{ form.errors.email }}</p>
@@ -51,9 +50,12 @@ onMounted(() => passkey.offerFromField())
       <div class="grid gap-2">
         <div class="flex items-center justify-between">
           <Label for="password">Password</Label>
-          <a href="/forgot-password" class="text-muted-foreground text-sm hover:underline">
+          <RouterLink
+            to="/auth/forgot-password"
+            class="text-muted-foreground text-sm hover:underline"
+          >
             Forgot it?
-          </a>
+          </RouterLink>
         </div>
 
         <Input
@@ -61,7 +63,6 @@ onMounted(() => passkey.offerFromField())
           v-model="form.data.password"
           type="password"
           autocomplete="current-password"
-          required
           :aria-invalid="Boolean(form.errors.password)"
         />
         <p v-if="form.errors.password" class="text-destructive text-sm">
@@ -85,7 +86,7 @@ onMounted(() => passkey.offerFromField())
 
     <p class="text-muted-foreground mt-4 text-center text-sm">
       No account yet?
-      <a href="/sign-up" class="text-foreground hover:underline">Create one</a>.
+      <RouterLink to="/auth/sign-up" class="text-foreground hover:underline">Create one</RouterLink>.
     </p>
   </AuthLayout>
 </template>

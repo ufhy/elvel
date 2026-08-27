@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useResource } from '@/composables/useResource.ts'
 import SettingsLayout from '@/layouts/SettingsLayout.vue'
 import { useForm } from '@/lib/form.ts'
+import DeleteAccount from '@/components/DeleteAccount.vue'
 import { api } from '@/api.ts'
 
 /**
@@ -56,15 +57,24 @@ const pending = new URLSearchParams(window.location.search).has('pending')
       <AlertDescription>{{ failed }}</AlertDescription>
     </Alert>
 
-    <div v-if="data === null" class="grid max-w-lg gap-4">
+    <div v-if="data === null && !failed" class="grid max-w-lg gap-4">
       <Skeleton class="h-9 w-full" />
       <Skeleton class="h-9 w-full" />
     </div>
 
-    <form v-else class="grid max-w-lg gap-4" @submit.prevent="form.patch('/settings/profile')">
+    <form
+      v-else-if="data !== null"
+      class="grid max-w-lg gap-4"
+      @submit.prevent="form.patch('/settings/profile')"
+    >
       <div class="grid gap-2">
         <Label for="name">Name</Label>
-        <Input id="name" v-model="form.data.name" autocomplete="name" required />
+        <Input
+          id="name"
+          v-model="form.data.name"
+          autocomplete="name"
+          :aria-invalid="Boolean(form.errors.name)"
+        />
         <p v-if="form.errors.name" class="text-destructive text-sm">{{ form.errors.name }}</p>
       </div>
 
@@ -75,14 +85,13 @@ const pending = new URLSearchParams(window.location.search).has('pending')
           v-model="form.data.email"
           type="email"
           autocomplete="username"
-          required
           :aria-invalid="Boolean(form.errors.email)"
         />
         <p v-if="form.errors.email" class="text-destructive text-sm">{{ form.errors.email }}</p>
 
         <p v-if="data.emailVerified === false" class="text-muted-foreground text-sm">
           This address is unverified.
-          <a href="/verify-email" class="text-foreground hover:underline">Send the link again</a>.
+          <RouterLink to="/verify-email" class="text-foreground hover:underline">Send the link again</RouterLink>.
         </p>
       </div>
 
@@ -92,5 +101,7 @@ const pending = new URLSearchParams(window.location.search).has('pending')
         </Button>
       </div>
     </form>
+
+    <DeleteAccount />
   </SettingsLayout>
 </template>

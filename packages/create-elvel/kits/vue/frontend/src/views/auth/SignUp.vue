@@ -22,7 +22,12 @@ const form = useForm({ name: '', email: '', password: '' })
     <form class="grid gap-4" @submit.prevent="form.post('/sign-up')">
       <div class="grid gap-2">
         <Label for="name">Name</Label>
-        <Input id="name" v-model="form.data.name" autocomplete="name" required />
+        <Input
+          id="name"
+          v-model="form.data.name"
+          autocomplete="name"
+          :aria-invalid="Boolean(form.errors.name)"
+        />
         <p v-if="form.errors.name" class="text-destructive text-sm">{{ form.errors.name }}</p>
       </div>
 
@@ -33,7 +38,6 @@ const form = useForm({ name: '', email: '', password: '' })
           v-model="form.data.email"
           type="email"
           autocomplete="username"
-          required
           :aria-invalid="Boolean(form.errors.email)"
         />
         <p v-if="form.errors.email" class="text-destructive text-sm">{{ form.errors.email }}</p>
@@ -46,7 +50,6 @@ const form = useForm({ name: '', email: '', password: '' })
           v-model="form.data.password"
           type="password"
           autocomplete="new-password"
-          required
           :aria-invalid="Boolean(form.errors.password)"
         />
         <p v-if="form.errors.password" class="text-destructive text-sm">
@@ -61,7 +64,7 @@ const form = useForm({ name: '', email: '', password: '' })
 
     <p class="text-muted-foreground mt-4 text-center text-sm">
       Already have an account?
-      <a href="/sign-in" class="text-foreground hover:underline">Sign in</a>.
+      <RouterLink to="/auth/sign-in" class="text-foreground hover:underline">Sign in</RouterLink>.
     </p>
   </AuthLayout>
 </template>

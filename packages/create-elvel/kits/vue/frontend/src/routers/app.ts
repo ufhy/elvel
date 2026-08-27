@@ -50,6 +50,26 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Appearance' }
   },
 
+  /**
+   * The two auth screens that are not in the auth bundle.
+   *
+   * Both are for somebody already signed in — one confirms an address, the other a
+   * password — so the server keeps them in this half, behind `auth`, and the guest
+   * prefix would have turned their visitor away. The components live under
+   * `views/auth/` because that is what they are about; which bundle they ship in is
+   * decided here.
+   */
+  {
+    path: '/verify-email',
+    component: () => import('../views/auth/VerifyEmail.vue'),
+    meta: { title: 'Verify your email' }
+  },
+  {
+    path: '/confirm-password',
+    component: () => import('../views/auth/ConfirmPassword.vue'),
+    meta: { title: 'Confirm your password' }
+  },
+
   {
     path: '/dashboard',
     name: 'dashboard',

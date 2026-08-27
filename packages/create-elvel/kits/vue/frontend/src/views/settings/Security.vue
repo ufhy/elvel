@@ -77,12 +77,12 @@ const on = (value?: string) => (value ? new Date(value).toLocaleString() : '')
       <AlertDescription>{{ failed }}</AlertDescription>
     </Alert>
 
-    <div v-if="data === null" class="mb-6 grid gap-2">
+    <div v-if="data === null && !failed" class="mb-6 grid gap-2">
       <Skeleton class="h-14 w-full" />
       <Skeleton class="h-14 w-full" />
     </div>
 
-    <ul v-else class="mb-6 grid gap-2">
+    <ul v-else-if="data !== null" class="mb-6 grid gap-2">
       <li
         v-for="session in data.sessions"
         :key="session.id"

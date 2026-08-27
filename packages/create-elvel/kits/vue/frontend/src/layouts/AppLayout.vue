@@ -2,6 +2,7 @@
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from '@/components/AppSidebar.vue'
+import PasswordConfirmDialog from '@/components/PasswordConfirmDialog.vue'
 
 /**
  * The frame every signed-in page sits in.
@@ -9,12 +10,19 @@ import AppSidebar from '@/components/AppSidebar.vue'
  * A layout rather than something `App.vue` always renders, because not every page
  * wants it — a sign-in screen has no sidebar, and neither does a 404 reached from
  * outside. Routes name the layout they belong to.
+ *
+ * The password wall is mounted here, once. It belongs to the frame rather than to
+ * the screens that trigger it: the security screens read two panels at a time and
+ * one dialog has to serve both, and a screen that mounted its own would ask again
+ * for each. Nothing renders until something hits a `423`.
  */
 defineProps<{ title?: string }>()
 </script>
 
 <template>
   <SidebarProvider>
+    <PasswordConfirmDialog />
+
     <AppSidebar />
 
     <SidebarInset>

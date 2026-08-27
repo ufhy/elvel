@@ -50,11 +50,11 @@ const on = (value?: string) => (value ? new Date(value).toLocaleDateString() : '
       <AlertDescription>{{ passkey.error.value || failed }}</AlertDescription>
     </Alert>
 
-    <div v-if="data === null" class="mb-6 grid gap-2">
+    <div v-if="data === null && !failed" class="mb-6 grid gap-2">
       <Skeleton class="h-11 w-full" />
     </div>
 
-    <template v-else>
+    <template v-else-if="data !== null">
       <ul v-if="data.passkeys.length" class="mb-6 grid gap-2">
         <li
           v-for="row in data.passkeys"
