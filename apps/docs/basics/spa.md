@@ -118,8 +118,14 @@ looking at.
 Cacheable has to be **said**, and the view route is where it is said:
 
 ```ts
-Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, {
+// the guest half: nothing about it depends on who is asking
+Route.view('/{path}', Shell, { entry: 'src/auth.ts' }, 200, {
   'cache-control': 'public, max-age=0, must-revalidate'
+}).where('path', '.*')
+
+// behind `auth`: the bytes are impersonal, but whether they exist is not
+Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, {
+  'cache-control': 'private, max-age=0, must-revalidate'
 }).where('path', '.*')
 ```
 
@@ -128,6 +134,22 @@ a job here: a view returns markup rather than a response, so a route that render
 the only place a header can be named. Without it the shell goes out with no
 `cache-control` at all and every cache is left guessing at freshness — which is
 exactly what a service worker's navigation cache cannot work with.
+
+`private` for the guarded half is a deliberate downgrade. What depends on the cookie
+is not the bytes but whether the response exists — a guest gets a 302 — and a shared
+cache that served the signed-in shell while revalidating would be answering for the
+guard. Nothing can do that today, because the response carries no `ETag` and
+`must-revalidate` then leaves a cache no choice but to forward; `private` is what
+keeps that true after somebody adds one.
+
+::: warning A route's own headers win over the framework's
+The security headers are applied only where a response does not already carry one —
+`set.headers[name] ??= value` — so a header named here **replaces** the framework's.
+Measured: a route answering `content-security-policy: default-src *` and
+`x-frame-options: ALLOWALL` kept both. That is what makes a per-route policy possible
+at all, and it means a typo in this argument is a silently weakened policy. Name cache
+directives here; leave the security headers to `config/security.ts`.
+:::
 
 ```ts
 // routes/api.ts
@@ -306,6 +328,13 @@ workbox: {
 
 That is the shape the cacheable shell was built for: the same bytes for everybody,
 `must-revalidate`, no `Set-Cookie` — a document a cache is allowed to hold.
+
+One measured caveat before you count on a CDN: the shell carries **no `ETag`**, and
+`must-revalidate` without a validator leaves a shared cache nothing to revalidate
+*with*, so it forwards every request. The header is honest signalling rather than
+reuse. A service worker does not care — it stores the response itself and decides
+when to go back — but if you want the CDN half too, the route has to answer a
+validator.
 
 One more trap worth naming before you reach for it: a write queued offline and
 replayed later by background sync carries the CSRF token it was queued with, and

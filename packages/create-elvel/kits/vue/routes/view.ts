@@ -38,19 +38,31 @@ import { Shell } from '../resources/views/components/shell.tsx'
  * belong to the half below, and `frontend/src/routers/app.ts` mounts them there.
  */
 /**
- * Cacheable, and said out loud.
+ * Cacheable, and said out loud — but by whom differs per half.
  *
- * The shell carries no payload and no token, so it is the same bytes for everybody
- * — and a response that *is* cacheable but never says so is one a browser guesses
- * at. `max-age=0, must-revalidate` is the honest pair: keep it, and ask before
- * using it. That revalidation is what a service worker's navigation cache and a
- * CDN both need in order to hold the document at all.
+ * The shell carries no payload and no token, so the bytes are the same for
+ * everybody, and a response that *is* cacheable but never says so is one every
+ * cache guesses at. `max-age=0, must-revalidate` is the honest pair: keep it, and
+ * ask before using it.
  *
- * `public` is only safe because there is nothing personal in here. Put a payload in
- * the shell and this header has to become `no-store` in the same edit, or a shared
- * cache will hand one person's document to the next.
+ * `public` for the guest half. Nothing about `/auth/*` depends on who is asking —
+ * it is served to people who are nobody yet — so a shared cache and a CDN are
+ * welcome to it.
+ *
+ * `private` for the half behind `auth`, and that is a deliberate downgrade rather
+ * than an oversight. The bytes are still impersonal; what depends on the cookie is
+ * whether this response exists at all, since a guest gets a 302 instead. Nothing
+ * can be reused today — the response carries no `ETag`, so `must-revalidate` leaves
+ * a shared cache no choice but to forward every request — but that is one edit away
+ * from being untrue, and a CDN configured with `stale-while-revalidate` would then
+ * hand the signed-in shell to a guest while it asked. `private` costs nothing real
+ * and removes the whole class.
+ *
+ * Put a payload in the shell and both of these become `no-store` in the same edit,
+ * or a cache will hand one person's document to the next.
  */
 const CACHEABLE = { 'cache-control': 'public, max-age=0, must-revalidate' }
+const PERSONAL = { 'cache-control': 'private, max-age=0, must-revalidate' }
 
 Route.prefix('auth')
   .middleware('guest')
@@ -59,5 +71,5 @@ Route.prefix('auth')
   })
 
 Route.middleware('auth').group(() => {
-  Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, CACHEABLE).where('path', '.*')
+  Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, PERSONAL).where('path', '.*')
 })

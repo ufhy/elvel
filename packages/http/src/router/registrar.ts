@@ -391,6 +391,13 @@ export const Route = {
    *   'cache-control': 'public, max-age=0, must-revalidate'
    * }).where('path', '.*')
    * ```
+   *
+   * **A header named here wins over the framework's.** The security headers are
+   * applied with `??=`, only where a response does not already carry one — measured,
+   * a route answering `content-security-policy: default-src *` kept it. That is what
+   * makes a per-route policy possible, and it means a typo here is a silently
+   * weakened policy. Cache directives belong here; the security headers belong in
+   * `config/security.ts`.
    */
   view: (
     uri: string,

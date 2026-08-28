@@ -99,6 +99,35 @@ describe('the service worker header', () => {
     )
   })
 
+  /**
+   * And it cannot reach past `cache-control` into the security headers.
+   *
+   * `assets.headers` is merged *before* them for this reason: a binding whose
+   * stated job is a cache directive would otherwise be able to replace the Content
+   * Security Policy on every static file the application serves.
+   */
+  test('while the security headers still stand over it', async () => {
+    const app = await serve('sw.js')
+
+    app.instance('security.headers', () => ({
+      'content-security-policy': "default-src 'self'",
+      'x-content-type-options': 'nosniff'
+    }))
+
+    app.instance('assets.headers', () => ({
+      'content-security-policy': 'default-src *',
+      'cache-control': 'no-cache'
+    }))
+
+    const response = await app.handle(new Request('http://localhost/build/sw.js'))
+
+    expect<string | null>(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self'"
+    )
+    // And the one header it is allowed to decide still gets through.
+    expect<string | null>(response.headers.get('cache-control')).toBe('no-cache')
+  })
+
   /** Off by default: a header naming a scope should not be sent for no file. */
   test('and nothing is sent when no worker is named', async () => {
     const app = await serve(false)

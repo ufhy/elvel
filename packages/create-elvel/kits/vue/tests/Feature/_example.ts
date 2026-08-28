@@ -134,6 +134,25 @@ describe('what stays a 404 for somebody signed in', () => {
     posted.assertNotFound()
   })
 
+  /**
+   * The signed-in shell is `private`, and the guest one is `public`.
+   *
+   * Both carry the same impersonal bytes; what differs is that this one only exists
+   * for somebody with a cookie — a guest gets a 302. A shared cache serving it
+   * while it revalidated would be answering for the guard, so the guarded half says
+   * `private` and the guest half does not.
+   */
+  test('and the shell it does answer says who may cache it', async () => {
+    const me = await signedIn()
+    const mine = await press(app).withCookiesFrom(me).get('/invoices/9')
+
+    mine.assertOk().assertHeaderContains('cache-control', 'private')
+
+    const theirs = await press(app).get('/auth/sign-in')
+
+    theirs.assertOk().assertHeaderContains('cache-control', 'public')
+  })
+
   test('and a file the build does not have', async () => {
     const me = await signedIn()
     const response = await press(app).withCookiesFrom(me).get('/build/assets/index-abc123.js')

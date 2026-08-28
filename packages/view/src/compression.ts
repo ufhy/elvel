@@ -223,8 +223,6 @@ export function compressedAssets(options: CompressedAssetsOptions) {
       added['cache-control'] ??
       (underHash ? IMMUTABLE : `${options.directive}, max-age=${options.maxAge}`)
 
-    delete added['cache-control']
-
     /**
      * Everything it can resolve is answered here, compressed or not.
      *

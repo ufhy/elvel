@@ -30,7 +30,19 @@ export class ViewServiceProvider extends ServiceProvider {
    * reason the security headers were always read this way.
    */
   private assetHeaders(): (request: Request) => Record<string, string> {
-    const bindings = ['security.headers', 'assets.headers']
+    /**
+     * The security headers **last**, so nothing can weaken them.
+     *
+     * Order is the whole of the access control here. `assets.headers` is bound by
+     * whichever package wants a header for a particular file, and merged after the
+     * security headers it would be able to replace the Content Security Policy on
+     * every static file the application serves — from a binding whose stated job is
+     * a cache directive. Merged before them it cannot.
+     *
+     * It costs nothing, because the one header an asset contributor needs to
+     * *override* is `cache-control`, and the security headers do not set that.
+     */
+    const bindings = ['assets.headers', 'security.headers']
 
     return (request: Request) => {
       const headers: Record<string, string> = {}
