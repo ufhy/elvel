@@ -14,6 +14,7 @@ import { ScheduleServiceProvider } from '@elvel/scheduler'
 import { TranslationServiceProvider } from '@elvel/translation'
 import { ValidationServiceProvider } from '@elvel/validation'
 import { ViewServiceProvider } from '@elvel/view'
+import { ViteServiceProvider } from '@elvel/vite/provider'
 
 /**
  * The service providers this application registers, in boot order.
@@ -51,5 +52,6 @@ export const providers = [
   // Before the view provider: its static handler claims `GET /*`, which would
   // otherwise shadow the auth endpoints.
   AuthServiceProvider,
-  ViewServiceProvider
+  ViewServiceProvider,
+  ViteServiceProvider
 ]

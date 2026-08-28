@@ -123,10 +123,18 @@ describe('the providers a kit registers', () => {
   }
 
   /** `[[package, ProviderClass], …]`, read from the import lines. */
+  /**
+   * The package each provider comes from, subpath and all.
+   *
+   * `@elvel/vite/provider` is one: the package's default export is a Vite plugin
+   * that runs under Node in `vite.config.ts`, so its service provider is a second
+   * entry point. Matching only `@elvel/<name>` read that as a package called
+   * `vite/provider` and left `vite` looking like nobody registered it.
+   */
   function imported(source: string): Array<[string, string]> {
-    return [...source.matchAll(/import \{ (\w+ServiceProvider) \} from '@elvel\/([\w-]+)'/g)].map(
-      (match) => [match[2] as string, match[1] as string]
-    )
+    return [
+      ...source.matchAll(/import \{ (\w+ServiceProvider) \} from '@elvel\/([\w-]+)(?:\/[\w-]+)?'/g)
+    ].map((match) => [match[2] as string, match[1] as string])
   }
 
   test('every provider named is one its package actually exports', async () => {

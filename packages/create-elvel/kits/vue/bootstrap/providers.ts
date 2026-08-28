@@ -16,6 +16,7 @@ import { StorageServiceProvider } from '@elvel/storage'
 import { TranslationServiceProvider } from '@elvel/translation'
 import { ValidationServiceProvider } from '@elvel/validation'
 import { ViewServiceProvider } from '@elvel/view'
+import { ViteServiceProvider } from '@elvel/vite/provider'
 
 /**
  * The service providers this application registers, in boot order.
@@ -54,6 +55,7 @@ export const providers = [
   // otherwise shadow the auth endpoints.
   AuthServiceProvider,
   ViewServiceProvider,
+  ViteServiceProvider,
   /**
    * Last, and the one that makes this a client-routed application.
    *

@@ -1,5 +1,4 @@
 import { Route } from '@elvel/http'
-import { guardBuildDirectory } from '@elvel/vite/routes'
 import { Shell } from '../resources/views/components/shell.tsx'
 
 /**
@@ -39,20 +38,6 @@ import { Shell } from '../resources/views/components/shell.tsx'
  * confirms an address, the other a password — so `guest` would bounce them. They
  * belong to the half below, and `frontend/src/routers/app.ts` mounts them there.
  */
-/**
- * A stale asset stays a 404, rather than becoming one of the documents below.
- *
- * `@elvel/view` serves what exists under `public/` and lets anything else fall
- * through to the router, which is right everywhere except the build directory:
- * nothing lives there but hashed output, so a request for one that is gone is a
- * cached document asking for yesterday's bundle. Without this it fell through to
- * the view route and answered a page — measured, `200` and HTML to a browser
- * waiting for JavaScript.
- *
- * `vite.guardBuildDirectory: false` turns it off.
- */
-guardBuildDirectory()
-
 Route.prefix('auth')
   .middleware('guest')
   .group(() => {

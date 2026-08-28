@@ -27,7 +27,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./routes": "./src/routes.ts",
+    "./provider": "./src/provider.ts",
     "./tags": "./src/tags-entry.ts"
   },
   "files": [
@@ -46,13 +46,17 @@
   "peerDependencies": {
     "@elvel/core": "1.0.0-alpha.16",
     "@elvel/http": "1.0.0-alpha.16",
-    "vite": ">=6.0.0"
+    "vite": ">=6.0.0",
+    "elysia": ">=1.4.0"
   },
   "peerDependenciesMeta": {
     "@elvel/core": {
       "optional": true
     },
     "@elvel/http": {
+      "optional": true
+    },
+    "elysia": {
       "optional": true
     }
   }

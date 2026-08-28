@@ -8,6 +8,7 @@ import { ScheduleServiceProvider } from '@elvel/scheduler'
 import { TranslationServiceProvider } from '@elvel/translation'
 import { ValidationServiceProvider } from '@elvel/validation'
 import { ViewServiceProvider } from '@elvel/view'
+import { ViteServiceProvider } from '@elvel/vite/provider'
 
 /**
  * The service providers this application registers, in boot order.
@@ -63,5 +64,13 @@ export const providers = [
   ValidationServiceProvider,
   ScheduleServiceProvider,
   HttpServiceProvider,
-  ViewServiceProvider
+  ViewServiceProvider,
+
+  /**
+   * After the one that serves the files, because it answers for the ones that are
+   * not there: a request for a hashed asset the build has replaced is a stale
+   * document, and letting it fall through to the router hands a browser a page
+   * where it expected JavaScript. `vite.guardBuildDirectory: false` turns it off.
+   */
+  ViteServiceProvider
 ]
