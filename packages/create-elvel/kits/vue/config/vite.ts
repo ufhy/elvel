@@ -17,6 +17,17 @@ export default {
   buildDirectory: 'build',
 
   /**
+   * Where inside the build the *hashed* names live — Vite's `build.assetsDir`.
+   *
+   * Only this directory is served `immutable` for a year, because only here does a
+   * filename carry a content hash. What a plugin emits at the build root does not:
+   * `sw.js` and `registerSW.js` keep their names when their contents change, and a
+   * service worker cached for a year is an application frozen at its first deployed
+   * worker.
+   */
+  assetsDirectory: 'assets',
+
+  /**
    * Whether a miss under `buildDirectory` is a 404 rather than a page.
    *
    * `guardBuildDirectory()` in `routes/view.ts` reads this. Static files fall
@@ -28,5 +39,20 @@ export default {
    *
    * `false` for an application that would rather answer those addresses itself.
    */
-  guardBuildDirectory: true
+  guardBuildDirectory: true,
+
+  /**
+   * `'sw.js'` turns this application into an installable one — and that is all.
+   *
+   * The client half is one option: `VitePWA({ scope: '/', … })` in
+   * `frontend/vite.config.ts`. This key is the server half, and it exists because a
+   * service worker may claim no more than the directory it is served from: Vite
+   * writes it into `build/`, so without the header this sends it controls `/build/`
+   * and none of the addresses the Vue router owns.
+   *
+   * `false` here, because a header naming a scope should not be sent for a file that
+   * is not there. See `basics/spa` for what the client half has to decide — chiefly
+   * that `/api` is never cached.
+   */
+  serviceWorker: false as string | false
 }

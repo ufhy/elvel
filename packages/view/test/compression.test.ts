@@ -29,6 +29,17 @@ mkdirSync(join(root, 'build'), { recursive: true })
 writeFileSync(join(root, 'build', 'app.js'), script)
 writeFileSync(join(root, 'build', 'logo.png'), Buffer.alloc(4096, 7))
 
+/**
+ * And the build *root*, where the names carry nothing.
+ *
+ * Vite writes hashed output under `assets/` and unhashed files beside it — its own
+ * `manifest.json`, and whatever a plugin emits: `sw.js`, `registerSW.js`. The
+ * distinction is the whole point of these two directories in the fixture.
+ */
+mkdirSync(join(root, 'build', 'assets'), { recursive: true })
+writeFileSync(join(root, 'build', 'assets', 'app-a1b2c3.js'), script)
+writeFileSync(join(root, 'build', 'sw.js'), script)
+
 const server = async (options?: {
   prefix?: string
   cache?: boolean
@@ -264,6 +275,37 @@ describe('compressed static assets', () => {
       const response = await get(app, '/app.js', { 'accept-encoding': 'gzip' })
 
       expect(response.headers.get('cache-control')).toBe('public, max-age=86400')
+    })
+
+    /**
+     * The prefix names the *assets* directory, and a file beside it is not hashed.
+     *
+     * Measured on a scaffolded application with the whole build directory treated
+     * as hashed: `/build/sw.js` went out `public, max-age=31536000, immutable`
+     * under a name with no hash in it, so a browser had no reason to fetch the next
+     * service worker for a year. Nothing fails; the application simply stays at
+     * whichever worker it deployed first.
+     */
+    describe('and only where the names actually carry one', () => {
+      const assets = { hashedPrefix: '/build/assets/', prefix: '/' }
+
+      test('a hashed asset is still cached for a year', async () => {
+        const response = await get(await server(assets), '/build/assets/app-a1b2c3.js', {
+          'accept-encoding': 'gzip'
+        })
+
+        expect(response.status).toBe(200)
+        expect(response.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+      })
+
+      test('and a file at the build root revalidates instead', async () => {
+        const response = await get(await server(assets), '/build/sw.js', {
+          'accept-encoding': 'gzip'
+        })
+
+        expect(response.status).toBe(200)
+        expect(response.headers.get('cache-control')).toBe('public, max-age=86400')
+      })
     })
 
     /** A range request is the static plugin's job, and stays there. */

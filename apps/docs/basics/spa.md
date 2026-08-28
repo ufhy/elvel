@@ -192,6 +192,125 @@ Two options are worth knowing:
 File uploads, cancelling a request, reading a status or a header, and the rest of the
 surface are in [Browser client](/digging-deeper/client).
 
+## Installable — a progressive web app
+
+Two lines of yours, and one key. The client half is `vite-plugin-pwa` with nothing
+framework-specific about it:
+
+```ts
+// frontend/vite.config.ts
+VitePWA({
+  registerType: 'autoUpdate',
+  scope: '/',
+  manifest: { name: 'My app', scope: '/', start_url: '/', display: 'standalone' }
+})
+```
+
+```ts
+// config/vite.ts
+serviceWorker: 'sw.js'
+```
+
+Nothing else. `vite()` already renders the tags that plugin injects — it harvests
+them from the project's own `index.html` during the build, which is the mechanism
+described in [Views](/basics/views#what-the-other-vite-plugins-inject) — so the
+`<link rel="manifest">` and `registerSW.js` reach the document without a line in the
+view:
+
+```html
+<link rel="manifest" href="/build/manifest.webmanifest">
+<script id="vite-plugin-pwa:register-sw" src="/build/registerSW.js"></script>
+```
+
+### What the config key is for
+
+A service worker may claim no more than the directory it is served from, and Vite
+writes it into the build directory. So `/build/sw.js` controls `/build/` — every URL
+a client-routed application does not use. Measured in Chromium without the key:
+
+```
+The path of the provided scope ('/') is not under the max scope allowed
+('/build/'). Adjust the scope, move the Service Worker script, or use the
+Service-Worker-Allowed HTTP header to allow the scope.
+```
+
+The browser names all three remedies and only the header leaves the build output
+where the build put it. Naming the file sends `Service-Worker-Allowed` for it, and
+`cache-control: no-cache` with it — `sw.js` carries no content hash, so nothing about
+its name changes when it does, and a worker cached is an application frozen at
+whichever worker it deployed first. Measured after the key was turned on: scope `/`,
+state `activated`, controlling the page, from a script at `/build/sw.js`.
+
+::: warning `no-cache` is not `no-store`
+It means revalidate before use. The worker is still cached; the browser just asks
+first, which is the only way a second deployment ever reaches anybody.
+:::
+
+### A server-rendered kit needs its two tags written
+
+The harvest above needs an `index.html` to harvest *from*, and only a client project
+has one — `frontend/` in the Vue kit is `bun create vite` output. The `jsx` and
+`auth` kits run Vite at the application root with no such page, so nothing is
+harvested and the tags never reach a document. Measured on a scaffolded `jsx`
+application: `sw.js`, `registerSW.js`, `manifest.webmanifest` and the Workbox runtime
+are all emitted exactly as before, and no `injected-tags.txt` is written.
+
+So write them into your layout. Both names are stable — no content hash — which is
+why this is two lines and not a lookup:
+
+```tsx
+<link rel="manifest" href="/build/manifest.webmanifest" />
+<script src="/build/registerSW.js" defer />
+```
+
+The server half is identical in every kit: `serviceWorker: 'sw.js'` in
+`config/vite.ts`, measured answering `Service-Worker-Allowed: /` and
+`cache-control: no-cache` on a scaffolded `jsx` application too.
+
+### Two things that are still yours to decide
+
+**`/api` must never be cached.** Those responses carry a session — one person's
+profile answered from a shared cache is the worst bug in this document. `generateSW`
+adds no runtime caching by default, so nothing is cached until you write a rule; when
+you write one, exclude `/api` explicitly rather than by omission.
+
+**Offline navigation needs a fallback that exists.** The document is rendered by the
+server, so there is no `index.html` in the build to precache — `@elvel/vite`
+deliberately deletes it, because two documents in one application is one too many.
+Workbox's default still binds a navigation route to that name:
+
+```js
+// in the generated sw.js, measured
+registerRoute(new NavigationRoute(createHandlerBoundToURL("index.html")))
+```
+
+It fails over to the network, so an online application works and nothing appears in
+the console — measured, a navigation to a client-only address while the worker was in
+control rendered normally. What it means is that **offline navigation does not work
+yet**: there is nothing behind that fallback. Reaching for one means caching the
+shell at runtime rather than precaching it, since only the server can produce it:
+
+```ts
+workbox: {
+  navigateFallback: null,
+  runtimeCaching: [
+    {
+      urlPattern: ({ request, url }) =>
+        request.mode === 'navigate' && !url.pathname.startsWith('/api'),
+      handler: 'NetworkFirst',
+      options: { cacheName: 'documents' }
+    }
+  ]
+}
+```
+
+That is the shape the cacheable shell was built for: the same bytes for everybody,
+`must-revalidate`, no `Set-Cookie` — a document a cache is allowed to hold.
+
+One more trap worth naming before you reach for it: a write queued offline and
+replayed later by background sync carries the CSRF token it was queued with, and
+signing in rotates that token. A replayed write arrives `419`.
+
 ## Forms
 
 A form is where the client half and the server half have to agree, so the

@@ -203,8 +203,27 @@ export function compressedAssets(options: CompressedAssetsOptions) {
     const compressible = COMPRESSIBLE.has(extension)
     const wantsGzip = acceptsGzip(request.headers.get('accept-encoding'))
     const stats = statSync(path)
-    const cacheControl = underHash ? IMMUTABLE : `${options.directive}, max-age=${options.maxAge}`
     const added = options.headers?.(request) ?? {}
+
+    /**
+     * A contributor may replace `cache-control`, and only that.
+     *
+     * Everything else in a response here is a fact about the bytes being sent —
+     * `content-type`, `etag`, `content-encoding`, `vary` — and a contributor
+     * overriding one of those corrupts the response rather than configuring it. So
+     * they are spread first and the facts are written over them.
+     *
+     * `cache-control` is the exception because it is a *decision*, and one this
+     * layer can only make from the path. `@elvel/vite` uses it for the service
+     * worker: `sw.js` carries no content hash, so `no-cache` is the only directive
+     * that keeps the next deployed worker reachable, and nothing about the path
+     * says so.
+     */
+    const cacheControl =
+      added['cache-control'] ??
+      (underHash ? IMMUTABLE : `${options.directive}, max-age=${options.maxAge}`)
+
+    delete added['cache-control']
 
     /**
      * Everything it can resolve is answered here, compressed or not.

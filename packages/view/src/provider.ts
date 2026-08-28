@@ -20,6 +20,33 @@ export class ViewServiceProvider extends ServiceProvider {
     )
   }
 
+  /**
+   * The contributors, asked **per request** rather than resolved at boot.
+   *
+   * Which looks wasteful and is not. A container lookup per served file is cheap,
+   * and resolving once here would capture whatever was bound at the moment this
+   * provider booted — so a provider registered afterwards, which the application
+   * boots immediately, would contribute nothing and say nothing about it. The same
+   * reason the security headers were always read this way.
+   */
+  private assetHeaders(): (request: Request) => Record<string, string> {
+    const bindings = ['security.headers', 'assets.headers']
+
+    return (request: Request) => {
+      const headers: Record<string, string> = {}
+
+      for (const binding of bindings) {
+        if (!this.app.bound(binding)) continue
+
+        const contribute = this.app.make(binding) as (request: Request) => Record<string, string>
+
+        Object.assign(headers, contribute(request))
+      }
+
+      return headers
+    }
+  }
+
   override async boot(): Promise<void> {
     if (this.config<boolean>('view.serveStatic', true) === false) return
 
@@ -45,28 +72,41 @@ export class ViewServiceProvider extends ServiceProvider {
           maxAge,
           minimumBytes: this.config<number>('view.compressMinimumBytes', 1024),
           /**
-           * The security headers, read from the container rather than imported.
+           * Headers other packages decide, read from the container, not imported.
            *
-           * They are `@elvel/http`'s decision and this package does not depend on
-           * it — and a static file cannot get them any other way, because these
-           * routes skip the surrounding lifecycle. Resolved per request so a
-           * policy that names a per-response nonce is still correct.
+           * Two contribute today and neither is a dependency of this one. The
+           * security headers are `@elvel/http`'s decision, resolved per request so
+           * a policy naming a per-response nonce is still correct. `assets.headers`
+           * is for a header that belongs to *one file* — `@elvel/vite` uses it to
+           * send `Service-Worker-Allowed` for the worker it built, which is the
+           * only way a worker under `/build/` may claim the whole site.
+           *
+           * They have to arrive here because a static file cannot get them any
+           * other way: these routes skip the surrounding lifecycle, so a header set
+           * globally never reaches a served file.
            */
-          headers: this.app.bound('security.headers')
-            ? (request: Request) => this.app.make('security.headers')(request)
-            : undefined,
+          headers: this.assetHeaders(),
           /**
-           * Where Vite writes, so its hashed names can be cached for a year.
+           * Where Vite writes its *hashed* names, which can be cached for a year.
            *
            * The environment decides the directive for the rest of `public/`,
            * whose names stay the same when their contents change. Under this
            * prefix they do not, so there is nothing for `no-cache` to protect
            * and a navigation was re-downloading the same bytes every time.
+           *
+           * The assets directory and not the whole build directory, which is a
+           * measured correction. Vite writes hashed files under `assets/` and
+           * unhashed ones at the build root — `manifest.json`, and whatever a
+           * plugin emits: `sw.js`, `registerSW.js`, `manifest.webmanifest`. Those
+           * were going out `max-age=31536000, immutable` under names with no hash
+           * in them, so a browser had no reason to fetch the next version for a
+           * year. A `vite-plugin-pwa` application would have frozen at its first
+           * deployed service worker, with nothing failing anywhere.
            */
           hashedPrefix: `${prefix.endsWith('/') ? prefix : `${prefix}/`}${this.config<string>(
             'vite.buildDirectory',
             'build'
-          )}/`,
+          )}/${this.config<string>('vite.assetsDirectory', 'assets')}/`,
           // Only where filenames carry a content hash and cannot go stale.
           cache: production
         })
