@@ -55,6 +55,16 @@
     "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /*
+   * The display face, and the same stack the other kits name.
+   *
+   * `font-serif` is only used by the welcome page, which is the framework's first
+   * impression and looks the same whichever kit produced it. Tailwind's own default
+   * would resolve to New York on macOS and Times elsewhere; naming the stack keeps
+   * that page identical across kits rather than merely serif.
+   */
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);

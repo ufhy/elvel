@@ -1098,9 +1098,23 @@ describe('the welcome page', () => {
 
     const both = { template: rendered(await welcome()), jsx: rendered(kit) }
 
-    /** Every external address either offers, in the order it offers them. */
+    /**
+     * Every external address either offers, however it is written.
+     *
+     * Not literal `href` values: the kit builds its one link from the step it is
+     * rendering — `href={\`https://${where}/\`}` — so matching on the attribute
+     * found the template's and none of the kit's. What has to agree is the address a
+     * reader ends up at, so the scheme and a trailing slash are normalised away and
+     * the host with its path is what gets compared.
+     */
     const links = (source: string) =>
-      [...source.matchAll(/href="(https?:\/\/[^"]+)"/g)].map((match) => match[1] as string)
+      [
+        ...new Set(
+          [...source.matchAll(/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,}\/[\w./-]*)/g)].map(
+            (match) => (match[1] as string).replace(/\/$/, '')
+          )
+        )
+      ].sort()
 
     /** And every command either tells somebody to run. */
     const commands = (source: string) =>

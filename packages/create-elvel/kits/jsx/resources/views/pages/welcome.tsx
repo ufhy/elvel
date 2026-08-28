@@ -1,3 +1,4 @@
+import { config } from '@elvel/core'
 import { Layout } from '../components/layout.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Mark } from '../components/ui/mark.tsx'
@@ -53,7 +54,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                     </Button>
                   ) : null}
                   {nav.register ? (
-                    <Button size="sm" href={nav.register}>
+                    <Button variant="secondary" size="sm" href={nav.register}>
                       Register
                     </Button>
                   ) : null}
@@ -64,13 +65,13 @@ export function Welcome({ title, user, links }: WelcomeProps) {
         </header>
 
         <main class="flex-1 py-16 sm:py-24">
-          <h1 class="max-w-2xl text-4xl leading-tight font-semibold tracking-tight text-foreground sm:text-5xl">
+          <h1 class="max-w-2xl font-serif text-5xl leading-tight tracking-tight text-foreground sm:text-6xl">
             Laravel's shape,
             <br />
             <span class="text-brand italic">on Bun.</span>
           </h1>
 
-          <p class="mt-6 max-w-xl text-muted-foreground">
+          <p class="mt-6 max-w-xl font-serif text-lg leading-relaxed text-muted-foreground">
             Service providers, a CLI, migrations and typed JSX views — over Elysia's HTTP server,
             with its type inference intact all the way into your handlers.
           </p>
@@ -81,19 +82,44 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                 Let's get started
               </h2>
 
-              <ol class="space-y-3">
+              {/*
+                A tick per step, joined by a hairline that stops at the last one —
+                the same marker the other four kits draw in hand-written CSS. The
+                spine is a bordered pseudo-element there; here it is a real element,
+                because Tailwind has no `::before` and a `<span>` costs nothing.
+              */}
+              <ol class="space-y-0">
                 {steps.map(([label, where], index) => (
-                  <li class="border-l-2 pl-4">
-                    <p
+                  <li class="relative flex gap-3.5 pb-6">
+                    {index < steps.length - 1 ? (
+                      <span class="absolute top-4 bottom-1 left-[0.28rem] border-l border-border" />
+                    ) : null}
+
+                    <span
                       class={
                         index === 0
-                          ? 'text-sm font-medium text-foreground'
-                          : 'text-sm text-foreground'
+                          ? 'mt-1.5 size-2.5 shrink-0 rounded-full border border-brand bg-brand'
+                          : 'mt-1.5 size-2.5 shrink-0 rounded-full border border-border bg-background'
                       }
-                    >
-                      {label}
-                    </p>
-                    <code class="font-mono text-xs text-muted-foreground">{where}</code>
+                    />
+
+                    <div>
+                      <p class="font-serif text-foreground">{label}</p>
+
+                      {/* The last step points outward, so it is a link and not a path. */}
+                      {where.includes('/') && !where.includes('.ts') ? (
+                        <a
+                          class="mt-1 block font-mono text-xs text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand"
+                          href={`https://${where}/`}
+                        >
+                          {where}
+                        </a>
+                      ) : (
+                        <code class="mt-1 block font-mono text-xs text-muted-foreground">
+                          {where}
+                        </code>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -106,10 +132,13 @@ export function Welcome({ title, user, links }: WelcomeProps) {
 
               <div class="rounded-xl border bg-muted p-4">
                 <pre class="overflow-x-auto font-mono text-xs leading-6 text-foreground">
-                  <span class="text-brand">$</span> bun run elvel{'\n'}
+                  <span class="text-brand">$</span> bun run elvel{' '}
+                  <span class="text-muted-foreground"># everything this app can do</span>
+                  {'\n'}
                   <span class="text-brand">$</span> bun run elvel route:list{'\n'}
                   <span class="text-brand">$</span> bun run elvel make:controller Post -r{'\n'}
-                  <span class="text-brand">$</span> bun run dev
+                  <span class="text-brand">$</span> bun run dev{' '}
+                  <span class="text-muted-foreground"># the server and Vite, together</span>
                 </pre>
               </div>
 
@@ -121,10 +150,15 @@ export function Welcome({ title, user, links }: WelcomeProps) {
           </div>
         </main>
 
-        <footer class="border-t py-6 text-xs text-muted-foreground">
-          <a class="hover:text-brand" href="https://ufhy.github.io/elvel/">
-            ufhy.github.io/elvel
-          </a>
+        {/*
+          The application and its environment, as the other kits' layout renders it.
+          It belongs to the page here rather than to the layout, because this kit's
+          layout is shared with a dashboard that has a sidebar of its own.
+        */}
+        <footer class="flex items-center justify-center gap-2 py-8 font-mono text-xs text-muted-foreground">
+          <span safe>{config<string>('app.name', 'Elvel')}</span>
+          <span class="opacity-50">·</span>
+          <span safe>{config<string>('app.env', 'production')}</span>
         </footer>
       </div>
     </Layout>
