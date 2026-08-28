@@ -26,7 +26,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
 
   return (
     <Layout title={title}>
-      <div class="mx-auto flex min-h-dvh max-w-4xl flex-col px-6">
+      <div class="mx-auto flex min-h-dvh max-w-[62rem] flex-col px-6">
         <header class="flex items-center justify-between gap-4 border-b border-border py-6">
           <span class="flex items-center gap-2 text-brand">
             <Mark />
@@ -65,20 +65,26 @@ export function Welcome({ title, user, links }: WelcomeProps) {
         </header>
 
         <main class="flex-1 py-16 sm:py-24">
-          <h1 class="max-w-2xl font-serif text-5xl leading-tight tracking-tight text-foreground sm:text-6xl">
+          {/*
+            The same fluid size the other kits set — `clamp(2.6rem, 7vw, 4.6rem)`.
+            Tailwind's nearest steps are 60px and 72px, and neither is it: measured
+            side by side at 1280px, this page rendered 60px against their 73.6px, so
+            the headline was visibly smaller on the one page meant to look the same.
+          */}
+          <h1 class="max-w-2xl font-serif text-[clamp(2.6rem,7vw,4.6rem)] leading-[1.02] tracking-[-0.02em] text-foreground">
             Laravel's shape,
             <br />
             <span class="text-brand italic">on Bun.</span>
           </h1>
 
-          <p class="mt-6 max-w-xl font-serif text-lg leading-relaxed text-muted-foreground">
+          <p class="mt-[1.6rem] max-w-[34rem] font-serif text-[1.07rem] leading-[1.65] text-muted-foreground">
             Service providers, a CLI, migrations and typed JSX views — over Elysia's HTTP server,
             with its type inference intact all the way into your handlers.
           </p>
 
           <div class="mt-14 grid gap-10 sm:grid-cols-2">
             <section>
-              <h2 class="mb-4 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+              <h2 class="mb-[1.4rem] text-[0.7rem] tracking-[0.2em] text-muted-foreground uppercase">
                 Let's get started
               </h2>
 
@@ -104,18 +110,18 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                     />
 
                     <div>
-                      <p class="font-serif text-foreground">{label}</p>
+                      <p class="font-serif text-[0.95rem] leading-[1.5] text-foreground">{label}</p>
 
                       {/* The last step points outward, so it is a link and not a path. */}
                       {where.includes('/') && !where.includes('.ts') ? (
                         <a
-                          class="mt-1 block font-mono text-xs text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand"
+                          class="mt-[0.35rem] block font-mono text-[0.82rem] text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand"
                           href={`https://${where}/`}
                         >
                           {where}
                         </a>
                       ) : (
-                        <code class="mt-1 block font-mono text-xs text-muted-foreground">
+                        <code class="mt-[0.35rem] block font-mono text-[0.82rem] text-muted-foreground">
                           {where}
                         </code>
                       )}
@@ -126,7 +132,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
             </section>
 
             <section>
-              <h2 class="mb-4 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+              <h2 class="mb-[1.4rem] text-[0.7rem] tracking-[0.2em] text-muted-foreground uppercase">
                 From here
               </h2>
 
