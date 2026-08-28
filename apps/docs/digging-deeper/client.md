@@ -214,13 +214,76 @@ import { useForm } from '@elvel/client/vue'
 
 const form = useForm({ email: '', password: '' })
 
-await form.post('/sign-in')   // form.processing, form.errors.email
+await form.post('/sign-in')
 ```
 
-A submission that comes back 422 fills `form.errors` from the field bag and returns
-`undefined` rather than throwing — a validation failure is an answer, not a fault.
-Anything else still throws, because what a signed-out session means is a router's
-decision and not a form's.
+```vue
+<input v-model="form.data.email" />
+<p v-if="form.errors.email">{{ form.errors.email }}</p>
+<button :disabled="form.processing">Sign in</button>
+```
+
+### The form
+
+| | |
+| --- | --- |
+| `form.data` | the fields, bound with `v-model="form.data.email"` |
+| `form.errors` | **one message per field** — what fits under an input |
+| `form.processing` | true while a submission is in flight |
+| `post` `put` `patch` `delete` | each takes a path and returns the answer, or `undefined` |
+| `submit(method, path)` | the same, when the method is a variable |
+| `reset(...fields)` | back to the values it started with — all, or only those named |
+| `clearErrors(...fields)` | the same shape, for the error bag |
+
+The fields stay under `data` rather than being hoisted onto the form. Hoisting reads
+better right up until an application has a field called `errors` or `post`, and then
+it shadows the form's own — a bug whose symptom is a submit button that does nothing.
+
+`form.errors` keeps the first message per field, because that is the one an input has
+room for. The server sends all of them, and `Invalid.errors` from `call()` still
+carries the rest for a summary.
+
+`form.processing` goes false afterwards *even when refused* — it is set in a
+`finally`, so a 422 cannot leave the button disabled forever. And errors clear
+**before** the request, not after: a field the server no longer objects to has to stop
+being red, and that is the only certain moment.
+
+### A 422 is an answer
+
+```ts
+const answer = await form.post('/sign-in')
+
+// answer === undefined  →  refused, and form.errors is filled
+```
+
+`post()` resolves with `undefined` and fills `errors` rather than throwing, because a
+validation failure is an answer. Anything else still throws, `Unauthenticated`
+included — what a signed-out session means is a router's decision, not a form's.
+
+### The three options
+
+```ts
+const form = useForm(
+  { email: '', password: '' },
+  {
+    onRedirect: (to) => router.push(to),
+    onSuccess: (payload) => toast(payload.message as string),
+    token: () => csrf()
+  }
+)
+```
+
+- **`onRedirect`** is where navigation happens, and the package does not guess it.
+  Signing in might mean the dashboard or a two-factor challenge, and only the server
+  knows which; reaching for `location.assign` would throw away the client routing
+  that made this a client in the first place. Left unset, a redirect is reported and
+  nothing moves.
+- **`onSuccess`** gets everything the server answered, redirect included — for the
+  cases where the answer is more than "it worked".
+- **`token`** is where the CSRF token comes from when the document carries none, and
+  it is a **function** rather than a string on purpose: it is read per submission,
+  because signing in rotates the session id and the token rotates with it. A value
+  captured when the form was created is the wrong one by the time it submits.
 
 ## Reading a payload the document carried
 
@@ -242,6 +305,17 @@ const { user } = page as { user?: User }
 
 A `csrf` key there is read automatically on every write, which is what makes the
 `token` option unnecessary for a document that carries one.
+
+`page` is captured once, when the module evaluates, which is right in a browser: one
+document per page load. `embedded()` is the same read performed again, and it is what
+`call()` uses for the token — a module can be imported before the document it belongs
+to exists, and one small query per write costs nothing next to the request:
+
+```ts
+import { embedded } from '@elvel/client'
+
+const { csrf } = embedded()
+```
 
 It has to be an inert `<script type="application/json">` rather than a global the
 server assigns: a JSON script tag is not executed, so nothing inside a customer's

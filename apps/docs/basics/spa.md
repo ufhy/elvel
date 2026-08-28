@@ -197,23 +197,15 @@ form.post('/sign-in')
 <button :disabled="form.processing">Sign in</button>
 ```
 
-- `form.data` holds the fields, and they stay under `data` rather than being
-  hoisted onto the form. Hoisting reads better right up until an application has a
-  field called `errors` or `post`, and then it shadows the form's own — a bug whose
-  symptom is a submit button that does nothing.
-- `form.errors` is **one message per field**, which is what fits under an input.
-  The server sends all of them; `Invalid.errors` from `call()` still carries the
-  rest for a summary.
-- `form.processing` is true in flight and false afterwards *even when refused* —
-  set in a `finally`, so a 422 cannot leave the button disabled forever.
-- Errors clear **before** the request, not after. A field the server no longer
-  objects to has to stop being red, and that is the only certain moment.
-- `post`, `put`, `patch`, `delete`, plus `reset(...fields)` and
-  `clearErrors(...fields)`.
-- A **422 is an answer**, not a failure: `post()` resolves with `undefined` and
-  fills `errors`. Anything else throws, `Unauthenticated` included — what a
-  signed-out session means is the router's decision, not a form's.
-- `onRedirect` is where navigation happens, and the package does not guess it.
-  Signing in might mean the dashboard or a two-factor challenge, and only the
-  server knows which; reaching for `location.assign` would throw away the client
-  routing that made this a client in the first place.
+Three things are worth knowing here, and the rest of the surface — every method, the
+error bag's shape, and the other two options — is in
+[Browser client](/digging-deeper/client#forms-for-vue).
+
+- A **422 is an answer**, not a failure: `post()` resolves with `undefined` and fills
+  `errors`. Anything else throws, `Unauthenticated` included — what a signed-out
+  session means is the router's decision, not a form's.
+- `form.processing` is false afterwards *even when refused*, so a 422 cannot leave the
+  button disabled forever.
+- `onRedirect` is where navigation happens, and the package does not guess it. Signing
+  in might mean the dashboard or a two-factor challenge, and only the server knows
+  which.
