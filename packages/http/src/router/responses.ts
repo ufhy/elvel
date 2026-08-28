@@ -19,11 +19,23 @@ import { app } from '@elvel/core'
  */
 export async function renderView(
   component: unknown,
-  props: Record<string, unknown>
+  props: Record<string, unknown>,
+  status = 200,
+  headers: Record<string, string> = {}
 ): Promise<Response> {
   const html = await app('view').render(component as never, props as never)
 
-  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+  /**
+   * The caller's headers last, so `content-type` is a default rather than a wall.
+   *
+   * A document served as something other than `text/html` is rare and legitimate —
+   * an `.xml` sitemap rendered from a view is the case that turned up — and a route
+   * naming it should not have to stop using `Route.view` to get it.
+   */
+  return new Response(html, {
+    status,
+    headers: { 'content-type': 'text/html; charset=utf-8', ...headers }
+  })
 }
 
 /**

@@ -115,6 +115,20 @@ therefore cacheable — which is what an installable, offline-capable applicatio
 needs. Two questions are asked on boot instead: who is this, and what is this screen
 looking at.
 
+Cacheable has to be **said**, and the view route is where it is said:
+
+```ts
+Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, {
+  'cache-control': 'public, max-age=0, must-revalidate'
+}).where('path', '.*')
+```
+
+Laravel's fourth and fifth arguments to `Route::view`, and the fifth is the one with
+a job here: a view returns markup rather than a response, so a route that renders is
+the only place a header can be named. Without it the shell goes out with no
+`cache-control` at all and every cache is left guessing at freshness — which is
+exactly what a service worker's navigation cache cannot work with.
+
 ```ts
 // routes/api.ts
 Route.prefix('api').group(() => {

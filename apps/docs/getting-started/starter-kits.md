@@ -307,7 +307,7 @@ settings ones included. A kit whose name is Vue should not hand you fourteen `.t
 pages to learn a second view layer for.
 
 And the document they boot from is a **shell**: 327 bytes, no payload, and
-`cache-control: public` rather than `no-store`. The same bytes for everybody, which
+`cache-control: public, max-age=0, must-revalidate`. The same bytes for everybody, which
 is what a cache can keep. Everything a screen needs it asks for:
 
 ```

@@ -37,12 +37,27 @@ import { Shell } from '../resources/views/components/shell.tsx'
  * confirms an address, the other a password — so `guest` would bounce them. They
  * belong to the half below, and `frontend/src/routers/app.ts` mounts them there.
  */
+/**
+ * Cacheable, and said out loud.
+ *
+ * The shell carries no payload and no token, so it is the same bytes for everybody
+ * — and a response that *is* cacheable but never says so is one a browser guesses
+ * at. `max-age=0, must-revalidate` is the honest pair: keep it, and ask before
+ * using it. That revalidation is what a service worker's navigation cache and a
+ * CDN both need in order to hold the document at all.
+ *
+ * `public` is only safe because there is nothing personal in here. Put a payload in
+ * the shell and this header has to become `no-store` in the same edit, or a shared
+ * cache will hand one person's document to the next.
+ */
+const CACHEABLE = { 'cache-control': 'public, max-age=0, must-revalidate' }
+
 Route.prefix('auth')
   .middleware('guest')
   .group(() => {
-    Route.view('/{path}', Shell, { entry: 'src/auth.ts' }).where('path', '.*')
+    Route.view('/{path}', Shell, { entry: 'src/auth.ts' }, 200, CACHEABLE).where('path', '.*')
   })
 
 Route.middleware('auth').group(() => {
-  Route.view('/{path}', Shell, { entry: 'src/main.ts' }).where('path', '.*')
+  Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, CACHEABLE).where('path', '.*')
 })

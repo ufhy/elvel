@@ -378,9 +378,27 @@ export const Route = {
    * The second line is the whole reason this exists: it is how a Laravel
    * application hands every address to a client-side router, and writing it by
    * hand is four lines that say nothing.
+   *
+   * `status` and `headers` are Laravel's fourth and fifth arguments, and the fifth
+   * is what a client-routed document needs: the shell every address answers with
+   * is the same bytes for everybody, and saying so — `cache-control` — is the
+   * difference between a cache that may keep it and a browser guessing at
+   * freshness. A route that renders is still the only place a response header can
+   * be named, since a view returns markup and not a response.
+   *
+   * ```ts
+   * Route.view('/{path}', Shell, { entry }, 200, {
+   *   'cache-control': 'public, max-age=0, must-revalidate'
+   * }).where('path', '.*')
+   * ```
    */
-  view: (uri: string, component: unknown, props: Record<string, unknown> = {}) =>
-    declare(['GET', 'HEAD'], uri, () => renderView(component, props)),
+  view: (
+    uri: string,
+    component: unknown,
+    props: Record<string, unknown> = {},
+    status = 200,
+    headers: Record<string, string> = {}
+  ) => declare(['GET', 'HEAD'], uri, () => renderView(component, props, status, headers)),
 
   /**
    * `Route.redirect('/here', '/there')` — 302, as Laravel's is.

@@ -302,6 +302,53 @@ describe('view and redirect — Route::view, Route::redirect', () => {
     expect<string>(await response.text()).toBe('<h1>Home</h1>')
     expect<string | null>(response.headers.get('content-type')).toBe('text/html; charset=utf-8')
   })
+
+  /**
+   * Laravel's fourth and fifth arguments, and the fifth is the one with a job.
+   *
+   * A view returns markup, not a response, so a route that renders is the only
+   * place a header can be named — and a client-routed shell has one it must name.
+   * It is the same bytes for everybody, and a response that is cacheable but never
+   * says so is one a browser guesses at. Measured after `@elvel/spa` was deleted:
+   * the shell went out with no `cache-control` at all, because the handler that
+   * used to set it went with the package.
+   */
+  test('and takes a status and headers, as Laravel does', async () => {
+    const app = boot()
+
+    app.instance('view' as never, { render: () => '<p>gone</p>' } as never)
+
+    Route.view('/{path}', () => '<p>gone</p>', {}, 410, {
+      'cache-control': 'public, max-age=0, must-revalidate'
+    }).where('path', '.*')
+
+    const routes = compileRoutes('views')
+    const response = await call(routes, '/anything/at/all')
+
+    expect<number>(response.status).toBe(410)
+    expect<string | null>(response.headers.get('cache-control')).toBe(
+      'public, max-age=0, must-revalidate'
+    )
+    // Still a document: the caller's headers are merged over a default, not for it.
+    expect<string | null>(response.headers.get('content-type')).toBe('text/html; charset=utf-8')
+  })
+
+  test('and a caller may override the content type it defaults to', async () => {
+    const app = boot()
+
+    app.instance('view' as never, { render: () => '<urlset />' } as never)
+
+    Route.view('/sitemap.xml', () => '<urlset />', {}, 200, {
+      'content-type': 'application/xml; charset=utf-8'
+    })
+
+    const routes = compileRoutes('views')
+    const response = await call(routes, '/sitemap.xml')
+
+    expect<string | null>(response.headers.get('content-type')).toBe(
+      'application/xml; charset=utf-8'
+    )
+  })
 })
 
 /**
