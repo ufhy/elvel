@@ -1,6 +1,6 @@
 import { config, NotFoundException } from '@elvel/core'
 import { Route } from '@elvel/http'
-import { Document } from '@elvel/spa'
+import { Shell } from '../resources/views/components/shell.tsx'
 
 /**
  * The view routes — Laravel's `Route::view('{path}', 'main')->middleware('auth')`.
@@ -14,6 +14,15 @@ import { Document } from '@elvel/spa'
  * handler, so there is nowhere for a condition to accumulate — which is what keeps
  * these two lines readable as *routing* rather than as code that happens to answer
  * a request.
+ *
+ * The component is this application's — `resources/views/components/shell.tsx` —
+ * and not `Document` from `@elvel/spa`. A document is markup, so it lives with the
+ * other views, where changing what it carries does not mean reading a framework
+ * package to learn what is allowed.
+ *
+ * The entry is the only prop, because it is the only thing these two disagree
+ * about. The icon, the title and the mount point are markup and are written in the
+ * view — a route is not the place to hand a page a string of HTML.
  *
  * The prefix is what makes two possible. One route cannot carry both guards, and
  * the guards are the reason to have routes here at all rather than leaving every
@@ -46,28 +55,12 @@ Route.any(`/${config<string>('vite.buildDirectory', 'build')}/{path}`, () => {
   throw new NotFoundException('No such file.')
 }).where('path', '.*')
 
-const shell = {
-  mountId: config<string>('spa.mountId', 'app'),
-
-  /**
-   * What every document carries in its `<head>`, written where it is rendered.
-   *
-   * This was a `spa.head` config key, read on every document to solve a problem
-   * these two routes remove: the exception handler renders a document for an
-   * unknown address and has nowhere to hang an icon. Nothing unknown reaches it
-   * now — the routes below answer every address a browser can type — so the markup
-   * belongs at the call site, where a reader can see it.
-   */
-  head: '<link rel="icon" href="/favicon.svg" type="image/svg+xml" />',
-  title: config<string>('app.name', 'Elvel')
-}
-
 Route.prefix('auth')
   .middleware('guest')
   .group(() => {
-    Route.view('/{path}', Document, { ...shell, entry: 'src/auth.ts' }).where('path', '.*')
+    Route.view('/{path}', Shell, { entry: 'src/auth.ts' }).where('path', '.*')
   })
 
 Route.middleware('auth').group(() => {
-  Route.view('/{path}', Document, { ...shell, entry: 'src/main.ts' }).where('path', '.*')
+  Route.view('/{path}', Shell, { entry: 'src/main.ts' }).where('path', '.*')
 })
