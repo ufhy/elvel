@@ -8,13 +8,17 @@ import PageController from '../app/Http/Controllers/PageController.ts'
  * takes: `routes/view.ts` answers every address a browser asks for, so what
  * belongs here is only what the *server* must answer for itself.
  *
- * `/` is not here. The template names it `home` and renders a page; in this kit
- * the Vue router owns `/` — `frontend/src/routers/app.ts` — and a route here
- * would win over the view route and answer a document the client cannot boot
- * from. One address, one owner.
+ * `/` is the landing page, server rendered as it is in every other kit. It is the
+ * first thing a visitor sees, and a starter screen that waits for a bundle to
+ * arrive is a poor first minute — so it does not go through `routes/view.ts`.
  *
- * `/health` stays because nothing about it is a page. A load balancer asking it
- * wants a status code, not JavaScript, and it must answer before any bundle is
- * built.
+ * An exact route wins over the view wildcard, measured, so this is what answers
+ * `/`. The Vue router keeps its own `/` for a navigation that happens inside the
+ * application: `frontend/src/routers/app.ts` redirects it to the dashboard.
+ *
+ * `/health` is here for the same reason and a different one. A load balancer
+ * asking it wants a status code, not JavaScript, and it must answer before any
+ * bundle is built.
  */
+Route.get('/', [PageController, 'index']).name('home')
 Route.get('/health', [PageController, 'health']).name('health')

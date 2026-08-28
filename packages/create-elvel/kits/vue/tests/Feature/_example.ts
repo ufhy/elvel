@@ -20,8 +20,22 @@ import app from '../../bootstrap/app.ts'
  * suite you run on every save and one you run before pushing.
  */
 describe('the view routes', () => {
-  test('a guest at the root is sent to sign in', async () => {
-    ;(await press(app).get('/')).assertRedirect('/auth/sign-in')
+  /**
+   * The landing page is server rendered, and it is the one page that is.
+   *
+   * An exact route beats the view wildcard, so `routes/web.ts` answers `/` with
+   * markup rather than the shell — a visitor sees something before a bundle
+   * arrives. Everything else a browser can type goes to `routes/view.ts`.
+   */
+  test('the root is a rendered page, open to anybody', async () => {
+    const response = await press(app).get('/')
+
+    response
+      .assertOk()
+      .assertHeaderContains('content-type', 'text/html')
+      // Markup, not the mount point the client boots from.
+      .assertDontSee('data-spa-root')
+      .assertSee('/auth/sign-in')
   })
 
   test('and the sign-in screen is a document with nothing in it', async () => {
