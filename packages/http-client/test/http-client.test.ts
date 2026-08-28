@@ -418,14 +418,33 @@ describe('recording', () => {
  * error, no timeout, and no way to tell.
  */
 describe('against bare fetch', () => {
-  test("Bun's fetch ignores a timeout option, so the client uses AbortSignal", async () => {
-    const started = Date.now()
-    const response = await fetch(at('/slow'), { timeout: 200 } as RequestInit)
+  /**
+   * Not on Windows, where the request never completes for a different reason.
+   *
+   * The assertion is that the option changed nothing and the request ran its full
+   * three seconds. On `windows-latest` the fetch instead throws
+   * `TimeoutError: The operation timed out.` at about 2.37 seconds — measured twice,
+   * on the same pinned Bun, in consecutive CI runs. Whatever aborts it there is not
+   * `timeout: 200`; a request honouring that would fail in a fifth of a second, not
+   * after two and a third.
+   *
+   * So on Windows this test can no longer tell "the option did nothing" from "the
+   * connection was cut for an unrelated reason", which makes it a test that fails
+   * without saying anything. What it exists to justify — the client implementing its
+   * own timeout through `AbortSignal` — is proved by *"a timeout cancels rather than
+   * waiting"* above, which runs everywhere.
+   */
+  test.skipIf(process.platform === 'win32')(
+    "Bun's fetch ignores a timeout option, so the client uses AbortSignal",
+    async () => {
+      const started = Date.now()
+      const response = await fetch(at('/slow'), { timeout: 200 } as RequestInit)
 
-    expect(response.status).toBe(200)
-    // It waited the full three seconds: the option did nothing at all.
-    expect(Date.now() - started).toBeGreaterThan(2000)
-  })
+      expect(response.status).toBe(200)
+      // It waited the full three seconds: the option did nothing at all.
+      expect(Date.now() - started).toBeGreaterThan(2000)
+    }
+  )
 
   test('and ignores a retry option', async () => {
     attempts = 0
