@@ -47,8 +47,17 @@ export function Input({
 
   return (
     <div class={classes('grid gap-2', extra)}>
+      {/*
+        `safe`, because this is somebody else's string.
+
+        Every label this kit passes is a literal, so nothing here is exploitable as
+        shipped — but a component is reused, and the caller who writes
+        `label={field.title}` from a database has no reason to suspect that text
+        interpolation is raw while the `value` attribute below it is escaped. A
+        reusable component is the wrong place to leave that asymmetry.
+      */}
       {label ? (
-        <label class="text-sm leading-none font-medium" for={id}>
+        <label class="text-sm leading-none font-medium" for={id} safe>
           {label}
         </label>
       ) : null}

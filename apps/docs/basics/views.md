@@ -51,6 +51,23 @@ The second line is a working XSS. The rule is short: **anything that came from a
 person gets `safe`**, and the only values that go without it are markup your own
 code produced.
 
+**Attributes are not the same, and the asymmetry is the trap.** An attribute value
+*is* escaped without asking — measured:
+
+```tsx
+<input value={'" autofocus onfocus="alert(1)'} />
+→ <input value="&#34; autofocus onfocus=&#34;alert(1)"/>
+```
+
+So `value={old('name')}` is safe and `<p>{old('name')}</p>` is not, which is exactly
+the wrong lesson to learn by experiment. Escaping an attribute twice is harmless, so
+when in doubt write `safe` — the cost of a habit is nothing and the cost of the
+exception is a working XSS.
+
+This matters most in a component somebody else calls. Every label the kits pass is a
+literal, but a reusable `<Input label={…} />` renders whatever it is given, so its
+own markup carries `safe` rather than trusting each caller to remember.
+
 ::: warning There is no compile-time check for this
 `@kitajs/ts-html-plugin` catches missing `safe` at build time, and it cannot run
 here: its CLI reads `typescript.sys`, which TypeScript 7 removed from the default
