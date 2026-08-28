@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 import ArticleController from '../app/Http/Controllers/ArticleController.ts'
 import CacheController from '../app/Http/Controllers/CacheController.ts'
 import CheckController from '../app/Http/Controllers/CheckController.ts'
+import ClientController from '../app/Http/Controllers/ClientController.ts'
 import CookieController from '../app/Http/Controllers/CookieController.ts'
 import ExerciseController from '../app/Http/Controllers/ExerciseController.ts'
 import FileController from '../app/Http/Controllers/FileController.ts'
@@ -39,6 +40,7 @@ export default new Elysia({ name: 'routes:web' })
   .use(NotificationController)
   .use(SecretController)
   .use(HttpClientController)
+  .use(ClientController)
   .use(LanguageController)
   .use(LimitController)
   .use(MiddlewareController)

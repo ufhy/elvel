@@ -94,6 +94,7 @@ export default defineConfig({
         text: 'Digging deeper',
         items: [
           { text: 'Broadcasting', link: '/digging-deeper/broadcasting' },
+          { text: 'Browser client', link: '/digging-deeper/client' },
           { text: 'Cache', link: '/digging-deeper/cache' },
           { text: 'Collections and helpers', link: '/digging-deeper/collections' },
           { text: 'Concurrency', link: '/digging-deeper/concurrency' },

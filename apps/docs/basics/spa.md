@@ -115,9 +115,9 @@ registers, and the first handler to answer wins.
 ## The client
 
 ```ts
-import { call, page, Invalid, Unauthenticated } from '@elvel/spa/client'
+import { http, page, Invalid, Unauthenticated } from '@elvel/client'
 
-const invoices = await call<Page<Invoice>>('/invoices', { query: { status } })
+const invoices = await http.get<Page<Invoice>>('/invoices', { query: { status } })
 ```
 
 Four things every request needs, decided once:
@@ -146,6 +146,9 @@ Two options are worth knowing:
   posting to one passes `prefix: ''`.
 - `token` overrides the CSRF token read from the document, for a shell that carries
   none.
+
+File uploads, cancelling a request, reading a status or a header, and the rest of the
+surface are in [Browser client](/digging-deeper/client).
 
 ## Forms
 

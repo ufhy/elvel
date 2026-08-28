@@ -16,6 +16,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "playground": "bun playground/elvel.ts",
+    "playground:assets": "bun build playground/resources/js/client-demo.ts --outfile playground/public/js/client-demo.js --target=browser --format=esm",
     "playground:dev": "bun --watch playground/elvel.ts serve",
     "playground:reset": "bun scripts/reset-playground.ts",
     "smoke": "bun run build:packages && bun scripts/smoke.ts",

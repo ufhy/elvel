@@ -13,6 +13,7 @@
       "!**/storage",
       "!**/*.edge",
       "!**/public/build",
+      "!playground/public/js",
       "!apps/*/public",
       "!packages/create-elvel/kits/*/frontend"
     ]
