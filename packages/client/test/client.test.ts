@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
-import { call, embedded, http, Invalid, send, Unauthenticated } from '../src/client.ts'
+import { call, embedded, http, Invalid, send, Unauthenticated } from '../src/index.ts'
 
 /**
  * The half that would be written insecurely by hand.

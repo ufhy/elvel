@@ -29,6 +29,7 @@
     "@elvel/auth": "workspace:*",
     "@elvel/broadcasting": "workspace:*",
     "@elvel/cache": "workspace:*",
+    "@elvel/client": "workspace:*",
     "@elvel/concurrency": "workspace:*",
     "@elvel/console": "workspace:*",
     "@elvel/contracts": "workspace:*",
@@ -71,7 +72,7 @@
   },
   "version": "1.0.0-alpha.16",
   "license": "MIT",
-  "description": "Elvel — a Laravel-shaped framework for Bun, built on Elysia",
+  "description": "Elvel \u2014 a Laravel-shaped framework for Bun, built on Elysia",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ufhy/elvel.git"

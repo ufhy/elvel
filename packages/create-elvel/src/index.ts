@@ -436,6 +436,7 @@ function withSecrets(env: string): string {
  */
 const FRAMEWORK_PACKAGES = [
   'auth',
+  'client',
   'broadcasting',
   'cache',
   'concurrency',

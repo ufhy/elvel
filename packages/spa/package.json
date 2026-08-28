@@ -23,7 +23,6 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts",
     "./vue": "./src/vue.ts"
   },
   "files": [
@@ -39,6 +38,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@elvel/client": "1.0.0-alpha.16",
     "@elvel/core": "workspace:*",
     "@elvel/http": "workspace:*",
     "@elvel/view": "workspace:*",

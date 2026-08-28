@@ -10,8 +10,9 @@
  * everything below `submit`: the prefix, the CSRF token, and reading a 422 as
  * per-field messages rather than as an exception the page has to catch.
  */
+
+import { call, Invalid } from '@elvel/client'
 import { reactive } from 'vue'
-import { call, Invalid } from './client.ts'
 
 export type FormOptions = {
   /**

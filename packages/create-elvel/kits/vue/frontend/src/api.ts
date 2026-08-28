@@ -4,7 +4,7 @@ import {
   Invalid,
   NeedsPasswordConfirmation,
   Unauthenticated
-} from '@elvel/spa/client'
+} from '@elvel/client'
 
 export { Invalid, NeedsPasswordConfirmation, Unauthenticated }
 

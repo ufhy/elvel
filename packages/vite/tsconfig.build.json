@@ -11,6 +11,13 @@
    * `bun run build` in this package writes `dist/index.js` for that, and this
    * writes the declarations beside it. The `bun` export condition still points at
    * the source, so nothing in this repository — or any Bun consumer — reads either.
+   *
+   * **Only the plugin entry.** `./provider` and `./tags` are the server's half of
+   * this package and ship as source like every other package, so Node never loads
+   * them — and compiling them here would drag `@elvel/core` into a build that
+   * exists for Vite's config loader. It did, once: the declaration pass started
+   * type-checking core and failed on bindings declared by a module augmentation in
+   * `@elvel/http`, which this compilation has no reason to include.
    */
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
@@ -22,5 +29,5 @@
     // would only be weight in the tarball.
     "declarationMap": false
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/index.ts"]
 }

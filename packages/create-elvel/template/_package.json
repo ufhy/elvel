@@ -17,6 +17,7 @@
     "@elvel/auth": "{{ dep_auth }}",
     "@elvel/broadcasting": "{{ dep_broadcasting }}",
     "@elvel/cache": "{{ dep_cache }}",
+    "@elvel/client": "{{ dep_client }}",
     "@elvel/concurrency": "{{ dep_concurrency }}",
     "@elvel/console": "{{ dep_console }}",
     "@elvel/contracts": "{{ dep_contracts }}",

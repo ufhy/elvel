@@ -99,10 +99,15 @@ export const page = embedded()
  * `"undefined"`, which is what `URLSearchParams` does with them unaided — and what
  * turns an absent filter into a filter for the word "undefined".
  *
- * An array repeats its key: `{ ids: [1, 2] }` is `?ids=1&ids=2`. Worth knowing what
- * the other end makes of that — measured against a running application, the query
- * parser answers strings and the **last value wins**, for that shape and for
- * `ids[]=` alike. Reading it back as an array needs the route to say so:
+ * An array repeats its key: `{ ids: [1, 2] }` is `?ids=1&ids=2`, and that is the one
+ * shape the other end can read. Measured against a running application:
+ *
+ * | sent            | no schema           | `t.Array` on the route |
+ * | `?ids=1&ids=2`  | `{ ids: '2' }`      | `{ ids: ['1', '2'] }`  |
+ * | `?ids[]=1&…`    | `{ 'ids[]': '2' }`  | 422, no `ids` at all   |
+ *
+ * So the `ids[]=` convention is not merely stringly-typed here, it fails validation
+ * — and reading an array back needs the route to declare one:
  * `.validate({ query: t.Object({ ids: t.Array(t.String()) }) })`.
  */
 export type QueryValue = string | number | boolean | null | undefined

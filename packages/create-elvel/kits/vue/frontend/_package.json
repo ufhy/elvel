@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@better-auth/passkey": "^1.7.1",
+    "@elvel/client": "{{ dep_client }}",
     "@elvel/spa": "{{ dep_spa }}",
     "@lucide/vue": "^1.34.0",
     "@vueuse/core": "^14.4.0",
