@@ -68,12 +68,34 @@ This matters most in a component somebody else calls. Every label the kits pass 
 literal, but a reusable `<Input label={…} />` renders whatever it is given, so its
 own markup carries `safe` rather than trusting each caller to remember.
 
-::: warning There is no compile-time check for this
-`@kitajs/ts-html-plugin` catches missing `safe` at build time, and it cannot run
-here: its CLI reads `typescript.sys`, which TypeScript 7 removed from the default
-export, so it crashes under both Bun and Node. This is the one feature that was
-attempted and could not be made to work. Until it can, `safe` is a runtime
-guarantee and a review responsibility.
+::: warning A scanner exists, but it is not a compile-time check
+`@kitajs/ts-html-plugin` finds missing `safe`, and it cannot run *as an editor
+plugin* here: a TypeScript language-service plugin is loaded by the TypeScript the
+project uses, and its CLI reads `typescript.sys`, which TypeScript 7 removed from
+the default export. So it crashes on this framework's own TypeScript, under both
+Bun and Node.
+
+Its **CLI** does run, pinned to TypeScript 5 in a workspace of its own. This
+repository does exactly that — `tools/xss-scan`, invoked with `bun run xss:scan` —
+and it is worth copying into an application:
+
+```jsonc
+// tools/xss-scan/package.json — nothing but the pinned toolchain
+{ "devDependencies": { "@kitajs/ts-html-plugin": "^4.1.4", "typescript": "~5.9.3" } }
+```
+
+Read the output knowing what it cannot know. It treats **every string** as suspect
+and has no way to be told otherwise — no branded type helps, and there is no ignore
+comment; only an expression whose text begins with `safe` or `escapeHtml` is
+accepted. So every helper that returns trusted markup is reported: on this
+repository, 79 findings of which 75 are `csrfField()`, `vite()`, `stack()` and their
+like. That is why it is a script somebody runs and reads rather than a gate that
+blocks a merge.
+
+The four that were not are what it is for. One of them was a real XSS no reading of
+these files had caught, because the flaw was inside a template literal inside a
+callback rather than at an interpolation. `safe` remains a runtime guarantee and a
+review responsibility; this shortens the review.
 :::
 
 ## Layouts

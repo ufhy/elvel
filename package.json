@@ -7,6 +7,7 @@
     "playground",
     "apps/*",
     "apps/*/frontend",
+    "tools/*",
     ".demo/*",
     ".demo/*/frontend"
   ],
@@ -22,7 +23,8 @@
     "smoke": "bun run build:packages && bun scripts/smoke.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "verify": "bun run lint && bun run typecheck && bun run test && bun run smoke"
+    "verify": "bun run lint && bun run typecheck && bun run test && bun run smoke",
+    "xss:scan": "./tools/xss-scan/node_modules/.bin/xss-scan -p tsconfig.xss.json -s"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",

@@ -1,0 +1,35 @@
+{
+  // The XSS scanner's file list — `bun run xss:scan`.
+  //
+  // At the repository root, and it has to be. `@kitajs/ts-html-plugin`'s CLI
+  // resolves `include` in a way that cannot leave the config's own directory:
+  // measured at v4.1.4, a copy of this file under `tools/xss-scan/` with
+  // `../../packages/**` patterns reports `TS18003: No inputs were found`, while
+  // plain `tsc -p` on the same file lists all 28 inputs. So the toolchain lives in
+  // `tools/xss-scan` and the file list lives here.
+  //
+  // Separate from `tsconfig.json` on purpose. That one is the build, on
+  // TypeScript 7; this one exists to be read by TypeScript 5, which is the only
+  // version the plugin's CLI runs on — it reads `typescript.sys`, which 7 removed.
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@kitajs/html",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "plugins": [{ "name": "@kitajs/ts-html-plugin" }]
+  },
+
+  // Everywhere a `.tsx` view is written: the packages' own, every kit's, the
+  // template's, and the playground's.
+  "include": [
+    "packages/*/src/**/*.tsx",
+    "packages/create-elvel/kits/*/resources/views/**/*.tsx",
+    "packages/create-elvel/template/resources/views/**/*.tsx",
+    "playground/resources/views/**/*.tsx"
+  ]
+}
