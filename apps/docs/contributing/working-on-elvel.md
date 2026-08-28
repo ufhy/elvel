@@ -29,9 +29,38 @@ Individually:
 ```bash
 bun run lint
 bun run typecheck
-bun run test     # 2,462 tests, including those against real Postgres and MySQL
+bun run test     # 2,681 tests, including those against real Postgres and MySQL
 bun run smoke    # 783 checks against the real playground app
 ```
+
+### bun run xss:scan
+
+Not part of `verify`, and read rather than gated:
+
+```bash
+bun run xss:scan   # exit 1 means it found something, which it always does
+```
+
+`@kitajs/ts-html-plugin` over every `.tsx` view in the repository. Escaping is
+opt-in in this framework — see [Views](/basics/views#escaping-is-opt-in-and-this-matters)
+— and this catches the one class of missing `safe` that reading the files does not:
+a value interpolated inside a template literal inside a callback, which is not at an
+interpolation at all. It found a real XSS in the playground's `whenAuth` example
+that way.
+
+Read the output knowing what it cannot know. It treats **every string** as suspect
+and has no way to be told otherwise — no branded type helps, there is no ignore
+comment, and only an expression whose text begins with `safe` or `escapeHtml` is
+accepted. So every helper that returns trusted markup is reported: 75 of the current
+79 findings are `csrfField()`, `vite()`, `stack()` and their like. Silencing them
+would mean renaming public API for a linter's heuristic, which is why this is a
+script and not a gate.
+
+It lives in `tools/xss-scan`, a workspace with no source — only the plugin and
+`typescript@~5.9.3`, because the plugin's CLI reads `typescript.sys`, which
+TypeScript 7 removed. Two placement rules, both measured, both easy to break by
+tidying: `tsconfig.xss.json` must stay at the repository root, and the process must
+run from there.
 
 ### playground/
 

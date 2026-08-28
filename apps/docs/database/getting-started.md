@@ -30,6 +30,30 @@ await users.upsert({ email: 'ada@example.com', votes: 1 }, ['email'])
 await connection.transaction(async (tx) => { /* rolled back on throw */ })
 ```
 
+::: warning A sort direction from a request is refused, not interpolated
+`orderBy(column, direction)` is typed `'asc' | 'desc'`, and a type says nothing at
+runtime about a value that arrived as `?dir=…` — which is the one part of a query an
+application routinely takes from outside. Anything else throws
+`Order direction must be "asc" or "desc"`.
+
+It has to, because the direction reaches SQL as a keyword rather than as an
+identifier or a binding, so there is nothing quoting it. Measured against a live
+database before the check existed, this ran:
+
+```sql
+order by "name" asc, (CASE WHEN (SELECT secret FROM users WHERE name = 'Ada')
+                      LIKE 't%' THEN 0 ELSE 1 END) asc
+```
+
+The row order then answers the guess — a blind oracle needing no second statement,
+so whether the driver permits one is beside the point. Laravel refuses the same way.
+Column names, table names and values were never exposed: identifiers are quoted with
+any embedded quote doubled, values are always bindings, and operators are checked
+against a list. `orderByRaw` is there when an expression is genuinely what you mean,
+and its name is the whole difference — it says at the call site that the string is
+trusted.
+:::
+
 Dialect differences are handled rather than assumed away, and the details come
 from Laravel's source:
 

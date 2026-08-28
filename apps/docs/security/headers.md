@@ -54,6 +54,14 @@ does: a script three components deep still has to carry it.
 With the policy off it returns an empty string, so the attribute is inert rather
 than wrong — a page written this way works either way.
 
+**One kind of inline script gets the nonce without asking**, and only one: a tag a
+Vite plugin injected. `vite()` harvests those and adds the nonce as it renders them,
+because the plugin could not have — `@vitejs/plugin-react`'s Fast Refresh preamble
+is inline, and it is written at the dev-server handshake, long before the request
+that carries one. Everything you write yourself needs `nonce={cspNonce()}` on it;
+nothing infers that for you, and a missing one is a script the browser refuses with
+only a console line to say so.
+
 Inline **styles** are allowed. A view is allowed to carry its own, for the reason
 Laravel's `welcome.blade.php` does: a stylesheet request before the first paint is
 a flash of unstyled text.
@@ -114,6 +122,32 @@ The static plugin's routes skip the surrounding lifecycle, measured in both
 for compressible ones — and reads the headers from the container, since it does not
 depend on `@elvel/http`. What still falls through to the static plugin is a range
 request and a path that is not a file.
+
+### Adding a header to one served file
+
+Two container bindings are read there, and a package can provide the second:
+
+```ts
+// in a provider's register(), before the view provider boots
+this.app.instance('assets.headers', (request: Request) => {
+  return new URL(request.url).pathname === '/build/sw.js'
+    ? { 'service-worker-allowed': '/', 'cache-control': 'no-cache' }
+    : {}
+})
+```
+
+That is `@elvel/vite`'s own use of it: a service worker may claim no more than the
+directory it is served from, and only a server can say otherwise. A binding rather
+than a hook of its own, because its provider is registered *after* the one that
+serves the file — for a file that exists, the static layer answers first.
+
+**`security.headers` is merged last, so `assets.headers` cannot weaken it.** Order
+is the whole of the access control here: merged the other way, a binding whose
+stated job is a cache directive could replace the Content Security Policy on every
+static file the application serves. It costs nothing, because `cache-control` is the
+one header an asset contributor needs to override and the security headers never set
+it. Everything else in a served response — `content-type`, `etag`,
+`content-encoding`, `vary` — is a fact about the bytes and is written over both.
 
 That change brought conditional requests with it. `@elysiajs/static` sets an `ETag`
 and then ignores `If-None-Match`: measured on a built application, a conditional

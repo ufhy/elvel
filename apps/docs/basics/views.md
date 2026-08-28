@@ -400,9 +400,22 @@ manifest`.
 export default {
   // `.` is the scaffold: vite.config.ts beside elvel.ts, client source in resources/.
   projectDirectory: 'frontend',
-  buildDirectory: 'build'
+  buildDirectory: 'build',
+  assetsDirectory: 'assets'
 }
 ```
+
+`assetsDirectory` is Vite's `build.assetsDir`, and it is the key that decides what
+gets cached for a year. Only files there carry a content hash and therefore cannot
+go stale; what sits at the build *root* keeps its name when its contents change —
+`manifest.json`, and whatever a plugin emits beside it. Measured before this key
+existed, with the whole build directory treated as hashed: a `vite-plugin-pwa`
+service worker went out `max-age=31536000, immutable` under a name with no hash in
+it, so a browser had no reason to fetch the next one for a year. The application
+would have frozen at its first deployed worker with nothing failing anywhere.
+
+Change it here and in `vite.config.ts` together, as with `buildDirectory` — two
+halves of one decision.
 
 `elvel dev` runs Vite there. That is what a decoupled front end needs — `bun create
 vite` in `frontend/`, kept standard, with its own config and `node_modules` — and

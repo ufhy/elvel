@@ -135,6 +135,28 @@ Route.permanentRedirect('/old', '/new')       // 301
 an application that never registered `ViewServiceProvider` gets a container error
 naming `view` rather than a mystery.
 
+It also takes a **status and headers**, Laravel's fourth and fifth arguments, and
+the fifth is the one with a job:
+
+```ts
+Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, {
+  'cache-control': 'private, max-age=0, must-revalidate'
+}).where('path', '.*')
+```
+
+A view returns markup rather than a response, so a route that renders is the only
+place a header on it can be named. A client-routed document is the case that needs
+it — the same bytes for everybody is only useful if the response says so. See
+[Single-page applications](/basics/spa#what-the-client-asks-for).
+
+::: warning A header named here wins over the framework's
+The security headers are applied only where a response does not already carry one,
+so a header named in this argument **replaces** the framework's. Measured: a route
+answering `content-security-policy: default-src *` kept it. That is what makes a
+per-route policy possible, and it means a typo here is a silently weakened policy.
+Name cache directives here; leave the rest to `config/security.ts`.
+:::
+
 ## Names
 
 ```ts
