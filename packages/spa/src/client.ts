@@ -92,10 +92,36 @@ export function embedded<T = Record<string, unknown>>(): Partial<T> & { csrf?: s
  */
 export const page = embedded()
 
+/**
+ * What a query value may be, and what happens to each.
+ *
+ * `null` and `undefined` are dropped rather than sent as the strings `"null"` and
+ * `"undefined"`, which is what `URLSearchParams` does with them unaided — and what
+ * turns an absent filter into a filter for the word "undefined".
+ *
+ * An array repeats its key: `{ ids: [1, 2] }` is `?ids=1&ids=2`. Worth knowing what
+ * the other end makes of that — measured against a running application, the query
+ * parser answers strings and the **last value wins**, for that shape and for
+ * `ids[]=` alike. Reading it back as an array needs the route to say so:
+ * `.validate({ query: t.Object({ ids: t.Array(t.String()) }) })`.
+ */
+export type QueryValue = string | number | boolean | null | undefined
+export type Query = Record<string, QueryValue | QueryValue[]>
+
 export type CallOptions = {
   method?: string
+
+  /**
+   * The body. An object is sent as JSON; `FormData` is sent as it is.
+   *
+   * The distinction is not cosmetic. `FormData` carries a boundary the runtime
+   * decides once it has the form, so this must not set `content-type` — a
+   * hand-written `multipart/form-data` header survives and the far end then cannot
+   * parse the body, with nothing failing on this side.
+   */
   body?: unknown
-  query?: Record<string, string>
+
+  query?: Query
 
   /** Overrides the token from the document — for a shell, which carries none. */
   token?: string
@@ -104,22 +130,71 @@ export type CallOptions = {
    * What goes in front of `path`. `/api` unless you say otherwise.
    *
    * The default is the prefix `config/spa.ts` hands the exception handler, so a
-   * 401 there arrives as JSON rather than as the document. Auth and settings do
-   * **not** live under it — `/sign-in` and `/settings/profile` are the addresses a
-   * browser navigates to as well — so a form posting to one passes `prefix: ''`.
+   * 401 there arrives as JSON rather than as the document.
    */
   prefix?: string
+
+  /**
+   * Cancels the request — `new AbortController().signal`.
+   *
+   * A screen that navigates away while a read is in flight has nothing useful to
+   * do with the answer, and a search box that fires per keystroke has several
+   * answers it does not want. Without this the only way to ignore one is to check
+   * a flag after it lands, which still pays for the transfer.
+   */
+  signal?: AbortSignal
+
+  /** Extra headers. These win, so a caller can override any default below. */
+  headers?: Record<string, string>
+}
+
+/** The whole answer, for a caller that needs more than the body. */
+export type Answer<T> = {
+  data: T
+  status: number
+  headers: Headers
+}
+
+/** `?a=1&b=2`, with the empty values left out. */
+function queryString(query: Query): string {
+  const search = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(query)) {
+    for (const one of Array.isArray(value) ? value : [value]) {
+      if (one === null || one === undefined) continue
+
+      search.append(key, String(one))
+    }
+  }
+
+  return search.toString()
+}
+
+/** Does this body travel as it is, with the runtime deciding its content type? */
+function passesThrough(body: unknown): boolean {
+  return (
+    body instanceof FormData ||
+    body instanceof Blob ||
+    body instanceof URLSearchParams ||
+    body instanceof ArrayBuffer ||
+    typeof body === 'string'
+  )
 }
 
 /**
- * One request, with the four things every request needs already decided.
+ * One request, with the four things every request needs already decided, and the
+ * whole answer handed back.
+ *
+ * `call` is this without the envelope, and is what most code wants. Reach for this
+ * one when the status or a header is the answer — a `201` to tell apart from a
+ * `200`, a `Location` to follow.
  *
  * ```ts
- * const invoices = await call<Page<Invoice>>('/invoices', { query: { status } })
+ * const { status, headers } = await send('/invoices', { method: 'POST', body })
  * ```
  */
-export async function call<T>(path: string, options: CallOptions = {}): Promise<T> {
-  const query = new URLSearchParams(options.query ?? {}).toString()
+export async function send<T>(path: string, options: CallOptions = {}): Promise<Answer<T>> {
+  const query = queryString(options.query ?? {})
   const method = options.method ?? 'GET'
   /**
    * Read now, not at import.
@@ -131,9 +206,11 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
   const token = options.token ?? embedded().csrf
 
   const prefix = options.prefix ?? '/api'
+  const raw = passesThrough(options.body)
 
   const response = await fetch(`${prefix}${path}${query === '' ? '' : `?${query}`}`, {
     method,
+    signal: options.signal,
     /**
      * No `Authorization` header anywhere in this file, and that is the point.
      *
@@ -155,7 +232,9 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
        * for "you are signed out".
        */
       accept: 'application/json',
-      ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+      // Never for a form or a blob: the runtime writes the boundary, and only it
+      // knows what that boundary is.
+      ...(options.body === undefined || raw ? {} : { 'content-type': 'application/json' }),
       /**
        * The token, on anything that changes state.
        *
@@ -163,9 +242,15 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
        * Sending it on reads would be harmless and pointless — the server only
        * checks writes.
        */
-      ...(method === 'GET' || token === undefined ? {} : { 'x-csrf-token': token })
+      ...(method === 'GET' || token === undefined ? {} : { 'x-csrf-token': token }),
+      ...options.headers
     },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    body:
+      options.body === undefined
+        ? undefined
+        : raw
+          ? (options.body as BodyInit)
+          : JSON.stringify(options.body)
   })
 
   if (response.status === 401) throw new Unauthenticated()
@@ -186,5 +271,43 @@ export async function call<T>(path: string, options: CallOptions = {}): Promise<
     throw new Error((payload.message as string) ?? `Request failed (${response.status})`)
   }
 
-  return payload as T
+  return { data: payload as T, status: response.status, headers: response.headers }
+}
+
+/**
+ * One request, answering with the body.
+ *
+ * ```ts
+ * const invoices = await call<Page<Invoice>>('/invoices', { query: { status } })
+ * ```
+ */
+export async function call<T>(path: string, options: CallOptions = {}): Promise<T> {
+  return (await send<T>(path, options)).data
+}
+
+type VerbOptions = Omit<CallOptions, 'method'>
+
+/**
+ * The verbs, so a call names what it does rather than passing it in options.
+ *
+ * ```ts
+ * const invoices = await http.get<Page<Invoice>>('/invoices', { query: { status } })
+ *
+ * await http.post('/avatar', { body: form })      // FormData, sent as it is
+ * await http.patch(`/invoices/${id}`, { body: { paid: true } })
+ * await http.delete(`/invoices/${id}`)
+ * ```
+ *
+ * Nothing here is new behaviour — each is `call` with `method` filled in, and every
+ * default above still applies.
+ */
+export const http = {
+  get: <T>(path: string, options: VerbOptions = {}) => call<T>(path, { ...options, method: 'GET' }),
+  post: <T>(path: string, options: VerbOptions = {}) =>
+    call<T>(path, { ...options, method: 'POST' }),
+  put: <T>(path: string, options: VerbOptions = {}) => call<T>(path, { ...options, method: 'PUT' }),
+  patch: <T>(path: string, options: VerbOptions = {}) =>
+    call<T>(path, { ...options, method: 'PATCH' }),
+  delete: <T>(path: string, options: VerbOptions = {}) =>
+    call<T>(path, { ...options, method: 'DELETE' })
 }

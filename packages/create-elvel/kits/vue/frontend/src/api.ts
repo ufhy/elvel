@@ -1,4 +1,10 @@
-import { call, Invalid, NeedsPasswordConfirmation, Unauthenticated } from '@elvel/spa/client'
+import {
+  call,
+  type CallOptions,
+  Invalid,
+  NeedsPasswordConfirmation,
+  Unauthenticated
+} from '@elvel/spa/client'
 
 export { Invalid, NeedsPasswordConfirmation, Unauthenticated }
 
@@ -56,12 +62,23 @@ export const csrf = (): string => current.csrf
 /**
  * A request with this session's token attached.
  *
- * Every write goes through here rather than through `call` directly. `call` reads
+ * Every write goes through here rather than through the client directly. It reads
  * the token from the document by default, and there is no document to read — so
  * forgetting the override would not fail loudly, it would fail as a 419 from
  * somewhere else entirely.
+ *
+ * Everything else is already decided by `@elvel/spa/client`: the cookie rather
+ * than a header, `accept: application/json` so a dead session is a 401 and not a
+ * page, `content-type` on writes but never on a form, and 401, 422 and 423 as
+ * types. What is left for an application is the token and the paths.
+ *
+ * ```ts
+ * const listed = await ask<Page<Invoice>>('/invoices', { query: { status, page } })
+ *
+ * await ask('/avatar', { method: 'POST', body: form })   // FormData, sent as it is
+ * ```
  */
-export const ask = <T>(path: string, options: Parameters<typeof call>[1] = {}) =>
+export const ask = <T>(path: string, options: CallOptions = {}) =>
   call<T>(path, { token: current.csrf, ...options })
 
 export const api = {
