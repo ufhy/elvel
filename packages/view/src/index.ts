@@ -6,8 +6,6 @@ export { type ClassInput, classes, json, styles } from './attributes.ts'
 export { JsxViewFactory, type ViewFactoryOptions } from './factory.ts'
 export { ViewServiceProvider } from './provider.ts'
 export { once, prepend, push, pushOnce, resolveStacks, stack, withStacks } from './stacks.ts'
-export { Vite } from './vite.ts'
-export { vite } from './vite-helper.ts'
 
 /**
  * Render a view component into an HTML response.

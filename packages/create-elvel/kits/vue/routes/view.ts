@@ -1,5 +1,5 @@
-import { config, NotFoundException } from '@elvel/core'
 import { Route } from '@elvel/http'
+import { guardBuildDirectory } from '@elvel/vite/routes'
 import { Shell } from '../resources/views/components/shell.tsx'
 
 /**
@@ -40,20 +40,18 @@ import { Shell } from '../resources/views/components/shell.tsx'
  * belong to the half below, and `frontend/src/routers/app.ts` mounts them there.
  */
 /**
- * A file that is not there stays not there.
+ * A stale asset stays a 404, rather than becoming one of the documents below.
  *
- * The build directory is served by `@elvel/view`, which hands over the files that
- * exist and falls through for the ones that do not — and what they fell through to
- * was the view route. Measured: a stale `/build/assets/index-abc123.js` from a
- * cached document answered `200` and a *page*, so a browser waiting for JavaScript
- * got HTML and the application failed with nothing saying why.
+ * `@elvel/view` serves what exists under `public/` and lets anything else fall
+ * through to the router, which is right everywhere except the build directory:
+ * nothing lives there but hashed output, so a request for one that is gone is a
+ * cached document asking for yesterday's bundle. Without this it fell through to
+ * the view route and answered a page — measured, `200` and HTML to a browser
+ * waiting for JavaScript.
  *
- * The prefix is read from config rather than written twice: `vite.buildDirectory`
- * is what the tags on the page point at.
+ * `vite.guardBuildDirectory: false` turns it off.
  */
-Route.any(`/${config<string>('vite.buildDirectory', 'build')}/{path}`, () => {
-  throw new NotFoundException('No such file.')
-}).where('path', '.*')
+guardBuildDirectory()
 
 Route.prefix('auth')
   .middleware('guest')

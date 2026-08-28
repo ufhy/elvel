@@ -1,5 +1,5 @@
 import { config } from '@elvel/core'
-import { vite } from '@elvel/view'
+import { vite } from '@elvel/vite/tags'
 
 export type ShellProps = {
   /** The Vite entry this document boots, as the manifest names it. */

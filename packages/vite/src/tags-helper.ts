@@ -1,5 +1,5 @@
 import { app, config } from '@elvel/core'
-import { Vite } from './vite.ts'
+import { Vite } from './tags.ts'
 
 let instance: Vite | undefined
 

@@ -41,7 +41,8 @@
   "dependencies": {
     "@elvel/core": "workspace:*",
     "@elvel/http": "workspace:*",
-    "@elvel/view": "workspace:*"
+    "@elvel/view": "workspace:*",
+    "@elvel/vite": "1.0.0-alpha.16"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0",

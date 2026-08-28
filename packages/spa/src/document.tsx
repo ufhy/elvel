@@ -1,4 +1,5 @@
-import { json, vite } from '@elvel/view'
+import { json } from '@elvel/view'
+import { vite } from '@elvel/vite/tags'
 
 export type DocumentProps = {
   /** The Vite entry, as the manifest names it. */

@@ -1,6 +1,7 @@
 import { config } from '@elvel/core'
 import { cspNonce } from '@elvel/http'
-import { stack, vite } from '@elvel/view'
+import { stack } from '@elvel/view'
+import { vite } from '@elvel/vite/tags'
 import type { Children } from '@kitajs/html'
 
 export type LayoutProps = {
