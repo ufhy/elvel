@@ -1036,9 +1036,9 @@ describe('the welcome page', () => {
    * link to a page that answers 404.
    */
   test('and links to auth pages only where they exist', async () => {
-    const controller = await Bun.file(
-      resolve(templateDir, 'app', 'Http', 'Controllers', 'PageController.ts')
-    ).text()
+    // Read from the routes file, which is where the handler lives: `/` is a
+    // closure, because one call and one view is not what a class is for.
+    const controller = await Bun.file(resolve(templateDir, 'routes', 'web.ts')).text()
 
     for (const name of ['login', 'register', 'dashboard']) {
       expect<string>(`${name}: ${controller.includes(`routes().path('${name}')`)}`).toBe(
@@ -1154,7 +1154,7 @@ describe('reloading the browser', () => {
 
     // Rendered on the server, so the browser has no module to swap.
     expect(reloads('resources/views/pages/welcome.tsx')).toBeGreaterThan(0)
-    expect(reloads('app/Http/Controllers/PageController.ts')).toBeGreaterThan(0)
+    expect(reloads('routes/web.ts')).toBeGreaterThan(0)
 
     // Real client modules, which keep their own HMR.
     expect(reloads('resources/css/app.css')).toBe(0)

@@ -13,7 +13,7 @@ export type WelcomeProps = {
 }
 
 const steps = [
-  ['Edit the route that served this page', 'app/Http/Controllers/PageController.ts'],
+  ['Edit the route that served this page', 'routes/web.ts'],
   ['Edit this page itself', 'resources/views/pages/welcome.tsx'],
   ['Decide what the application registers', 'bootstrap/providers.ts'],
   ['Then read the rest', 'ufhy.github.io/elvel']

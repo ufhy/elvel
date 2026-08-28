@@ -113,7 +113,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                 <span class="tick" />
                 <div>
                   Edit the route that served this page
-                  <code>app/Http/Controllers/PageController.ts</code>
+                  <code>routes/web.ts</code>
                 </div>
               </li>
               <li>

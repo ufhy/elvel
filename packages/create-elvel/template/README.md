@@ -46,31 +46,38 @@ shape as Laravel's `routes/web.php`.
 ```ts
 // routes/web.ts
 import { Route } from '@elvel/http'
-import PageController from '../app/Http/Controllers/PageController.ts'
+import { view } from '@elvel/view'
+import { Welcome } from '../resources/views/pages/welcome.tsx'
 
-Route.get('/', [PageController, 'index']).name('home')
-Route.get('/health', [PageController, 'health'])
+Route.get('/', () => view(Welcome, { title: 'Welcome' })).name('home')
+Route.get('/health', () => ({ status: 'ok' }))
 ```
 
+A handler is either a closure or `[Controller, 'method']` — Laravel's `fn () => …`
+and `[Controller::class, 'method']`. The two above are closures because neither has
+anything a class would hold.
+
 ```ts
-// app/Http/Controllers/PageController.ts
+// app/Http/Controllers/UserController.ts
 import { view } from '@elvel/view'
-import { Welcome } from '../../../resources/views/pages/welcome.tsx'
+import { Users } from '../../../resources/views/pages/users.tsx'
 
-export default class PageController {
-  index() {
-    return view(Welcome, { title: 'Welcome' })
-  }
-
-  health() {
-    return { status: 'ok' }
+export default class UserController {
+  show({ params }: { params: { id: string } }) {
+    return view(Users, { id: params.id })
   }
 }
 ```
 
-A controller is a plain class. Each method receives Elysia's request context, so
-`{ params, query, body, request, set }` is destructured from its argument. One
-instance is built per route and reused — keep them stateless.
+```ts
+Route.get('/users/{id}', [UserController, 'show']).whereNumber('id')
+```
+
+A controller is a plain class, and it earns its keep when several related actions
+belong together or there is logic worth testing on its own. Each method receives
+Elysia's request context, so `{ params, query, body, request, set }` is
+destructured from its argument — a closure takes the same thing as its argument.
+One instance is built per route and reused — keep them stateless.
 
 Groups, names, constraints and resources all read the way they do in Laravel:
 

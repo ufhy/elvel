@@ -223,9 +223,10 @@ describe('building the application', () => {
 
       expect<string>(list()).toContain('Serve the bundled one')
 
-      const controller = join(target, 'app', 'Http', 'Controllers', 'PageController.ts')
+      // Any server-side file will do; `/` is a closure in the routes file now.
+      const served = join(target, 'routes', 'web.ts')
 
-      await Bun.write(controller, await Bun.file(controller).text())
+      await Bun.write(served, await Bun.file(served).text())
 
       expect<string>(list()).toContain('Serve the application')
     },
