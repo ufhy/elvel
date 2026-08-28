@@ -343,7 +343,12 @@ so those injections used to be lost. Measured against the official Vite template
 | `vite-plugin-vue-devtools` | `overlay.js`, `load.js` | DevTools never loaded |
 
 `@elvel/vite` asks Vite for them when the dev server starts and writes them beside
-the hot file; `vite()` renders them between the client and your entry. That order
+the hot file; `vite()` renders them between the client and your entry, **and adds
+the request's CSP nonce to any of them that is inline**. React's preamble is inline,
+and the plugin that wrote it could not have known the nonce — it renders its tag at
+the dev-server handshake, long before the request that carries one. Without that, a
+policy this framework sends itself would refuse the preamble and Fast Refresh would
+quietly become a full reload. That order
 is the requirement: React's preamble installs a global hook its components register
 against as they evaluate, so after the entry it is too late.
 

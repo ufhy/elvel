@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { cspNonce } from '@elvel/http'
 
 type ManifestChunk = {
   file: string
@@ -204,7 +205,43 @@ export class Vite {
   private readTags(path: string): string {
     if (!existsSync(path)) return ''
 
-    return readFileSync(path, 'utf8').trim()
+    return this.nonced(readFileSync(path, 'utf8').trim())
+  }
+
+  /**
+   * The nonce, on markup this framework did not write.
+   *
+   * Every other tag here carries `src` or `href`, which `script-src 'self'` allows
+   * on its own. A harvested tag can be **inline** — `@vitejs/plugin-react`'s Fast
+   * Refresh preamble is exactly that — and an inline script with no nonce is
+   * refused by the policy this framework sends itself. Nothing fails on the server:
+   * the browser logs a violation and Fast Refresh quietly becomes a full reload,
+   * which is the same symptom as the bug this harvesting exists to fix.
+   *
+   * A plugin cannot be asked to write the nonce, because it renders its tag during
+   * the build or the dev-server handshake, long before the request that will carry
+   * one. So it is added here, at render time, which is the first moment the value
+   * exists.
+   *
+   * Only where there is not one already, so a plugin that does know about nonces is
+   * left alone. `cspNonce()` answers `''` when no policy is being sent — with CSP
+   * off, or outside a request — and then the markup is passed through untouched
+   * rather than given an empty attribute.
+   */
+  private nonced(html: string): string {
+    const nonce = cspNonce()
+
+    if (nonce === '') return html
+
+    /**
+     * A function replacement, not a string one.
+     *
+     * A nonce is base64, so `$&` and its friends cannot appear in this one — but a
+     * value that reaches a `String.replace` pattern position is a value that gets
+     * *interpreted*, and that is not a property worth depending on in the code
+     * that authorises script execution.
+     */
+    return html.replace(/<script(?=[\s>])(?![^>]*\snonce=)/gi, () => `<script nonce="${nonce}"`)
   }
 
   /** The public URL of a built file, by its manifest key. */
