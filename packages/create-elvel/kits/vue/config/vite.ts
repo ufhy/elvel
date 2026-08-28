@@ -51,8 +51,8 @@ export default {
    * and none of the addresses the Vue router owns.
    *
    * `false` here, because a header naming a scope should not be sent for a file that
-   * is not there. See `basics/spa` for what the client half has to decide — chiefly
-   * that `/api` is never cached.
+   * is not there. See `basics/frontend` for what the client half has to decide —
+   * chiefly that `/api` is never cached.
    */
   serviceWorker: false as string | false
 }

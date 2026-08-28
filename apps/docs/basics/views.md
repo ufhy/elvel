@@ -4,6 +4,10 @@ A view is a TypeScript function that returns markup. There is no template engine
 no view path to configure, and no compile cache — Bun's module cache *is* the
 compile cache, and `tsc` is the template checker.
 
+This page is the server rendering the page. If the server should answer one document
+and hand everything after it to a client project, that is
+[Building a frontend](/basics/frontend) — same views, different amount of them.
+
 ```tsx
 // resources/views/pages/welcome.tsx
 export function Welcome({ title }: { title: string }) {

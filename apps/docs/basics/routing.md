@@ -147,7 +147,7 @@ Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, {
 A view returns markup rather than a response, so a route that renders is the only
 place a header on it can be named. A client-routed document is the case that needs
 it — the same bytes for everybody is only useful if the response says so. See
-[Single-page applications](/basics/spa#what-the-client-asks-for).
+[Building a frontend](/basics/frontend#what-the-client-asks-for).
 
 ::: warning A header named here wins over the framework's
 The security headers are applied only where a response does not already carry one,

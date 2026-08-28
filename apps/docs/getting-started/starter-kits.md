@@ -4,7 +4,7 @@
 Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and each
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
-`auth` is the same pages without Tailwind; `vue` is a single-page application with
+`auth` is the same pages without Tailwind; `vue` is a Vue client project with
 **shadcn-vue**, a collapsible sidebar and a JSON API behind it; `none` and `api` are
 closer to variants of one template. Two-factor authentication and passkeys are in
 all three auth kits. No teams.
@@ -251,9 +251,11 @@ so an application inside a checkout would find its own views invisible. Measured
 that is not what happens: the views were found, and so was everything else.
 :::
 
-## `vue` — a single-page application, on the auth kit
+## `vue` — a client project, on the auth kit
 
-The auth kit, with everything in front of it written in Vue:
+The auth kit, with everything in front of it written in Vue. This section is what the
+kit *ships*; how the shape works, and how to build it yourself, is
+[Building a frontend](/basics/frontend).
 
 ```
 my-app/

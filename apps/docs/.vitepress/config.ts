@@ -86,7 +86,7 @@ export default defineConfig({
           { text: 'Middleware', link: '/basics/middleware' },
           { text: 'Session, cookies and CSRF', link: '/basics/session' },
           { text: 'Views', link: '/basics/views' },
-          { text: 'Single-page applications', link: '/basics/spa' },
+          { text: 'Building a frontend', link: '/basics/frontend' },
           { text: 'Events and logging', link: '/basics/events-and-logging' }
         ]
       },
@@ -94,7 +94,6 @@ export default defineConfig({
         text: 'Digging deeper',
         items: [
           { text: 'Broadcasting', link: '/digging-deeper/broadcasting' },
-          { text: 'Browser client', link: '/digging-deeper/client' },
           { text: 'Cache', link: '/digging-deeper/cache' },
           { text: 'Collections and helpers', link: '/digging-deeper/collections' },
           { text: 'Concurrency', link: '/digging-deeper/concurrency' },
