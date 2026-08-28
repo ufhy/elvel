@@ -103,6 +103,22 @@ export function Layout({ title, children }: LayoutProps) {
       </head>
       <body class="min-h-dvh font-sans antialiased">
         {children}
+
+        {/*
+          What this is and where it is running — the same line the other kits'
+          layout renders, so a page shared with them looks the same in both.
+          `class="footer"` **and** the utilities, deliberately: the welcome page
+          brings its own unlayered `<style>` with a `.footer` rule in it, and an
+          unlayered rule beats every `@layer`, so on that page this matches the
+          other kits exactly. Everywhere else there is no such rule and the
+          utilities are what style it.
+        */}
+        <footer class="footer flex items-center justify-center gap-2 py-8 font-mono text-xs text-muted-foreground">
+          <span safe>{name}</span>
+          <span class="dot opacity-50">·</span>
+          <span safe>{config<string>('app.env', 'production')}</span>
+        </footer>
+
         {stack('scripts')}
       </body>
     </html>

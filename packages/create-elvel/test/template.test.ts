@@ -1067,66 +1067,50 @@ describe('the welcome page', () => {
   })
 
   /**
-   * Two copies of this page exist, and they must say the same things.
+   * One copy of this page, and no kit may ship a second.
    *
-   * The template's is hand-written CSS, because a kit without Tailwind has to look
-   * finished before any build; the `jsx` kit's is Tailwind classes over the same
-   * content, which is why it is 132 lines against 416. Two presentations of one page
-   * is fine. Two *contents* is not, and they had already drifted three ways: the
-   * template linked to the repository where the kit linked to the documentation
-   * site, the template's terminal named `dev:assets` where the kit named `dev`, and
-   * the kit said "Get started" where every other kit said "Register".
+   * The `jsx` kit used to override it, because it has Tailwind and the template's
+   * copy is hand-written CSS. Two copies drift, and these did: the template linked
+   * to the repository where the kit linked to the documentation site, the template's
+   * terminal named `dev:assets` where the kit named `dev`, the kit said "Get started"
+   * where the others said "Register" — and none of that was visible by reading,
+   * because each file was coherent on its own.
    *
-   * Nothing catches that by reading, because each file is coherent on its own. So
-   * the facts a reader might act on — the links, and the commands — are asserted
-   * equal rather than asserted twice.
+   * Then the presentation drifted too. Measured off both pages at 1280px: 60px
+   * headline against 73.6px, 18px lead against 17.12px, 848px container against
+   * 944px, white body against `#fbf9f5`.
+   *
+   * So the override is gone rather than kept in step. The page brings its own
+   * `<style>`, and an unlayered `<style>` beats every `@layer` — which is where
+   * Tailwind's base rules live — so it styles itself the same inside any kit's
+   * layout. This test is what stops a second copy coming back.
    */
-  test('and says the same things as the jsx kit copy of it', async () => {
-    const kit = await Bun.file(
-      resolve(import.meta.dir, '..', 'kits', 'jsx', 'resources', 'views', 'pages', 'welcome.tsx')
-    ).text()
+  test('and no kit ships a second copy of it', async () => {
+    const kits = resolve(import.meta.dir, '..', 'kits')
+    const owned: string[] = []
 
-    /**
-     * Comments stripped first, and that is not a detail.
-     *
-     * Both files explain themselves at length, and the template's docblock mentions
-     * `bun run build` while describing why the page inlines its styles. That is
-     * prose about the page, not advice the page gives — comparing it would hold two
-     * explanations to each other rather than two pages.
-     */
-    const rendered = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '')
+    for (const kit of await readdir(kits)) {
+      const own = join(kits, kit, 'resources', 'views', 'pages', 'welcome.tsx')
 
-    const both = { template: rendered(await welcome()), jsx: rendered(kit) }
-
-    /**
-     * Every external address either offers, however it is written.
-     *
-     * Not literal `href` values: the kit builds its one link from the step it is
-     * rendering — `href={\`https://${where}/\`}` — so matching on the attribute
-     * found the template's and none of the kit's. What has to agree is the address a
-     * reader ends up at, so the scheme and a trailing slash are normalised away and
-     * the host with its path is what gets compared.
-     */
-    const links = (source: string) =>
-      [
-        ...new Set(
-          [...source.matchAll(/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,}\/[\w./-]*)/g)].map(
-            (match) => (match[1] as string).replace(/\/$/, '')
-          )
-        )
-      ].sort()
-
-    /** And every command either tells somebody to run. */
-    const commands = (source: string) =>
-      [...new Set([...source.matchAll(/bun run [a-z:]+/g)].map((match) => match[0]))].sort()
-
-    expect<string[]>(links(both.jsx)).toEqual(links(both.template))
-    expect<string[]>(commands(both.jsx)).toEqual(commands(both.template))
-
-    // The one label that drifted, kept where Laravel's own welcome page has it.
-    for (const [name, source] of Object.entries(both)) {
-      expect<string>(`${name}: ${source.includes('Register')}`).toBe(`${name}: true`)
+      if (await Bun.file(own).exists()) owned.push(kit)
     }
+
+    expect<string[]>(owned).toEqual([])
+  })
+
+  /**
+   * And it styles itself, which is what makes it the same page in every kit.
+   *
+   * `body { background }` inside its own `<style>` is the load-bearing line: the
+   * `jsx` kit's `app.css` sets a background in `@layer base`, and an unlayered rule
+   * beats a layered one whatever the selectors are. Measured on a scaffolded `jsx`
+   * application, which is Tailwind end to end: `rgb(251, 249, 245)`.
+   */
+  test('and carries the background that makes it look the same anywhere', async () => {
+    const source = await welcome()
+
+    expect<boolean>(/body \{[^}]*background: #fbf9f5/.test(source)).toBe(true)
+    expect<boolean>(source.includes('<style>{styles}</style>')).toBe(true)
   })
 })
 
