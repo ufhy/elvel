@@ -152,7 +152,7 @@ describe('Vite tags', () => {
   test('the tags other plugins asked for land between the client and the app', async () => {
     const root = await build({
       hot: 'http://localhost:5173\n',
-      'hot-tags.html': '<script type="module">preamble()</script>'
+      'hot-tags.txt': '<script type="module">preamble()</script>'
     })
 
     try {
@@ -199,7 +199,7 @@ describe('Vite tags', () => {
   test('what a plugin injected during the build is rendered too', async () => {
     const root = await build({
       'build/manifest.json': JSON.stringify({ 'app.ts': { file: 'assets/app-abc.js' } }),
-      'build/injected.html': '<link rel="manifest" href="/build/manifest.webmanifest">'
+      'build/injected-tags.txt': '<link rel="manifest" href="/build/manifest.webmanifest">'
     })
 
     try {

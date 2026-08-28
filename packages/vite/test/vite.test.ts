@@ -305,7 +305,7 @@ describe('what the other plugins wanted in the document', () => {
     // The write happens after the transform resolves.
     await Bun.sleep(20)
 
-    const tags = await Bun.file(join(root, 'public', 'hot-tags.html')).text()
+    const tags = await Bun.file(join(root, 'public', 'hot-tags.txt')).text()
 
     expect<boolean>(tags.includes('preamble()')).toBe(true)
     expect<boolean>(tags.includes('/overlay.js')).toBe(true)
@@ -333,7 +333,7 @@ describe('what the other plugins wanted in the document', () => {
     fake.listen()
     await Bun.sleep(20)
 
-    expect<boolean>(await Bun.file(join(root, 'public', 'hot-tags.html')).exists()).toBe(false)
+    expect<boolean>(await Bun.file(join(root, 'public', 'hot-tags.txt')).exists()).toBe(false)
   })
 })
 
@@ -429,7 +429,7 @@ describe('the page built only to be read', () => {
     )
 
     expect<boolean>(await Bun.file(join(out, 'index.html')).exists()).toBe(false)
-    expect<string>((await Bun.file(join(out, 'injected.html')).text()).trim()).toBe(
+    expect<string>((await Bun.file(join(out, 'injected-tags.txt')).text()).trim()).toBe(
       '<link rel="manifest" href="/m.webmanifest">'
     )
   })

@@ -177,7 +177,7 @@ export class Vite {
    * anyway.
    */
   private injected(): string {
-    return this.readTags(join(dirname(this.hotFilePath), 'hot-tags.html'))
+    return this.readTags(join(dirname(this.hotFilePath), 'hot-tags.txt'))
   }
 
   /**
@@ -187,9 +187,18 @@ export class Vite {
    * writes them beside the manifest. `vite-plugin-pwa` is the plugin this exists
    * for — its `<link rel="manifest">` and `registerSW.js` are injected at build
    * time, where there is no dev server to ask.
+   *
+   * `.txt`, and it used to be `.html`. The file lands inside the served build
+   * directory, so under that name it was a *document*: reachable at
+   * `/build/injected.html`, and — measured with `vite-plugin-pwa` — swept into the
+   * service worker's precache by Workbox's default `**\/*.html` glob, which had a
+   * worker holding a fragment of markup that is not a page. It contains nothing
+   * private, every tag in it is rendered into every document anyway; what the
+   * extension buys is that it is no longer mistaken for something to serve or to
+   * cache.
    */
   private injectedFromBuild(): string {
-    return this.readTags(join(dirname(this.manifestPath), 'injected.html'))
+    return this.readTags(join(dirname(this.manifestPath), 'injected-tags.txt'))
   }
 
   private readTags(path: string): string {

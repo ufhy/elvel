@@ -155,7 +155,7 @@ export default function elvel(options: ElvelViteOptions) {
     config(user: UserConfig, { command, isSsrBuild }: ConfigEnv): Answer {
       root = applicationRoot(options.appDirectory ?? process.cwd())
       hotFile = join(root, 'public', 'hot')
-      tagsFile = join(root, 'public', 'hot-tags.html')
+      tagsFile = join(root, 'public', 'hot-tags.txt')
 
       /**
        * Vite's own root and public directory, as Vite would resolve them.
@@ -339,13 +339,13 @@ export default function elvel(options: ElvelViteOptions) {
       const tags = injectedTags(built, readFileSync(indexHtml, 'utf8'))
 
       if (tags === '') {
-        rmSync(join(outputDir, 'injected.html'), { force: true })
+        rmSync(join(outputDir, 'injected-tags.txt'), { force: true })
 
         return
       }
 
       mkdirSync(outputDir, { recursive: true })
-      writeFileSync(join(outputDir, 'injected.html'), tags)
+      writeFileSync(join(outputDir, 'injected-tags.txt'), tags)
     },
 
     /**
