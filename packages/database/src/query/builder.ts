@@ -619,8 +619,36 @@ export class QueryBuilder<T extends Row = Row> {
     return this
   }
 
+  /**
+   * `order by`, and the direction is checked because the type cannot be.
+   *
+   * A sort direction is the one part of a query that reaches an application as a
+   * *string from outside* — `?sort=name&dir=asc` — and TypeScript's `'asc' | 'desc'`
+   * says nothing at runtime about a value that arrived over HTTP. It used to be
+   * interpolated straight into the SQL, which was a real injection with no `raw` in
+   * sight. Measured against a live SQLite database, this ran:
+   *
+   * ```
+   * order by "name" asc, (CASE WHEN (SELECT secret FROM users WHERE …) LIKE 't%'
+   *                       THEN 0 ELSE 1 END) asc
+   * ```
+   *
+   * The row order then answers the guess — a blind oracle needing no second
+   * statement, so whether the driver allows one is beside the point. Laravel refuses
+   * the same way and for the same reason.
+   *
+   * Reach for `orderByRaw` when an expression is what you mean. That name is the
+   * whole difference: it says at the call site that the string is trusted.
+   */
   orderBy(column: string | Expression, direction: 'asc' | 'desc' = 'asc'): this {
-    this.query.orders.push({ column, direction })
+    const wanted = String(direction).toLowerCase()
+
+    if (wanted !== 'asc' && wanted !== 'desc') {
+      throw new Error(`Order direction must be "asc" or "desc", saw [${direction}].`)
+    }
+
+    this.query.orders.push({ column, direction: wanted })
+
     return this
   }
 

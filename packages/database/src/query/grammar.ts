@@ -11,6 +11,21 @@ import type { QueryComponents, WhereClause } from './types.ts'
  * Unlike Laravel we cannot assume `?` everywhere: PDO normalises placeholders,
  * Bun.SQL does not, so `parameter()` is a per-dialect concern.
  */
+/**
+ * The two fragments that reach SQL as themselves, and therefore as a whitelist.
+ *
+ * Everything else in a compiled query is either wrapped as an identifier or sent as
+ * a binding. A join type and a sort direction are neither — they are keywords — so
+ * the last gate before the string is built is a membership test rather than a quote.
+ * The types already say `'inner' | 'left' | …` and `'asc' | 'desc'`, and a type says
+ * nothing at runtime about a value that arrived over HTTP.
+ *
+ * Anything unrecognised becomes the safe default rather than an error: this is the
+ * backstop and the call site throws. A grammar failing loudly here would turn a bug
+ * three layers up into an exception with no useful stack.
+ */
+const JOIN_TYPES = new Set(['inner', 'left', 'right', 'cross'])
+
 export abstract class Grammar {
   /** Identifier quote character. MySQL overrides this with a backtick. */
   protected quote = '"'
@@ -202,7 +217,9 @@ export abstract class Grammar {
       if (join.bindings) bindings.push(...join.bindings)
 
       const on = this.compileWheres(join.wheres, bindings, 'on')
-      parts.push(`${join.type} join ${this.wrapTable(join.table)}${on ? ` on ${on}` : ''}`)
+      const type = JOIN_TYPES.has(join.type) ? join.type : 'inner'
+
+      parts.push(`${type} join ${this.wrapTable(join.table)}${on ? ` on ${on}` : ''}`)
     }
 
     const wheres = this.compileWheres(query.wheres, bindings)
@@ -228,7 +245,7 @@ export abstract class Grammar {
 
           return isExpression(order.column)
             ? order.column.value
-            : `${this.wrap(order.column)} ${order.direction ?? 'asc'}`
+            : `${this.wrap(order.column)} ${order.direction === 'desc' ? 'desc' : 'asc'}`
         })
         .filter((clause) => clause !== '')
         .join(', ')
