@@ -54,7 +54,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                   ) : null}
                   {nav.register ? (
                     <Button size="sm" href={nav.register}>
-                      Get started
+                      Register
                     </Button>
                   ) : null}
                 </>
@@ -122,7 +122,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
         </main>
 
         <footer class="border-t py-6 text-xs text-muted-foreground">
-          <a class="hover:text-brand" href="https://ufhy.github.io/elvel">
+          <a class="hover:text-brand" href="https://ufhy.github.io/elvel/">
             ufhy.github.io/elvel
           </a>
         </footer>

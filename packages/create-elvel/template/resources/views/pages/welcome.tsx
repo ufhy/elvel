@@ -134,7 +134,7 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                 <span class="tick" />
                 <div>
                   Then read the rest
-                  <a href="https://github.com/ufhy/elvel">github.com/ufhy/elvel</a>
+                  <a href="https://ufhy.github.io/elvel/">ufhy.github.io/elvel</a>
                 </div>
               </li>
             </ol>
@@ -155,8 +155,8 @@ export function Welcome({ title, user, links }: WelcomeProps) {
                 <span class="prompt">$</span> bun run elvel make:controller Post -r
               </span>
               <span class="line">
-                <span class="prompt">$</span> bun run dev:assets
-                <span class="note"># styles, hot</span>
+                <span class="prompt">$</span> bun run dev
+                <span class="note"># the server and Vite, together</span>
               </span>
             </pre>
 

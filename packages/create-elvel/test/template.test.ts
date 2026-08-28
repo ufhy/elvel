@@ -1065,6 +1065,55 @@ describe('the welcome page', () => {
 
     expect<string[]>(named).toEqual(['login: true', 'register: true', 'dashboard: true'])
   })
+
+  /**
+   * Two copies of this page exist, and they must say the same things.
+   *
+   * The template's is hand-written CSS, because a kit without Tailwind has to look
+   * finished before any build; the `jsx` kit's is Tailwind classes over the same
+   * content, which is why it is 132 lines against 416. Two presentations of one page
+   * is fine. Two *contents* is not, and they had already drifted three ways: the
+   * template linked to the repository where the kit linked to the documentation
+   * site, the template's terminal named `dev:assets` where the kit named `dev`, and
+   * the kit said "Get started" where every other kit said "Register".
+   *
+   * Nothing catches that by reading, because each file is coherent on its own. So
+   * the facts a reader might act on — the links, and the commands — are asserted
+   * equal rather than asserted twice.
+   */
+  test('and says the same things as the jsx kit copy of it', async () => {
+    const kit = await Bun.file(
+      resolve(import.meta.dir, '..', 'kits', 'jsx', 'resources', 'views', 'pages', 'welcome.tsx')
+    ).text()
+
+    /**
+     * Comments stripped first, and that is not a detail.
+     *
+     * Both files explain themselves at length, and the template's docblock mentions
+     * `bun run build` while describing why the page inlines its styles. That is
+     * prose about the page, not advice the page gives — comparing it would hold two
+     * explanations to each other rather than two pages.
+     */
+    const rendered = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '')
+
+    const both = { template: rendered(await welcome()), jsx: rendered(kit) }
+
+    /** Every external address either offers, in the order it offers them. */
+    const links = (source: string) =>
+      [...source.matchAll(/href="(https?:\/\/[^"]+)"/g)].map((match) => match[1] as string)
+
+    /** And every command either tells somebody to run. */
+    const commands = (source: string) =>
+      [...new Set([...source.matchAll(/bun run [a-z:]+/g)].map((match) => match[0]))].sort()
+
+    expect<string[]>(links(both.jsx)).toEqual(links(both.template))
+    expect<string[]>(commands(both.jsx)).toEqual(commands(both.template))
+
+    // The one label that drifted, kept where Laravel's own welcome page has it.
+    for (const [name, source] of Object.entries(both)) {
+      expect<string>(`${name}: ${source.includes('Register')}`).toBe(`${name}: true`)
+    }
+  })
 })
 
 /**
