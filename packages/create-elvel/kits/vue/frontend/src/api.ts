@@ -11,12 +11,12 @@ export { Invalid, NeedsPasswordConfirmation, Unauthenticated }
 /**
  * What this application knows about talking to its server.
  *
- * The document is a shell — `spa.embed` is off — so nothing arrives with the page.
+ * The document is a shell, so nothing arrives with the page.
  * That is the trade a single-page application makes: the same bytes for everybody
  * and a cache that may keep them, in exchange for asking two questions on boot
  * instead of nought. Who is asking, and what is this screen looking at.
  *
- * `@elvel/spa/client` decides what a request looks like: the session cookie rather
+ * `@elvel/client` decides what a request looks like: the session cookie rather
  * than a token in storage, `accept: application/json` so an expired session arrives
  * as a 401 instead of as HTML, the CSRF token on writes, and 401 and 422 as two
  * types a router and a form can act on.
@@ -67,7 +67,7 @@ export const csrf = (): string => current.csrf
  * forgetting the override would not fail loudly, it would fail as a 419 from
  * somewhere else entirely.
  *
- * Everything else is already decided by `@elvel/spa/client`: the cookie rather
+ * Everything else is already decided by `@elvel/client`: the cookie rather
  * than a header, `accept: application/json` so a dead session is a 401 and not a
  * page, `content-type` on writes but never on a form, and 401, 422 and 423 as
  * types. What is left for an application is the token and the paths.

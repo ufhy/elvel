@@ -7,13 +7,11 @@ export type ShellProps = {
 }
 
 /**
- * The document the Vue client boots from — this kit's own, not the framework's.
+ * The document the Vue client boots from.
  *
- * `@elvel/spa` exports a `Document` that renders the same shape, and `routes/view.ts`
- * used to point at it. This is a view instead, for the reason every other page in
- * this application is a view: it is markup, it belongs in `resources/views/`, and
- * changing what a document carries should not mean reading a framework package to
- * find out what is allowed.
+ * It is a view for the reason every other page in this application is a view: it is
+ * markup, it belongs in `resources/views/`, and changing what a document carries
+ * should not mean reading a framework package to find out what is allowed.
  *
  * The entry is the only prop, because it is the only thing the two routes disagree
  * about — a guest boots the auth bundle, everybody else the application. Everything
@@ -21,8 +19,8 @@ export type ShellProps = {
  * than a string of HTML handed in from a route, which is one less place for
  * unescaped markup to enter a page.
  *
- * There is no payload. `spa.embed` is off, so the same bytes go to everybody and a
- * cache may keep them; each screen asks for what it needs through `/api`.
+ * There is no payload. The same bytes go to everybody, so a cache may keep them,
+ * and each screen asks for what it needs through `/api`.
  *
  * The asset tags come from `vite()` and nothing here writes a `<script>` of its
  * own. That is load-bearing: `vite()` points at the dev server while one is
@@ -53,17 +51,18 @@ export function Shell({ entry }: ShellProps) {
       </head>
       <body>
         {/*
-          The id, and a marker that does not depend on it.
+          A marker that does not depend on the id.
 
-          `frontend/src/main.ts` mounts on `[data-spa-root]` rather than on `#app`,
-          so the two files need no agreement about a string: changing `spa.mountId`
-          would otherwise render a `<div>` the client never finds, with no error and
-          no console message — the application simply does not appear.
+          `frontend/src/main.ts` mounts on `[data-spa-root]`, not on `#app`, so the
+          two files need no agreement about a string. Renaming the id here cannot
+          leave the client hunting for a `<div>` that no longer exists — a failure
+          with no error and no console message, where the application simply does
+          not appear.
 
           The id stays, because it is what a stylesheet or an external script would
           reach for.
         */}
-        <div id={config<string>('spa.mountId', 'app')} data-spa-root />
+        <div id="app" data-spa-root />
       </body>
     </html>
   )

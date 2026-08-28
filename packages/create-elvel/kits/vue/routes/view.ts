@@ -14,18 +14,17 @@ import { Shell } from '../resources/views/components/shell.tsx'
  * these two lines readable as *routing* rather than as code that happens to answer
  * a request.
  *
- * The component is this application's — `resources/views/components/shell.tsx` —
- * and not `Document` from `@elvel/spa`. A document is markup, so it lives with the
- * other views, where changing what it carries does not mean reading a framework
- * package to learn what is allowed.
+ * The component is this application's own — `resources/views/components/shell.tsx`.
+ * A document is markup, so it lives with the other views, where changing what it
+ * carries does not mean reading a framework package to learn what is allowed.
  *
  * The entry is the only prop, because it is the only thing these two disagree
  * about. The icon, the title and the mount point are markup and are written in the
  * view — a route is not the place to hand a page a string of HTML.
  *
  * The prefix is what makes two possible. One route cannot carry both guards, and
- * the guards are the reason to have routes here at all rather than leaving every
- * address to `SpaExceptionHandler`: `guest` turns somebody already signed in away
+ * the guards are the reason to have routes here at all rather than letting a 404
+ * handler answer every address: `guest` turns somebody already signed in away
  * from the sign-in screen, and `auth` sends a stranger to it. Measured with both
  * registered — `/auth/sign-in` is not swallowed by `/{path}`, and the exact routes
  * in `auth.ts`, `settings.ts` and `api.ts` all still answer for themselves.

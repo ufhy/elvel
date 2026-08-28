@@ -6,16 +6,16 @@ import SettingsController from '../app/Http/Controllers/Api/SettingsController.t
 /**
  * What the client reads — the other half of a shell.
  *
- * `spa.embed` is off, so a document carries no data and each screen asks for its
- * own. That is the trade a cacheable document makes, and it is also where every
+ * A document carries no data, so each screen asks for its own. That is the trade a
+ * cacheable document makes, and it is also where every
  * guard that used to sit on a page has gone: `routes/view.ts` hands the same shell
  * to everybody, so what actually decides whether somebody sees an account is these
  * endpoints answering or refusing.
  *
  * Exact paths, and they win over the view route — measured, with a wildcard
- * registered. `spa.apiPrefixes` covers the other direction: a miss under `/api/`
- * stays a JSON 404 rather than becoming a document, which would reach a `fetch` as
- * a parse error three layers from the mistake.
+ * registered. The catch-all at the bottom of this file covers the other direction:
+ * a miss under `/api/` stays a JSON 404 rather than becoming a document, which
+ * would reach a `fetch` as a parse error three layers from the mistake.
  *
  * `GET /api/session` has no guard at all, and it is the one endpoint that must not
  * have one. The shell carries no CSRF token — a token is per session, and a
@@ -47,8 +47,8 @@ Route.prefix('api').group(() => {
    *
    * A route rather than a condition inside the view handler, because that is what
    * it is: a claim on this prefix, saying it is not the client router's to answer.
-   * `spa.apiPrefixes` says the same thing to the *404 handler*, and cannot help
-   * here — a route that matches means there is no 404 for it to see.
+   * A condition could not do it anyway: a route that matches means there is no 404
+   * for a handler to see.
    *
    * Every verb, so a `POST` to a missing endpoint is a 404 rather than the
    * document route's 405.

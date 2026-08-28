@@ -44,7 +44,6 @@ export default await Application.configure(join(import.meta.dir, '..'))
     services: () => import('../config/services.ts'),
     security: () => import('../config/security.ts'),
     session: () => import('../config/session.ts'),
-    spa: () => import('../config/spa.ts'),
     view: () => import('../config/view.ts'),
     vite: () => import('../config/vite.ts')
   })

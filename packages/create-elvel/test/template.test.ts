@@ -737,16 +737,7 @@ describe('what a scaffolded application installs', () => {
  * what an application is configured with.
  */
 describe('the config files a kit ships', () => {
-  /**
-   * `spa` is here and is not pruned, which is the one entry with a reason.
-   *
-   * Pruning asks `CONFIG_OWNERS` which package owns a config file, and that map is
-   * held equal to the publishable defaults on disk — `@elvel/spa` no longer ships
-   * one, so nothing claims `config/spa.ts` and nothing removes it. It is still the
-   * file an application edits, and every kit installs `@elvel/spa`, so it is not
-   * orphaned; it simply travels with the template rather than with its package.
-   */
-  test('a landing page gets eleven, and they are these eleven', async () => {
+  test('a landing page gets ten, and they are these ten', async () => {
     expect<string[]>((await scaffold('none')).configs).toEqual([
       'app',
       'cache',
@@ -756,7 +747,6 @@ describe('the config files a kit ships', () => {
       'security',
       'services',
       'session',
-      'spa',
       'view',
       'vite'
     ])

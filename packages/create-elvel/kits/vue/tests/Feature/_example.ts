@@ -45,7 +45,7 @@ describe('the view routes', () => {
       .assertOk()
       .assertHeaderContains('content-type', 'text/html')
       .assertSee('<!DOCTYPE html>')
-      // A shell: `spa.embed` is off, so the same bytes go to everybody.
+      // A shell: no payload, so the same bytes go to everybody.
       .assertSee('data-spa-root')
   })
 
@@ -92,8 +92,8 @@ describe('what answers for itself', () => {
  *   so a browser waiting for JavaScript is handed a page instead.
  *
  * `routes/api.ts` and `routes/view.ts` each carry one route that claims those
- * prefixes back. `spa.apiPrefixes` cannot do it: it speaks to the 404 handler, and
- * a route that matches means there is no 404 to speak about.
+ * prefixes back. A 404 handler cannot do it: a route that matches means there is
+ * no 404 to speak about.
  */
 describe('what stays a 404 for somebody signed in', () => {
   const address = () => `a-${Math.random().toString(36).slice(2)}@example.com`

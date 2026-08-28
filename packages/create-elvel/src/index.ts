@@ -456,7 +456,6 @@ const FRAMEWORK_PACKAGES = [
   'process',
   'queue',
   'scheduler',
-  'spa',
   'storage',
   'support',
   'testing',
@@ -966,7 +965,7 @@ process.exit(await main())
  *
  * Order is not cosmetic. Files are named after `routes/web.ts` and sorted among
  * themselves, and Elysia lets the last registration of a path win: that is what
- * lets the Vue kit's `routes/spa.ts` take over the seven auth *pages* while every
+ * lets the Vue kit's `routes/view.ts` take over the seven auth *pages* while every
  * action stays with the auth kit's own routes, unedited and uncopied.
  */
 async function registerKitRouteFiles(target: string): Promise<void> {

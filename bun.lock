@@ -14,6 +14,7 @@
         "@elvel/auth": "workspace:*",
         "@elvel/broadcasting": "workspace:*",
         "@elvel/cache": "workspace:*",
+        "@elvel/client": "workspace:*",
         "@elvel/concurrency": "workspace:*",
         "@elvel/console": "workspace:*",
         "@elvel/contracts": "workspace:*",
@@ -31,7 +32,6 @@
         "@elvel/process": "workspace:*",
         "@elvel/queue": "workspace:*",
         "@elvel/scheduler": "workspace:*",
-        "@elvel/spa": "workspace:*",
         "@elvel/storage": "workspace:*",
         "@elvel/support": "workspace:*",
         "@elvel/testing": "workspace:*",
@@ -46,6 +46,7 @@
         "elysia": "^1.4.29",
         "picocolors": "^1.1.1",
         "typescript": "^7.0.2",
+        "vue": "^3.5.42",
       },
     },
     "apps/docs": {
@@ -94,6 +95,16 @@
         "@elvel/core": "workspace:*",
         "@elvel/database": "workspace:*",
       },
+    },
+    "packages/client": {
+      "name": "@elvel/client",
+      "version": "1.0.0-alpha.16",
+      "peerDependencies": {
+        "vue": ">=3.4.0",
+      },
+      "optionalPeers": [
+        "vue",
+      ],
     },
     "packages/concurrency": {
       "name": "@elvel/concurrency",
@@ -298,25 +309,6 @@
         "@elvel/queue": "workspace:*",
       },
     },
-    "packages/spa": {
-      "name": "@elvel/spa",
-      "version": "1.0.0-alpha.16",
-      "dependencies": {
-        "@elvel/core": "workspace:*",
-        "@elvel/http": "workspace:*",
-        "@elvel/view": "workspace:*",
-      },
-      "devDependencies": {
-        "vue": "^3.5.41",
-      },
-      "peerDependencies": {
-        "elysia": ">=1.4.0",
-        "vue": ">=3.5.0",
-      },
-      "optionalPeers": [
-        "vue",
-      ],
-    },
     "packages/storage": {
       "name": "@elvel/storage",
       "version": "1.0.0-alpha.16",
@@ -377,8 +369,16 @@
       "name": "@elvel/vite",
       "version": "1.0.0-alpha.16",
       "peerDependencies": {
+        "@elvel/core": "1.0.0-alpha.16",
+        "@elvel/http": "1.0.0-alpha.16",
+        "elysia": ">=1.4.0",
         "vite": ">=6.0.0",
       },
+      "optionalPeers": [
+        "@elvel/core",
+        "@elvel/http",
+        "elysia",
+      ],
     },
     "playground": {
       "name": "playground",
@@ -481,6 +481,8 @@
 
     "@elvel/cache": ["@elvel/cache@workspace:packages/cache"],
 
+    "@elvel/client": ["@elvel/client@workspace:packages/client"],
+
     "@elvel/concurrency": ["@elvel/concurrency@workspace:packages/concurrency"],
 
     "@elvel/console": ["@elvel/console@workspace:packages/console"],
@@ -516,8 +518,6 @@
     "@elvel/queue": ["@elvel/queue@workspace:packages/queue"],
 
     "@elvel/scheduler": ["@elvel/scheduler@workspace:packages/scheduler"],
-
-    "@elvel/spa": ["@elvel/spa@workspace:packages/spa"],
 
     "@elvel/storage": ["@elvel/storage@workspace:packages/storage"],
 

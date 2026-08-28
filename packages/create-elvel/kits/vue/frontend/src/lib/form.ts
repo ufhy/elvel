@@ -1,4 +1,4 @@
-import { type Form, type FormOptions, useForm as base } from '@elvel/spa/vue'
+import { type Form, type FormOptions, useForm as base } from '@elvel/client/vue'
 import { csrf } from '@/api.ts'
 import { confirmed } from '@/composables/usePasswordConfirm.ts'
 

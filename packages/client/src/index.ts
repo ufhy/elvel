@@ -134,8 +134,10 @@ export type CallOptions = {
   /**
    * What goes in front of `path`. `/api` unless you say otherwise.
    *
-   * The default is the prefix `config/spa.ts` hands the exception handler, so a
-   * 401 there arrives as JSON rather than as the document.
+   * Where a client's reads live, by convention, and where a miss stays a JSON 404
+   * rather than becoming a document — which would reach a `fetch` as a parse error
+   * three layers from the mistake. Addresses a browser also navigates to are not
+   * under it, so a form posting to one clears this.
    */
   prefix?: string
 

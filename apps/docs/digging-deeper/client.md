@@ -174,9 +174,9 @@ await http.post('/sign-in', { body: credentials, prefix: '' })
 await http.post('/settings/profile', { body: details, token: csrf() })
 ```
 
-- **`prefix`** is `/api` unless you clear it. That default is the prefix
-  `spa.apiPrefixes` hands the exception handler, so a 401 under it arrives as JSON
-  rather than as a document. Addresses a browser navigates to are not under it.
+- **`prefix`** is `/api` unless you clear it — where a client's reads live, and
+  where a miss stays a JSON 404 rather than becoming a document. Addresses a browser
+  navigates to are not under it.
 - **`token`** overrides the CSRF token read from the document — for a shell, which
   carries none because a document carrying a per-session token could not be cached.
 - **`headers`** is merged last, so a caller can override any default above.
@@ -203,10 +203,36 @@ export const api = {
 Everything else was already decided. What is left for an application is the token
 and the paths.
 
-## Reading the payload a document carried
+## Forms, for Vue
 
-With `spa.embed` on, the server renders the first screen's data into the document
-and the client reads it without a request:
+`@elvel/client/vue` is the same client with Vue's reactivity around it — one subpath
+so the root export stays framework-free and `vue` is an optional peer, installed only
+by an application that has it anyway:
+
+```ts
+import { useForm } from '@elvel/client/vue'
+
+const form = useForm({ email: '', password: '' })
+
+await form.post('/sign-in')   // form.processing, form.errors.email
+```
+
+A submission that comes back 422 fills `form.errors` from the field bag and returns
+`undefined` rather than throwing — a validation failure is an answer, not a fault.
+Anything else still throws, because what a signed-out session means is a router's
+decision and not a form's.
+
+## Reading a payload the document carried
+
+A document may render the first screen's data into itself, and the client then reads
+it without a request. The convention is one element, with the id `page-data`:
+
+```tsx
+// in your document view
+<script type="application/json" id="page-data" safe>
+  {JSON.stringify({ csrf: session().token(), user: user() })}
+</script>
+```
 
 ```ts
 import { page } from '@elvel/client'
@@ -214,8 +240,15 @@ import { page } from '@elvel/client'
 const { user } = page as { user?: User }
 ```
 
-It comes from an inert `<script type="application/json">` rather than a global the
-server assigned: a JSON script tag is not executed, so nothing inside it can define
-or overwrite anything on the page. Empty in shell mode, and empty where there is no
-document at all — a test, a build script, server-side rendering — so importing this
-module outside a browser does not throw.
+A `csrf` key there is read automatically on every write, which is what makes the
+`token` option unnecessary for a document that carries one.
+
+It has to be an inert `<script type="application/json">` rather than a global the
+server assigns: a JSON script tag is not executed, so nothing inside a customer's
+name can define or overwrite anything on the page. Inertia and Nuxt both arrived at
+the same shape.
+
+`page` is empty when there is no such element — a shell, which carries nothing so
+that a cache may keep it — and empty where there is no document at all: a test, a
+build script, server-side rendering. So importing this module outside a browser does
+not throw.

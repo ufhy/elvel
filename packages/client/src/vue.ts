@@ -11,8 +11,8 @@
  * per-field messages rather than as an exception the page has to catch.
  */
 
-import { call, Invalid } from '@elvel/client'
 import { reactive } from 'vue'
+import { call, Invalid } from './index.ts'
 
 export type FormOptions = {
   /**

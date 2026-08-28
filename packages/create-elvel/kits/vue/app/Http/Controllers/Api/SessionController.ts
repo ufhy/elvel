@@ -5,10 +5,10 @@ import { csrfToken } from '@elvel/http'
 /**
  * Who is asking, and the token their next write needs.
  *
- * The first request a shell makes, and the reason a shell is possible at all. With
- * `spa.embed` off the document carries nothing — the same bytes for everybody, so
- * a cache may keep it — which means the two things every page needs have to be
- * asked for instead: who this is, and the CSRF token for this session.
+ * The first request a shell makes, and the reason a shell is possible at all. The
+ * document carries nothing — the same bytes for everybody, so a cache may keep it —
+ * which means the two things every page needs have to be asked for instead: who
+ * this is, and the CSRF token for this session.
  *
  * The token is safe to hand over here. It is `session.token()`, compared against
  * the session on every write, so a caller can only ever learn the token for the
@@ -26,7 +26,7 @@ import { csrfToken } from '@elvel/http'
  * visit.
  *
  * `user: null` is a real answer here, not a failure. What guards the application
- * is the document route: `routes/spa.ts` puts `auth` on `/dashboard`, so a guest
+ * is the document route: `routes/view.ts` puts `auth` on `/dashboard`, so a guest
  * is turned away before any of its JavaScript loads and nothing behind this
  * endpoint depends on it saying no.
  */

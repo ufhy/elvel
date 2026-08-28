@@ -11,7 +11,6 @@ import { MailServiceProvider } from '@elvel/mail'
 import { NotificationServiceProvider } from '@elvel/notifications'
 import { QueueServiceProvider } from '@elvel/queue'
 import { ScheduleServiceProvider } from '@elvel/scheduler'
-import { SpaServiceProvider } from '@elvel/spa'
 import { StorageServiceProvider } from '@elvel/storage'
 import { TranslationServiceProvider } from '@elvel/translation'
 import { ValidationServiceProvider } from '@elvel/validation'
@@ -55,14 +54,5 @@ export const providers = [
   // otherwise shadow the auth endpoints.
   AuthServiceProvider,
   ViewServiceProvider,
-  ViteServiceProvider,
-  /**
-   * Last, and the one that makes this a client-routed application.
-   *
-   * It replaces the exception handler, so an address only the Vue router knows —
-   * `/dashboard/reports`, typed or reloaded — arrives as a 404 and leaves as the
-   * document. Every real route still wins: the auth pages above are server
-   * rendered and answer for themselves.
-   */
-  SpaServiceProvider
+  ViteServiceProvider
 ]

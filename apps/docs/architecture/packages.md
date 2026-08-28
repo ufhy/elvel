@@ -15,7 +15,7 @@ Laravel is one package. Elvel is twenty-nine, and this page is why.
 | `@elvel/console` | The CLI: signature parser, command base, kernel, stub generators. |
 | `@elvel/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `@elvel/vite` | The Vite plugin: hot file, server-side reload, build output, asset URLs. |
-| `@elvel/spa` | The document a client-routed application boots from, and the client that talks to it. |
+| `@elvel/client` | The browser's `fetch` for its own backend: session cookie, CSRF token, `/api` prefix, typed failures, `useForm`. |
 | `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. |
 | `@elvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
 | `@elvel/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |

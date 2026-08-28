@@ -38,9 +38,9 @@ function stored(): Appearance {
  * **There is a flash of the wrong theme on the first paint**, and it is honest to
  * say so: the stylesheet lands before this module runs, so a browser set to dark
  * with `system` chosen will paint light for a frame. The server-rendered kit avoids
- * it with an inline script carrying the request's CSP nonce; a document rendered by
- * `@elvel/spa` has no way to name a nonce yet, and faking one would mean opening
- * `script-src` to inline scripts — which is the hole the policy exists to close.
+ * it with an inline script carrying the request's CSP nonce; `shell.tsx` has no way
+ * to name a nonce yet, and faking one would mean opening `script-src` to inline
+ * scripts — which is the hole the policy exists to close.
  */
 export function applyStoredAppearance(): void {
   paint(stored())

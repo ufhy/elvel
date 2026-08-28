@@ -14,9 +14,9 @@ import './style.css'
  * against an empty user, which is the shape that produced a header with no name in
  * it and a sign-out button that 419'd.
  *
- * The server has already refused a guest by this point: `spa.areas` guards every
- * address this router owns with `auth`. So the await is about *having* the answer,
- * not about deciding anything.
+ * The server has already refused a guest by this point: the view route in
+ * `routes/view.ts` guards every address this router owns with `auth`. So the await
+ * is about *having* the answer, not about deciding anything.
  */
 applyStoredAppearance()
 
@@ -25,9 +25,8 @@ await boot()
 /**
  * Mounted on what the document marked, not on a name repeated here.
  *
- * `spa.mountId` decides the id on the server, and a client naming `#app` in a
- * second file has to agree with it or the application silently never appears — no
- * error, no console message. `[data-spa-root]` is on the same element whatever the
- * id says.
+ * `shell.tsx` decides the id, and a client naming `#app` in a second file has to
+ * agree with it or the application silently never appears — no error, no console
+ * message. `[data-spa-root]` is on the same element whatever the id says.
  */
 createApp(App).use(router).mount('[data-spa-root]')

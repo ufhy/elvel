@@ -156,7 +156,7 @@ export class ExceptionHandler implements ExceptionHandlerContract {
      *
      * A route hook was the first attempt and never ran: this handler is wired into
      * Elysia's error pipeline before any provider registers, and the first to answer
-     * wins — the same measurement `packages/spa/src/handler.ts` records.
+     * wins.
      */
     const sentBack = this.sendBack(error, _context.request)
 

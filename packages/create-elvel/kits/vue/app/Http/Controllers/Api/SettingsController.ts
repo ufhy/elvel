@@ -32,7 +32,7 @@ function passkeyRows(listed: unknown) {
  * document it was embedded in, so a client navigation arrives with the previous
  * page's data; a request belongs to the page that made it.
  *
- * The guards in `routes/spa.ts` are the same ones the pages themselves are behind.
+ * The guards in `routes/view.ts` are the same ones the pages themselves are behind.
  * `password.confirm` on three of them is not caution: reading which devices are
  * signed in, and the secret of an enrolment in progress, is where a borrowed
  * unlocked browser does real damage.

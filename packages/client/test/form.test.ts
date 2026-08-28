@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { Unauthenticated } from '@elvel/client'
+import { Unauthenticated } from '../src/index.ts'
 import { useForm } from '../src/vue.ts'
 
 /**

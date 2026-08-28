@@ -258,7 +258,7 @@ The auth kit, with everything in front of it written in Vue:
 ```
 my-app/
 ├── app/, routes/, config/     the application
-├── resources/views/           the auth pages, server rendered
+├── resources/views/           the document, and the landing page
 └── frontend/                  a `bun create vite` project
     ├── package.json           vue, vue-router, vite — its own
     ├── components.json        so `bunx shadcn-vue add …` works here
@@ -272,7 +272,7 @@ my-app/
         ├── routers/           app.ts and auth.ts — one per bundle
         ├── layouts/           App (sidebar), Auth (one card), Settings
         ├── composables/       usePasskey, useAppearance, useResource
-        ├── lib/form.ts        useForm, wired to this application
+        ├── lib/form.ts        useForm, wired to this application's two answers
         └── views/             the pages the routers own
 ```
 
@@ -332,73 +332,67 @@ A request belongs to the page that made it, so navigation is free:
 { url: '/settings/profile', documentsLoaded: 1, title: 'Profile' }
 ```
 
-### Two bundles, and the server decides which
+### Two bundles, and one route each
 
 ```ts
-// Auth/AuthPageController.ts        the auth screens
-document({ title: 'Sign in', entry: 'src/auth.ts' })
+// routes/view.ts — the whole server side of the client
+Route.prefix('auth').middleware('guest').group(() => {
+  Route.view('/{path}', Shell, { entry: 'src/auth.ts' }).where('path', '.*')
+})
 
-// DashboardController.ts            the application — src/main.ts by default
-document()
+Route.middleware('auth').group(() => {
+  Route.view('/{path}', Shell, { entry: 'src/main.ts' }).where('path', '.*')
+})
 ```
 
-A page that boots from a different bundle says so where it is rendered. Everything
-else takes `src/main.ts`, which is what `document()` uses when no entry is named —
-the dashboard, the settings screens, and every address the Vue router owns. So a
-guest signing in downloads seven forms and not the application behind them.
+Two routes, because one cannot carry both guards — `guest` turns somebody already
+signed in away from the sign-in screen, and `auth` sends a stranger to it. The entry
+is the only prop that differs: a guest downloads seven forms and not the application
+behind them.
 
-There is no `entry` in `config/spa.ts`: every scaffolded application names its
-client `src/main.ts`, so the key only repeated the default. Rename your client and
-you can add `entry:` back — that is the one thing a call site cannot cover, since the
-document a 404 renders comes from the exception handler and has no arguments to
-pass.
+**The page list lives in one place, and that place is the client.**
+`frontend/src/routers/` knows the addresses; the server knows two wildcards. Adding
+a screen is one file and one router line, with nothing to add on the server and
+nothing to keep in step.
+
+Everything else a document carries is markup in `resources/views/components/shell.tsx`
+— the title, the icon, the mount point. A route hands it no strings of HTML.
 
 ::: warning What guards a client-routed address
-Only the routes the server has. `/dashboard` and `/settings/*` are real routes with
-`middleware('auth')` on their controllers, so a guest is refused. An address the Vue
-router owns and the server does not — `/dashboard/reports`, anything you add to the
-router alone — is answered with the shell, and the only guard on it is the one
-running in the visitor's browser.
+The prefix, not the address. Everything under `/auth/*` is behind `guest` and
+everything else is behind `auth`, so a guest reaching for `/dashboard/reports` is
+redirected before a byte of the application is served — which is stronger than the
+kit's earlier shape, where an address only the Vue router knew answered `200`.
 
-Measured on a scaffolded application, as a guest: `/dashboard` 302,
-`/settings/profile` 302, `/dashboard/reports` **200**.
-
-No data leaks — the client boots, asks `/api/session`, gets a 401 and leaves for
-`/sign-in`, and every endpoint behind it is guarded on its own route. What is served
-is the shell. If that is not good enough for your application, give the address a
-server route with the guard on it.
+What is still true: the client's own router guard is not what protects data. Every
+endpoint under `/api` carries its own, because that is where the data is. Guarding
+the page alone guards the door and leaves the window.
 :::
 
 ### Without changing the `auth` kit it is built on
 
-That constraint shaped the design. `routes/web.ts` mounts this kit's page
-controllers **last**:
+That constraint shaped the design. This kit ships the **actions** and nothing else:
+`routes/auth.ts` and `routes/settings.ts` are the auth kit's route files with every
+`GET` page route removed, and the controllers behind them are action-only — no
+`.tsx` page is imported and none is rendered.
 
 ```ts
-  .use(Auth/SignInController)            // the auth kit's, unedited: POST /sign-in
-  .use(Settings/ProfileController)       // the auth kit's, unedited: PATCH /settings/profile
-  …
-  .use(Auth/AuthPageController)          // this kit's: GET /sign-in and six more
-  .use(Settings/SettingsPageController)  // this kit's: GET /settings/*
+// routes/auth.ts — the actions, and no pages
+Route.post('/sign-in', [SignInController, 'store'])
+Route.post('/sign-up', [RegisterController, 'store'])
+…
 ```
 
-In Elysia the **last registration of a path wins**, so this kit's `GET` handlers
-take over the pages and every action stays where it was. The auth kit's controllers
-are byte-identical to the ones `--kit=auth` and `--kit=jsx` ship — the same file,
-not a copy, so there is nothing to drift.
+Nothing shadows anything, which is the difference from how this kit began. A page
+route that a later registration takes over is a page route that still has to exist,
+still imports a `.tsx` file, and still has its guards and its refusals written twice
+— `GET /reset-password` without a token has to redirect whichever handler answers.
+Removing the routes instead removes all of that: the pages are gone, the twelve
+`.tsx` files they imported are gone with them, and every guard is written once.
 
-Two things follow from shadowing, and both are deliberate:
-
-- **The guards are repeated.** Shadowing a handler shadows its middleware, so
-  `guest` and `auth` are named again — and again on the matching API route, because
-  that is where the data is. Guarding the page alone guards the door and leaves the
-  window.
-- **The refusals are repeated too.** `GET /reset-password` without a token still
-  redirects to `/forgot-password`: a page shadow must not shadow a check.
-
-What it costs: the `auth` layer's twelve `.tsx` pages are still on disk, since its
-controllers import them. This kit replaces each with a stub that says so and names
-the `.vue` file to edit instead.
+What it costs is a copy. These route files and controllers are this kit's own rather
+than the auth kit's, so a change to an auth action has two files to land in. That is
+the trade for a kit whose Vue half is the only half.
 
 ### What a form does
 
@@ -411,16 +405,19 @@ again — the answer changed the thing on screen. Signing in loads a document,
 because it crosses into the other bundle *and* rotates the session id, which
 changes the CSRF token with it.
 
-**Locked: the page becomes a document.** `password.confirm` answers a client
-`423`, and `useResource` responds by loading the same address as a document — the
-server has the same guard there, and answering it *there* both redirects to the
-confirmation screen and remembers where the person was going.
+**Locked: a dialog, and the request is retried.** `password.confirm` answers a
+client `423`, and `confirmed()` opens the password wall in place, then runs the same
+request again once it is answered — so nothing is lost and nobody leaves the screen.
+Reloading the document was the first version and could not work here: one view route
+answers every address, including the confirmation screen, so the reload was a loop —
+same shell, same request, same 423. Measured, the two-factor screen reloaded
+forever.
 
 ::: tip One Vite project, three entries
 `frontend/vite.config.ts` builds `src/main.ts` (the application), `src/auth.ts`
-(the auth screens) and `src/server.ts` (the stylesheet for `welcome.tsx`, the one
-page still rendered by the server). One project, one manifest, one build, so there
-is never a question of which of three configs wrote what.
+(the auth screens) and `src/server.ts` (the stylesheet for `welcome.tsx`, the only
+page the server renders). One project, one manifest, one build, so there is never a
+question of which of three configs wrote what.
 
 A stylesheet two entries share lands in a chunk they share, and `vite()` walks the
 import graph to find it — without that the page rendered unstyled with nothing in

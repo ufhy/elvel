@@ -35,7 +35,6 @@
     "@elvel/process": "{{ dep_process }}",
     "@elvel/queue": "{{ dep_queue }}",
     "@elvel/scheduler": "{{ dep_scheduler }}",
-    "@elvel/spa": "{{ dep_spa }}",
     "@elvel/storage": "{{ dep_storage }}",
     "@elvel/support": "{{ dep_support }}",
     "@elvel/testing": "{{ dep_testing }}",
