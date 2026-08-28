@@ -66,6 +66,14 @@ export async function authorize(ability: string, args: unknown | unknown[] = [])
  *
  * The user is handed to the callback rather than read again inside it, so the
  * branch and the thing it prints cannot disagree about who is signed in.
+ *
+ * **Return JSX, not a template literal.** The return type is `string`, so building
+ * one by hand compiles and reads fine — and `` `<p>${user.email}</p>` `` is a
+ * working XSS, because that string is rendered as markup and nothing escapes what
+ * went into it. JSX with `safe` escapes; a template literal needs
+ * `escapeHtml(value)` around every interpolation. Found in this repository's own
+ * playground by `@kitajs/ts-html-plugin`, which is the one place a reviewer's eye
+ * slides off: the flaw is inside a literal inside a callback.
  */
 export function whenAuth(render: (signedIn: AuthUser) => string): string {
   const signedIn = user()

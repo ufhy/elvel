@@ -42,7 +42,7 @@ export function Appearance({ title }: AppearanceProps) {
               aria-pressed="false"
             >
               <Icon name={choice.icon} />
-              <span>{choice.label}</span>
+              <span safe>{choice.label}</span>
             </button>
           ))}
         </div>

@@ -1,6 +1,7 @@
 import { whenAuth, whenCan, whenGuest } from '@elvel/auth'
 import { whenError } from '@elvel/http'
 import { classes, json, once, prepend, push, pushOnce, styles } from '@elvel/view'
+import { escapeHtml } from '@kitajs/html'
 import { Layout } from '../components/layout.tsx'
 
 export type ViewHelpersProps = {
@@ -35,13 +36,30 @@ export function ViewHelpers({ title, editable }: ViewHelpersProps) {
 
       <section id="error">
         <h2>whenError</h2>
-        {whenError('email', (message) => `<p class="error">${message}</p>`) ||
+        {whenError('email', (message) => `<p class="error">${escapeHtml(message)}</p>`) ||
           '<p class="quiet">No error flashed.</p>'}
       </section>
 
       <section id="auth">
         <h2>whenAuth and whenGuest</h2>
-        {whenAuth((user) => `<p>Signed in as ${user.email}</p>`)}
+        {/*
+          `escape` and not a plain template literal, and this is the whole lesson.
+
+          These helpers take a callback that returns a **string of HTML**, which is
+          rendered as markup — so an interpolated value is not escaped by anything.
+          `` `<p>Signed in as ${user.email}</p>` `` is a working XSS the moment an
+          address contains a tag, and it reads like the obvious way to write it.
+
+          `escapeHtml` around the value, and **not** `escape` as a tag function —
+          measured, because the names invite the wrong one. `escape` escapes the
+          static pieces too, so `` escape`<p>${email}</p>` `` renders the paragraph
+          tag as visible text. Only the interpolated value should be escaped.
+
+          Found by `@kitajs/ts-html-plugin`, which is the one class of bug a regex
+          over these files cannot see: the flaw is inside a template literal inside
+          a callback rather than at an interpolation.
+        */}
+        {whenAuth((user) => `<p>Signed in as ${escapeHtml(user.email)}</p>`)}
         {whenGuest(() => '<p class="quiet">Nobody is signed in.</p>')}
       </section>
 

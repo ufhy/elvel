@@ -35,5 +35,10 @@ export function Exercise({ title, items, untrusted }: ExerciseProps) {
 export async function DelayedGreeting({ name }: { name: string }) {
   const resolved = await Promise.resolve(name)
 
-  return <p class="async">Hello {resolved}</p>
+  // `safe`, because `name` is a prop and a prop is somebody else's string.
+  return (
+    <p class="async" safe>
+      Hello {resolved}
+    </p>
+  )
 }
