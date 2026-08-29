@@ -73,7 +73,7 @@
     "better-auth": "1.7.1",
     "nodemailer": "9.0.5"
   },
-  "version": "1.0.0-alpha.17",
+  "version": "1.0.0-alpha.18",
   "license": "MIT",
   "description": "Elvel — a Laravel-shaped framework for Bun, built on Elysia",
   "repository": {
