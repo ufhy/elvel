@@ -18,7 +18,7 @@
  *
  *   bun scripts/verify-published.ts                  # the version in package.json
  *   bun scripts/verify-published.ts --version=1.0.0-alpha.9
- *   bun scripts/verify-published.ts --kits=none,auth
+ *   bun scripts/verify-published.ts --kits=none,vue
  */
 
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
@@ -32,7 +32,19 @@ function flag(name: string): string | undefined {
 }
 
 const version = flag('version') ?? (await readJson<{ version: string }>('package.json')).version
-const kits = (flag('kits') ?? 'none,auth,api').split(',').filter(Boolean)
+/**
+ * `jsx` rather than `auth`, which stopped being a kit and became a layer.
+ *
+ * `create-elvel` answered `Unknown kit "auth". Available: none, jsx, vue, api.`
+ * and the release stopped there — after all twenty-nine packages had published,
+ * so the version shipped and only its GitHub release was missing. `jsx` *is* the
+ * auth kit with a different front end, so this checks the same ground.
+ *
+ * The smoke script had the same stale name and was fixed when the kit retired.
+ * This one was missed, and nothing caught it because it only runs from a tag,
+ * during a real publish.
+ */
+const kits = (flag('kits') ?? 'none,jsx,api').split(',').filter(Boolean)
 
 async function readJson<T>(path: string): Promise<T> {
   try {
