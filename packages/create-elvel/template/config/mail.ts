@@ -22,6 +22,20 @@ export default {
    * }
    * ```
    */
+  /**
+   * The colours every mail is drawn in — Laravel's mail theme, as values.
+   *
+   * Only what you name changes; the rest keep the defaults. Values rather than a
+   * stylesheet because the components inline their styles as they build: Gmail
+   * strips `<style>` blocks, so a stylesheet-driven mail looks right in the preview
+   * and unstyled in the inbox.
+   *
+   * ```ts
+   * theme: { accent: { info: '#c9241a' } }
+   * ```
+   */
+  theme: undefined,
+
   preview: '/_mail',
 
   from: {

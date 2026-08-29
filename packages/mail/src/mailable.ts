@@ -1,5 +1,5 @@
 import type { ViewComponent } from '@elvel/contracts'
-import { button, emailLayout, type MailTone, subcopy } from './layout.ts'
+import { button, emailLayout, type MailTheme, type MailTone, subcopy, themeFrom } from './layout.ts'
 import { markdownToHtml, markdownToText } from './markdown.ts'
 
 /** One mailbox. A bare string is an address with no display name. */
@@ -156,13 +156,17 @@ export type MailableClass = new (data: never) => AnyMailable
  */
 export function markdownContent(source: string, options: MarkdownOptions = {}): Content {
   const trimmed = dedent(source)
+  const palette = themeFrom(options.theme)
   const body = [markdownToHtml(trimmed)]
 
-  if (options.action) body.push(button(options.action.text, options.action.url, options.tone))
-  if (options.subcopy) body.push(subcopy(options.subcopy))
+  if (options.action) {
+    body.push(button(options.action.text, options.action.url, options.tone, palette))
+  }
+
+  if (options.subcopy) body.push(subcopy(options.subcopy, palette))
 
   return {
-    html: options.layout === false ? body.join('') : emailLayout(body),
+    html: options.layout === false ? body.join('') : emailLayout(body, palette),
     text: markdownToText(trimmed) + textFor(options)
   }
 }
@@ -175,6 +179,14 @@ export type MarkdownOptions = {
   subcopy?: string
   /** Which accent the button takes. */
   tone?: MailTone
+  /**
+   * The colours, over the defaults.
+   *
+   * Named here rather than read from config, because a mailable is constructed
+   * anywhere — a worker, a test, a preview — and reaching for the container from a
+   * pure content builder is what makes those three disagree.
+   */
+  theme?: Partial<MailTheme>
   /**
    * `false` to render the markdown alone, with no document around it.
    *

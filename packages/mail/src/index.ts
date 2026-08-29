@@ -3,7 +3,12 @@ export {
   expectMessage,
   MessageAssertions
 } from './assertions.ts'
-export { attachFromDisk, type DiskAttachmentOptions } from './attachments.ts'
+export {
+  attachFromDisk,
+  attachFromUpload,
+  attachFromUrl,
+  type DiskAttachmentOptions
+} from './attachments.ts'
 export { MakeMailCommand } from './console/make-mail.ts'
 export { MailFake } from './fake.ts'
 export { mail, mailer, mailTo } from './helpers.ts'

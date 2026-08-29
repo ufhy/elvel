@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
-import { attachFromDisk } from '../src/attachments.ts'
+import { attachFromDisk, attachFromUpload, attachFromUrl } from '../src/attachments.ts'
 import {
   type Attachment,
   type Content,
@@ -1008,5 +1008,54 @@ describe('markdown mail', () => {
 
       expect<string>(`${good}: ${/href="([^"]*)"/.exec(html)?.[1]}`).toBe(`${good}: ${good}`)
     }
+  })
+
+  /**
+   * The bytes travel with the message, whatever they came from.
+   *
+   * `attachFromUrl` and `attachFromUpload` both read now rather than keeping a
+   * reference, for the reason `attachFromDisk` does: a message is often queued, and
+   * a URL that resolved when it was written may not when a worker picks it up. A
+   * mail whose attachment is a broken link arrives looking like it worked.
+   */
+  test('a URL attachment carries the bytes, not the address', async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => new Response('report bytes', { headers: { 'content-type': 'text/plain' } })
+    })
+
+    try {
+      const attachment = await attachFromUrl(`http://localhost:${server.port}/q3.txt`)
+
+      expect<string>(attachment.filename).toBe('q3.txt')
+      expect<string>(new TextDecoder().decode(attachment.content as Uint8Array)).toBe(
+        'report bytes'
+      )
+      expect<string | undefined>(attachment.contentType).toBe('text/plain')
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test('and a server that refuses says so rather than attaching nothing', async () => {
+    const server = Bun.serve({ port: 0, fetch: () => new Response('gone', { status: 404 }) })
+
+    try {
+      await expect(attachFromUrl(`http://localhost:${server.port}/x`)).rejects.toThrow(
+        /answered 404/
+      )
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  /** A browser sends the name from the sender's disk, which says nothing to anybody. */
+  test('an uploaded file keeps its own name unless renamed', async () => {
+    const file = new File(['scan'], 'IMG_4021.HEIC', { type: 'image/heic' })
+
+    expect<string>((await attachFromUpload(file)).filename).toBe('IMG_4021.HEIC')
+    expect<string>((await attachFromUpload(file, { as: 'passport.heic' })).filename).toBe(
+      'passport.heic'
+    )
   })
 })

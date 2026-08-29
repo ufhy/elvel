@@ -1,5 +1,25 @@
 import { MailMessage, Notification } from '@elvel/notifications'
 
+/**
+ * The callback an application sets to write its own version of one of these.
+ *
+ * Laravel's shape, and for its reason: changing one sentence of the reset mail
+ * should not mean taking over delivery. Before this, the only way in was to define
+ * `sendResetPassword` in `config/auth.ts` yourself — the framework leaves an
+ * application's own hook alone — which meant writing the notifier call, the
+ * recipient and the expiry read to change a greeting.
+ *
+ * Laravel pairs this with `createUrlUsing`, and there is deliberately no counterpart
+ * here. Laravel builds the link itself, with `route('password.reset')` and
+ * `URL::temporarySignedRoute`, so overriding it is a real need. better-auth builds
+ * ours and hands it over already signed; there is nothing left to override.
+ *
+ * Static, so it is set once at boot — `AppServiceProvider`, as Laravel sets it in
+ * a provider — rather than per instance, which the hook constructing these does not
+ * offer a way to reach.
+ */
+export type AuthMailCallback<TData> = (data: TData) => MailMessage
+
 /** What better-auth hands its mail callbacks, and all these notifications need. */
 export type AuthMailData = {
   /** The link, already signed and tokenised by better-auth. */
@@ -39,11 +59,23 @@ function greet(name: string | undefined): string {
  * support tickets over what is usually a mistyped email address.
  */
 export class ResetPasswordNotification extends Notification<AuthMailData> {
+  /** Set with ResetPasswordNotification.toMailUsing(), and used instead of `toMail` below. */
+  static mailUsing: AuthMailCallback<AuthMailData> | undefined
+
+  /** Write this mail yourself, without taking over how it is sent. */
+  static toMailUsing(callback: AuthMailCallback<AuthMailData>): void {
+    ResetPasswordNotification.mailUsing = callback
+  }
+
   via(): string[] {
     return ['mail']
   }
 
   override toMail(): MailMessage {
+    const own = ResetPasswordNotification.mailUsing
+
+    if (own) return own(this.data)
+
     const message = new MailMessage()
       .subject(`Reset your ${this.data.appName ?? 'account'} password`)
       .greeting(greet(this.data.name))
@@ -73,11 +105,23 @@ export class ResetPasswordNotification extends Notification<AuthMailData> {
  * and then receiving that person's mail from the application forever after.
  */
 export class VerifyEmailNotification extends Notification<AuthMailData> {
+  /** Set with VerifyEmailNotification.toMailUsing(), and used instead of `toMail` below. */
+  static mailUsing: AuthMailCallback<AuthMailData> | undefined
+
+  /** Write this mail yourself, without taking over how it is sent. */
+  static toMailUsing(callback: AuthMailCallback<AuthMailData>): void {
+    VerifyEmailNotification.mailUsing = callback
+  }
+
   via(): string[] {
     return ['mail']
   }
 
   override toMail(): MailMessage {
+    const own = VerifyEmailNotification.mailUsing
+
+    if (own) return own(this.data)
+
     return new MailMessage()
       .subject(`Verify your ${this.data.appName ?? 'account'} email address`)
       .greeting(greet(this.data.name))
@@ -102,11 +146,33 @@ export class PasswordChangedNotification extends Notification<{
   name?: string | undefined
   appName?: string | undefined
 }> {
+  /** Set with PasswordChangedNotification.toMailUsing(), and used instead of `toMail` below. */
+  static mailUsing:
+    | AuthMailCallback<{
+        name?: string | undefined
+        appName?: string | undefined
+      }>
+    | undefined
+
+  /** Write this mail yourself, without taking over how it is sent. */
+  static toMailUsing(
+    callback: AuthMailCallback<{
+      name?: string | undefined
+      appName?: string | undefined
+    }>
+  ): void {
+    PasswordChangedNotification.mailUsing = callback
+  }
+
   via(): string[] {
     return ['mail']
   }
 
   override toMail(): MailMessage {
+    const own = PasswordChangedNotification.mailUsing
+
+    if (own) return own(this.data)
+
     return new MailMessage()
       .subject(`Your ${this.data.appName ?? 'account'} password was changed`)
       .greeting(greet(this.data.name))
@@ -132,11 +198,23 @@ export class PasswordChangedNotification extends Notification<{
  * unverified one is replaced outright, because there is nothing yet to protect.
  */
 export class ChangeEmailNotification extends Notification<AuthMailData & { newEmail: string }> {
+  /** Set with ChangeEmailNotification.toMailUsing(), and used instead of `toMail` below. */
+  static mailUsing: AuthMailCallback<AuthMailData & { newEmail: string }> | undefined
+
+  /** Write this mail yourself, without taking over how it is sent. */
+  static toMailUsing(callback: AuthMailCallback<AuthMailData & { newEmail: string }>): void {
+    ChangeEmailNotification.mailUsing = callback
+  }
+
   via(): string[] {
     return ['mail']
   }
 
   override toMail(): MailMessage {
+    const own = ChangeEmailNotification.mailUsing
+
+    if (own) return own(this.data)
+
     return new MailMessage()
       .subject(`Confirm your new ${this.data.appName ?? 'account'} email address`)
       .greeting(greet(this.data.name))

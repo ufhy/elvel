@@ -1,3 +1,4 @@
+import type { MailTheme } from '@elvel/mail'
 import { type Content, type Envelope, type Mailable, markdownContent } from '@elvel/mail'
 import { type Notifiable, routeFor } from '../notifiable.ts'
 import type { AnyNotification } from '../notification.ts'
@@ -50,7 +51,9 @@ export class MailNotificationChannel {
 
   constructor(
     private readonly mail: Mailer,
-    private readonly appName = 'Elvel'
+    private readonly appName = 'Elvel',
+    /** `mail.theme`, so a notification is drawn in the application's colours. */
+    private readonly theme?: Partial<MailTheme>
   ) {}
 
   async send(notifiable: Notifiable, notification: AnyNotification): Promise<unknown> {
@@ -92,7 +95,7 @@ export class MailNotificationChannel {
       ? { view: component.view, with: component.with, text: message.toText(this.appName) }
       : markdown !== undefined
         ? markdownContent(markdown)
-        : { html: message.toHtml(this.appName), text: message.toText(this.appName) }
+        : { html: message.toHtml(this.appName, this.theme), text: message.toText(this.appName) }
 
     const mailable = new NotificationMail({
       envelope,

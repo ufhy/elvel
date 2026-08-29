@@ -69,3 +69,60 @@ function basename(path: string): string {
 
   return segments[segments.length - 1] ?? path
 }
+
+/**
+ * Attach something a URL points at — Laravel's `Attachment::fromUrl`.
+ *
+ * The bytes are fetched now, for the reason `attachFromDisk` reads now: a message
+ * is often queued, and a URL that resolved when it was written may not when a
+ * worker picks it up an hour later. A mail whose attachment is a broken link is a
+ * mail that arrives looking like it worked.
+ *
+ * There is no allowlist here and that is deliberate — the caller chose the URL, and
+ * a framework guessing which of your own services you may read from is a framework
+ * you fight. Do not pass one a visitor supplied: this fetches from wherever it
+ * points, including addresses only your server can reach.
+ */
+export async function attachFromUrl(
+  url: string,
+  options: DiskAttachmentOptions = {}
+): Promise<Attachment> {
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    throw new Error(`Attaching [${url}] failed: the server answered ${response.status}.`)
+  }
+
+  const filename = options.as ?? new URL(url).pathname.split('/').pop() ?? 'attachment'
+
+  return {
+    filename,
+    content: new Uint8Array(await response.arrayBuffer()),
+    ...((options.contentType ?? response.headers.get('content-type'))
+      ? { contentType: options.contentType ?? (response.headers.get('content-type') as string) }
+      : {}),
+    ...(options.cid === undefined ? {} : { cid: options.cid })
+  }
+}
+
+/**
+ * Attach a file somebody uploaded — Laravel's `Attachment::fromUploadedFile`.
+ *
+ * A `File` is what a parsed multipart body hands you, and it already knows its own
+ * name and type. Both are still overridable, because the name a browser sends is
+ * the name on the sender's disk: `IMG_4021.HEIC` says nothing to whoever receives
+ * the mail, and it is worth renaming to something that does.
+ */
+export async function attachFromUpload(
+  file: File,
+  options: DiskAttachmentOptions = {}
+): Promise<Attachment> {
+  return {
+    filename: options.as ?? file.name,
+    content: new Uint8Array(await file.arrayBuffer()),
+    ...((options.contentType ?? file.type)
+      ? { contentType: options.contentType ?? file.type }
+      : {}),
+    ...(options.cid === undefined ? {} : { cid: options.cid })
+  }
+}

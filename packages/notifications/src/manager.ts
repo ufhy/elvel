@@ -1,4 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
+import type { MailTheme } from '@elvel/mail'
 import { BroadcastNotificationChannel } from './channels/broadcast.ts'
 import { DatabaseNotificationChannel } from './channels/database.ts'
 import { LogNotificationChannel } from './channels/log.ts'
@@ -164,7 +165,8 @@ export class NotificationManager {
 
         return new MailNotificationChannel(
           this.app.make('mail'),
-          this.app.config.get<string>('app.name', 'Elvel')
+          this.app.config.get<string>('app.name', 'Elvel'),
+          this.app.config.get<Partial<MailTheme> | undefined>('mail.theme', undefined)
         )
 
       case 'database':

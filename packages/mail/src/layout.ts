@@ -18,20 +18,52 @@ import { escapeAttribute, escapeHtml, safeUrl } from './markdown.ts'
 /** The accent a message carries, which only its level decides. */
 export type MailTone = 'info' | 'success' | 'error'
 
-const ACCENT: Record<MailTone, string> = {
-  info: '#2563eb',
-  success: '#16a34a',
-  error: '#dc2626'
+/**
+ * The colours a mail is drawn in — Laravel's mail theme, as values rather than a
+ * stylesheet.
+ *
+ * Laravel publishes a CSS file per theme and runs the result through an inliner.
+ * These are the values themselves, for the reason the components inline as they
+ * build: Gmail strips `<style>` blocks, so a stylesheet-driven mail looks right in
+ * a preview and unstyled in the inbox. Naming them here means an application can
+ * change its mail's colours without a copy of the markup.
+ *
+ * Passed rather than global. A module-level theme would be one mutable value shared
+ * by every request, and a worker rendering two applications' mail is exactly where
+ * that goes wrong.
+ */
+export type MailTheme = {
+  /** Behind the card. */
+  page: string
+  /** The card itself. */
+  card: string
+  /** Body text and headings. */
+  ink: string
+  /** Small print and the salutation. */
+  muted: string
+  /** Rules and the subcopy divider. */
+  line: string
+  /** The button, by the message's level. */
+  accent: Record<MailTone, string>
+}
+
+export const DEFAULT_THEME: MailTheme = {
+  page: '#f6f7f9',
+  card: '#ffffff',
+  ink: '#111111',
+  muted: '#555555',
+  line: '#e5e5e5',
+  accent: { info: '#2563eb', success: '#16a34a', error: '#dc2626' }
 }
 
 /** A heading, and the only one a message should have. */
-export function heading(text: string): string {
-  return `<h1 style="margin:0 0 16px;font-size:20px;color:#111;">${escapeHtml(text)}</h1>`
+export function heading(text: string, theme: MailTheme = DEFAULT_THEME): string {
+  return `<h1 style="margin:0 0 16px;font-size:20px;color:${theme.ink};">${escapeHtml(text)}</h1>`
 }
 
 /** A paragraph of prose. */
-export function paragraph(text: string): string {
-  return `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#111;">${escapeHtml(text)}</p>`
+export function paragraph(text: string, theme: MailTheme = DEFAULT_THEME): string {
+  return `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${theme.ink};">${escapeHtml(text)}</p>`
 }
 
 /**
@@ -40,13 +72,18 @@ export function paragraph(text: string): string {
  * A second button competes with the first, and a transactional mail that asks two
  * things gets neither done. Laravel's template takes the same position.
  */
-export function button(text: string, url: string, tone: MailTone = 'info'): string {
-  return `<p style="margin:0 0 24px;"><a href="${escapeAttribute(safeUrl(url))}" style="display:inline-block;padding:10px 18px;background:${ACCENT[tone]};color:#fff;border-radius:6px;text-decoration:none;font-size:15px;">${escapeHtml(text)}</a></p>`
+export function button(
+  text: string,
+  url: string,
+  tone: MailTone = 'info',
+  theme: MailTheme = DEFAULT_THEME
+): string {
+  return `<p style="margin:0 0 24px;"><a href="${escapeAttribute(safeUrl(url))}" style="display:inline-block;padding:10px 18px;background:${theme.accent[tone]};color:${theme.card};border-radius:6px;text-decoration:none;font-size:15px;">${escapeHtml(text)}</a></p>`
 }
 
 /** A block set apart from the prose — Laravel's `mail::panel`. */
-export function panel(text: string): string {
-  return `<div style="margin:0 0 16px;padding:16px;background:#f6f7f9;border-radius:8px;font-size:15px;line-height:1.6;color:#111;">${escapeHtml(text)}</div>`
+export function panel(text: string, theme: MailTheme = DEFAULT_THEME): string {
+  return `<div style="margin:0 0 16px;padding:16px;background:${theme.page};border-radius:8px;font-size:15px;line-height:1.6;color:${theme.ink};">${escapeHtml(text)}</div>`
 }
 
 /**
@@ -55,13 +92,13 @@ export function panel(text: string): string {
  * What it is usually for: repeating the action's URL as text, because a mail client
  * that will not render a button still has to let somebody reach the page.
  */
-export function subcopy(text: string): string {
-  return `<p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #e5e5e5;font-size:13px;line-height:1.6;color:#555;word-break:break-all;">${escapeHtml(text)}</p>`
+export function subcopy(text: string, theme: MailTheme = DEFAULT_THEME): string {
+  return `<p style="margin:24px 0 0;padding-top:16px;border-top:1px solid ${theme.line};font-size:13px;line-height:1.6;color:${theme.muted};word-break:break-all;">${escapeHtml(text)}</p>`
 }
 
 /** The closing line. */
-export function salutation(text: string): string {
-  return `<p style="margin:24px 0 0;font-size:14px;color:#555;">${escapeHtml(text)}</p>`
+export function salutation(text: string, theme: MailTheme = DEFAULT_THEME): string {
+  return `<p style="margin:24px 0 0;font-size:14px;color:${theme.muted};">${escapeHtml(text)}</p>`
 }
 
 /**
@@ -77,6 +114,22 @@ export function salutation(text: string): string {
  * `parts` are already-rendered strings rather than values to escape, because that is
  * what the components above hand back. Nothing here escapes anything a second time.
  */
-export function emailLayout(parts: string[]): string {
-  return `<!DOCTYPE html><html lang="en"><body style="margin:0;padding:24px;background:#f6f7f9;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;"><div style="max-width:560px;margin:0 auto;padding:24px;background:#fff;border-radius:10px;">${parts.join('')}</div></body></html>`
+export function emailLayout(parts: string[], theme: MailTheme = DEFAULT_THEME): string {
+  return `<!DOCTYPE html><html lang="en"><body style="margin:0;padding:24px;background:${theme.page};font-family:system-ui,-apple-system,'Segoe UI',sans-serif;"><div style="max-width:560px;margin:0 auto;padding:24px;background:${theme.card};border-radius:10px;">${parts.join('')}</div></body></html>`
+}
+
+/**
+ * A theme with only what an application named changed.
+ *
+ * Applications override a colour or two — an accent to match a brand — and naming
+ * every value to change one is how the rest silently stop following the default.
+ */
+export function themeFrom(overrides: Partial<MailTheme> | undefined): MailTheme {
+  if (overrides === undefined) return DEFAULT_THEME
+
+  return {
+    ...DEFAULT_THEME,
+    ...overrides,
+    accent: { ...DEFAULT_THEME.accent, ...(overrides.accent ?? {}) }
+  }
 }

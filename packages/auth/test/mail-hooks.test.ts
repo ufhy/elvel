@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { MailMessage } from '@elvel/notifications'
 import { authMailHooks, withAuthMail } from '../src/mail-hooks.ts'
 import {
   PasswordChangedNotification,
@@ -190,5 +191,67 @@ describe('merging into better-auth options', () => {
 
     expect<boolean>('emailAndPassword' in merged).toBe(false)
     expect<string>(typeof merged.secret).toBe('string')
+  })
+
+  /**
+   * Writing the mail without taking over how it is sent — Laravel's `toMailUsing`.
+   *
+   * The only way in before this was to define `sendResetPassword` yourself in
+   * `config/auth.ts`, which the framework leaves alone. That works and it is a lot:
+   * the notifier call, the recipient, the expiry read — all rewritten to change a
+   * greeting.
+   *
+   * Static, so it is set once in a provider at boot. The hook constructs these
+   * notifications itself and hands them no options, so there is nowhere per-instance
+   * for this to live.
+   */
+  test('an application can write the reset mail itself', () => {
+    ResetPasswordNotification.toMailUsing((data) =>
+      new MailMessage().subject('Pick a new password').line(`Go to ${data.url}`)
+    )
+
+    try {
+      const message = new ResetPasswordNotification({
+        url: 'https://example.com/reset?token=abc',
+        token: 'abc',
+        name: 'Ada'
+      }).toMail()
+
+      expect<string>(message.subjectOr('')).toBe('Pick a new password')
+      expect<string>(message.toText('Elvel')).toContain('Go to https://example.com/reset')
+      expect<boolean>(message.toText('Elvel').includes('You are receiving this email')).toBe(false)
+    } finally {
+      ResetPasswordNotification.mailUsing = undefined
+    }
+  })
+
+  test('and the default is what answers once it is cleared', () => {
+    const message = new ResetPasswordNotification({
+      url: 'https://example.com/reset?token=abc',
+      token: 'abc'
+    }).toMail()
+
+    expect<string>(message.toText('Elvel')).toContain('You are receiving this email')
+  })
+
+  /** Each notification carries its own, so setting one does not answer for another. */
+  test('the four hooks are separate', () => {
+    VerifyEmailNotification.toMailUsing(() => new MailMessage().subject('Confirm it'))
+
+    try {
+      expect<string>(
+        new VerifyEmailNotification({ url: 'https://example.com/v', token: 't' })
+          .toMail()
+          .subjectOr('')
+      ).toBe('Confirm it')
+
+      expect<string>(
+        new ResetPasswordNotification({ url: 'https://example.com/r', token: 't' })
+          .toMail()
+          .toText('Elvel')
+      ).toContain('You are receiving this email')
+    } finally {
+      VerifyEmailNotification.mailUsing = undefined
+    }
   })
 })

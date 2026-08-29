@@ -1,3 +1,4 @@
+import { app } from '@elvel/core'
 import type { Attachment } from './mailable.ts'
 import type { SentMessage } from './message.ts'
 
@@ -266,6 +267,45 @@ export class MessageAssertions {
   }
 
   /** The bytes as well as the name — for a file the application generated. */
+  /**
+   * An attachment carrying the bytes a disk holds — Laravel's
+   * `assertHasAttachmentFromStorageDisk`.
+   *
+   * Laravel compares the path, because its attachment keeps one. `attachFromDisk`
+   * reads the bytes when it is called — a queued message on S3 has no path a worker
+   * could resolve, and a local path handed to another machine is a file that is not
+   * there — so what there is to compare is the content, and this reads the disk to
+   * get it.
+   */
+  async assertHasAttachmentFromDisk(
+    disk: string | undefined,
+    path: string,
+    as?: string
+  ): Promise<this> {
+    const application = app()
+
+    if (!application.bound('storage')) {
+      this.fail('Asserting an attachment from a disk needs StorageServiceProvider.')
+    }
+
+    /**
+     * Duck-typed, because a scaffolded application may not have the storage package
+     * and `make('storage')` is then `unknown` to its typechecker — measured, the
+     * `api` kit failed to typecheck on exactly this line.
+     */
+    const storage = application.make('storage' as never) as unknown as {
+      disk(name?: string): { bytes(path: string): Promise<Uint8Array | null> }
+    }
+
+    const bytes = await storage.disk(disk).bytes(path)
+
+    if (bytes === null) this.fail(`No file at [${path}] on the [${disk ?? 'default'}] disk.`)
+
+    const filename = as ?? (path.split('/').pop() as string)
+
+    return this.assertHasAttachedData(filename, bytes as Uint8Array)
+  }
+
   assertHasAttachedData(filename: string, content: string | Uint8Array): this {
     const found = this.message.attachments.find((one) => one.filename === filename)
 

@@ -1,5 +1,13 @@
 import type { ViewComponent } from '@elvel/contracts'
-import { button, emailLayout, heading, paragraph, salutation } from '@elvel/mail'
+import {
+  button,
+  emailLayout,
+  heading,
+  type MailTheme,
+  paragraph,
+  salutation,
+  themeFrom
+} from '@elvel/mail'
 
 export type MailAttachment = {
   filename: string
@@ -200,23 +208,24 @@ export class MailMessage {
    * so the good template only existed for notifications. It belongs to the package
    * that owns mail, and this reads it like any other caller.
    */
-  toHtml(appName: string): string {
+  toHtml(appName: string, theme?: Partial<MailTheme>): string {
+    const palette = themeFrom(theme)
     const tone =
       this.levelName === 'error' ? 'error' : this.levelName === 'success' ? 'success' : 'info'
 
     const parts: string[] = [
-      heading(this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!')),
-      ...this.introLines.map(paragraph)
+      heading(this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!'), palette),
+      ...this.introLines.map((line) => paragraph(line, palette))
     ]
 
     if (this.actionText && this.actionUrl) {
-      parts.push(button(this.actionText, this.actionUrl, tone))
+      parts.push(button(this.actionText, this.actionUrl, tone, palette))
     }
 
-    parts.push(...this.outroLines.map(paragraph))
-    parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`))
+    parts.push(...this.outroLines.map((line) => paragraph(line, palette)))
+    parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`, palette))
 
-    return emailLayout(parts)
+    return emailLayout(parts, palette)
   }
 }
 
