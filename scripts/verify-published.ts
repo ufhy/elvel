@@ -266,6 +266,60 @@ async function checkKit(kit: string, workspace: string, port: number): Promise<s
     await server.exited
   }
 
+  /**
+   * 4. And it boots from its own bundle, which is a different question.
+   *
+   * `optimize` is what the deployment page tells people to run, and twice now a
+   * release has shipped a bundle that could not start: once because `css-inline`
+   * could not be bundled at all, once because a dynamic import with a computed
+   * specifier stayed a runtime `import()` that had nothing to resolve against
+   * from `dist/`. Both looked fine from source.
+   *
+   * It has to be checked *here* rather than in the smoke, and that distinction
+   * cost an hour to learn. The smoke scaffolds inside the workspace, where every
+   * dependency is hoisted to the monorepo root and resolves from anywhere —
+   * measured: the broken shape boots there. What breaks it is an application
+   * installed on its own, which is the only kind this script makes.
+   */
+  const built = Bun.spawnSync({
+    cmd: ['bun', 'elvel.ts', 'app:build'],
+    cwd: app,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  if (built.exitCode !== 0) {
+    problems.push(
+      `kit ${kit}: app:build failed — ${new TextDecoder().decode(built.stderr).slice(0, 200)}`
+    )
+
+    return problems
+  }
+
+  const bundled = Bun.spawn({
+    cmd: ['bun', 'dist/elvel.js', 'serve', `--port=${port}`],
+    cwd: app,
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+
+  try {
+    const answer = await waitForPort(port)
+
+    if (answer === undefined) {
+      const why = new TextDecoder().decode(await new Response(bundled.stderr).arrayBuffer())
+
+      problems.push(`kit ${kit}: the bundle answered nothing on :${port} — ${why.slice(0, 200)}`)
+    } else if (answer !== 200) {
+      problems.push(`kit ${kit}: the bundle answered ${answer} on GET /`)
+    } else {
+      console.log('  and boots from its bundle')
+    }
+  } finally {
+    bundled.kill()
+    await bundled.exited
+  }
+
   return problems
 }
 
