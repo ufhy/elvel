@@ -33,18 +33,21 @@ function flag(name: string): string | undefined {
 
 const version = flag('version') ?? (await readJson<{ version: string }>('package.json')).version
 /**
- * `jsx` rather than `auth`, which stopped being a kit and became a layer.
+ * Every kit `create-elvel` offers, and `vue` is the one that earns the list.
  *
- * `create-elvel` answered `Unknown kit "auth". Available: none, jsx, vue, api.`
- * and the release stopped there — after all twenty-nine packages had published,
- * so the version shipped and only its GitHub release was missing. `jsx` *is* the
- * auth kit with a different front end, so this checks the same ground.
+ * It was `none,auth,api` until `auth` stopped being a kit and became a layer;
+ * `create-elvel` answered `Unknown kit "auth"` and a release stopped there, after
+ * all twenty-nine packages had published. Replacing it with `jsx` fixed that and
+ * left the real gap in place: `vue` is the only kit whose `package.json` declares
+ * `workspaces`, so it is the only one Bun installs in the isolated layout — and
+ * that layout is what broke two bundles in a row. The check written to catch
+ * those ran on the release that followed without touching the kit it was for.
  *
- * The smoke script had the same stale name and was fixed when the kit retired.
- * This one was missed, and nothing caught it because it only runs from a tag,
- * during a real publish.
+ * So: all of them, and no default that quietly omits the interesting one. A kit
+ * costs about ninety seconds here, which is cheap against a release that ships a
+ * bundle nobody can boot.
  */
-const kits = (flag('kits') ?? 'none,jsx,api').split(',').filter(Boolean)
+const kits = (flag('kits') ?? 'none,jsx,api,vue').split(',').filter(Boolean)
 
 async function readJson<T>(path: string): Promise<T> {
   try {
