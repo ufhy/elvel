@@ -30,6 +30,21 @@ import { Command } from '../command.ts'
  * so a bundle two directories down would resolve `storage/` and `config/`
  * against the wrong root.
  */
+/**
+ * Dependencies left out of the bundle and required at run time instead.
+ *
+ * `css-inline` is WASM, and its wasm-bindgen glue assigns its own module namespace
+ * to itself (`imports['__wbindgen_placeholder__'] = exports_css_inline`). Bun's
+ * bundler does not emit that binding, so a bundle containing it dies on boot with
+ * `ReferenceError: exports_css_inline is not defined` — measured, and reproducible
+ * from a one-line file that imports nothing else.
+ *
+ * Leaving it out costs nothing here: the bundle exists to skip transpiling on every
+ * boot, not to deploy without `node_modules`, and this package is still resolved
+ * from there the way it is when running from source.
+ */
+const EXTERNAL = ['css-inline']
+
 export class AppBuildCommand extends Command {
   static override signature =
     'app:build {--minify : Minify the output} {--sourcemap : Write an external source map}'
@@ -51,7 +66,15 @@ export class AppBuildCommand extends Command {
     // built without one points at source that no longer matches.
     await rm(out, { recursive: true, force: true })
 
-    const argv = ['bun', 'build', './elvel.ts', '--target=bun', '--outdir', 'dist']
+    const argv = [
+      'bun',
+      'build',
+      './elvel.ts',
+      '--target=bun',
+      '--outdir',
+      'dist',
+      ...EXTERNAL.flatMap((one) => ['--external', one])
+    ]
 
     if (this.option('minify') === true) argv.push('--minify')
     if (this.option('sourcemap') === true) argv.push('--sourcemap=external')
