@@ -9,7 +9,11 @@ import { MailNotificationChannel } from '../src/channels/mail.ts'
 import { NotificationManager } from '../src/manager.ts'
 import { escapeAttribute, escapeHtml, MailMessage } from '../src/message.ts'
 import { AnonymousNotifiable, identify, type Notifiable, routeFor } from '../src/notifiable.ts'
-import { Notification, NotificationRegistry } from '../src/notification.ts'
+import {
+  type AnyNotification as AnyNotificationForTest,
+  Notification,
+  NotificationRegistry
+} from '../src/notification.ts'
 import { SendQueuedNotification } from '../src/queued.ts'
 import { type NotificationChannel, NotificationSender } from '../src/sender.ts'
 
@@ -1242,5 +1246,105 @@ describe('queue middleware named by a notification', () => {
     expect(job.middleware()).toEqual([])
 
     SendQueuedNotification.resolver = null
+  })
+})
+
+describe('a mail message that chooses its own body', () => {
+  const render = async (notification: AnyNotificationForTest) => {
+    const sent: Array<{ content: Record<string, unknown> }> = []
+
+    const mail = {
+      mailer: () => ({
+        send: async (mailable: { content(): Record<string, unknown> }) => {
+          sent.push({ content: mailable.content() })
+
+          return 'sent'
+        }
+      })
+    }
+
+    await new MailNotificationChannel(mail as never, 'Playground', {
+      page: '#ff0000'
+    }).send(new User(1, 'ada@example.com'), notification as never)
+
+    return sent[0]?.content as Record<string, unknown>
+  }
+
+  /**
+   * The colours were being dropped here: a notification that chose a theme and
+   * then wrote its body in markdown came out in the defaults, while the same
+   * notification written as lines came out branded.
+   */
+  test('keeps the channel’s theme when the body is markdown', async () => {
+    class Digest extends Notification<Record<string, never>> {
+      via(): string {
+        return 'mail'
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage().markdown('# This week\n\n- One\n- Two')
+      }
+    }
+
+    expect(String((await render(new Digest({}))).html)).toContain('#ff0000')
+  })
+
+  /** `template()` swaps the document, and the default is only the default. */
+  test('wraps the body in a layout of its own', async () => {
+    class Branded extends Notification<Record<string, never>> {
+      via(): string {
+        return 'mail'
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage()
+          .line('Hello.')
+          .template((parts) => `<html><body class="ours">${parts.join('')}</body></html>`)
+      }
+    }
+
+    const html = String((await render(new Branded({}))).html)
+
+    expect(html).toContain('class="ours"')
+    expect(html).toContain('Hello.')
+    // The card the default wraps every mail in is gone.
+    expect(html).not.toContain('border-radius')
+  })
+
+  /**
+   * Markdown and a component are alternatives, not a precedence order: the later
+   * call wins, so a message that changed its mind does what it last said.
+   */
+  test('lets the later of markdown and view win', async () => {
+    const message = new MailMessage()
+      .view(((props: { title: string }) => `<p>${props.title}</p>`) as never, { title: 'x' })
+      .markdown('# Not the component')
+
+    expect(message.viewComponent).toBeUndefined()
+    expect(message.markdownSource).toContain('Not the component')
+  })
+
+  /** A text half written by hand beats the one generated from the markdown. */
+  test('sends the plain text it was given', async () => {
+    class Table extends Notification<Record<string, never>> {
+      via(): string {
+        return 'mail'
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage().markdown('| a | b |\n| - | - |\n| 1 | 2 |').text('a=1, b=2')
+      }
+    }
+
+    expect((await render(new Table({}))).text).toBe('a=1, b=2')
+  })
+
+  test('and attaches a whole list at once', () => {
+    const message = new MailMessage().attachMany([
+      { filename: 'one.txt', content: 'one' },
+      { filename: 'two.txt', content: 'two' }
+    ])
+
+    expect(message.attachments.map((one) => one.filename)).toEqual(['one.txt', 'two.txt'])
   })
 })

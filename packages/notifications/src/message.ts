@@ -3,6 +3,7 @@ import {
   button,
   emailLayout,
   heading,
+  type MailLayout,
   type MailTheme,
   paragraph,
   salutation,
@@ -209,6 +210,13 @@ export class MailMessage {
     return this
   }
 
+  /** Several at once — what a receipt with a per-item file needs. */
+  attachMany(attachments: MailAttachment[]): this {
+    this.files.push(...attachments)
+
+    return this
+  }
+
   /**
    * Write the body as markdown instead of as lines.
    *
@@ -223,6 +231,9 @@ export class MailMessage {
    */
   markdown(source: string): this {
     this.markdownBody = source
+    // The two are alternatives, so the later call wins rather than being quietly
+    // outranked — Laravel clears the other for the same reason.
+    this.component = undefined
 
     return this
   }
@@ -237,9 +248,41 @@ export class MailMessage {
   /** Render the body with one of the application's components instead. */
   view<Props>(component: ViewComponent<Props>, props: Props): this {
     this.component = { view: component as ViewComponent<never>, with: props }
+    this.markdownBody = undefined
 
     return this
   }
+
+  /**
+   * Wrap the body in a document of your own — Laravel's `template()`.
+   *
+   * The default is a card on a grey page, which is a safe answer and not every
+   * brand's answer. A layout takes the rendered parts and the colours and returns
+   * the whole document, which is the same shape `emailLayout` has, so the default
+   * can be called from inside a replacement that only adds a header.
+   */
+  template(layout: MailLayout): this {
+    this.layoutFn = layout
+
+    return this
+  }
+
+  private layoutFn: MailLayout | undefined
+
+  /**
+   * Write the plain-text half yourself.
+   *
+   * Generated from the same lines otherwise, which is right for a built message and
+   * wrong for a markdown or component body: a table rendered as text is a wall, and
+   * whoever wrote it knows what it should say.
+   */
+  text(body: string): this {
+    this.textBody = body
+
+    return this
+  }
+
+  private textBody: string | undefined
 
   // ------------------------------------------------------------------ reading
 
@@ -263,6 +306,16 @@ export class MailMessage {
     return this.component
   }
 
+  /** The plain-text half, when it was written rather than generated. */
+  get textOrUndefined(): string | undefined {
+    return this.textBody
+  }
+
+  /** The document to wrap the body in, when one was named. */
+  get layout(): MailLayout | undefined {
+    return this.layoutFn
+  }
+
   /** The subject, or something reasonable derived from the notification's name. */
   subjectOr(fallback: string): string {
     return this.subjectLine ?? fallback
@@ -275,6 +328,8 @@ export class MailMessage {
    * spam, and some clients still prefer it.
    */
   toText(appName: string): string {
+    if (this.textBody !== undefined) return this.textBody
+
     const parts: string[] = []
 
     parts.push(this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!'))
@@ -321,7 +376,7 @@ export class MailMessage {
     parts.push(...this.outroLines.map((line) => paragraph(line, palette)))
     parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`, palette))
 
-    return emailLayout(parts, palette)
+    return (this.layoutFn ?? emailLayout)(parts, palette)
   }
 }
 

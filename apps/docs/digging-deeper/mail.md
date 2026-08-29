@@ -141,6 +141,19 @@ The pieces are exported, for a mail assembled rather than written in markdown:
 around them. `layout: false` renders the markdown alone, for a mail whose markup
 somebody else owns.
 
+`layout` also takes a wrapper of your own:
+
+```ts
+markdownContent(source, {
+  layout: (parts, theme) => `<html><body>${banner(theme)}${emailLayout(parts, theme)}</body></html>`
+})
+```
+
+It receives the rendered parts and the colours — the signature `emailLayout` has —
+so a replacement that only adds something around the default can call it from
+inside itself. A notification names the same thing with
+[`template()`](/digging-deeper/notifications).
+
 ::: tip This is where the notification template went
 It used to live inside `MailMessage`, which meant only a notification could have it —
 a `Mailable` had no way to render a button at all. Same markup, one owner.

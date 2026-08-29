@@ -1,5 +1,13 @@
 import type { ViewComponent } from '@elvel/contracts'
-import { button, emailLayout, type MailTheme, type MailTone, subcopy, themeFrom } from './layout.ts'
+import {
+  button,
+  emailLayout,
+  type MailLayout,
+  type MailTheme,
+  type MailTone,
+  subcopy,
+  themeFrom
+} from './layout.ts'
 import { markdownToHtml, markdownToText } from './markdown.ts'
 
 /** One mailbox. A bare string is an address with no display name. */
@@ -173,7 +181,7 @@ export function markdownContent(source: string, options: MarkdownOptions = {}): 
   if (options.subcopy) body.push(subcopy(options.subcopy, palette))
 
   return {
-    html: options.layout === false ? body.join('') : emailLayout(body, palette),
+    html: options.layout === false ? body.join('') : (options.layout ?? emailLayout)(body, palette),
     text: markdownToText(trimmed) + textFor(options)
   }
 }
@@ -195,12 +203,14 @@ export type MarkdownOptions = {
    */
   theme?: Partial<MailTheme>
   /**
-   * `false` to render the markdown alone, with no document around it.
+   * A wrapper of your own, or `false` to render the markdown alone.
    *
-   * For a mail whose markup is somebody else's — an export, a digest pasted into a
-   * template a designer owns — where a second `<html>` would nest inside theirs.
+   * `false` is for a mail whose markup is somebody else's — an export, a digest
+   * pasted into a template a designer owns — where a second `<html>` would nest
+   * inside theirs. A function replaces the default card-on-grey document, which is
+   * the safe answer and not every brand's answer.
    */
-  layout?: false
+  layout?: false | MailLayout
 }
 
 /** The plain-text half, which has to say what the button and the subcopy said. */

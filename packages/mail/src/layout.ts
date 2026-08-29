@@ -114,6 +114,15 @@ export function salutation(text: string, theme: MailTheme = DEFAULT_THEME): stri
  * `parts` are already-rendered strings rather than values to escape, because that is
  * what the components above hand back. Nothing here escapes anything a second time.
  */
+/**
+ * What wraps a rendered body — `emailLayout` is the one every mail gets by default.
+ *
+ * A type of its own so an application can supply another: the default is a card on
+ * a grey page, which is the safe answer and not every brand's answer. Laravel calls
+ * the same swap `template()`.
+ */
+export type MailLayout = (parts: string[], theme: MailTheme) => string
+
 export function emailLayout(parts: string[], theme: MailTheme = DEFAULT_THEME): string {
   return `<!DOCTYPE html><html lang="en"><body style="margin:0;padding:24px;background:${theme.page};font-family:system-ui,-apple-system,'Segoe UI',sans-serif;"><div style="max-width:560px;margin:0 auto;padding:24px;background:${theme.card};border-radius:10px;">${parts.join('')}</div></body></html>`
 }

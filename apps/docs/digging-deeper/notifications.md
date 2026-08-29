@@ -95,6 +95,29 @@ new MailMessage()
 Without these the alternative is a local variable and a branch, which is how a
 message that reads like a message turns into a message that reads like code.
 
+### Writing the body some other way
+
+```ts
+new MailMessage()
+  .markdown('## This week\n\n- One thing\n- Another')
+  .text('This week: one thing, another.')
+  .template((parts, theme) => `<html><body>${header()}${parts.join('')}</body></html>`)
+  .attachMany(files)
+```
+
+`markdown()` and `view(Component, props)` are alternatives — the later call wins,
+so a message that changes its mind does what it last said. Both keep the
+[theme](/digging-deeper/mail#colours) the channel was configured with.
+
+`text()` writes the plain-text half yourself. It is generated from the same lines
+otherwise, which is right for a built message and wrong for a table: rendered as
+text a table is a wall, and whoever wrote it knows what it should say.
+
+`template()` replaces the document around the body — the default is a card on a
+grey page, a safe answer and not every brand's answer. It receives the rendered
+parts and the colours, which is the signature `emailLayout` itself has, so a
+replacement that only adds a header can call the default from inside itself.
+
 `via()` receives the notifiable, so a recipient can decide the channels:
 
 ```ts

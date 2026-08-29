@@ -101,11 +101,22 @@ export class MailNotificationChannel {
      */
     const markdown = message.markdownSource
 
+    const written = message.textOrUndefined
+
     const content: Content = component
       ? { view: component.view, with: component.with, text: message.toText(this.appName) }
       : markdown !== undefined
-        ? markdownContent(markdown)
+        ? markdownContent(markdown, {
+            // The theme was being dropped here: a notification that chose its
+            // colours and then wrote its body in markdown came out in the defaults.
+            theme: this.theme,
+            ...(message.layout ? { layout: message.layout } : {})
+          })
         : { html: message.toHtml(this.appName, this.theme), text: message.toText(this.appName) }
+
+    // A text half written by hand wins over the one markdown generated: a table
+    // rendered as text is a wall, and whoever wrote it knows what it should say.
+    if (written !== undefined && 'html' in content) content.text = written
 
     const mailable = new NotificationMail({
       envelope,
