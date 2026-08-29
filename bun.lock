@@ -9,7 +9,7 @@
         "nodemailer": "9.0.5",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.5.8",
+        "@biomejs/biome": "^2.5.10",
         "@clack/prompts": "^1.7.0",
         "@elvel/auth": "workspace:*",
         "@elvel/broadcasting": "workspace:*",
@@ -41,7 +41,7 @@
         "@elvel/vite": "workspace:*",
         "@elysiajs/static": "^1.4.10",
         "@kitajs/html": "^4.2.13",
-        "@types/bun": "^1.3.14",
+        "@types/bun": "^1.4.0",
         "@types/nodemailer": "^8.0.1",
         "css-inline": "^0.11.2",
         "elysia": "^1.4.29",

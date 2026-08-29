@@ -1432,7 +1432,22 @@ a script the view already rendered.
 **Dependabot cannot cover the dependencies.** It supports Bun for version updates
 and explicitly not for security updates, so nothing would ever open a pull request
 to say a package became vulnerable. `bun audit --audit-level=high` runs as its own
-job in `verify.yml` instead. The gate is high-and-above on purpose: `release.yml`
+job in `verify.yml` instead.
+
+Since Bun 1.4 it cannot do version updates either, and it fails silently as far as
+the repository is concerned. `bun.lock` is now `lockfileVersion: 2`, and the
+updater answers `Unsupported bun.lock 'lockfileVersion' 2 in /bun.lock. The bun
+version Dependabot runs supports up to 1.` — so the job goes red in the Dependabot
+tab, where nobody looks, rather than in `verify.yml`. An open pull request from
+before the bump cannot even be rebased: it was raised against a lockfile the
+updater can no longer parse. The GitHub Actions ecosystem is unaffected, which is
+why action bumps still arrive and package bumps do not.
+
+So JavaScript dependency bumps are a manual job until that support lands. And they
+are two edits, not one: `packages/create-elvel/template/_package.json` pins the
+same versions for scaffolded applications, and `template.test.ts` fails when the
+two disagree — deliberately, because a scaffold that installs a version older than
+the one this repository tested is a scaffold nobody verified. The gate is high-and-above on purpose: `release.yml`
 waits on `verify.yml`, and a low advisory in some dev dependency blocking a release
 is bad when a release is often how a fix ships.
 
