@@ -1,6 +1,6 @@
 {
   "name": "@elvel/process",
-  "version": "1.0.0-alpha.18",
+  "version": "1.0.0-alpha.19",
   "description": "Running processes from Elvel — fluent commands, pipes, pools and process groups",
   "keywords": [
     "bun",
