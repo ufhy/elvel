@@ -14,7 +14,7 @@ Use GitHub's private reporting instead:
 **https://github.com/ufhy/elvel/security/advisories/new**
 
 It goes to the maintainers, nowhere else, and it carries a private fork to
-develop the fix in. If you cannot use it, email **the maintainers**.
+develop the fix in.
 
 What helps, in rough order of how much:
 

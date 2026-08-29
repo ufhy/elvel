@@ -8,7 +8,7 @@ Use GitHub's private reporting instead:
 **[github.com/ufhy/elvel/security/advisories/new](https://github.com/ufhy/elvel/security/advisories/new)**
 
 It reaches the maintainers and nobody else, and it carries a private fork to
-develop the fix in. If you cannot use it, email `the maintainers`.
+develop the fix in.
 
 [`SECURITY.md`](https://github.com/ufhy/elvel/blob/main/SECURITY.md) has the full
 version: what is in scope, what helps a report, and which versions are supported.
