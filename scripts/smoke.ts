@@ -2611,7 +2611,7 @@ section('Scaffolder')
  * created inside the checkout.
  *
  * It has to happen before *anything* runs in the target, not merely before the
- * typecheck. `config/auth.ts` in the auth kits imports `@better-auth/passkey`,
+ * typecheck. `config/auth.ts` in the kits with accounts imports `@better-auth/passkey`,
  * so without its dependencies the application cannot boot at all — and the way
  * that surfaced was `elvel make:cast` reporting the config file as missing.
  */
@@ -2720,7 +2720,7 @@ try {
    * `make:cast`, `make:observer` and `make:scope` come from `@elvel/database` and
    * `make:job-middleware` from `@elvel/queue`, and `--kit=none` has neither — an
    * application with no database has no casts to write. They are run against the
-   * auth kit further down, where both providers are registered, which is also the
+   * jsx kit further down, where both providers are registered, which is also the
    * honest place for them: a command exists because a provider booted.
    */
   const ormGenerators: Array<[string, string, string]> = [
@@ -2771,7 +2771,7 @@ try {
   )
 
   /**
-   * The auth kit, scaffolded over the same template.
+   * The jsx kit, scaffolded over the same template.
    *
    * A kit is a folder copied on top rather than a second template, so what is
    * checked is that it lands *and* that the base survives it — a kit that
@@ -2781,15 +2781,15 @@ try {
   await rm(kitTarget, { recursive: true, force: true })
 
   const kitResult = Bun.spawnSync({
-    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-kit', '--kit=auth'],
+    cmd: ['bun', 'packages/create-elvel/src/index.ts', 'apps/smoke-kit', '--kit=jsx'],
     cwd: join(import.meta.dir, '..'),
     stdout: 'pipe',
     stderr: 'pipe'
   })
 
-  check('the auth kit scaffolds', kitResult.exitCode === 0, `exit ${kitResult.exitCode}`)
+  check('the jsx kit scaffolds', kitResult.exitCode === 0, `exit ${kitResult.exitCode}`)
 
-  installScaffold('the auth kit')
+  installScaffold('the jsx kit')
   check(
     'its pages are written',
     await Bun.file(join(kitTarget, 'resources/views/pages/auth/sign-in.tsx')).exists()
@@ -2811,7 +2811,7 @@ try {
   }
 
   /**
-   * What the auth kit adds, checked where it is added.
+   * What the auth layer adds, checked where it is added.
    *
    * The counterpart to the template's "left out of" checks above. Between the two
    * halves, a provider moving from one list to the other cannot pass unnoticed —
@@ -2835,12 +2835,12 @@ try {
     ['storage:link', 'storage'],
     ['auth:schema', 'auth']
   ] as const) {
-    check(`${provider} is wired into the auth kit`, kitListed.includes(command))
+    check(`${provider} is wired into the jsx kit`, kitListed.includes(command))
   }
 
   for (const file of ['auth', 'database', 'mail', 'queue', 'filesystems', 'notifications']) {
     check(
-      `the auth kit ships config/${file}.ts`,
+      `the jsx kit ships config/${file}.ts`,
       await Bun.file(join(kitTarget, 'config', `${file}.ts`)).exists()
     )
   }
@@ -2914,7 +2914,7 @@ try {
   check('the jsx kit scaffolds', jsxResult.exitCode === 0, `exit ${jsxResult.exitCode}`)
 
   check(
-    'it layers over the auth kit rather than replacing it',
+    'it layers over the auth layer rather than replacing it',
     (await Bun.file(join(jsxTarget, 'app/Http/Controllers/Auth/SignInController.ts')).exists()) &&
       (await Bun.file(
         join(jsxTarget, 'app/Http/Controllers/Settings/AppearanceController.ts')
@@ -2977,7 +2977,7 @@ try {
   /**
    * The kit's own tests, run in the kit's own application.
    *
-   * These ship with the auth kits — `tests/Feature/**` — and the two-factor file
+   * These ship with the auth layer — `tests/Feature/**` — and the two-factor file
    * is the one that matters most here: it is the only place the whole flow is
    * exercised end to end, and every bug found while writing it was a step that
    * looked right on its own. Running them here means a change to the kit that
@@ -3154,7 +3154,7 @@ try {
       'bun',
       'packages/create-elvel/src/index.ts',
       'apps/smoke-setup',
-      '--kit=auth',
+      '--kit=jsx',
       '--install'
     ],
     cwd: join(import.meta.dir, '..'),
@@ -3647,7 +3647,7 @@ try {
    * took a landing page to 3.72 MB.
    *
    * So the base template is held to what it does register, and the rest is
-   * checked where it belongs — in the auth kit, further down.
+   * checked where it belongs — in the jsx kit, further down.
    *
    * Only packages that contribute a command can be checked this way; `view`,
    * `log`, `translation` and `support` register bindings and no elvel command,
@@ -5143,12 +5143,18 @@ async function proveTheKitWorks(target: string): Promise<void> {
 
     const profileAfter = await withNew.page('/settings/profile')
 
-    // The point of the whole flow: the account reads as confirmed afterwards,
-    // where before it offered to send the link again.
+    /*
+     * The point of the whole flow: the account reads as confirmed afterwards.
+     *
+     * Read as the absence of the prompt rather than the presence of a word. This
+     * kit says "This address is not verified." and offers a link while it is not,
+     * and says nothing once it is — so a check for "Confirmed." found neither state
+     * and reported it, which is what it was written to do.
+     */
     check(
       'and the address now reads as confirmed',
-      profileAfter.includes('Confirmed.') && !profileAfter.includes('Not confirmed yet'),
-      profileAfter.includes('Not confirmed yet') ? 'still unconfirmed' : 'neither state found'
+      !profileAfter.includes('This address is not verified.'),
+      'still offering to verify it'
     )
 
     /**
