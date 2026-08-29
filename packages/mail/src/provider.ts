@@ -2,6 +2,7 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ServiceProvider } from '@elvel/core'
 import { Elysia } from 'elysia'
+import { MailThemeCommand } from './console/mail-theme.ts'
 import { MakeMailCommand } from './console/make-mail.ts'
 import type { MailableClass } from './mailable.ts'
 import { MailManager } from './manager.ts'
@@ -29,6 +30,7 @@ export class MailServiceProvider extends ServiceProvider {
   override async boot(): Promise<void> {
     if (this.app.bound('elvel')) {
       this.app.make('elvel').register(MakeMailCommand)
+      this.app.make('elvel').register(MailThemeCommand)
     }
 
     const manager = this.app.make('mail')

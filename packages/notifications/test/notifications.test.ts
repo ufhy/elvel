@@ -1264,9 +1264,11 @@ describe('a mail message that chooses its own body', () => {
       })
     }
 
-    await new MailNotificationChannel(mail as never, 'Playground', {
-      page: '#ff0000'
-    }).send(new User(1, 'ada@example.com'), notification as never)
+    await new MailNotificationChannel(
+      mail as never,
+      'Playground',
+      'body { background: #ff0000; }'
+    ).send(new User(1, 'ada@example.com'), notification as never)
 
     return sent[0]?.content as Record<string, unknown>
   }

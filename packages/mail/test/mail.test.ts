@@ -13,6 +13,7 @@ import { Mailer } from '../src/mailer.ts'
 import { MailManager } from '../src/manager.ts'
 import { markdownToHtml, markdownToText } from '../src/markdown.ts'
 import type { SentMessage, Transport } from '../src/message.ts'
+import { inlineTheme, resolveThemeCss } from '../src/theme.ts'
 import { ArrayTransport } from '../src/transports/array.ts'
 import { FailoverTransport, RoundRobinTransport } from '../src/transports/fallback.ts'
 import { MailgunTransport, PostmarkTransport, ResendTransport } from '../src/transports/http.ts'
@@ -930,11 +931,38 @@ describe('markdown mail', () => {
     expect<boolean>(html.includes('<li>one</li>')).toBe(true)
   })
 
-  test('styles are inline, because Gmail strips a style block', () => {
+  /**
+   * The renderer emits plain tags; the stylesheet reaches them through the inliner.
+   *
+   * The guarantee has not moved — what leaves is still inlined, because Gmail strips
+   * `<style>` blocks — only where it is applied has. Writing the styling into the
+   * renderer meant changing how a mail looks was a TypeScript edit, and anything the
+   * theme did not name could not be changed at all.
+   */
+  test('the renderer itself emits no styling', () => {
     const html = markdownToHtml('Hello.')
 
-    expect<boolean>(html.includes('style="margin: 0 0 16px')).toBe(true)
-    expect<boolean>(html.includes('<style')).toBe(false)
+    expect<string>(html).toBe('<p>Hello.</p>')
+  })
+
+  test('and the styling arrives when the content is built', () => {
+    const html = (markdownContent('Hello.') as { html: string }).html
+
+    expect<boolean>(html.includes('<p style="margin: 0 0 16px')).toBe(true)
+
+    // The style block holds the one rule that cannot become an attribute, and
+    // nothing else: the theme reaches the markup as attributes or not at all.
+    const block = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? ''
+
+    expect<boolean>(block.startsWith('@media')).toBe(true)
+    expect<number>(block.split('@media').length).toBe(2)
+  })
+
+  test('and a theme of your own replaces it', () => {
+    const html = (markdownContent('Hello.', { theme: 'p { color: #ff0000; }' }) as { html: string })
+      .html
+
+    expect<boolean>(html.includes('color: #ff0000')).toBe(true)
   })
 
   test('raw HTML in the source is escaped', () => {
@@ -1094,5 +1122,38 @@ describe('a mailable that resolves its attachments', () => {
     fake.assertSent('WithFile').assertHasAttachment('note.txt')
 
     manager.restore()
+  })
+})
+
+describe('the theme as a stylesheet', () => {
+  /**
+   * The point of the change: a mail's appearance is CSS an application edits, not
+   * TypeScript it forks. Anything the old token object did not name — a font, a
+   * border, a heading's weight — could not be changed at all.
+   */
+  test('an application’s own file replaces the default', () => {
+    const css = resolveThemeCss(undefined, process.cwd())
+
+    expect<boolean>(css.includes('.card')).toBe(true)
+  })
+
+  test('and a path that is not there says what the key is for', () => {
+    expect(() => resolveThemeCss('resources/mail/nothing.css', process.cwd())).toThrow(
+      /mail\.theme is a path to a CSS file.*mail:theme/s
+    )
+  })
+
+  /**
+   * Off deliberately. A mail is often rendered from content somebody else supplied,
+   * and a renderer that follows `<link>` tags fetches whatever they point at from
+   * inside the network the worker runs in.
+   */
+  test('and a remote stylesheet is never fetched', () => {
+    const html = inlineTheme(
+      '<html><head><link rel="stylesheet" href="http://127.0.0.1:1/x.css"></head><body><p>Hi</p></body></html>',
+      'p { color: #123456; }'
+    )
+
+    expect<boolean>(html.includes('#123456')).toBe(true)
   })
 })

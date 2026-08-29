@@ -3,11 +3,10 @@ import {
   button,
   emailLayout,
   heading,
+  inlineTheme,
   type MailLayout,
-  type MailTheme,
   paragraph,
-  salutation,
-  themeFrom
+  salutation
 } from '@elvel/mail'
 
 export type MailAttachment = {
@@ -359,26 +358,27 @@ export class MailMessage {
    * so the good template only existed for notifications. It belongs to the package
    * that owns mail, and this reads it like any other caller.
    */
-  toHtml(appName: string, theme?: Partial<MailTheme>, layout?: MailLayout): string {
-    const palette = themeFrom(theme)
+  toHtml(appName: string, theme?: string, layout?: MailLayout): string {
     const tone =
       this.levelName === 'error' ? 'error' : this.levelName === 'success' ? 'success' : 'info'
 
     const parts: string[] = [
-      heading(this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!'), palette),
-      ...this.introLines.map((line) => paragraph(line, palette))
+      heading(this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!')),
+      ...this.introLines.map((line) => paragraph(line))
     ]
 
     if (this.actionText && this.actionUrl) {
-      parts.push(button(this.actionText, this.actionUrl, tone, palette))
+      parts.push(button(this.actionText, this.actionUrl, tone))
     }
 
-    parts.push(...this.outroLines.map((line) => paragraph(line, palette)))
-    parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`, palette))
+    parts.push(...this.outroLines.map((line) => paragraph(line)))
+    parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`))
 
     // The message's own `template()` first: an explicit instruction beats the
     // application-wide default, which is what `mail.layout` is.
-    return (this.layoutFn ?? layout ?? emailLayout)(parts, palette)
+    const html = (this.layoutFn ?? layout ?? emailLayout)(parts)
+
+    return inlineTheme(html, theme)
   }
 }
 

@@ -145,13 +145,13 @@ somebody else owns.
 
 ```ts
 markdownContent(source, {
-  layout: (parts, theme) => `<html><body>${banner(theme)}${emailLayout(parts, theme)}</body></html>`
+  layout: (parts) => `<html><body>${banner()}${emailLayout(parts)}</body></html>`
 })
 ```
 
-It receives the rendered parts and the colours — the signature `emailLayout` has —
-so a replacement that only adds something around the default can call it from
-inside itself. A notification names the same thing with
+It receives the rendered parts — the signature `emailLayout` has — so a replacement
+that only adds something around the default can call it from inside itself. A
+notification names the same thing with
 [`template()`](/digging-deeper/notifications).
 
 ::: tip This is where the notification template went
@@ -159,44 +159,65 @@ It used to live inside `MailMessage`, which meant only a notification could have
 a `Mailable` had no way to render a button at all. Same markup, one owner.
 :::
 
-## Colours
+## The theme is a stylesheet
 
-```ts
-// config/mail.ts
-theme: { accent: { info: '#c9241a' } }
+```bash
+bun elvel mail:theme          # writes resources/mail/theme.css
 ```
 
-Only what you name changes. Values rather than a stylesheet, for the reason the
-markup carries inline styles: a theme published as CSS looks right in a preview and
-unstyled in an inbox.
+```ts
+// config/mail.ts
+theme: 'resources/mail/theme.css'
+```
 
-| | |
-| --- | --- |
-| `page` | behind the card |
-| `card` | the card |
-| `ink` | body text and headings |
-| `muted` | small print and the salutation |
-| `line` | rules and the subcopy divider |
-| `accent` | the button, per level: `info`, `success`, `error` |
+Ordinary CSS with ordinary selectors. The components carry class names and nothing
+else; the stylesheet is inlined into the markup as the mail is rendered.
+
+```css
+.card { max-width: 560px; background: #ffffff; border-radius: 10px; }
+.button--info { background: #2563eb; }
+p { font-size: 15px; line-height: 1.6; color: #333333; }
+```
+
+The classes the components emit: `.card` (the document), `.button` with
+`.button--info` / `.button--success` / `.button--error`, `.action` around it,
+`.panel`, `.subcopy`, `.salutation`. Everything markdown produces — `p`, `h1`–`h6`,
+`ul`, `blockquote`, `pre`, `code`, `hr`, `a`, `img` — is a plain tag you style by
+element.
+
+::: tip Why it is inlined at all
+**Gmail strips `<style>` blocks.** A mail that relies on one looks right in every
+preview and unstyled in the inbox. So the styling has to end up in `style`
+attributes — but that is the renderer's job, not yours. Laravel reaches the same
+place through `CssToInlineStyles`; this uses `css-inline`, which is WASM and has no
+dependencies of its own.
+
+The one thing that cannot become an attribute is `@media`, so the layout keeps a
+small `<style>` block for the width overrides. A client that drops it loses nothing
+that makes the mail unreadable.
+:::
+
+A mailable passes CSS rather than a path, since `markdownContent()` is a plain
+function a worker or a test may call with no application around it:
+
+```ts
+markdownContent(source, { theme: await Bun.file('resources/mail/theme.css').text() })
+```
 
 ```ts
 // config/mail.ts
-layout: (parts, theme) =>
-  `<html><body style="background:${theme.page};padding:24px;">` +
-  `<img src="https://acme.test/logo.png" width="120" alt="Acme">` +
-  `${emailLayout(parts, theme)}</body></html>`
+layout: (parts) => `<html><body>${banner()}${emailLayout(parts)}</body></html>`
 ```
 
 `layout` is the document itself, over `emailLayout`, for the header a brand puts
-above every mail. Without it the only way to change the document is `template()`
-on each message — which for the four mails
+above every mail. Without it the only way to change the document is `template()` on
+each message — which for the four mails
 [`@elvel/auth`](/security/authentication) sends means four `toMailUsing` callbacks
 written to change the one thing they all share. A message that calls `template()`
 still wins over it.
 
-Both keys reach every **notification**. A mailable names its own, because
-`markdownContent()` is a plain function a worker or a test may call with no
-application around it.
+Both keys reach every **notification**. A mailable names its own, for the reason
+above.
 
 ## Looking at a mail without sending one
 

@@ -259,6 +259,7 @@
         "@elvel/queue": "workspace:*",
         "@elvel/support": "workspace:*",
         "@types/nodemailer": "^8.0.1",
+        "css-inline": "^0.11.2",
         "nodemailer": "9.0.5",
       },
       "peerDependencies": {
@@ -748,6 +749,8 @@
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
 
     "create-elvel": ["create-elvel@workspace:packages/create-elvel"],
+
+    "css-inline": ["css-inline@0.11.2", "", {}, "sha512-c/oie5Yqa2lVRwUO7A8nd3c3r0x7yE6MQH2PPB/R1LaUb6ohZD7vNXj23fod5y4QNsNhsQi98/AWfUwo1K6R7g=="],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 

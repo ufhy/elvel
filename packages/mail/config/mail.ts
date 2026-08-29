@@ -23,18 +23,20 @@ export default {
    * ```
    */
   /**
-   * The colours every notification is drawn in — Laravel's mail theme, as values.
+   * The stylesheet every notification is drawn with — Laravel's mail theme.
    *
-   * Only what you name changes; the rest keep the defaults. Values rather than a
-   * stylesheet because the components inline their styles as they build: Gmail
-   * strips `<style>` blocks, so a stylesheet-driven mail looks right in the preview
-   * and unstyled in the inbox.
+   * A path to a CSS file, relative to the application root. Undefined uses the one
+   * the package ships; `bun elvel mail:theme` writes a copy of it to edit.
+   *
+   * Ordinary CSS, with ordinary selectors — the components carry class names and
+   * nothing else. It is inlined into the markup as the mail is rendered, because
+   * Gmail strips `<style>` blocks, but that is the renderer's job rather than yours.
    *
    * A mailable names its own, since `markdownContent()` is a plain function a
    * worker or a test may call with no application around it.
    *
    * ```ts
-   * theme: { accent: { info: '#c9241a' } }
+   * theme: 'resources/mail/theme.css'
    * ```
    */
   theme: undefined,
@@ -51,10 +53,9 @@ export default {
    * a default.
    *
    * ```ts
-   * layout: (parts, theme) =>
-   *   `<html><body style="background:${theme.page};padding:24px;">` +
-   *   `<img src="https://acme.test/logo.png" width="120" alt="Acme">` +
-   *   `${emailLayout(parts, theme)}</body></html>`
+   * layout: (parts) =>
+   *   `<html><body><img src="https://acme.test/logo.png" width="120" alt="Acme">` +
+   *   `${emailLayout(parts)}</body></html>`
    * ```
    */
   layout: undefined,

@@ -27,7 +27,7 @@ export function markdownToHtml(source: string): string {
     if (block.startsWith('```')) {
       const body = block.replace(/^```[^\n]*\n?/, '').replace(/```$/, '')
 
-      html.push(`<pre style="${STYLES.pre}"><code>${escapeHtml(body.trimEnd())}</code></pre>`)
+      html.push(`<pre><code>${escapeHtml(body.trimEnd())}</code></pre>`)
 
       continue
     }
@@ -36,17 +36,15 @@ export function markdownToHtml(source: string): string {
 
     if (heading) {
       const level = (heading[1] as string).length
-      const size = [24, 20, 18, 16, 15, 14][level - 1] ?? 14
 
-      html.push(
-        `<h${level} style="${STYLES.heading} font-size: ${size}px;">${inline(heading[2] as string)}</h${level}>`
-      )
+      // The size comes from the stylesheet's `h1`…`h6` rules rather than from here.
+      html.push(`<h${level}>${inline(heading[2] as string)}</h${level}>`)
 
       continue
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(block)) {
-      html.push(`<hr style="${STYLES.rule}">`)
+      html.push(`<hr>`)
 
       continue
     }
@@ -57,7 +55,7 @@ export function markdownToHtml(source: string): string {
         .map((line) => line.replace(/^\s*>\s?/, ''))
         .join(' ')
 
-      html.push(`<blockquote style="${STYLES.quote}">${inline(body)}</blockquote>`)
+      html.push(`<blockquote>${inline(body)}</blockquote>`)
 
       continue
     }
@@ -89,7 +87,7 @@ export function markdownToHtml(source: string): string {
     // A paragraph keeps its single newlines as line breaks, which is what a
     // person writing an address block expects and what markdown's "two spaces"
     // rule is too easy to lose in an editor.
-    html.push(`<p style="${STYLES.paragraph}">${lines.map(inline).join('<br>')}</p>`)
+    html.push(`<p>${lines.map(inline).join('<br>')}</p>`)
   }
 
   return html.join('\n')
@@ -115,21 +113,10 @@ export function markdownToText(source: string): string {
     .trim()
 }
 
-const STYLES = {
-  paragraph: 'margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #333;',
-  heading: 'margin: 0 0 12px; color: #111; font-weight: 600;',
-  rule: 'border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;',
-  quote:
-    'margin: 0 0 16px; padding: 8px 16px; border-left: 3px solid #d0d0d0; color: #555; font-size: 15px;',
-  pre: 'margin: 0 0 16px; padding: 12px; background: #f5f5f5; border-radius: 6px; font-size: 13px; overflow-x: auto;',
-  list: 'margin: 0 0 16px; padding-left: 20px; font-size: 15px; line-height: 1.6; color: #333;',
-  link: 'color: #2563eb;'
-} as const
-
 function list(tag: 'ul' | 'ol', items: string[]): string {
   const rendered = items.map((item) => `<li>${inline(item)}</li>`).join('')
 
-  return `<${tag} style="${STYLES.list}">${rendered}</${tag}>`
+  return `<${tag}>${rendered}</${tag}>`
 }
 
 /**
@@ -141,21 +128,18 @@ function list(tag: 'ul' | 'ol', items: string[]): string {
  */
 function inline(text: string): string {
   return escapeHtml(text)
-    .replace(
-      /`([^`]+)`/g,
-      '<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px">$1</code>'
-    )
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(])[*_]([^*_]+)[*_]/g, '$1<em>$2</em>')
     .replace(
       /!\[([^\]]*)\]\(([^)\s]+)\)/g,
       (_match, alt: string, src: string) =>
-        `<img src="${escapeAttribute(safeUrl(src))}" alt="${alt}" style="max-width:100%">`
+        `<img src="${escapeAttribute(safeUrl(src))}" alt="${alt}">`
     )
     .replace(
       /\[([^\]]+)\]\(([^)\s]+)\)/g,
       (_match, text: string, href: string) =>
-        `<a href="${escapeAttribute(safeUrl(href))}" style="${STYLES.link}">${text}</a>`
+        `<a href="${escapeAttribute(safeUrl(href))}">${text}</a>`
     )
 }
 

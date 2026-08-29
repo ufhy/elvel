@@ -1,4 +1,4 @@
-import type { MailLayout, MailTheme } from '@elvel/mail'
+import type { MailLayout } from '@elvel/mail'
 import { type Content, type Envelope, type Mailable, markdownContent } from '@elvel/mail'
 import { type Notifiable, routeFor } from '../notifiable.ts'
 import type { AnyNotification } from '../notification.ts'
@@ -52,8 +52,8 @@ export class MailNotificationChannel {
   constructor(
     private readonly mail: Mailer,
     private readonly appName = 'Elvel',
-    /** `mail.theme`, so a notification is drawn in the application's colours. */
-    private readonly theme?: Partial<MailTheme>,
+    /** The theme stylesheet, already read — `mail.theme` names the file. */
+    private readonly theme?: string,
     /** `mail.layout`, for the header a brand puts above every mail. */
     private readonly layout?: MailLayout
   ) {}

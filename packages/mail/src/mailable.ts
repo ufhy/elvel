@@ -1,14 +1,7 @@
 import type { ViewComponent } from '@elvel/contracts'
-import {
-  button,
-  emailLayout,
-  type MailLayout,
-  type MailTheme,
-  type MailTone,
-  subcopy,
-  themeFrom
-} from './layout.ts'
+import { button, emailLayout, type MailLayout, type MailTone, subcopy } from './layout.ts'
 import { markdownToHtml, markdownToText } from './markdown.ts'
+import { inlineTheme } from './theme.ts'
 
 /** One mailbox. A bare string is an address with no display name. */
 export type Address = string | { address: string; name?: string }
@@ -171,17 +164,20 @@ export type MailableClass = new (data: never) => AnyMailable
  */
 export function markdownContent(source: string, options: MarkdownOptions = {}): Content {
   const trimmed = dedent(source)
-  const palette = themeFrom(options.theme)
   const body = [markdownToHtml(trimmed)]
 
   if (options.action) {
-    body.push(button(options.action.text, options.action.url, options.tone, palette))
+    body.push(button(options.action.text, options.action.url, options.tone))
   }
 
-  if (options.subcopy) body.push(subcopy(options.subcopy, palette))
+  if (options.subcopy) body.push(subcopy(options.subcopy))
+
+  const html = options.layout === false ? body.join('') : (options.layout ?? emailLayout)(body)
 
   return {
-    html: options.layout === false ? body.join('') : (options.layout ?? emailLayout)(body, palette),
+    // Inlined here, at the end: this is the outermost point of the render, and the
+    // components below it have no business knowing what they will be painted with.
+    html: inlineTheme(html, options.theme),
     text: markdownToText(trimmed) + textFor(options)
   }
 }
@@ -195,13 +191,14 @@ export type MarkdownOptions = {
   /** Which accent the button takes. */
   tone?: MailTone
   /**
-   * The colours, over the defaults.
+   * The stylesheet, as CSS, over the default one.
    *
-   * Named here rather than read from config, because a mailable is constructed
-   * anywhere — a worker, a test, a preview — and reaching for the container from a
-   * pure content builder is what makes those three disagree.
+   * The CSS itself rather than a path, and named here rather than read from config,
+   * because a mailable is constructed anywhere — a worker, a test, a preview — and
+   * reaching for the container from a pure content builder is what makes those three
+   * disagree. An application that keeps a theme file passes what it read.
    */
-  theme?: Partial<MailTheme>
+  theme?: string
   /**
    * A wrapper of your own, or `false` to render the markdown alone.
    *

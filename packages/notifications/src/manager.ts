@@ -1,5 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
-import type { MailLayout, MailTheme } from '@elvel/mail'
+import { type MailLayout, resolveThemeCss } from '@elvel/mail'
 import { BroadcastNotificationChannel } from './channels/broadcast.ts'
 import { DatabaseNotificationChannel } from './channels/database.ts'
 import { LogNotificationChannel } from './channels/log.ts'
@@ -173,7 +173,12 @@ export class NotificationManager {
         return new MailNotificationChannel(
           this.app.make('mail'),
           this.app.config.get<string>('app.name', 'Elvel'),
-          this.app.config.get<Partial<MailTheme> | undefined>('mail.theme', undefined),
+          // Read once, at boot: a worker renders thousands of these and the file
+          // will not have changed between two of them.
+          resolveThemeCss(
+            this.app.config.get<string | undefined>('mail.theme', undefined),
+            this.app.basePath()
+          ),
           this.app.config.get<MailLayout | undefined>('mail.layout', undefined)
         )
 

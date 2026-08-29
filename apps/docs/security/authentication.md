@@ -284,12 +284,12 @@ the same channels, queue and fake as your own notifications do.
 
 ```ts
 // config/mail.ts
-layout: (parts, theme) => `<html><body>${banner()}${emailLayout(parts, theme)}</body></html>`
+layout: (parts) => `<html><body>${banner()}${emailLayout(parts)}</body></html>`
 ```
 
 One key rather than four `toMailUsing` callbacks, since a brand header is the thing
 these four have in common rather than anything about any one of them. See
-[`mail.layout`](/digging-deeper/mail#colours).
+[`mail.layout`](/digging-deeper/mail#the-theme-is-a-stylesheet).
 
 ### Storing one as well as mailing it
 

@@ -9,6 +9,7 @@ export {
   attachFromUrl,
   type DiskAttachmentOptions
 } from './attachments.ts'
+export { MailThemeCommand } from './console/mail-theme.ts'
 export { MakeMailCommand } from './console/make-mail.ts'
 export { MailFake } from './fake.ts'
 export { mail, mailer, mailTo } from './helpers.ts'
@@ -38,6 +39,7 @@ export {
 export * from './preview.ts'
 export { MailServiceProvider } from './provider.ts'
 export { MailableRegistry, type QueuedMailData, SendQueuedMail } from './queued.ts'
+export * from './theme.ts'
 export { ArrayTransport } from './transports/array.ts'
 export { FailoverTransport, RoundRobinTransport } from './transports/fallback.ts'
 export {
