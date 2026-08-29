@@ -4,10 +4,9 @@
 Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and each
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
-`auth` is the same pages without Tailwind; `vue` is a Vue client project with
-**shadcn-vue**, a collapsible sidebar and a JSON API behind it; `none` and `api` are
-closer to variants of one template. Two-factor authentication and passkeys are in
-all three auth kits. No teams.
+`vue` is a Vue client project with **shadcn-vue**, a collapsible sidebar and a JSON
+API behind it; `none` and `api` are closer to variants of one template. Two-factor
+authentication and passkeys are in all three kits that have accounts. No teams.
 
 One difference worth knowing before you pick: Laravel's Vue kit renders every page
 through Inertia, which sends a page's props with each navigation. Ours does not
@@ -25,7 +24,6 @@ Pick one when scaffolding:
 
 ```bash
 bun create elvel my-app --kit=none
-bun create elvel my-app --kit=auth
 bun create elvel my-app --kit=jsx
 bun create elvel my-app --kit=vue
 bun create elvel my-app --kit=api
@@ -37,11 +35,10 @@ The numbers below are counted from a real scaffold of each kit, not estimated:
 
 | Kit | Files | Config files | Pages |
 | --- | --- | --- | --- |
-| `none` | 42 | 10 | 1 |
+| `none` | 41 | 10 | 1 |
 | `api` | 55 | 16 | 1 |
-| `auth` | 87 | 17 | 15 |
-| `jsx` | 100 | 17 | 16 |
-| `vue` | 235 | 18 | 15 Vue + 12 stubs + `welcome.tsx` |
+| `jsx` | 107 | 17 | 16 |
+| `vue` | 222 | 17 | 15 Vue + `welcome.tsx` |
 
 That difference is the point. `--kit=none` has no mailer, no database, no queue
 and no storage, so it has no `config/mail.ts` to wonder about and nothing to
@@ -57,7 +54,7 @@ starting point for something whose shape you do not know yet.
 
 ## `jsx` — the one with Tailwind
 
-The auth kit's pages, styled with Tailwind. The look is Laravel's own starter
+The auth layer's pages, styled with Tailwind. The look is Laravel's own starter
 kits: a fixed sidebar with the account menu at the foot of it, breadcrumbs in the
 header, settings as a column of pages next to a form, and an appearance setting
 with light, dark and system.
@@ -140,7 +137,7 @@ its four parts:
 
 `resources/js/passkeys.ts` is the whole client side: one `createAuthClient`, two
 delegated click handlers, and the conditional-UI call. It is imported by
-`resources/js/app.ts` in both auth kits — the same file, unchanged, because
+`resources/js/app.ts` in the auth layer — the same file, unchanged, because
 nothing in it is about styling.
 
 The sign-in field carries `autocomplete="username webauthn"`, which is what lets
@@ -188,7 +185,7 @@ things it will not do — close on a click elsewhere, close on Escape — are te
 lines in `resources/js/app.ts`. Laravel's kit slides a sheet in instead, which
 needs the library, an overlay and focus trapping.
 
-### It is the auth kit, layered
+### It is the auth layer, styled
 
 ```ts
 layers: ['auth', 'jsx']
@@ -251,9 +248,9 @@ so an application inside a checkout would find its own views invisible. Measured
 that is not what happens: the views were found, and so was everything else.
 :::
 
-## `vue` — a client project, on the auth kit
+## `vue` — a client project, on the auth layer
 
-The auth kit, with everything in front of it written in Vue. This section is what the
+The auth layer, with everything in front of it written in Vue. This section is what the
 kit *ships*; how the shape works, and how to build it yourself, is
 [Building a frontend](/basics/frontend).
 
@@ -374,7 +371,7 @@ the page alone guards the door and leaves the window.
 ### Without changing the `auth` kit it is built on
 
 That constraint shaped the design. This kit ships the **actions** and nothing else:
-`routes/auth.ts` and `routes/settings.ts` are the auth kit's route files with every
+`routes/auth.ts` and `routes/settings.ts` are the auth layer's route files with every
 `GET` page route removed, and the controllers behind them are action-only — no
 `.tsx` page is imported and none is rendered.
 
@@ -393,7 +390,7 @@ Removing the routes instead removes all of that: the pages are gone, the twelve
 `.tsx` files they imported are gone with them, and every guard is written once.
 
 What it costs is a copy. These route files and controllers are this kit's own rather
-than the auth kit's, so a change to an auth action has two files to land in. That is
+than the auth layer's, so a change to an auth action has two files to land in. That is
 the trade for a kit whose Vue half is the only half.
 
 ### What a form does
@@ -426,16 +423,24 @@ import graph to find it — without that the page rendered unstyled with nothing
 the console, which is how this was found.
 :::
 
-## `auth` — sign in, sign up, a dashboard
+## The `auth` layer, which is not a kit
 
-Server-rendered authentication over [better-auth](https://better-auth.com):
-sign-in, sign-up, password reset, password confirmation, email verification, a
-dashboard, and profile and password settings. Five controllers rather than one,
-split by what a page is *for* — they were one file of 619 lines and nineteen
-routes, which is not a thing anybody wants to inherit.
+`jsx` and `vue` both declare `layers: ['auth', …]`, and `auth` is the folder those
+names reach for. It is the authentication itself over
+[better-auth](https://better-auth.com) — the controllers, the routes, the model, the
+config, the migration and factory, and the feature tests — and neither kit copies
+any of it.
 
-Nothing here is a black box you have to eject from: every page is a `.tsx` file
-in your application, and every route is in a controller you can read.
+It used to be offered on its own, as the same pages without Tailwind. That stopped
+making sense once `jsx` replaced every one of them: all fourteen, so the choice was
+between a styled kit and an unstyled one rather than between two designs. Worse, it
+was never actually styled — fourteen pages naming sixteen classes that no stylesheet
+defined, so a scaffolded `--kit=auth` served a browser-default `<h1>` and a label
+welded to its input.
+
+So the pages are gone and the layer stays. What it carries is what both kits are
+built from, and nothing here is a black box you have to eject from: every route is
+in a controller you can read, and every page is a `.tsx` file in your application.
 
 ## `api` — a token, not a cookie
 
@@ -449,9 +454,9 @@ It has no auth *pages*: one welcome view and its layout, and every other route
 answers JSON. Views and Vite are still configured, because the welcome page is a
 page.
 
-## Both auth kits leave the tables to you
+## Every kit with accounts leaves the tables to you
 
-Neither ships a migration for the users table, and that is deliberate: **what the
+None of them ships a migration for the users table, and that is deliberate: **what the
 tables are depends on `config/auth.ts`** — the options and plugins you enable
 decide the columns. So the schema is generated rather than shipped:
 

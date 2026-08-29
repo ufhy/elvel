@@ -135,7 +135,7 @@ await currentScope()?.session.regenerate()
 Session fixation, concretely: an attacker gets a victim's browser to hold a session
 id they already know, the victim signs in, and the id they know is now an
 authenticated session. Nothing about the sign-in is broken — the id simply never
-changed. The auth kit calls this straight after a successful sign-in, where Laravel
+changed. The auth layer calls this straight after a successful sign-in, where Laravel
 calls it too.
 
 The CSRF token rotates with it, because a token is bound to a session: keeping the

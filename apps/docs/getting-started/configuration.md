@@ -59,8 +59,8 @@ lets it drop the packages a kit does not use.
 
 ## Not every config file ships
 
-A scaffolded application gets the files its kit actually needs — nine for
-`--kit=none`, sixteen for `--kit=auth` — rather than all nineteen. Laravel 11
+A scaffolded application gets the files its kit actually needs — ten for
+`--kit=none`, seventeen for `--kit=jsx` — rather than all twenty. Laravel 11
 slimmed its skeleton the same way for the same reason: a file you have never
 opened is a file you cannot reason about.
 

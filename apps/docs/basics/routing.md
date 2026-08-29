@@ -499,7 +499,7 @@ Order matters, and usefully: files are mounted in the order they are named, and 
 **last registration of a path wins**. That is how the Vue starter kit replaces the
 seven server-rendered auth *pages* with SPA shells while every action — the POST
 that calls better-auth, rotates the session and copies the cookie — stays in the
-auth kit's own routes file, unedited and uncopied.
+auth layer's own routes file, unedited and uncopied.
 
 A kit adds a route file by adding the file: `create-elvel` finds anything in
 `routes/` that is not `web.ts` or `console.ts` and names it in `bootstrap/app.ts`.

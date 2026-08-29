@@ -11,7 +11,7 @@ to make the result installable.
 Choose the client when navigation between screens should not reload the page, or when
 the application has to work offline. Choose server rendering when it does not — it is
 less machinery, and a form that posts and redirects is a smaller thing than a form
-that fetches. The `auth` and `jsx` starter kits are the first; `vue` is the second.
+that fetches. The `jsx` starter kit is the first; `vue` is the second.
 
 No package is involved in the *shape*. The document is a view, the addresses are
 routes, and the client is `@elvel/client` — which imports nothing from the framework
@@ -612,9 +612,9 @@ first, which is the only way a second deployment ever reaches anybody.
 ### A server-rendered kit needs its two tags written
 
 The harvest above needs an `index.html` to harvest *from*, and only a client project
-has one — `frontend/` in the Vue kit is `bun create vite` output. The `jsx` and
-`auth` kits run Vite at the application root with no such page, so nothing is
-harvested and the tags never reach a document. Measured on a scaffolded `jsx`
+has one — `frontend/` in the Vue kit is `bun create vite` output. The `jsx` kit runs
+Vite at the application root with no such page, so nothing is harvested and the tags
+never reach a document. Measured on a scaffolded `jsx`
 application: `sw.js`, `registerSW.js`, `manifest.webmanifest` and the Workbox runtime
 are all emitted exactly as before, and no `injected-tags.txt` is written.
 

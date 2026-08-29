@@ -40,19 +40,14 @@ const KITS_DIR = resolve(import.meta.dir, '..', 'kits')
 const KITS: Record<string, { label: string; describe: string; layers?: string[] }> = {
   none: { label: 'None — a landing page', describe: '' },
 
-  auth: {
-    label: 'Auth — sign in, sign up, a dashboard',
-    describe: 'server-rendered auth pages over better-auth'
-  },
-
   jsx: {
-    label: 'JSX — the auth kit, with Tailwind and a component set',
+    label: 'JSX — sign in, sign up, a dashboard, with Tailwind',
     describe: 'server-rendered JSX styled with Tailwind, over better-auth',
     layers: ['auth', 'jsx']
   },
 
   vue: {
-    label: 'Vue — the auth kit, with a Vite + Vue client',
+    label: 'Vue — the same, with a Vite + Vue client in front',
     describe: 'server-rendered auth over better-auth, and a Vue SPA behind it',
     layers: ['auth', 'vue']
   },

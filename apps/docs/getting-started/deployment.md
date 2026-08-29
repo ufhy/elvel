@@ -37,11 +37,16 @@ process and nothing is cached between runs. Measured on scaffolded applications:
 | | from source | bundled |
 | --- | --- | --- |
 | `--kit=none` | 2047 ms | 221 ms |
-| `--kit=auth` | 4005 ms | 535 ms |
+| `--kit=jsx` | 4005 ms | 535 ms |
 | `elvel list` | 4.019 s | 0.604 s |
 
-Of that four seconds on the auth kit, **3761 ms is Bun loading and transpiling
-modules** and 244 ms is config, provider registration, boot and routes. So a
+The second row was measured before `auth` stopped being a kit of its own, and it
+carries over because `jsx` **is** that application server-side: it layers on `auth`
+and adds a stylesheet, a component set and one controller, none of which the server
+loads differently.
+
+Of that four seconds, **3761 ms is Bun loading and transpiling modules** and 244 ms
+is config, provider registration, boot and routes. So a
 quarter of a second of it is your application. `BUN_RUNTIME_TRANSPILER_CACHE_PATH`
 does not help: it only holds files above 50 KB, and a framework of small modules
 has almost none — measured with it set, the cache took ten entries and the boot

@@ -24,7 +24,7 @@ with a mistake the source alone would not have warned you about.
 ## Quick start
 
 ```bash
-bun create elvel my-app     # --kit=none | auth | jsx | api
+bun create elvel my-app     # --kit=none | jsx | vue | api
 cd my-app
 bun elvel serve
 ```
@@ -47,7 +47,7 @@ has the rest.
 | `@elvel/log` | Channels and drivers (console, json, single, daily, stack, null). |
 | `@elvel/console` | The CLI: signature parser, command base, kernel, stub generators. |
 | `@elvel/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
-| `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. Two-factor and passkeys are plugins the auth kits already wire up. |
+| `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. Two-factor and passkeys are plugins the kits with accounts already wire up. |
 | `@elvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
 | `@elvel/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
 | `@elvel/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |

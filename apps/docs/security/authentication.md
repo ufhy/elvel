@@ -12,7 +12,7 @@ mistakes, and writing a second one is not a service to anybody.
 ## The quickest way in
 
 ```bash
-bun create elvel my-app --kit=auth
+bun create elvel my-app --kit=jsx
 ```
 
 That gives you sign-in, sign-up, password reset, password confirmation, email
@@ -163,7 +163,7 @@ migration rather than reading it.
 ### Three things to know
 
 **The pages are still yours to write.** A plugin gives you endpoints, not a UI.
-The auth kits are the exception for exactly two: `twoFactor` and `passkey` are
+The kits with accounts are the exception for exactly two: `twoFactor` and `passkey` are
 enabled in their `config/auth.ts` and they ship the pages both need — TOTP
 enrolment with a QR code, the recovery codes, the challenge a sign-in lands on,
 and a passkey list with the WebAuthn client to fill it. Every other plugin gives
@@ -232,7 +232,7 @@ Route.get('/dashboard', [DashboardController, 'index']).middleware('auth')
 | `password.confirm` | Re-entered their password recently |
 | `can:ability` | Passes an authorization check — see [Authorization](/security/authorization) |
 
-Measured against a scaffolded auth kit:
+Measured against a scaffolded `jsx` application:
 
 ```
 GET /sign-in    → 200            (guest)

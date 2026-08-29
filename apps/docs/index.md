@@ -26,8 +26,8 @@ features:
     link: /getting-started/installation
   - title: A kit that installs only what it uses
     details: >-
-      --kit=none gets twelve packages and nine config files; --kit=auth gets
-      nineteen and sixteen. A feature you do not use is not in your node_modules.
+      --kit=none gets thirteen packages and ten config files; --kit=jsx gets
+      twenty and seventeen. A feature you do not use is not in your node_modules.
     link: /getting-started/starter-kits
   - title: Typed all the way through
     details: >-

@@ -25,15 +25,15 @@ running: `cache=file`, `queue=sync`, `mail=log`, `disk=local`, and SQLite. So
 ## Pick a kit
 
 ```bash
-bun create elvel my-app --kit=auth
+bun create elvel my-app --kit=jsx
 ```
 
 | | what it is | providers | dependencies |
 |---|---|---:|---:|
-| `none` | a landing page, no database | 10 | 14 |
-| `auth` | sign in, sign up, a dashboard, settings, two-factor, passkeys | 17 | 24 |
-| `jsx` | the auth kit, styled with Tailwind and a component set | 17 | 24 |
-| `api` | bearer-token auth, JSON, no auth pages | 16 | 21 |
+| `none` | a landing page, no database | 11 | 18 |
+| `jsx` | sign in, sign up, a dashboard, settings, two-factor, passkeys — with Tailwind | 18 | 30 |
+| `vue` | the same, with a Vite + Vue client in front of it | 18 | 28 |
+| `api` | bearer-token auth, JSON, no auth pages | 17 | 25 |
 
 [Starter kits](/getting-started/starter-kits) has what each one writes. Omit
 `--kit` and it asks.

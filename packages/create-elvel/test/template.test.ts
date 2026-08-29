@@ -341,14 +341,25 @@ describe('the template ships no secrets of its own', () => {
 
 describe('every kit is a folder the installer knows about', () => {
   /**
-   * A kit that exists on disk and not in `KITS` is invisible; one that is in
-   * `KITS` and not on disk scaffolds the base template and says nothing. Both
-   * failures are silent, which is why they are worth a test.
+   * A kit in `KITS` with no folder scaffolds the base template and says nothing;
+   * a folder nothing reaches for is dead weight nobody notices. Both failures are
+   * silent, which is why they are worth a test.
+   *
+   * A folder does not have to be a kit, though, and one is not: `auth` is a
+   * **layer**. It carries the controllers, routes, models, config, migrations and
+   * tests that `jsx` and `vue` are both built from, and it stopped being offered on
+   * its own once every page it shipped was replaced by `jsx` — fourteen of them,
+   * all fourteen. So the rule is that a folder is reachable, as a kit or as a layer
+   * somebody names, rather than that the two lists match.
    */
-  test('the two lists agree', async () => {
+  test('every kit has a folder, and every folder is reached', async () => {
     const source = await Bun.file(resolve(import.meta.dir, '..', 'src', 'index.ts')).text()
     const declared = [...source.matchAll(/^ {2}(\w[\w-]*): \{$/gm)].map(
       (match) => match[1] as string
+    )
+
+    const layered = [...source.matchAll(/layers: \[([^\]]+)\]/g)].flatMap((match) =>
+      (match[1] as string).split(',').map((name) => name.trim().replace(/'/g, ''))
     )
 
     const folders = (await readdir(resolve(import.meta.dir, '..', 'kits'), { withFileTypes: true }))
@@ -357,7 +368,17 @@ describe('every kit is a folder the installer knows about', () => {
       .sort()
 
     // `none` is a kit with no folder: it is the base template, named.
-    expect<string[]>(declared.filter((name) => name !== 'none').sort()).toEqual(folders)
+    const needsFolder = declared.filter((name) => name !== 'none')
+
+    for (const kit of needsFolder) {
+      expect<string>(`${kit}: ${folders.includes(kit)}`).toBe(`${kit}: true`)
+    }
+
+    const reachable = new Set([...declared, ...layered])
+
+    for (const folder of folders) {
+      expect<string>(`${folder}: ${reachable.has(folder)}`).toBe(`${folder}: true`)
+    }
   })
 
   test('each kit mounts a controller it actually ships', async () => {
@@ -569,7 +590,7 @@ describe('what a scaffolded application installs', () => {
   })
 
   test('and the auth kits do', async () => {
-    for (const kit of ['auth', 'api']) {
+    for (const kit of ['jsx', 'api']) {
       const installed = Object.keys(await dependencies(kit))
 
       expect<string[]>(installed).toContain('better-auth')
@@ -585,7 +606,7 @@ describe('what a scaffolded application installs', () => {
    * runtime, which is a reference no scan of the source will ever find.
    */
   test('the invisible dependencies survive pruning', async () => {
-    for (const kit of ['none', 'auth', 'api']) {
+    for (const kit of ['none', 'jsx', 'api']) {
       const installed = Object.keys(await dependencies(kit))
 
       expect<string[]>(installed).toContain('elysia')
@@ -712,7 +733,7 @@ describe('what a scaffolded application installs', () => {
       for (const name of Object.keys(declared.dependencies ?? {})) offered.add(name)
     }
 
-    for (const kit of ['none', 'auth', 'api']) {
+    for (const kit of ['none', 'jsx', 'api']) {
       for (const name of Object.keys(await dependencies(kit))) {
         expect<string>(`${kit}: ${name}`).toBe(
           offered.has(name) ? `${kit}: ${name}` : `${kit}: declared by nobody`
@@ -752,8 +773,8 @@ describe('the config files a kit ships', () => {
     ])
   })
 
-  test('the auth kit adds what signing in needs', async () => {
-    const added = (await scaffold('auth')).configs.filter(
+  test('the auth layer adds what signing in needs', async () => {
+    const added = (await scaffold('jsx')).configs.filter(
       (name) => !(scaffolds.get('none') as { configs: string[] }).configs.includes(name)
     )
 
@@ -769,7 +790,7 @@ describe('the config files a kit ships', () => {
   })
 
   test('and the api kit the same, without the file storage', async () => {
-    const auth = (await scaffold('auth')).configs
+    const auth = (await scaffold('jsx')).configs
     const api = (await scaffold('api')).configs
 
     expect<string[]>(auth.filter((name) => !api.includes(name))).toEqual(['filesystems'])
@@ -784,7 +805,7 @@ describe('the config files a kit ships', () => {
    * worse: `Cannot find module` at boot, naming a path rather than a config.
    */
   test('bootstrap/app.ts names exactly the files that are there', async () => {
-    for (const kit of ['none', 'auth', 'api']) {
+    for (const kit of ['none', 'jsx', 'api']) {
       const { configs, bootstrap } = await scaffold(kit)
 
       const named = [...bootstrap.matchAll(/import\('\.\.\/config\/([\w-]+)\.ts'\)/g)]
