@@ -175,6 +175,18 @@ describe('withoutVerifying', () => {
    * Measured before the method existed: Bun's `fetch` refuses a self-signed
    * certificate and accepts it with `tls: { rejectUnauthorized: false }`. This
    * asserts the option reaches that place, over TLS this machine does not trust.
+   *
+   * Thirty seconds rather than the default five, and the extra is for one line:
+   * `openssl req -newkey rsa:2048` generates a key, which is CPU-bound and pays
+   * Windows' much larger process-spawn cost on top. The whole file runs in 241ms
+   * on this machine and went over 5,000ms once on `windows-latest` — a rerun of
+   * the same commit passed, so it is contention on a shared runner rather than
+   * anything about the platform.
+   *
+   * A timeout here is not a slow test tolerated. It is the cascade being stopped:
+   * when the deadline cut this test, the `finally` never ran, the TLS server kept
+   * the certificate files open, and `afterAll`'s `rm` failed too — so one slow
+   * keygen reported as two failures, neither of them about TLS verification.
    */
   test('accepts a certificate nothing trusts', async () => {
     const key =
@@ -207,7 +219,7 @@ describe('withoutVerifying', () => {
     } finally {
       secure.stop(true)
     }
-  })
+  }, 30_000)
 })
 
 describe('the smaller ones', () => {
