@@ -1,4 +1,4 @@
-import type { MailTheme } from '@elvel/mail'
+import type { MailLayout, MailTheme } from '@elvel/mail'
 import { type Content, type Envelope, type Mailable, markdownContent } from '@elvel/mail'
 import { type Notifiable, routeFor } from '../notifiable.ts'
 import type { AnyNotification } from '../notification.ts'
@@ -53,7 +53,9 @@ export class MailNotificationChannel {
     private readonly mail: Mailer,
     private readonly appName = 'Elvel',
     /** `mail.theme`, so a notification is drawn in the application's colours. */
-    private readonly theme?: Partial<MailTheme>
+    private readonly theme?: Partial<MailTheme>,
+    /** `mail.layout`, for the header a brand puts above every mail. */
+    private readonly layout?: MailLayout
   ) {}
 
   async send(notifiable: Notifiable, notification: AnyNotification): Promise<unknown> {
@@ -110,9 +112,13 @@ export class MailNotificationChannel {
             // The theme was being dropped here: a notification that chose its
             // colours and then wrote its body in markdown came out in the defaults.
             theme: this.theme,
-            ...(message.layout ? { layout: message.layout } : {})
+            // The message's own `template()` first, then the application's.
+            ...((message.layout ?? this.layout) ? { layout: message.layout ?? this.layout } : {})
           })
-        : { html: message.toHtml(this.appName, this.theme), text: message.toText(this.appName) }
+        : {
+            html: message.toHtml(this.appName, this.theme, this.layout),
+            text: message.toText(this.appName)
+          }
 
     // A text half written by hand wins over the one markdown generated: a table
     // rendered as text is a wall, and whoever wrote it knows what it should say.

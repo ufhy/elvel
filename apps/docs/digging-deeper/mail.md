@@ -179,6 +179,25 @@ unstyled in an inbox.
 | `line` | rules and the subcopy divider |
 | `accent` | the button, per level: `info`, `success`, `error` |
 
+```ts
+// config/mail.ts
+layout: (parts, theme) =>
+  `<html><body style="background:${theme.page};padding:24px;">` +
+  `<img src="https://acme.test/logo.png" width="120" alt="Acme">` +
+  `${emailLayout(parts, theme)}</body></html>`
+```
+
+`layout` is the document itself, over `emailLayout`, for the header a brand puts
+above every mail. Without it the only way to change the document is `template()`
+on each message — which for the four mails
+[`@elvel/auth`](/security/authentication) sends means four `toMailUsing` callbacks
+written to change the one thing they all share. A message that calls `template()`
+still wins over it.
+
+Both keys reach every **notification**. A mailable names its own, because
+`markdownContent()` is a plain function a worker or a test may call with no
+application around it.
+
 ## Looking at a mail without sending one
 
 ```ts

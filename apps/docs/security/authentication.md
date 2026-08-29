@@ -280,6 +280,17 @@ mail callbacks with them:
 They go through `@elvel/notifications` rather than the mailer directly, so they take
 the same channels, queue and fake as your own notifications do.
 
+### Putting your own document around all four
+
+```ts
+// config/mail.ts
+layout: (parts, theme) => `<html><body>${banner()}${emailLayout(parts, theme)}</body></html>`
+```
+
+One key rather than four `toMailUsing` callbacks, since a brand header is the thing
+these four have in common rather than anything about any one of them. See
+[`mail.layout`](/digging-deeper/mail#colours).
+
 ### Storing one as well as mailing it
 
 ```ts

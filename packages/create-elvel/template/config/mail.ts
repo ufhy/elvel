@@ -23,18 +23,41 @@ export default {
    * ```
    */
   /**
-   * The colours every mail is drawn in — Laravel's mail theme, as values.
+   * The colours every notification is drawn in — Laravel's mail theme, as values.
    *
    * Only what you name changes; the rest keep the defaults. Values rather than a
    * stylesheet because the components inline their styles as they build: Gmail
    * strips `<style>` blocks, so a stylesheet-driven mail looks right in the preview
    * and unstyled in the inbox.
    *
+   * A mailable names its own, since `markdownContent()` is a plain function a
+   * worker or a test may call with no application around it.
+   *
    * ```ts
    * theme: { accent: { info: '#c9241a' } }
    * ```
    */
   theme: undefined,
+
+  /**
+   * The document every notification is wrapped in, over `emailLayout`.
+   *
+   * For the header a brand puts above every mail. Without this the only way to
+   * change the document is `template()` on each message, which for the four the
+   * auth package sends means writing four `toMailUsing` callbacks to change one
+   * thing they all share.
+   *
+   * A message that calls `template()` still wins — an explicit instruction beats
+   * a default.
+   *
+   * ```ts
+   * layout: (parts, theme) =>
+   *   `<html><body style="background:${theme.page};padding:24px;">` +
+   *   `<img src="https://acme.test/logo.png" width="120" alt="Acme">` +
+   *   `${emailLayout(parts, theme)}</body></html>`
+   * ```
+   */
+  layout: undefined,
 
   preview: '/_mail',
 

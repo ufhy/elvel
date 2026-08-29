@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
 import { ConnectionManager } from '@elvel/database'
+import type { MailLayout } from '@elvel/mail'
 import type { JobMiddleware } from '@elvel/queue'
 import { BroadcastNotificationChannel } from '../src/channels/broadcast.ts'
 import { DatabaseNotificationChannel } from '../src/channels/database.ts'
@@ -1346,5 +1347,88 @@ describe('a mail message that chooses its own body', () => {
     ])
 
     expect(message.attachments.map((one) => one.filename)).toEqual(['one.txt', 'two.txt'])
+  })
+})
+
+describe('a layout the application configured', () => {
+  const send = async (notification: AnyNotificationForTest, layout?: MailLayout) => {
+    const sent: Array<{ content: Record<string, unknown> }> = []
+
+    const mail = {
+      mailer: () => ({
+        send: async (mailable: { content(): Record<string, unknown> }) => {
+          sent.push({ content: mailable.content() })
+
+          return 'sent'
+        }
+      })
+    }
+
+    await new MailNotificationChannel(mail as never, 'Playground', undefined, layout).send(
+      new User(1, 'ada@example.com'),
+      notification as never
+    )
+
+    return String(sent[0]?.content.html)
+  }
+
+  const branded: MailLayout = (parts) => `<html><body id="brand">${parts.join('')}</body></html>`
+
+  class Built extends Notification<Record<string, never>> {
+    via(): string {
+      return 'mail'
+    }
+
+    override toMail(): MailMessage {
+      return new MailMessage().line('Built from lines.')
+    }
+  }
+
+  class Written extends Notification<Record<string, never>> {
+    via(): string {
+      return 'mail'
+    }
+
+    override toMail(): MailMessage {
+      return new MailMessage().markdown('Written in markdown.')
+    }
+  }
+
+  /**
+   * The point of the config key: four notifications the auth package sends all
+   * take the brand's header without four `toMailUsing` callbacks written to change
+   * the one thing they share.
+   */
+  test('wraps a message built from lines', async () => {
+    expect(await send(new Built({}), branded)).toContain('id="brand"')
+  })
+
+  test('and one written in markdown', async () => {
+    expect(await send(new Written({}), branded)).toContain('id="brand"')
+  })
+
+  /** An explicit instruction beats a default. */
+  test('while a message that names its own still wins', async () => {
+    class Special extends Notification<Record<string, never>> {
+      via(): string {
+        return 'mail'
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage()
+          .line('Mine.')
+          .template((parts) => `<html><body id="mine">${parts.join('')}</body></html>`)
+      }
+    }
+
+    const html = await send(new Special({}), branded)
+
+    expect(html).toContain('id="mine"')
+    expect(html).not.toContain('id="brand"')
+  })
+
+  /** And with none configured, the default document is what arrives. */
+  test('and nothing configured leaves the default in place', async () => {
+    expect(await send(new Built({}))).toContain('<!DOCTYPE html>')
   })
 })

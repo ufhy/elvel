@@ -113,10 +113,12 @@ so a message that changes its mind does what it last said. Both keep the
 otherwise, which is right for a built message and wrong for a table: rendered as
 text a table is a wall, and whoever wrote it knows what it should say.
 
-`template()` replaces the document around the body — the default is a card on a
-grey page, a safe answer and not every brand's answer. It receives the rendered
-parts and the colours, which is the signature `emailLayout` itself has, so a
-replacement that only adds a header can call the default from inside itself.
+`template()` replaces the document around the body for this one message; set
+[`mail.layout`](/digging-deeper/mail#colours) to replace it for every notification.
+The message wins when both are there. The default is a card on a grey
+page, a safe answer and not every brand's answer. A layout receives the
+rendered parts and the colours, which is the signature `emailLayout` itself has, so
+a replacement that only adds a header can call the default from inside itself.
 
 `via()` receives the notifiable, so a recipient can decide the channels:
 

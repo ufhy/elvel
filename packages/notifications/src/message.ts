@@ -359,7 +359,7 @@ export class MailMessage {
    * so the good template only existed for notifications. It belongs to the package
    * that owns mail, and this reads it like any other caller.
    */
-  toHtml(appName: string, theme?: Partial<MailTheme>): string {
+  toHtml(appName: string, theme?: Partial<MailTheme>, layout?: MailLayout): string {
     const palette = themeFrom(theme)
     const tone =
       this.levelName === 'error' ? 'error' : this.levelName === 'success' ? 'success' : 'info'
@@ -376,7 +376,9 @@ export class MailMessage {
     parts.push(...this.outroLines.map((line) => paragraph(line, palette)))
     parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`, palette))
 
-    return (this.layoutFn ?? emailLayout)(parts, palette)
+    // The message's own `template()` first: an explicit instruction beats the
+    // application-wide default, which is what `mail.layout` is.
+    return (this.layoutFn ?? layout ?? emailLayout)(parts, palette)
   }
 }
 
