@@ -415,13 +415,19 @@ export function injectedTags(built: string, source: string): string {
    * `<link>`, that tail matched forward to the *next* script's closing tag, so one
    * "tag" swallowed half the document.
    *
-   * `<\/script\s*>` rather than `<\/script>`: HTML allows whitespace before the
-   * closing angle bracket. Vite never emits it, so nothing was broken — but a
+   * `<\/script\b[^>]*>` rather than `<\/script>`: an end tag may carry anything
+   * before its bracket and still close the element — `</script >` and
+   * `</script foo>` both do. Vite never emits either, so nothing was broken; a
    * harvester that silently stops matching when its input gains a space is one
    * whose failure arrives as a missing stylesheet nobody can explain.
+   *
+   * `\b` rather than `\s*` because the first attempt at this used the latter and
+   * CodeQL raised the same query again: it caught the space and still missed
+   * `</script foo>`. The word boundary is also what keeps `</scriptfoo>` from
+   * counting, which is right — that closes nothing.
    */
   const tagsIn = (html: string): string[] =>
-    [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\s*>|<link\b[^>]*>/gi)].map(
+    [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>|<link\b[^>]*>/gi)].map(
       (match) => match[0]
     )
 

@@ -1422,6 +1422,13 @@ to fix it anyway: a harvester that silently stops matching when its input gains 
 space fails as a missing stylesheet three releases later, with nothing pointing back
 at the regex.
 
+The first fix was `<\/script\s*>`, and CodeQL raised the same query again on the
+next run — an end tag may carry *anything* before its bracket and still close the
+element, so `</script foo>` counts too. `<\/script\b[^>]*>` is the whole answer,
+and the `\b` earns its place: without it `</scriptfoo>` would match, and that
+closes nothing. Worth remembering that a partial fix to one of these buys a fresh
+alert rather than silence.
+
 The two dismissed are the same flavour as before. The manifest rewrite's
 check-then-read already sits inside a `try` whose `catch` does nothing, so a file
 that changes underneath it is skipped rather than mis-written. And stripping Vite's

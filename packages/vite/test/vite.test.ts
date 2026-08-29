@@ -379,18 +379,38 @@ describe('what a plugin injected during a build', () => {
    * pointing back here. CodeQL raised it as a bad tag filter; it is not filtering
    * anything hostile, and the pattern was still wrong.
    */
-  test('and a closing tag with a space before its bracket is still one tag', () => {
-    const spaced =
+  test('and a closing tag with anything before its bracket is still one tag', () => {
+    const bare = '<!doctype html><html><head></head></html>'
+
+    for (const closing of ['</script>', '</script >', '</script\t\n foo>']) {
+      const html =
+        '<!doctype html><html><head>' +
+        `<script id="injected" src="/build/x.js">${closing}` +
+        '<link rel="stylesheet" href="/build/y.css">' +
+        '</head></html>'
+
+      const tags = injectedTags(html, bare)
+
+      expect<boolean>(tags.includes('id="injected"')).toBe(true)
+      // The script ends where it ends: it has not swallowed the link behind it.
+      expect<boolean>(tags.includes(closing)).toBe(true)
+    }
+  })
+
+  /**
+   * And `</scriptfoo>` closes nothing, which is why the pattern uses `\b` and not
+   * `[^>]*` alone. The first fix here used `\s*`, caught the space, still missed
+   * `</script foo>`, and CodeQL raised the same query a second time.
+   */
+  test('while a longer tag name does not close the script', () => {
+    const html =
       '<!doctype html><html><head>' +
-      '<script id="injected" src="/build/x.js"></script >' +
-      '<link rel="stylesheet" href="/build/y.css">' +
+      '<script id="injected" src="/build/x.js"></scriptfoo></script>' +
       '</head></html>'
 
-    const tags = injectedTags(spaced, '<!doctype html><html><head></head></html>')
+    const tags = injectedTags(html, '<!doctype html><html><head></head></html>')
 
-    expect<boolean>(tags.includes('id="injected"')).toBe(true)
-    // The script ends where it ends: it has not swallowed the link behind it.
-    expect<boolean>(tags.includes('</script >')).toBe(true)
+    expect<boolean>(tags.includes('</scriptfoo>')).toBe(true)
   })
 
   /**
