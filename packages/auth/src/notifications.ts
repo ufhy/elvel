@@ -105,8 +105,20 @@ export class ResetPasswordNotification extends Notification<AuthMailData> {
     ResetPasswordNotification.mailUsing = callback
   }
 
-  via(): string[] {
-    return ['mail']
+  /**
+   * The channels this goes out by, and the only part of it an application can
+   * widen without rewriting it.
+   *
+   * `['mail']` is right for the link ones — a reset link nobody can act on from an
+   * inbox row is not worth storing — and wrong for the warnings: "your password
+   * changed" is exactly what somebody wants to find in the application later. Add
+   * `'database'` to ResetPasswordNotification.channels in a provider and `toArray()` below is
+   * what gets stored.
+   */
+  static channels: string[] = ['mail']
+
+  override via(): string[] {
+    return ResetPasswordNotification.channels
   }
 
   override toMail(): MailMessage {
@@ -155,8 +167,20 @@ export class VerifyEmailNotification extends Notification<AuthMailData> {
     VerifyEmailNotification.mailUsing = callback
   }
 
-  via(): string[] {
-    return ['mail']
+  /**
+   * The channels this goes out by, and the only part of it an application can
+   * widen without rewriting it.
+   *
+   * `['mail']` is right for the link ones — a reset link nobody can act on from an
+   * inbox row is not worth storing — and wrong for the warnings: "your password
+   * changed" is exactly what somebody wants to find in the application later. Add
+   * `'database'` to VerifyEmailNotification.channels in a provider and `toArray()` below is
+   * what gets stored.
+   */
+  static channels: string[] = ['mail']
+
+  override via(): string[] {
+    return VerifyEmailNotification.channels
   }
 
   override toMail(): MailMessage {
@@ -206,8 +230,20 @@ export class PasswordChangedNotification extends Notification<{
     PasswordChangedNotification.mailUsing = callback
   }
 
-  via(): string[] {
-    return ['mail']
+  /**
+   * The channels this goes out by, and the only part of it an application can
+   * widen without rewriting it.
+   *
+   * `['mail']` is right for the link ones — a reset link nobody can act on from an
+   * inbox row is not worth storing — and wrong for the warnings: "your password
+   * changed" is exactly what somebody wants to find in the application later. Add
+   * `'database'` to PasswordChangedNotification.channels in a provider and `toArray()` below is
+   * what gets stored.
+   */
+  static channels: string[] = ['mail']
+
+  override via(): string[] {
+    return PasswordChangedNotification.channels
   }
 
   override toMail(): MailMessage {
@@ -248,8 +284,20 @@ export class ChangeEmailNotification extends Notification<AuthMailData & { newEm
     ChangeEmailNotification.mailUsing = callback
   }
 
-  via(): string[] {
-    return ['mail']
+  /**
+   * The channels this goes out by, and the only part of it an application can
+   * widen without rewriting it.
+   *
+   * `['mail']` is right for the link ones — a reset link nobody can act on from an
+   * inbox row is not worth storing — and wrong for the warnings: "your password
+   * changed" is exactly what somebody wants to find in the application later. Add
+   * `'database'` to ChangeEmailNotification.channels in a provider and `toArray()` below is
+   * what gets stored.
+   */
+  static channels: string[] = ['mail']
+
+  override via(): string[] {
+    return ChangeEmailNotification.channels
   }
 
   override toMail(): MailMessage {

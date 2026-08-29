@@ -280,6 +280,18 @@ mail callbacks with them:
 They go through `@elvel/notifications` rather than the mailer directly, so they take
 the same channels, queue and fake as your own notifications do.
 
+### Storing one as well as mailing it
+
+```ts
+// AppServiceProvider.boot()
+PasswordChangedNotification.channels = ['mail', 'database']
+```
+
+`['mail']` is the default. It is the right one for the two link notifications — a
+reset link nobody can act on from an inbox row is not worth storing — and the wrong
+one for the warnings: *your password changed* is exactly what somebody goes looking
+for in the application afterwards. `toArray()` is what the database channel stores.
+
 ::: tip The stored form carries no token
 `toArray()` on the reset notification deliberately omits it. A notification can be
 stored by the database channel or written to a log, and a reset token in a log file

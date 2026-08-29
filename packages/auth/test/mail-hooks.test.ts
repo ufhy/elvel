@@ -320,3 +320,40 @@ describe('merging into better-auth options', () => {
     expect<string>(text).toContain('This link expires in 15 minutes.')
   })
 })
+
+describe('the channels an auth notification goes out by', () => {
+  /**
+   * `['mail']` is the default and the only part of these an application can widen
+   * without rewriting them. It is right for the link ones — a reset link nobody can
+   * act on from an inbox row is not worth storing — and wrong for the warnings:
+   * "your password changed" is exactly what somebody wants to find in the
+   * application later.
+   */
+  test('is mail, until an application says otherwise', () => {
+    expect<string[]>(new ResetPasswordNotification({ url: '', token: '' }).via()).toEqual(['mail'])
+
+    PasswordChangedNotification.channels = ['mail', 'database']
+
+    try {
+      expect<string[]>(new PasswordChangedNotification({ name: 'Ada' }).via()).toEqual([
+        'mail',
+        'database'
+      ])
+
+      // And widening one leaves the others where they were.
+      expect<string[]>(new VerifyEmailNotification({ url: '', token: '' }).via()).toEqual(['mail'])
+    } finally {
+      PasswordChangedNotification.channels = ['mail']
+    }
+  })
+
+  /** What a stored row would hold — never the token. */
+  test('and what the database channel would store carries no token', () => {
+    const stored = new ResetPasswordNotification({
+      url: 'https://app.test/reset?token=abc',
+      token: 'abc'
+    }).toArray()
+
+    expect(stored).toEqual({ url: '[redacted]', kind: 'password-reset' })
+  })
+})
