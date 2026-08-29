@@ -273,11 +273,21 @@ for (const candidate of candidates) {
     })
 
     test('an expired entry reads as a miss', async () => {
-      // One second, then wait it out: the boundary is what the stores disagree on.
-      await cache.put('brief', 'gone', 1)
+      /**
+       * Two seconds, not one, and the extra second is the point.
+       *
+       * Expiry is stored at second resolution — `floor(now / 1000) + seconds`, as
+       * Laravel's `time() + $seconds` is — so a one-second TTL written at
+       * `12:00:00.980` expires at `12:00:01`, and the read on the next line at
+       * `12:00:01.010` is already a miss. Nothing is wrong with the store; the test
+       * was asking for a guarantee second resolution cannot give. It failed on
+       * MySQL first because MySQL's round trip is the slowest, so it crosses the
+       * boundary most often.
+       */
+      await cache.put('brief', 'gone', 2)
       expect(await cache.get<string>('brief')).toBe('gone')
 
-      await Bun.sleep(1100)
+      await Bun.sleep(2100)
       expect(await cache.get('brief')).toBeNull()
     })
 
@@ -335,9 +345,12 @@ for (const candidate of candidates) {
     })
 
     test('increment keeps the original expiry', async () => {
-      await cache.put('hits', 1, 1)
+      // Two seconds for the reason the expiry test above gives: at one, the
+      // increment itself can land after the key has already gone, and then it
+      // creates a fresh one whose window this never measures.
+      await cache.put('hits', 1, 2)
       await cache.increment('hits')
-      await Bun.sleep(1100)
+      await Bun.sleep(2100)
 
       // Counting must not extend the window, or a rate limit never resets.
       expect(await cache.get('hits')).toBeNull()
