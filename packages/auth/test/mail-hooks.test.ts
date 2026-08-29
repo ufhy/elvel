@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { Application } from '@elvel/core'
 import { MailMessage } from '@elvel/notifications'
 import { authMailHooks, withAuthMail } from '../src/mail-hooks.ts'
 import {
@@ -253,5 +254,69 @@ describe('merging into better-auth options', () => {
     } finally {
       VerifyEmailNotification.mailUsing = undefined
     }
+  })
+
+  /**
+   * The same mail in another language, which is Laravel's `Lang::get` carried over.
+   *
+   * The English is both the default and the lookup key: `@elvel/translation` accepts
+   * a sentence as a key and answers the key itself when nothing matches, so an
+   * application ships `lang/id.json` and its password-reset mail arrives in
+   * Indonesian without this package changing.
+   *
+   * And it has to keep working with no translator at all — `@elvel/auth` does not
+   * depend on the translation package, so a mail must send without it.
+   */
+  test('a registered translator changes the words', async () => {
+    const app = new Application(process.cwd())
+
+    app.instance(
+      'translator' as never,
+      {
+        get: (key: string, replace: Record<string, unknown>) => {
+          const dictionary: Record<string, string> = {
+            'Reset password': 'Atur ulang kata sandi',
+            'This link expires in :time.': 'Tautan ini kedaluwarsa dalam :time.'
+          }
+
+          const line = dictionary[key] ?? key
+
+          return Object.entries(replace).reduce(
+            (carry, [name, value]) => carry.replaceAll(`:${name}`, String(value)),
+            line
+          )
+        }
+      } as never
+    )
+
+    try {
+      const text = new ResetPasswordNotification({
+        url: 'https://example.com/r',
+        token: 't',
+        expiresIn: 3600
+      })
+        .toMail()
+        .toText('Elvel')
+
+      expect<string>(text).toContain('Atur ulang kata sandi')
+      expect<string>(text).toContain('Tautan ini kedaluwarsa dalam 1 hour.')
+      // Untranslated keys read as the English they already were.
+      expect<string>(text).toContain('You are receiving this email')
+    } finally {
+      Application.setInstance(undefined as never)
+    }
+  })
+
+  test('and with no translator the English is what sends', () => {
+    const text = new ResetPasswordNotification({
+      url: 'https://example.com/r',
+      token: 't',
+      expiresIn: 900
+    })
+      .toMail()
+      .toText('Elvel')
+
+    expect<string>(text).toContain('Reset password')
+    expect<string>(text).toContain('This link expires in 15 minutes.')
   })
 })

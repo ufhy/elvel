@@ -267,10 +267,79 @@ has the rest.
 
 ## Mail
 
-Verification and password-reset mail goes out through `@elvel/mail`, and the
-provider fills in better-auth's `sendVerificationEmail` and its relatives for
-you. Write your own in `config/auth.ts` to take one over — the notification
-classes are yours to edit, as they are in your application, not in the framework.
+Four notifications ship with this package, and the provider fills in better-auth's
+mail callbacks with them:
+
+| | when it goes out |
+| --- | --- |
+| `ResetPasswordNotification` | somebody asked to reset a password |
+| `VerifyEmailNotification` | an address needs confirming |
+| `PasswordChangedNotification` | a reset completed — a warning, to the account owner |
+| `ChangeEmailNotification` | a move to a new address, sent to the **old** one |
+
+They go through `@elvel/notifications` rather than the mailer directly, so they take
+the same channels, queue and fake as your own notifications do.
+
+::: tip The stored form carries no token
+`toArray()` on the reset notification deliberately omits it. A notification can be
+stored by the database channel or written to a log, and a reset token in a log file
+is a working key to the account.
+:::
+
+### Writing one yourself
+
+```ts
+// AppServiceProvider.boot()
+import { ResetPasswordNotification } from '@elvel/auth'
+import { MailMessage } from '@elvel/notifications'
+
+ResetPasswordNotification.toMailUsing((data) =>
+  new MailMessage()
+    .subject('Pick a new password')
+    .greeting(`Hello ${data.name ?? 'there'}!`)
+    .line('Use the button below within the hour.')
+    .action('Choose a password', data.url)
+)
+```
+
+Laravel's `toMailUsing`, and set the same way — once, in a provider at boot. All four
+take one.
+
+There is no `createUrlUsing` and that is not an omission: Laravel needs it because
+Laravel builds the link, with `route('password.reset')` and
+`URL::temporarySignedRoute`. better-auth builds ours and hands it over already
+signed, so there is nothing left to override — `data.url` is that link.
+
+### Or take over the whole hook
+
+```ts
+// config/auth.ts
+emailAndPassword: {
+  enabled: true,
+  sendResetPassword: async ({ user, url }) => { /* … */ }
+}
+```
+
+The provider fills these in with `??=`, so a callback you define is left alone. Reach
+for this when delivery itself is what you want to change; `toMailUsing` is for when
+only the words are.
+
+### They translate
+
+Every sentence goes through the translator when one is registered, the way Laravel's
+`Lang::get` does. The English is both the default and the lookup key, so
+`lang/id.json` is all it takes:
+
+```json
+{
+  "Reset password": "Atur ulang kata sandi",
+  "This link expires in :time.": "Tautan ini kedaluwarsa dalam :time."
+}
+```
+
+With no translation registered for a key, the English sends. With no translation
+package at all, the same — `@elvel/auth` does not depend on it, and mail has to send
+either way.
 
 ## Changing an email address
 

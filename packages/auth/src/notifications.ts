@@ -1,4 +1,42 @@
+import { app } from '@elvel/core'
 import { MailMessage, Notification } from '@elvel/notifications'
+
+/**
+ * A line of a mail, translated when the application has a translator.
+ *
+ * Laravel wraps every sentence in these mails with `Lang::get`, so an application
+ * can ship `lang/id.json` and its password-reset mail arrives in Indonesian. The
+ * mechanism carries over exactly: `@elvel/translation`'s `get()` accepts a sentence
+ * as the key and answers the key itself when nothing matches, so the English here is
+ * both the default and the lookup.
+ *
+ * Guarded rather than imported, twice over. `@elvel/auth` does not depend on the
+ * translation package — a mail must still send without it — and there is no
+ * container at all in a unit test that constructs a notification directly. Either
+ * way the sentence is returned as written, with `:name` filled in.
+ */
+function line(sentence: string, replace: Record<string, string> = {}): string {
+  let text = sentence
+
+  try {
+    const application = app()
+
+    if (application.bound('translator' as never)) {
+      const translator = application.make('translator' as never) as unknown as {
+        get(key: string, replace: Record<string, unknown>): string
+      }
+
+      text = translator.get(sentence, replace)
+    }
+  } catch {
+    // No application, which is a test constructing this on its own.
+  }
+
+  return Object.entries(replace).reduce(
+    (carry, [key, value]) => carry.replaceAll(`:${key}`, value),
+    text
+  )
+}
 
 /**
  * The callback an application sets to write its own version of one of these.
@@ -46,7 +84,7 @@ function readableExpiry(seconds: number): string {
 }
 
 function greet(name: string | undefined): string {
-  return name === undefined || name === '' ? 'Hello!' : `Hello ${name}!`
+  return name === undefined || name === '' ? line('Hello!') : line('Hello :name!', { name })
 }
 
 /**
@@ -77,17 +115,21 @@ export class ResetPasswordNotification extends Notification<AuthMailData> {
     if (own) return own(this.data)
 
     const message = new MailMessage()
-      .subject(`Reset your ${this.data.appName ?? 'account'} password`)
+      .subject(line('Reset your :app password', { app: this.data.appName ?? 'account' }))
       .greeting(greet(this.data.name))
-      .line('You are receiving this email because we received a password reset request.')
-      .action('Reset password', this.data.url)
+      .line(line('You are receiving this email because we received a password reset request.'))
+      .action(line('Reset password'), this.data.url)
 
     if (this.data.expiresIn !== undefined) {
-      message.line(`This link expires in ${readableExpiry(this.data.expiresIn)}.`)
+      message.line(
+        line('This link expires in :time.', { time: readableExpiry(this.data.expiresIn) })
+      )
     }
 
     return message.line(
-      'If you did not request a password reset, no further action is required — your password has not changed.'
+      line(
+        'If you did not request a password reset, no further action is required — your password has not changed.'
+      )
     )
   }
 
@@ -123,11 +165,11 @@ export class VerifyEmailNotification extends Notification<AuthMailData> {
     if (own) return own(this.data)
 
     return new MailMessage()
-      .subject(`Verify your ${this.data.appName ?? 'account'} email address`)
+      .subject(line('Verify your :app email address', { app: this.data.appName ?? 'account' }))
       .greeting(greet(this.data.name))
-      .line('Please confirm this is your email address.')
-      .action('Verify email address', this.data.url)
-      .line('If you did not create an account, you can safely ignore this email.')
+      .line(line('Please confirm this is your email address.'))
+      .action(line('Verify email address'), this.data.url)
+      .line(line('If you did not create an account, you can safely ignore this email.'))
   }
 
   override toArray(): Record<string, unknown> {
@@ -174,10 +216,10 @@ export class PasswordChangedNotification extends Notification<{
     if (own) return own(this.data)
 
     return new MailMessage()
-      .subject(`Your ${this.data.appName ?? 'account'} password was changed`)
+      .subject(line('Your :app password was changed', { app: this.data.appName ?? 'account' }))
       .greeting(greet(this.data.name))
-      .line('Your password has just been changed.')
-      .line('If this was not you, contact us immediately — your account may be compromised.')
+      .line(line('Your password has just been changed.'))
+      .line(line('If this was not you, contact us immediately — your account may be compromised.'))
       .error()
   }
 
@@ -216,12 +258,12 @@ export class ChangeEmailNotification extends Notification<AuthMailData & { newEm
     if (own) return own(this.data)
 
     return new MailMessage()
-      .subject(`Confirm your new ${this.data.appName ?? 'account'} email address`)
+      .subject(line('Confirm your new :app email address', { app: this.data.appName ?? 'account' }))
       .greeting(greet(this.data.name))
-      .line(`Somebody asked to move this account to ${this.data.newEmail}.`)
-      .action('Confirm the change', this.data.url)
-      .line('Until you confirm, this address stays in place.')
-      .line('If this was not you, ignore this email and change your password.')
+      .line(line('Somebody asked to move this account to :email.', { email: this.data.newEmail }))
+      .action(line('Confirm the change'), this.data.url)
+      .line(line('Until you confirm, this address stays in place.'))
+      .line(line('If this was not you, ignore this email and change your password.'))
   }
 
   override toArray(): Record<string, unknown> {
