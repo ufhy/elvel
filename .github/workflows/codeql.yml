@@ -41,13 +41,13 @@ jobs:
       # tuned for a low false-positive rate on an application, and this is a
       # framework — the extra queries are the ones about unsafe defaults handed
       # to somebody else's code.
-      - uses: github/codeql-action/init@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
       # No build step. CodeQL extracts TypeScript directly, and a compile here
       # would only analyse whatever the bundler chose to keep.
-      - uses: github/codeql-action/analyze@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+      - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           category: /language:javascript-typescript
