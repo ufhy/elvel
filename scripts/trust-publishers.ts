@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
+import { mkdirSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 /**
  * Register this repository's release workflow as the trusted publisher of every
@@ -63,6 +64,56 @@ const REPOSITORY = 'ufhy/elvel'
  */
 const NPM = 'npm@11.15.0'
 
+/**
+ * The npm to run: the one already installed when it is new enough, `npx` otherwise.
+ *
+ * Two things pushed this here. `Bun.spawnSync` does not find `npx` through `PATH`
+ * the way a shell does — measured, it dies with `ENOENT: posix_spawn 'npx'` on a
+ * machine where `which npx` answers — so going through `npx` unconditionally made
+ * the script fail before it reached npm at all. And it is wasted anyway on a
+ * machine whose own npm already has `trust`: this one is 11.17.0.
+ */
+function npmCommand(): string[] {
+  /**
+   * Resolved to an absolute path, not left to the spawn.
+   *
+   * `Bun.spawnSync` does not search `PATH` the way a shell does — measured twice on
+   * this machine, once for `npx` and once for `npm`, both of which `which` finds and
+   * both of which die with `ENOENT: posix_spawn`. Here npm lives under
+   * `Library/Application Support/…`, and a directory with a space in it is exactly
+   * where that difference shows.
+   */
+  const npm = Bun.which('npm')
+
+  if (npm === null) return [Bun.which('npx') ?? 'npx', '-y', NPM]
+
+  const local = Bun.spawnSync({ cmd: [npm, '--version'], stdout: 'pipe', stderr: 'pipe' })
+
+  if (local.exitCode === 0) {
+    const [major = 0, minor = 0, patch = 0] = new TextDecoder()
+      .decode(local.stdout)
+      .trim()
+      .split('.')
+      .map(Number)
+
+    const enough = major > 11 || (major === 11 && (minor > 15 || (minor === 15 && patch >= 0)))
+
+    if (enough) return [npm]
+  }
+
+  return [Bun.which('npx') ?? 'npx', '-y', NPM]
+}
+
+const NPM_ARGV = npmCommand()
+
+/**
+ * The same command as something a person can retype.
+ *
+ * `NPM_ARGV` carries an absolute path so the spawn cannot miss it; printing that
+ * would put one machine's Node installation into instructions meant for anybody.
+ */
+const NPM_SHOWN = NPM_ARGV.length === 1 ? 'npm' : `npx -y ${NPM}`
+
 const register = Bun.argv.includes('--register')
 const listing = Bun.argv.includes('--list')
 
@@ -111,6 +162,17 @@ const run = (argv: string[], attached = false): { code: number; output: string }
      */
     const log = join(ROOT, 'node_modules', '.cache', 'trust.log')
 
+    /**
+     * The directory first, because Bun blames the wrong thing when it is missing.
+     *
+     * `Bun.file(log)` as a stdio target cannot create its parent, and the failure
+     * comes back as `ENOENT: posix_spawn '<the npm path>'` — naming the command
+     * rather than the file it could not open. Measured on a fresh checkout where
+     * nothing had written to `node_modules/.cache` yet, and it cost two wrong
+     * diagnoses before the directory itself was checked.
+     */
+    mkdirSync(dirname(log), { recursive: true })
+
     const result = Bun.spawnSync({
       cmd: argv,
       cwd: ROOT,
@@ -136,7 +198,7 @@ const run = (argv: string[], attached = false): { code: number; output: string }
 
 if (listing) {
   for (const name of packages) {
-    const { output } = run(['npx', '-y', NPM, 'trust', 'list', name])
+    const { output } = run([...NPM_ARGV, 'trust', 'list', name])
 
     /**
      * `EOTP` while *reading* means unknown, not unregistered.
@@ -163,7 +225,7 @@ if (!register) {
 
   for (const name of packages) {
     console.log(
-      `  npx -y ${NPM} trust github ${name} --file ${WORKFLOW} --repo ${REPOSITORY} --allow-publish -y`
+      `  ${NPM_SHOWN} trust github ${name} --file ${WORKFLOW} --repo ${REPOSITORY} --allow-publish -y`
     )
   }
 
@@ -179,9 +241,7 @@ for (const name of packages) {
 
   const { code, output } = run(
     [
-      'npx',
-      '-y',
-      NPM,
+      ...NPM_ARGV,
       'trust',
       'github',
       name,
