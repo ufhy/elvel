@@ -429,6 +429,39 @@ describe('domain — testCanRegisterGroupWithDomain', () => {
 
     expect<number>(other.status).toBe(404)
   })
+
+  /**
+   * Every metacharacter is escaped, not only the dot.
+   *
+   * The old shape escaped `.` and let the rest through into `new RegExp`, so a
+   * domain carrying a bracket either threw at registration or matched something
+   * nobody wrote. CodeQL called it incomplete sanitisation; it is reachable only
+   * from an application's own source, and it was still a bug.
+   */
+  test('a host with regex metacharacters in it is matched literally', async () => {
+    boot()
+
+    Route.domain('a.b(c).example.com').group(() => {
+      Route.get('/x', () => 'matched')
+    })
+
+    const routes = compileRoutes('domain')
+
+    const literal = await routes.handle(
+      new Request('http://a.b(c).example.com/x', {
+        headers: { host: 'a.b(c).example.com' }
+      })
+    )
+
+    expect<string>(await literal.text()).toBe('matched')
+
+    // `(c)` is a literal here, not a group that could match a bare `c`.
+    const asGroup = await routes.handle(
+      new Request('http://a.bc.example.com/x', { headers: { host: 'a.bc.example.com' } })
+    )
+
+    expect<number>(asGroup.status).toBe(404)
+  })
 })
 
 /**

@@ -414,9 +414,16 @@ export function injectedTags(built: string, source: string): string {
    * pattern with an optional closing tail read fine and was also wrong: for a
    * `<link>`, that tail matched forward to the *next* script's closing tag, so one
    * "tag" swallowed half the document.
+   *
+   * `<\/script\s*>` rather than `<\/script>`: HTML allows whitespace before the
+   * closing angle bracket. Vite never emits it, so nothing was broken — but a
+   * harvester that silently stops matching when its input gains a space is one
+   * whose failure arrives as a missing stylesheet nobody can explain.
    */
   const tagsIn = (html: string): string[] =>
-    [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>|<link\b[^>]*>/gi)].map((match) => match[0])
+    [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\s*>|<link\b[^>]*>/gi)].map(
+      (match) => match[0]
+    )
 
   const identify = (tag: string): string => {
     const name = /^<(\w+)/.exec(tag)?.[1]?.toLowerCase() ?? ''

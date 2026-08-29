@@ -1397,6 +1397,38 @@ And the two "incomplete hostname regexp" hits are test fixtures handed to a matc
 that escapes every metacharacter before compiling. Each is dismissed with that
 reason recorded on the alert, so the next person does not re-derive it.
 
+### A second round, and the same split
+
+Five more arrived with the router work and the Vite harvesting, and the ratio held:
+three worth fixing, two worth dismissing.
+
+**The domain matcher escaped one character and hoped.** `Route.domain()` built its
+regex with `pattern.replace(/[.]/g, '\\.')`, so any other metacharacter reached
+`new RegExp` intact — `Route.domain('a.b(c).example.com')` compiled `(c)` as a
+capture group and matched `a.bc.example.com`, a host nobody wrote. Escaping is now
+total, which only works because the placeholders are split out first: with the
+braces already gone, escaping `{` and `}` costs nothing.
+
+**The route parameter pattern was ambiguous with itself.** `\{\s*(\w+)\s*(?::\s*(\w+)\s*)?(\?)?\s*\}`
+has two `\s*` runs that can each claim the same spaces, so `{{0` followed by a long
+run of them makes the engine try every split. Measured on the pattern directly: 2ms
+at 2,000 spaces, 5ms at 4,000, 18ms at 8,000 — quadratic. Laravel's own pattern
+allows no whitespace at all (`RouteUri.php`: `/\{([\w\:]+?)\??\}/`), so matching it
+removed the ambiguity rather than working around it.
+
+**The tag harvester did not match `</script >`.** HTML allows whitespace before the
+closing bracket and Vite never writes it, so nothing was broken. That is the reason
+to fix it anyway: a harvester that silently stops matching when its input gains a
+space fails as a missing stylesheet three releases later, with nothing pointing back
+at the regex.
+
+The two dismissed are the same flavour as before. The manifest rewrite's
+check-then-read already sits inside a `try` whose `catch` does nothing, so a file
+that changes underneath it is skipped rather than mis-written. And stripping Vite's
+`@vite/client` tag from Vite's own output is deduplication, not sanitisation —
+nothing hostile reaches it, and a `<script` that survived would be a second copy of
+a script the view already rendered.
+
 **Dependabot cannot cover the dependencies.** It supports Bun for version updates
 and explicitly not for security updates, so nothing would ever open a pull request
 to say a package became vulnerable. `bun audit --audit-level=high` runs as its own

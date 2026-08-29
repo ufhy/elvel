@@ -267,12 +267,30 @@ function constraintGuard(route: RouteDefinition) {
  */
 function domainGuard(pattern: string) {
   const names: string[] = []
-  const expression = new RegExp(
-    `^${pattern.replace(/[.]/g, '\\.').replace(/\{(\w+)\}/g, (_match, name: string) => {
-      names.push(name)
 
-      return '([^.]+)'
-    })}$`
+  /**
+   * Split on the placeholders, then escape every literal piece whole.
+   *
+   * Escaping only `.` and hoping was the old shape, and it was wrong twice over:
+   * a domain carrying any other metacharacter — `Route.domain('a.b(c).com')` is
+   * enough — reached `new RegExp` unescaped and either threw or matched something
+   * nobody wrote. Splitting first is what lets the escape be total: the braces are
+   * gone by the time the literal text is escaped, so escaping `{` and `}` costs
+   * nothing.
+   */
+  const expression = new RegExp(
+    `^${pattern
+      .split(/(\{\w+\})/)
+      .map((piece) => {
+        const name = /^\{(\w+)\}$/.exec(piece)?.[1]
+
+        if (name === undefined) return piece.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+        names.push(name)
+
+        return '([^.]+)'
+      })
+      .join('')}$`
   )
 
   return (context: { request: Request; params?: Record<string, string> }) => {

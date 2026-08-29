@@ -371,6 +371,29 @@ describe('what a plugin injected during a build', () => {
   })
 
   /**
+   * A closing tag may carry whitespace before its bracket, and HTML allows it.
+   *
+   * Vite does not write `</script >`, so nothing was broken — which is exactly why
+   * this is worth pinning. A harvester that quietly stops matching when its input
+   * gains a space fails as a missing stylesheet three releases later, with nothing
+   * pointing back here. CodeQL raised it as a bad tag filter; it is not filtering
+   * anything hostile, and the pattern was still wrong.
+   */
+  test('and a closing tag with a space before its bracket is still one tag', () => {
+    const spaced =
+      '<!doctype html><html><head>' +
+      '<script id="injected" src="/build/x.js"></script >' +
+      '<link rel="stylesheet" href="/build/y.css">' +
+      '</head></html>'
+
+    const tags = injectedTags(spaced, '<!doctype html><html><head></head></html>')
+
+    expect<boolean>(tags.includes('id="injected"')).toBe(true)
+    // The script ends where it ends: it has not swallowed the link behind it.
+    expect<boolean>(tags.includes('</script >')).toBe(true)
+  })
+
+  /**
    * What Vite adds for an HTML entry is not an injection either.
    *
    * Both name the chunk the view already renders from the manifest — a second

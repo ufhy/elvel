@@ -110,3 +110,36 @@ describe('compiling a URI for Elysia', () => {
     })
   })
 })
+
+describe('the parameter pattern', () => {
+  /**
+   * Linear on input that used to be quadratic.
+   *
+   * `{{0` followed by a long run of spaces made the old pattern try every way of
+   * splitting those spaces between two adjacent `\s*` runs. Only an application's
+   * own source reaches this, so nobody could have attacked it — but the pattern was
+   * ambiguous with itself, and that is worth being rid of.
+   */
+  test('does not backtrack on a long run of spaces', () => {
+    const hostile = `{{0${' '.repeat(50000)}`
+
+    const started = performance.now()
+    parseUri(hostile)
+    const elapsed = performance.now() - started
+
+    // Generous on purpose. Measured on the two patterns directly, the old one is
+    // quadratic — 2ms at 2,000 spaces, 5ms at 4,000, 18ms at 8,000, so roughly
+    // 700ms at the 50,000 here — while the new one stays under a tenth of a
+    // millisecond throughout. The threshold sits between the two.
+    expect<boolean>(elapsed < 500).toBe(true)
+  })
+
+  /**
+   * Whitespace inside the braces is not a parameter, which is Laravel's rule:
+   * `RouteUri.php` matches `/\{([\w\:]+?)\??\}/` and nothing looser.
+   */
+  test('and a spaced brace is left alone rather than parsed', () => {
+    expect<string[]>(parseUri('/users/{ id }').parameters).toEqual([])
+    expect<string[]>(parseUri('/users/{id}').parameters).toEqual(['id'])
+  })
+})

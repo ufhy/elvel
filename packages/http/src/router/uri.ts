@@ -12,8 +12,17 @@
  * `slug` column rather than by the key".
  */
 
-/** `{name}`, `{name?}`, `{name:field}`, `{name:field?}` */
-const PARAMETER = /\{\s*(\w+)\s*(?::\s*(\w+)\s*)?(\?)?\s*\}/g
+/**
+ * A route parameter: `{name}`, `{name?}`, `{name:field}`, `{name:field?}`.
+ *
+ * No whitespace anywhere inside the braces, which is Laravel's rule too —
+ * `RouteUri.php` matches `/\{([\w\:]+?)\??\}/` and nothing looser. Tolerating it
+ * cost more than it bought: the `\s*` runs were ambiguous with each other, so a
+ * pattern like `{{0` followed by many spaces made the engine try every way of
+ * splitting them between two of them. Polynomial backtracking, and CodeQL was right
+ * to say so even though only an application's own source reaches this.
+ */
+const PARAMETER = /\{(\w+)(?::(\w+))?(\?)?\}/g
 
 export type ParsedUri = {
   /** The URI with binding fields stripped: `/foo/{bar:slug}` → `/foo/{bar}`. */
