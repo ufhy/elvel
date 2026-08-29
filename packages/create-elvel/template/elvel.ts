@@ -1,4 +1,15 @@
 #!/usr/bin/env bun
+/**
+ * Anything that has to exist before the application does.
+ *
+ * Empty unless the kit needs it — the auth layer replaces the file with the one
+ * import the passkey chain requires. A literal specifier, so the bundler sees it:
+ * this used to be a guarded dynamic import in this file, which could not be
+ * bundled and failed at run time from `dist/` in the kits Bun installs in the
+ * isolated layout.
+ */
+import './bootstrap/polyfill.ts'
+
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -72,42 +83,6 @@ if (process.env.ELVEL_BUNDLE !== '0' && (await fresh(bundle))) {
   }
 
   process.exit(handed.exitCode ?? 1)
-}
-
-/**
- * The reflect polyfill, before anything the application imports.
- *
- * `tsyringe` checks for `Reflect.getMetadata` **while its module is evaluating**
- * and throws if it is missing. Nothing here uses it — it arrives underneath
- * passkeys, as `@better-auth/passkey` → `@peculiar/x509` → `tsyringe`, and
- * `@peculiar/x509` needs it for real: its ASN.1 decorators read metadata.
- *
- * From source this never surfaced, because whatever order Bun evaluates those
- * modules in put the polyfill first. `bun build` wraps each module in a lazy
- * initialiser and reached `tsyringe` first, so `bun run build:server` produced a
- * bundle that died at boot with a message naming a package the application never
- * imported. Measured: an unguarded build of the auth kit could not start at all.
- *
- * Loaded here rather than as a static import at the top of the file: the
- * application itself is a dynamic import below, so this runs before it either
- * way, and an application that declares no such dependency — every kit but
- * `auth` — needs no polyfill and should not fail for the lack of one.
- */
-try {
-  /**
-   * Through a variable, so `tsc` does not try to resolve it.
-   *
-   * Only the auth kit declares this dependency — it is there for the passkey
-   * chain — so a literal specifier makes `bun run typecheck` fail in every other
-   * application with `Cannot find module 'reflect-metadata'`. A non-literal
-   * specifier is the documented way to say "resolve this at run time", which is
-   * exactly what the `catch` below is for.
-   */
-  const polyfill: string = 'reflect-metadata'
-
-  await import(polyfill)
-} catch {
-  // Nothing in this application asked for reflection. Carry on.
 }
 
 const app = (await import('./bootstrap/app.ts')).default

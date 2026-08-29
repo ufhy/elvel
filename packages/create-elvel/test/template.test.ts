@@ -688,29 +688,44 @@ describe('what a scaffolded application installs', () => {
     const entry = await Bun.file(resolve(templateDir, 'elvel.ts')).text()
 
     /**
-     * Through a variable, and that part is not cosmetic.
+     * A literal import of a file that always exists, and that part is not cosmetic.
      *
-     * Only the auth kit declares this dependency, so a literal specifier makes
-     * `bun run typecheck` fail in every other application with
-     * `Cannot find module 'reflect-metadata'` — measured on a scaffolded app
-     * before the indirection went in. A non-literal specifier tells TypeScript to
-     * leave the resolution to run time, which is what the `try` is for.
+     * This was a guarded dynamic import with the specifier in a variable, so `tsc`
+     * would not resolve a package most kits do not have. It could not be bundled:
+     * what the bundler cannot see stays a runtime `import()`, which then has to
+     * resolve from `dist/` — and in a kit whose `workspaces` entry makes Bun
+     * install in the isolated layout it does not. The `catch` swallowed that, and
+     * `tsyringe` threw later about a polyfill rather than about the resolution
+     * that failed. Measured on a scaffolded Vue application from npm: its bundle
+     * could not boot at all.
      */
-    const polyfill = entry.indexOf("'reflect-metadata'")
+    const polyfill = entry.indexOf("import './bootstrap/polyfill.ts'")
     const application = entry.indexOf("await import('./bootstrap/app.ts')")
 
     expect(polyfill).toBeGreaterThan(-1)
     expect(polyfill).toBeLessThan(application)
-    expect(entry).not.toContain("await import('reflect-metadata')")
-    expect(entry.slice(polyfill, application)).toContain('await import(polyfill)')
 
-    // Guarded, because every kit but `auth` declares no such dependency and
-    // needs no polyfill.
-    expect(entry.slice(0, polyfill)).toContain('try {')
+    // Nothing dynamic and nothing swallowed: both are what broke the bundle.
+    expect(entry).not.toContain('await import(polyfill)')
+    expect(entry.slice(0, application)).not.toContain('try {')
 
-    const auth = (await Bun.file(
-      resolve(import.meta.dir, '..', 'kits', 'auth', 'manifest.json')
-    ).json()) as { dependencies?: Record<string, string> }
+    /** Empty in the template, because most applications need no polyfill. */
+    const empty = await Bun.file(resolve(templateDir, 'bootstrap', 'polyfill.ts')).text()
+
+    expect(empty).not.toContain('reflect-metadata')
+
+    /**
+     * And replaced by the auth layer, which is where the dependency comes from.
+     * A layer wins per file, so this is the whole mechanism.
+     */
+    const kit = resolve(import.meta.dir, '..', 'kits', 'auth')
+    const filled = await Bun.file(resolve(kit, 'bootstrap', 'polyfill.ts')).text()
+
+    expect(filled).toContain("import 'reflect-metadata'")
+
+    const auth = (await Bun.file(resolve(kit, 'manifest.json')).json()) as {
+      dependencies?: Record<string, string>
+    }
 
     expect(auth.dependencies?.['reflect-metadata']).toBeDefined()
   })
