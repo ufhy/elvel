@@ -16,6 +16,11 @@ export class MailableRegistry {
     return this
   }
 
+  /** Every registered mailable, for anything that has to list them. */
+  all(): MailableClass[] {
+    return [...this.mailables.values()]
+  }
+
   get(name: string): MailableClass | undefined {
     return this.mailables.get(name)
   }

@@ -1,4 +1,5 @@
 import type { ViewComponent } from '@elvel/contracts'
+import { button, emailLayout, heading, paragraph, salutation } from '@elvel/mail'
 
 export type MailAttachment = {
   filename: string
@@ -191,35 +192,31 @@ export class MailMessage {
    * entirely. Every interpolated value is escaped: a notification line often
    * carries a name or a title that came from a user.
    */
+  /**
+   * The mail, built from `@elvel/mail`'s components rather than from strings here.
+   *
+   * This markup used to live in this file, which meant a `Mailable` had no way to
+   * reach it: `markdownContent()` returned bare tags with no layout and no button,
+   * so the good template only existed for notifications. It belongs to the package
+   * that owns mail, and this reads it like any other caller.
+   */
   toHtml(appName: string): string {
-    const accent =
-      this.levelName === 'error' ? '#dc2626' : this.levelName === 'success' ? '#16a34a' : '#2563eb'
+    const tone =
+      this.levelName === 'error' ? 'error' : this.levelName === 'success' ? 'success' : 'info'
 
-    const paragraph = (text: string) =>
-      `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#111;">${escapeHtml(text)}</p>`
-
-    const body: string[] = [
-      `<h1 style="margin:0 0 16px;font-size:20px;color:#111;">${escapeHtml(
-        this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!')
-      )}</h1>`,
+    const parts: string[] = [
+      heading(this.greetingLine ?? (this.levelName === 'error' ? 'Whoops!' : 'Hello!')),
       ...this.introLines.map(paragraph)
     ]
 
     if (this.actionText && this.actionUrl) {
-      body.push(
-        `<p style="margin:0 0 24px;"><a href="${escapeAttribute(this.actionUrl)}" style="display:inline-block;padding:10px 18px;background:${accent};color:#fff;border-radius:6px;text-decoration:none;font-size:15px;">${escapeHtml(this.actionText)}</a></p>`
-      )
+      parts.push(button(this.actionText, this.actionUrl, tone))
     }
 
-    body.push(...this.outroLines.map(paragraph))
+    parts.push(...this.outroLines.map(paragraph))
+    parts.push(salutation(this.salutationLine ?? `Regards, ${appName}`))
 
-    body.push(
-      `<p style="margin:24px 0 0;font-size:14px;color:#555;">${escapeHtml(
-        this.salutationLine ?? `Regards, ${appName}`
-      )}</p>`
-    )
-
-    return `<!DOCTYPE html><html lang="en"><body style="margin:0;padding:24px;background:#f6f7f9;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;"><div style="max-width:560px;margin:0 auto;padding:24px;background:#fff;border-radius:10px;">${body.join('')}</div></body></html>`
+    return emailLayout(parts)
   }
 }
 

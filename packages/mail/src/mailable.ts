@@ -1,4 +1,5 @@
 import type { ViewComponent } from '@elvel/contracts'
+import { button, emailLayout, type MailTone, subcopy } from './layout.ts'
 import { markdownToHtml, markdownToText } from './markdown.ts'
 
 /** One mailbox. A bare string is an address with no display name. */
@@ -153,10 +154,44 @@ export type MailableClass = new (data: never) => AnyMailable
  * since the text part stays readable instead of being tags stripped out of the
  * HTML.
  */
-export function markdownContent(source: string): Content {
+export function markdownContent(source: string, options: MarkdownOptions = {}): Content {
   const trimmed = dedent(source)
+  const body = [markdownToHtml(trimmed)]
 
-  return { html: markdownToHtml(trimmed), text: markdownToText(trimmed) }
+  if (options.action) body.push(button(options.action.text, options.action.url, options.tone))
+  if (options.subcopy) body.push(subcopy(options.subcopy))
+
+  return {
+    html: options.layout === false ? body.join('') : emailLayout(body),
+    text: markdownToText(trimmed) + textFor(options)
+  }
+}
+
+/** What a markdown mail carries besides its prose. */
+export type MarkdownOptions = {
+  /** The one call to action, rendered as a button below the markdown. */
+  action?: { text: string; url: string }
+  /** The small print under it — usually the same URL, for a client that hides buttons. */
+  subcopy?: string
+  /** Which accent the button takes. */
+  tone?: MailTone
+  /**
+   * `false` to render the markdown alone, with no document around it.
+   *
+   * For a mail whose markup is somebody else's — an export, a digest pasted into a
+   * template a designer owns — where a second `<html>` would nest inside theirs.
+   */
+  layout?: false
+}
+
+/** The plain-text half, which has to say what the button and the subcopy said. */
+function textFor(options: MarkdownOptions): string {
+  const parts: string[] = []
+
+  if (options.action) parts.push(`${options.action.text}: ${options.action.url}`)
+  if (options.subcopy) parts.push(options.subcopy)
+
+  return parts.length === 0 ? '' : `\n\n${parts.join('\n\n')}`
 }
 
 /**

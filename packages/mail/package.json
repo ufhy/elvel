@@ -1,7 +1,7 @@
 {
   "name": "@elvel/mail",
   "version": "1.0.0-alpha.16",
-  "description": "Laravel-style mail for Elvel — Mailables and log, array and SMTP transports",
+  "description": "Laravel-style mail for Elvel \u2014 Mailables and log, array and SMTP transports",
   "keywords": [
     "bun",
     "elvel",
@@ -46,5 +46,8 @@
     "@elvel/support": "workspace:*",
     "@types/nodemailer": "^8.0.1",
     "nodemailer": "9.0.5"
+  },
+  "peerDependencies": {
+    "elysia": ">=1.4.0"
   }
 }

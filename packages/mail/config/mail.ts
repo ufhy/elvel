@@ -5,6 +5,25 @@ export default {
   default: env('MAIL_MAILER', 'log'),
 
   /** Sender for any mailable whose envelope does not name one. */
+  /**
+   * Where the mail preview page answers, or `false`.
+   *
+   * A page that lists every mail this application can send and renders each one,
+   * with nothing to install and no second service to run. It is never mounted in
+   * production — a page describing every mail you send describes your customers to
+   * whoever finds it — so this decides where it lives in development, not whether it
+   * is safe there.
+   *
+   * A mailable joins the list by offering a sample of itself:
+   *
+   * ```ts
+   * static preview() {
+   *   return new InvoicePaid({ number: 'INV-001' })
+   * }
+   * ```
+   */
+  preview: '/_mail',
+
   from: {
     address: env('MAIL_FROM_ADDRESS', 'hello@example.com'),
     name: env('MAIL_FROM_NAME', 'Elvel')

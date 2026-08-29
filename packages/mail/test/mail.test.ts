@@ -974,4 +974,39 @@ describe('markdown mail', () => {
     expect<boolean>(html.includes('<pre')).toBe(true)
     expect<boolean>(html.includes('bun test')).toBe(true)
   })
+
+  /**
+   * A scheme this renderer will not put in an `href`.
+   *
+   * Markdown in a mail usually carries something a person typed, which is why the
+   * renderer escapes raw HTML rather than passing it through. A link's *target* was
+   * the hole left in that reasoning: measured before `safeUrl` existed,
+   * `[Click](javascript:alert(1))` emitted the scheme verbatim, while the
+   * notification path had refused it since it was written.
+   *
+   * It is mostly inert in a mail client — they do not run it. It is not inert where
+   * the same HTML is read next: a preview in a browser, an archive in a web view, a
+   * "view in browser" link.
+   */
+  test('a link cannot carry a scheme a browser would run', () => {
+    for (const hostile of ['javascript:alert(1)', 'data:text/html,<script>', 'vbscript:x']) {
+      const html = markdownToHtml(`[Click](${hostile})`)
+
+      expect<string>(`${hostile}: ${/href="([^"]*)"/.exec(html)?.[1]}`).toBe(`${hostile}: #`)
+    }
+  })
+
+  test('and neither can an image', () => {
+    const html = markdownToHtml('![x](javascript:alert(1))')
+
+    expect<string | undefined>(/src="([^"]*)"/.exec(html)?.[1]).toBe('#')
+  })
+
+  test('while the schemes a mail actually uses are left alone', () => {
+    for (const good of ['https://example.com/a', 'http://example.com', 'mailto:a@b.c', '/local']) {
+      const html = markdownToHtml(`[Click](${good})`)
+
+      expect<string>(`${good}: ${/href="([^"]*)"/.exec(html)?.[1]}`).toBe(`${good}: ${good}`)
+    }
+  })
 })

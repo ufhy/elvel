@@ -147,14 +147,52 @@ function inline(text: string): string {
     )
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(])[*_]([^*_]+)[*_]/g, '$1<em>$2</em>')
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%">')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, `<a href="$2" style="${STYLES.link}">$1</a>`)
+    .replace(
+      /!\[([^\]]*)\]\(([^)\s]+)\)/g,
+      (_match, alt: string, src: string) =>
+        `<img src="${escapeAttribute(safeUrl(src))}" alt="${alt}" style="max-width:100%">`
+    )
+    .replace(
+      /\[([^\]]+)\]\(([^)\s]+)\)/g,
+      (_match, text: string, href: string) =>
+        `<a href="${escapeAttribute(safeUrl(href))}" style="${STYLES.link}">${text}</a>`
+    )
 }
 
-function escapeHtml(text: string): string {
+/**
+ * Exported because the mail components escape the same way this does.
+ *
+ * One escaper for the package, not two: a second copy is how the two drift into
+ * disagreeing about a character, and the character they disagree about is the one
+ * that gets through.
+ */
+export function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+/** The same, for a value going into an attribute — single quotes included. */
+export function escapeAttribute(value: string): string {
+  return escapeHtml(value).replaceAll("'", '&#39;')
+}
+
+/**
+ * A URL that is safe to put in an `href`, or `#`.
+ *
+ * Only `http:`, `https:`, `mailto:` and a root-relative path survive; anything else
+ * becomes `#`. `javascript:` is the one everybody names, and in a mail client it is
+ * mostly inert — clients do not run it. The reason to refuse it here is that the
+ * same rendered HTML is read somewhere it is not inert: a preview in a browser, an
+ * archive shown in a web view, a "view in browser" link.
+ *
+ * Measured before this existed: `markdownToHtml('[Click](javascript:alert(1))')`
+ * emitted the scheme verbatim, while the notification path had refused it since it
+ * was written. One package, two answers, and the markdown half was the one an
+ * application points at user-typed content.
+ */
+export function safeUrl(value: string): string {
+  return /^(https?:|mailto:|\/)/i.test(value.trim()) ? value : '#'
 }

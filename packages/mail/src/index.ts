@@ -7,6 +7,7 @@ export { attachFromDisk, type DiskAttachmentOptions } from './attachments.ts'
 export { MakeMailCommand } from './console/make-mail.ts'
 export { MailFake } from './fake.ts'
 export { mail, mailer, mailTo } from './helpers.ts'
+export * from './layout.ts'
 export {
   type Address,
   type AnyMailable,
@@ -29,6 +30,7 @@ export {
   type SentMessage,
   type Transport
 } from './message.ts'
+export * from './preview.ts'
 export { MailServiceProvider } from './provider.ts'
 export { MailableRegistry, type QueuedMailData, SendQueuedMail } from './queued.ts'
 export { ArrayTransport } from './transports/array.ts'
