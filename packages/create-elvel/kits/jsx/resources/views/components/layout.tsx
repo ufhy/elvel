@@ -113,7 +113,7 @@ export function Layout({ title, children }: LayoutProps) {
           other kits exactly. Everywhere else there is no such rule and the
           utilities are what style it.
         */}
-        <footer class="footer flex items-center justify-center gap-2 py-8 font-mono text-xs text-muted-foreground">
+        <footer class="flex items-center justify-center gap-2 py-8 font-mono text-xs text-[#6f6a5d] dark:text-[#9a9285]">
           <span safe>{name}</span>
           <span class="dot opacity-50">·</span>
           <span safe>{config<string>('app.env', 'production')}</span>

@@ -52,12 +52,22 @@ export function Layout({ title, children }: LayoutProps) {
             rendered before that page's body ran. */}
         {stack('head')}
       </head>
-      <body>
-        <main class="shell">{children}</main>
+      {/*
+        Tailwind classes, because this kit's server-rendered stylesheet is Tailwind.
 
-        <footer class="footer">
+        `.shell` and `.footer` were the template's hand-written CSS, and this kit no
+        longer loads that stylesheet: `resources/css/app.css` here is
+        `@import "tailwindcss"`, built by the client project. The one page rendered
+        on the server is the `auth` layer's Tailwind welcome, shared with the `jsx`
+        kit, and it has to look the same in both — so this layout matches that one
+        rather than keeping two names for the same two rules.
+      */}
+      <body class="min-h-dvh font-sans antialiased">
+        <main>{children}</main>
+
+        <footer class="flex items-center justify-center gap-2 py-8 font-mono text-xs text-[#6f6a5d] dark:text-[#9a9285]">
           <span safe>{name}</span>
-          <span class="dot">·</span>
+          <span class="opacity-50">·</span>
           <span safe>{environment}</span>
         </footer>
 

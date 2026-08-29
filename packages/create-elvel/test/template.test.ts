@@ -1088,45 +1088,74 @@ describe('the welcome page', () => {
   })
 
   /**
-   * One copy of this page, and no kit may ship a second.
+   * Two copies, split on the one thing that differs between kits.
    *
-   * The `jsx` kit used to override it, because it has Tailwind and the template's
-   * copy is hand-written CSS. Two copies drift, and these did: the template linked
-   * to the repository where the kit linked to the documentation site, the template's
-   * terminal named `dev:assets` where the kit named `dev`, the kit said "Get started"
-   * where the others said "Register" — and none of that was visible by reading,
+   * The template's is hand-written CSS in a `<style>` block, because `--kit=none`
+   * and `--kit=api` have no Tailwind and a starter page that needs a build to look
+   * finished is a poor first minute. The `auth` layer's is the same page in Tailwind
+   * for `jsx` and `vue`, which are exactly the two kits that layer on it and exactly
+   * the two that have Tailwind.
+   *
+   * They have to be the same *page*, and two files never stay that way by intent —
+   * these already drifted three ways once: one linked to the repository and the other
+   * to the documentation site, one named `dev:assets` and the other `dev`, one said
+   * "Get started" where the other said "Register". None of it was visible by reading,
    * because each file was coherent on its own.
    *
-   * Then the presentation drifted too. Measured off both pages at 1280px: 60px
-   * headline against 73.6px, 18px lead against 17.12px, 848px container against
-   * 944px, white body against `#fbf9f5`.
-   *
-   * So the override is gone rather than kept in step. The page brings its own
-   * `<style>`, and an unlayered `<style>` beats every `@layer` — which is where
-   * Tailwind's base rules live — so it styles itself the same inside any kit's
-   * layout. This test is what stops a second copy coming back.
+   * So what a reader can act on is asserted equal rather than asserted twice. Sizes
+   * are checked as literals, because that is the other thing that drifted: measured
+   * side by side at 1280px, the Tailwind copy rendered a 60px headline against 73.6px
+   * — Tailwind's scale has no 73.6px, and the nearest step is not it.
    */
-  test('and no kit ships a second copy of it', async () => {
-    const kits = resolve(import.meta.dir, '..', 'kits')
-    const owned: string[] = []
+  test('and the Tailwind copy says and measures the same things', async () => {
+    const tailwind = await Bun.file(
+      resolve(import.meta.dir, '..', 'kits', 'auth', 'resources', 'views', 'pages', 'welcome.tsx')
+    ).text()
 
-    for (const kit of await readdir(kits)) {
-      const own = join(kits, kit, 'resources', 'views', 'pages', 'welcome.tsx')
+    /** Comments stripped: both explain themselves, and prose is not the page. */
+    const rendered = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '')
 
-      if (await Bun.file(own).exists()) owned.push(kit)
+    const both = { template: rendered(await welcome()), tailwind: rendered(tailwind) }
+
+    /** Every external address either offers, however it is written. */
+    const links = (source: string) =>
+      [
+        ...new Set(
+          [...source.matchAll(/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,}\/[\w./-]*)/g)].map(
+            (match) => (match[1] as string).replace(/\/$/, '')
+          )
+        )
+      ].sort()
+
+    /** And every command either tells somebody to run. */
+    const commands = (source: string) =>
+      [...new Set([...source.matchAll(/bun run [a-z:]+/g)].map((match) => match[0]))].sort()
+
+    expect<string[]>(links(both.tailwind)).toEqual(links(both.template))
+    expect<string[]>(commands(both.tailwind)).toEqual(commands(both.template))
+
+    /**
+     * The measures that decide whether it is the same page on screen.
+     *
+     * Each appears in the hand-written CSS as a declaration and in the Tailwind copy
+     * as an arbitrary value, so the string is what they share.
+     */
+    for (const measure of ['clamp(2.6rem,7vw,4.6rem)', '34rem', '1.07rem', '62rem', '0.2em']) {
+      const loose = measure.replace(/,/g, ', ')
+
+      for (const [name, source] of Object.entries(both)) {
+        const has = source.includes(measure) || source.includes(loose)
+
+        expect<string>(`${name} ${measure}: ${has}`).toBe(`${name} ${measure}: true`)
+      }
     }
 
-    expect<string[]>(owned).toEqual([])
+    // The palette is the page's own in both, or one of them wears its kit's.
+    for (const [name, source] of Object.entries(both)) {
+      expect<string>(`${name}: ${source.includes('#fbf9f5')}`).toBe(`${name}: true`)
+    }
   })
 
-  /**
-   * And it styles itself, which is what makes it the same page in every kit.
-   *
-   * `body { background }` inside its own `<style>` is the load-bearing line: the
-   * `jsx` kit's `app.css` sets a background in `@layer base`, and an unlayered rule
-   * beats a layered one whatever the selectors are. Measured on a scaffolded `jsx`
-   * application, which is Tailwind end to end: `rgb(251, 249, 245)`.
-   */
   test('and carries the background that makes it look the same anywhere', async () => {
     const source = await welcome()
 

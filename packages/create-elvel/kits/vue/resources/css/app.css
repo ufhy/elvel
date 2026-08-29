@@ -1,0 +1,32 @@
+/*
+ * The stylesheet the *server-rendered* half of this kit loads.
+ *
+ * One page uses it — `welcome.tsx`, which is the only view this kit renders on the
+ * server — and it needs Tailwind because that page is the `auth` layer's Tailwind
+ * copy, shared with the `jsx` kit so the two are the same page rather than two that
+ * resemble each other.
+ *
+ * Built by the client project: `frontend/src/server.ts` imports this file, and
+ * `frontend/vite.config.ts` already runs `@tailwindcss/vite`. So Tailwind lives in
+ * one place in this kit — the Vite project — and reaches both halves from there.
+ *
+ * `source("../views")` pins where it looks for class names to this application's
+ * views. Left to decide for itself it walks up and scans the repository; measured on
+ * the `jsx` kit, that cost 14.3 seconds against 3.1 and produced 41 kB of utilities
+ * nothing used.
+ */
+@import "tailwindcss" source("../views");
+
+/*
+ * The two faces the welcome page names, and they have to be these.
+ *
+ * `font-serif` and `font-mono` are Tailwind utilities, and left at their defaults
+ * they resolve to New York on macOS and to the system monospace — measured, that
+ * rendered the shared page in a different typeface from the `jsx` kit and from the
+ * template's copy. Naming the stacks is what makes the page the same page rather
+ * than merely a serif one.
+ */
+@theme inline {
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
