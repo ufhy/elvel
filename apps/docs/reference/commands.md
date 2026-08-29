@@ -92,6 +92,7 @@ answer.
 | --- | --- |
 | `config:show` | What the application actually resolved — a file or one key |
 | `config:publish` | Fetch a config file the kit did not ship |
+| `mail:theme` | Write a copy of the mail stylesheet to edit |
 | `config:cache` | Freeze every config file into one JSON document |
 | `config:clear` | Undo that |
 | `optimize` | `config:cache` + `app:build` |
