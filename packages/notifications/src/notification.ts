@@ -1,3 +1,4 @@
+import type { JobMiddleware } from '@elvel/queue'
 import type { MailMessage } from './message.ts'
 import type { Notifiable } from './notifiable.ts'
 
@@ -32,8 +33,13 @@ export abstract class Notification<TData = Record<string, never>> {
 
   constructor(readonly data: TData) {}
 
-  /** Which channels to deliver by, for this recipient. */
-  abstract via(notifiable: Notifiable): string[]
+  /**
+   * Which channels to deliver by, for this recipient.
+   *
+   * A single channel may be named as a string, which is what Laravel accepts and
+   * what reads better for the many notifications that only mail.
+   */
+  abstract via(notifiable: Notifiable): string[] | string
 
   /** The message the mail channel sends. */
   toMail?(notifiable: Notifiable): MailMessage
@@ -43,6 +49,27 @@ export abstract class Notification<TData = Record<string, never>> {
 
   /** A plain representation, used by the database and log channels. */
   toArray?(notifiable: Notifiable): Record<string, unknown>
+
+  /**
+   * The queue connection each channel's job goes on.
+   *
+   * A notification is one job per channel, and the channels are not alike: mail
+   * goes through a provider that rate-limits and can be down for minutes, while a
+   * database row is a single insert. Laravel lets the two be routed apart, and
+   * this is how — `{ mail: 'redis' }` leaves every other channel on the default.
+   */
+  viaConnections?(): Record<string, string | undefined>
+
+  /** The queue each channel's job waits in — same reasoning as `viaConnections`. */
+  viaQueues?(): Record<string, string | undefined>
+
+  /**
+   * Queue middleware to wrap this channel's job with.
+   *
+   * Per channel, again because the channels differ: a `RateLimited` that protects
+   * a mail provider has no business delaying the database row.
+   */
+  middleware?(notifiable: Notifiable, channel: string): JobMiddleware[]
 
   /** Return false to skip this channel for this recipient. */
   shouldSend?(notifiable: Notifiable, channel: string): boolean | Promise<boolean>

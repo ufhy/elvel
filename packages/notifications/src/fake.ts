@@ -21,7 +21,9 @@ export class NotificationFake {
     this.recorded.push({
       notifiable,
       notification,
-      channels: notification.via(notifiable)
+      // Normalised here too: an assertion on channels should not have to know
+      // whether the notification named one as a string or as a list.
+      channels: ([] as string[]).concat(notification.via(notifiable)).filter((one) => one !== '')
     })
   }
 

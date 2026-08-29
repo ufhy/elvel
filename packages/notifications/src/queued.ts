@@ -1,4 +1,4 @@
-import { Job } from '@elvel/queue'
+import { Job, type JobMiddleware } from '@elvel/queue'
 import type { Notifiable } from './notifiable.ts'
 import type { AnyNotification, NotificationRegistry } from './notification.ts'
 
@@ -72,7 +72,57 @@ export class SendQueuedNotification extends Job<QueuedNotificationData> {
     translator?: { getLocale(): string; setLocale(locale: string): unknown }
   } | null = null
 
+  /**
+   * The notification's own middleware for this channel.
+   *
+   * Rebuilt here rather than carried in the payload, because middleware are
+   * objects — a `RateLimited` holding a limiter cannot be serialised into a queue
+   * and come back the same thing. The worker has the class, so it can ask.
+   */
+  override middleware(): JobMiddleware[] {
+    const notification = this.notification()
+
+    return notification.middleware?.(new QueuedNotifiable(this.data), this.data.channel) ?? []
+  }
+
   async handle(): Promise<void> {
+    const resolver = SendQueuedNotification.resolver
+
+    if (!resolver) {
+      throw new Error(
+        'Queued notifications need the notification manager. Register NotificationServiceProvider.'
+      )
+    }
+
+    const notification = this.notification()
+
+    const deliver = () =>
+      resolver.channel(this.data.channel).send(new QueuedNotifiable(this.data), notification)
+
+    const translator = resolver.translator
+
+    if (!this.data.locale || !translator) {
+      await deliver()
+
+      return
+    }
+
+    const previous = translator.getLocale()
+
+    translator.setLocale(this.data.locale)
+
+    try {
+      await deliver()
+    } finally {
+      // In a `finally`: a worker runs job after job in one process, so a throw
+      // here would leave every later notification speaking this recipient's
+      // language.
+      translator.setLocale(previous)
+    }
+  }
+
+  /** The notification this job delivers, rebuilt from its name and data. */
+  private notification(): AnyNotification {
     const resolver = SendQueuedNotification.resolver
 
     if (!resolver) {
@@ -100,28 +150,6 @@ export class SendQueuedNotification extends Job<QueuedNotificationData> {
     notification.id = this.data.id
     notification.locale = this.data.locale
 
-    const deliver = () =>
-      resolver.channel(this.data.channel).send(new QueuedNotifiable(this.data), notification)
-
-    const translator = resolver.translator
-
-    if (!this.data.locale || !translator) {
-      await deliver()
-
-      return
-    }
-
-    const previous = translator.getLocale()
-
-    translator.setLocale(this.data.locale)
-
-    try {
-      await deliver()
-    } finally {
-      // In a `finally`: a worker runs job after job in one process, so a throw
-      // here would leave every later notification speaking this recipient's
-      // language.
-      translator.setLocale(previous)
-    }
+    return notification
   }
 }

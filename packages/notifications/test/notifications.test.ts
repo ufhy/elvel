@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
 import { ConnectionManager } from '@elvel/database'
+import type { JobMiddleware } from '@elvel/queue'
 import { BroadcastNotificationChannel } from '../src/channels/broadcast.ts'
 import { DatabaseNotificationChannel } from '../src/channels/database.ts'
 import { LogNotificationChannel } from '../src/channels/log.ts'
@@ -8,7 +9,8 @@ import { MailNotificationChannel } from '../src/channels/mail.ts'
 import { NotificationManager } from '../src/manager.ts'
 import { escapeAttribute, escapeHtml, MailMessage } from '../src/message.ts'
 import { AnonymousNotifiable, identify, type Notifiable, routeFor } from '../src/notifiable.ts'
-import { Notification } from '../src/notification.ts'
+import { Notification, NotificationRegistry } from '../src/notification.ts'
+import { SendQueuedNotification } from '../src/queued.ts'
 import { type NotificationChannel, NotificationSender } from '../src/sender.ts'
 
 /** A recipient that looks like one of our models. */
@@ -918,5 +920,327 @@ describe('a notification written in markdown', () => {
     expect<boolean>(sent[0]?.html?.includes('<h2') === true).toBe(true)
     // And the text part is the markdown itself, still readable.
     expect<boolean>(sent[0]?.text?.includes('- One thing') === true).toBe(true)
+  })
+})
+
+describe('a via() that names one channel as a string', () => {
+  /**
+   * Laravel accepts `return 'mail'` as well as `return ['mail']`, and most
+   * notifications only mail — the list is ceremony for the common case.
+   */
+  test('is the same as naming it in a list', async () => {
+    const mail = recordingChannel('mail')
+
+    class OneChannel extends Notification<Record<string, never>> {
+      via(): string {
+        return 'mail'
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage().line('hi')
+      }
+    }
+
+    const sender = new NotificationSender(() => mail)
+
+    await sender.sendNow(new User(1, 'ada@example.com'), new OneChannel({}))
+
+    expect(mail.calls.length).toBe(1)
+  })
+
+  /**
+   * And an empty string is nothing rather than a channel named `''`.
+   *
+   * A `via()` that computes its answer can come back empty; without this the
+   * sender would ask the manager to build a driver by that name and die on it.
+   */
+  test('while an empty string sends nothing at all', async () => {
+    const mail = recordingChannel('mail')
+
+    class Undecided extends Notification<Record<string, never>> {
+      via(): string {
+        return ''
+      }
+    }
+
+    const sender = new NotificationSender(() => mail)
+
+    await sender.sendNow(new User(1, 'ada@example.com'), new Undecided({}))
+
+    expect(mail.calls.length).toBe(0)
+  })
+})
+
+describe('a listener that calls a send off', () => {
+  /**
+   * The hook for a decision that belongs outside the notification: a suppression
+   * list, quiet hours, a customer who asked for no mail. `shouldSend()` covers
+   * what the notification itself knows; this covers what it should not have to.
+   */
+  test('stops the channel and records it as skipped', async () => {
+    const mail = recordingChannel('mail')
+    const seen: string[] = []
+
+    const sender = new NotificationSender(() => mail, {
+      events: {
+        dispatch: (event: string) => {
+          seen.push(event)
+        },
+        until: (event: string) => (event === 'notification.sending' ? false : undefined)
+      }
+    })
+
+    await sender.sendNow(new User(1, 'ada@example.com'), new ArticlePublished({ title: 'Hi' }), [
+      'mail'
+    ])
+
+    expect(mail.calls.length).toBe(0)
+    expect(seen).toContain('notification.skipped')
+    expect(seen).not.toContain('notification.sent')
+  })
+
+  test('while any other answer lets it through', async () => {
+    const mail = recordingChannel('mail')
+
+    const sender = new NotificationSender(() => mail, {
+      events: { dispatch: () => undefined, until: () => undefined }
+    })
+
+    await sender.sendNow(new User(1, 'ada@example.com'), new ArticlePublished({ title: 'Hi' }), [
+      'mail'
+    ])
+
+    expect(mail.calls.length).toBe(1)
+  })
+})
+
+describe('a mail message built for a provider', () => {
+  test('carries its copies, tags, metadata and priority into the envelope', async () => {
+    const sent: Array<{ envelope: Record<string, unknown> }> = []
+
+    const mail = {
+      mailer: () => ({
+        send: async (mailable: { envelope(): Record<string, unknown> }) => {
+          sent.push({ envelope: mailable.envelope() })
+
+          return 'sent'
+        }
+      })
+    }
+
+    class Receipt extends Notification<Record<string, never>> {
+      via(): string {
+        return 'mail'
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage()
+          .subject('Your receipt')
+          .cc('accounts@example.com')
+          .bcc('archive@example.com')
+          .tag('billing')
+          .metadata('invoice', '42')
+          .priority(1)
+          .line('Thanks.')
+      }
+    }
+
+    const channel = new MailNotificationChannel(mail as never, 'Playground')
+
+    await channel.send(new User(1, 'ada@example.com'), new Receipt({}))
+
+    expect(sent[0]?.envelope).toMatchObject({
+      to: 'ada@example.com',
+      cc: ['accounts@example.com'],
+      bcc: ['archive@example.com'],
+      tags: ['billing'],
+      metadata: { invoice: '42' },
+      headers: { 'X-Priority': '1' }
+    })
+  })
+
+  /** Nothing is set that was never asked for: an empty cc is no cc at all. */
+  test('and mentions none of them when none were set', async () => {
+    const sent: Array<{ envelope: Record<string, unknown> }> = []
+
+    const mail = {
+      mailer: () => ({
+        send: async (mailable: { envelope(): Record<string, unknown> }) => {
+          sent.push({ envelope: mailable.envelope() })
+
+          return 'sent'
+        }
+      })
+    }
+
+    const channel = new MailNotificationChannel(mail as never, 'Playground')
+
+    await channel.send(new User(1, 'ada@example.com'), new ArticlePublished({ title: 'Hi' }))
+
+    const envelope = sent[0]?.envelope as Record<string, unknown>
+
+    expect(Object.keys(envelope).sort()).toEqual(['subject', 'to'])
+  })
+})
+
+describe('the conditional builders', () => {
+  /**
+   * `lineIf` and friends exist so a notification can be written as one chain.
+   * Without them the alternative is a local variable and a branch, which is how
+   * a message that reads like a message turns into a message that reads like code.
+   */
+  test('add a line only when the condition holds', () => {
+    const message = new MailMessage()
+      .line('Always.')
+      .lineIf(true, 'Sometimes.')
+      .lineIf(false, 'Never.')
+      .linesIf(true, ['Both.', 'Of them.'])
+      .linesIf(false, ['Neither.'])
+
+    const text = message.toText('Playground')
+
+    expect(text).toContain('Always.')
+    expect(text).toContain('Sometimes.')
+    expect(text).toContain('Both.')
+    expect(text).not.toContain('Never.')
+    expect(text).not.toContain('Neither.')
+  })
+
+  test('while when() and unless() hand the message to a callback', () => {
+    const message = new MailMessage()
+      .when(true, (mail) => mail.subject('Yes'))
+      .unless(true, (mail) => mail.subject('No'))
+      .unless(false, (mail) => mail.line('Ran.'))
+
+    expect(message.subjectOr('fallback')).toBe('Yes')
+    expect(message.toText('Playground')).toContain('Ran.')
+  })
+})
+
+describe('a queued notification whose channels go different ways', () => {
+  /**
+   * One job per channel is only half the point of splitting them. Mail goes
+   * through a provider that rate-limits and can be down for minutes; a database
+   * row is one insert. `viaQueues()` and `viaConnections()` let the two be routed
+   * apart, naming only the exceptions.
+   */
+  test('routes each channel by viaQueues and viaConnections', async () => {
+    const app = new Application(process.cwd())
+    app.config.set('app.name', 'Playground')
+
+    const dispatched: Array<{ channel: unknown; options: unknown }> = []
+
+    // A stand-in for the queue manager: only `dispatch` is reached from here.
+    app.instance('queue', {
+      dispatch: async (job: { data: unknown }, options: unknown) => {
+        dispatched.push({ channel: (job.data as { channel: string }).channel, options })
+
+        return 'job-id'
+      }
+    } as never)
+
+    class Split extends Notification<Record<string, never>> {
+      static override shouldQueue = true
+      static override queue = 'default'
+
+      via(): string[] {
+        return ['mail', 'database']
+      }
+
+      override viaQueues(): Record<string, string | undefined> {
+        return { mail: 'mail-queue' }
+      }
+
+      override viaConnections(): Record<string, string | undefined> {
+        return { mail: 'redis' }
+      }
+
+      override toMail(): MailMessage {
+        return new MailMessage().line('hi')
+      }
+
+      override toDatabase(): Record<string, unknown> {
+        return {}
+      }
+    }
+
+    await new NotificationManager(app).send(new User(1, 'ada@example.com'), new Split({}))
+
+    expect(dispatched).toEqual([
+      { channel: 'mail', options: { queue: 'mail-queue', connection: 'redis' } },
+      // Unnamed, so it keeps the notification's own queue and the default connection.
+      { channel: 'database', options: { queue: 'default', connection: undefined } }
+    ])
+  })
+})
+
+describe('queue middleware named by a notification', () => {
+  /**
+   * Rebuilt in the worker rather than carried in the payload: a middleware is an
+   * object — a rate limiter holding its own state — and nothing like that survives
+   * a trip through a queue. The worker has the class, so it can ask.
+   */
+  test('reaches the job the worker runs, one channel at a time', () => {
+    const asked: string[] = []
+    const limiter: JobMiddleware = { handle: async (_job, next) => next() }
+
+    class Throttled extends Notification<Record<string, never>> {
+      via(): string[] {
+        return ['mail', 'database']
+      }
+
+      override middleware(_notifiable: Notifiable, channel: string): JobMiddleware[] {
+        asked.push(channel)
+
+        // Only the provider needs protecting; an insert does not.
+        return channel === 'mail' ? [limiter] : []
+      }
+    }
+
+    const registry = new NotificationRegistry()
+    registry.register(Throttled as never)
+
+    SendQueuedNotification.resolver = {
+      channel: () => ({ send: async () => 'sent' }),
+      notifications: registry
+    }
+
+    const job = (channel: string) =>
+      new SendQueuedNotification({
+        notification: 'Throttled',
+        data: {},
+        id: 'one',
+        channel,
+        route: 'ada@example.com'
+      })
+
+    expect(job('mail').middleware()).toEqual([limiter])
+    expect(job('database').middleware()).toEqual([])
+    expect(asked).toEqual(['mail', 'database'])
+
+    SendQueuedNotification.resolver = null
+  })
+
+  /** A notification that names none is not made to say so. */
+  test('and a notification with no middleware gets none', () => {
+    const registry = new NotificationRegistry()
+    registry.register(ArticlePublished as never)
+
+    SendQueuedNotification.resolver = {
+      channel: () => ({ send: async () => 'sent' }),
+      notifications: registry
+    }
+
+    const job = new SendQueuedNotification({
+      notification: 'ArticlePublished',
+      data: { title: 'x' },
+      id: 'one',
+      channel: 'mail',
+      route: 'ada@example.com'
+    })
+
+    expect(job.middleware()).toEqual([])
+
+    SendQueuedNotification.resolver = null
   })
 })

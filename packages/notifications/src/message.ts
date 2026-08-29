@@ -26,6 +26,11 @@ export type MailAttachment = {
  */
 export class MailMessage {
   private subjectLine: string | undefined
+  private ccList: string[] = []
+  private bccList: string[] = []
+  private tagList: string[] = []
+  private metadataPairs: Record<string, string> = {}
+  private priorityLevel: number | undefined
   private greetingLine: string | undefined
   private salutationLine: string | undefined
   private readonly introLines: string[] = []
@@ -105,6 +110,97 @@ export class MailMessage {
     this.replyToAddress = address
 
     return this
+  }
+
+  /**
+   * A copy, and a blind copy — Laravel's `cc` and `bcc` on `MailMessage`.
+   *
+   * These were on `@elvel/mail`'s `Envelope` and not here, so a notification could
+   * be sent to one address and no other. The commonest reason to want them is an
+   * audit box that has to see what a customer was told.
+   */
+  cc(address: string | string[]): this {
+    this.ccList.push(...(Array.isArray(address) ? address : [address]))
+
+    return this
+  }
+
+  bcc(address: string | string[]): this {
+    this.bccList.push(...(Array.isArray(address) ? address : [address]))
+
+    return this
+  }
+
+  /** A label the transport passes on, for grouping in an analytics dashboard. */
+  tag(value: string): this {
+    this.tagList.push(value)
+
+    return this
+  }
+
+  /** A key the transport carries back on a delivery event — an order id, usually. */
+  metadata(key: string, value: string): this {
+    this.metadataPairs[key] = value
+
+    return this
+  }
+
+  /** `1` is highest and `5` lowest, as `X-Priority` reads. */
+  priority(level: number): this {
+    this.priorityLevel = level
+
+    return this
+  }
+
+  /**
+   * A line only when the condition holds — Laravel's `lineIf`.
+   *
+   * Worth having for the reason `when` is: without it the fluent chain has to be
+   * broken by an `if`, and the message is then built in two shapes that drift.
+   */
+  lineIf(condition: boolean, line: string): this {
+    return condition ? this.line(line) : this
+  }
+
+  linesIf(condition: boolean, lines: string[]): this {
+    return condition ? this.lines(lines) : this
+  }
+
+  /**
+   * Run `body` when the condition holds, and keep the chain — Laravel's `when`.
+   *
+   * The callback may return the message or nothing; either way the chain continues
+   * from this message, which is what Laravel's own test pins.
+   */
+  when(condition: boolean, body: (message: this) => unknown): this {
+    if (condition) body(this)
+
+    return this
+  }
+
+  /** The other side of `when`. */
+  unless(condition: boolean, body: (message: this) => unknown): this {
+    if (!condition) body(this)
+
+    return this
+  }
+
+  /** Every copied address, for whoever builds the envelope. */
+  get copies(): { cc: string[]; bcc: string[] } {
+    return { cc: [...this.ccList], bcc: [...this.bccList] }
+  }
+
+  /** The labels and keys a transport carries, and the priority if one was set. */
+  get delivery(): {
+    tags: string[]
+    metadata: Record<string, string>
+    priority: number | undefined
+  } {
+    return {
+      tags: [...this.tagList],
+      metadata: { ...this.metadataPairs },
+      priority: this.priorityLevel
+    }
   }
 
   attach(attachment: MailAttachment): this {

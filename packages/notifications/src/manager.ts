@@ -124,6 +124,7 @@ export class NotificationManager {
       events: this.app.bound('events')
         ? (this.app.make('events' as never) as {
             dispatch(event: string, payload?: unknown): unknown
+            until(event: string, payload?: unknown): unknown
           })
         : undefined,
       queue: this.app.bound('queue')
@@ -146,7 +147,13 @@ export class NotificationManager {
                 notifiableId: id,
                 locale: notification.locale ?? localeFor(notifiable)
               }),
-              { queue: notificationClass.queue, connection: notificationClass.connection }
+              {
+                // Per channel first, then the class-wide default: `viaQueues()`
+                // names the exceptions, so a notification that only routes mail
+                // does not have to restate where everything else goes.
+                queue: notification.viaQueues?.()[channel] ?? notificationClass.queue,
+                connection: notification.viaConnections?.()[channel] ?? notificationClass.connection
+              }
             )
           }
         : undefined

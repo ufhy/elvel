@@ -8,7 +8,16 @@ export interface NotificationChannel {
   send(notifiable: Notifiable, notification: AnyNotification): Promise<unknown>
 }
 
-export type SenderEvents = { dispatch(event: string, payload?: unknown): unknown }
+export type SenderEvents = {
+  dispatch(event: string, payload?: unknown): unknown
+  /**
+   * A dispatch a listener can answer — how `notification.sending` is announced.
+   *
+   * Optional so any object with a `dispatch` still works as an event sink, which
+   * is what the tests and the fake pass.
+   */
+  until?(event: string, payload?: unknown): unknown
+}
 
 export type SenderOptions = {
   events?: SenderEvents
@@ -80,7 +89,7 @@ export class NotificationSender {
     const preassigned = notification.id
 
     for (const notifiable of toList(notifiables)) {
-      const via = channels ?? notification.via(notifiable)
+      const via = channelsOf(channels ?? notification.via(notifiable))
       if (via.length === 0) continue
 
       // One id per recipient, shared by its channels.
@@ -151,7 +160,7 @@ export class NotificationSender {
       // notification instance.
       notification.id = preassigned || crypto.randomUUID()
 
-      for (const channel of notification.via(notifiable)) {
+      for (const channel of channelsOf(notification.via(notifiable))) {
         if (channel === 'database' && isAnonymous(notifiable)) continue
 
         // One job per channel: a mail server being down must not stop the row
@@ -177,11 +186,33 @@ export class NotificationSender {
       }
     }
 
-    this.options.events?.dispatch('notification.sending', {
+    /**
+     * Announced through `until`, so a listener can call it off.
+     *
+     * Laravel's `NotificationSending` halts the send when a listener returns
+     * false, and that is the only hook there is for a decision that belongs
+     * outside the notification: a suppression list, a quiet-hours window, a
+     * customer who asked for no mail. `shouldSend()` covers the cases the
+     * notification itself knows about; this covers the ones it should not have to.
+     */
+    const sending = {
       notification: notification.constructor.name,
       channel,
       id: notification.id
-    })
+    }
+
+    const answer = await (this.options.events?.until
+      ? this.options.events.until('notification.sending', sending)
+      : this.options.events?.dispatch('notification.sending', sending))
+
+    if (answer === false) {
+      this.options.events?.dispatch('notification.skipped', {
+        notification: notification.constructor.name,
+        channel
+      })
+
+      return
+    }
 
     let response: unknown
 
@@ -216,3 +247,17 @@ function toList(notifiables: Notifiable | Notifiable[]): Notifiable[] {
 }
 
 export { AnonymousNotifiable }
+
+/**
+ * The channels a `via()` named, however it named them.
+ *
+ * A string is one channel, which is what Laravel accepts and what most
+ * notifications want. An empty string is nothing rather than a channel called `''`
+ * — Laravel pins that too, and without it a `via()` that computes a name and
+ * comes back with nothing would try to resolve a driver by empty name.
+ */
+function channelsOf(via: string[] | string): string[] {
+  if (Array.isArray(via)) return via.filter((channel) => channel !== '')
+
+  return via === '' ? [] : [via]
+}

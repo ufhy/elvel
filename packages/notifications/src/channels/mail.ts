@@ -74,11 +74,21 @@ export class MailNotificationChannel {
     const message = notification.toMail(notifiable)
     const component = message.viewComponent
 
+    const copies = message.copies
+    const delivery = message.delivery
+
     const envelope: Envelope = {
       to: route as string,
       subject: message.subjectOr(notification.constructor.name),
       ...(message.sender ? { from: message.sender } : {}),
-      ...(message.replyToOrUndefined ? { replyTo: message.replyToOrUndefined } : {})
+      ...(message.replyToOrUndefined ? { replyTo: message.replyToOrUndefined } : {}),
+      ...(copies.cc.length > 0 ? { cc: copies.cc } : {}),
+      ...(copies.bcc.length > 0 ? { bcc: copies.bcc } : {}),
+      ...(delivery.tags.length > 0 ? { tags: delivery.tags } : {}),
+      ...(Object.keys(delivery.metadata).length > 0 ? { metadata: delivery.metadata } : {}),
+      ...(delivery.priority === undefined
+        ? {}
+        : { headers: { 'X-Priority': String(delivery.priority) } })
     }
 
     /**
