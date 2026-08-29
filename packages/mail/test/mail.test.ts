@@ -952,8 +952,10 @@ describe('markdown mail', () => {
 
     // The style block holds the one rule that cannot become an attribute, and
     // nothing else: the theme reaches the markup as attributes or not at all.
-    const block = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? ''
+    const block = (/<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '').trim()
 
+    // Trimmed, because the inliner pretty-prints what it preserves. What matters is
+    // that the block holds one `@media` and nothing else, not its whitespace.
     expect<boolean>(block.startsWith('@media')).toBe(true)
     expect<number>(block.split('@media').length).toBe(2)
   })

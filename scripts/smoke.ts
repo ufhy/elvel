@@ -5872,17 +5872,7 @@ section('Bundling')
   const bundle = join(app.basePath(), 'storage', 'framework', `smoke-bundle-${process.pid}.js`)
 
   const built = Bun.spawnSync({
-    // `--external` mirrors what `app:build` does; see EXTERNAL there for why.
-    cmd: [
-      'bun',
-      'build',
-      'playground/elvel-bundle.ts',
-      '--target=bun',
-      '--external',
-      'css-inline',
-      '--outfile',
-      bundle
-    ],
+    cmd: ['bun', 'build', 'playground/elvel-bundle.ts', '--target=bun', '--outfile', bundle],
     cwd: repository,
     stdout: 'pipe',
     stderr: 'pipe'

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { inline } from 'css-inline'
+import juice from 'juice'
 
 /**
  * The stylesheet every mail is drawn with, and the inliner that applies it.
@@ -175,20 +175,35 @@ export function resolveThemeCss(source: string | undefined, basePath: string): s
 /**
  * Put the stylesheet into the markup, which is the only place a mail client reads it.
  *
- * `load_remote_stylesheets` is off, and that is not a default worth inheriting: a
- * mail is often rendered from content somebody else supplied, and a renderer that
- * follows `<link>` tags fetches whatever they point at from inside the network the
- * worker runs in.
+ * `juice` rather than `css-inline`, and the reason is the bundle rather than the
+ * inlining. `css-inline` is WASM whose wasm-bindgen glue assigns its own
+ * `module.exports` to itself and then reads its `.wasm` through `__dirname`; inside
+ * a bundle the first is a temporal-dead-zone error and the second looks in `dist/`.
+ * Left external instead, it resolved from the application root in most kits and not
+ * in the Vue kit, whose `workspaces` entry makes Bun install in the isolated layout
+ * — so `app:build` produced a bundle that could not boot, and because the CLI hands
+ * over to a newer bundle, `elvel.ts serve` stopped working too. Measured on a
+ * scaffolded application from npm, not reasoned about.
  *
- * `keep_style_tags` is on so the `@media` block survives. Nothing else lives in a
- * `<style>` — a media query is the one rule that cannot become an attribute, and it
- * only carries width overrides, so a client that drops the block loses nothing that
- * makes the mail unreadable.
+ * `juice` is ordinary JavaScript, so it bundles, and it matches whole CSS selectors
+ * rather than the handful a hand-written inliner could be trusted with — a theme
+ * that writes `.card p` is inlined rather than silently ignored.
+ *
+ * **Nothing is fetched**, and the type says so: `applyLinkTags` is not a member of
+ * `juice()`'s options at all — following `<link>` tags belongs to `juiceResources`,
+ * which this deliberately does not call. A mail is often rendered from content
+ * somebody else supplied, and a renderer that followed links would fetch whatever
+ * they point at from inside the network the worker runs in.
+ *
+ * `preserveMediaQueries` keeps the `@media` block, which is the one rule that cannot
+ * become an attribute. It only carries width overrides, so a client that drops the
+ * block loses nothing that makes the mail unreadable.
  */
 export function inlineTheme(html: string, css: string = DEFAULT_THEME_CSS): string {
-  return inline(html, {
-    extra_css: css,
-    keep_style_tags: true,
-    load_remote_stylesheets: false
+  return juice(html, {
+    extraCss: css,
+    preserveMediaQueries: true,
+    removeStyleTags: true,
+    applyStyleTags: true
   })
 }
