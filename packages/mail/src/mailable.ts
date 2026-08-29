@@ -112,8 +112,15 @@ export abstract class Mailable<TData = Record<string, never>> {
 
   abstract content(): Content
 
-  /** Files to attach. Empty by default. */
-  attachments(): Attachment[] {
+  /**
+   * Files to attach. Empty by default.
+   *
+   * May return a promise, because that is what attaching anything real involves:
+   * `attachFromDisk`, `attachFromUrl` and `attachFromUpload` all read the bytes
+   * when they are called, and a hook that could not await them would leave a
+   * mailable no way to use them.
+   */
+  attachments(): Attachment[] | Promise<Attachment[]> {
     return []
   }
 

@@ -1059,3 +1059,40 @@ describe('markdown mail', () => {
     )
   })
 })
+
+describe('a mailable that resolves its attachments', () => {
+  /**
+   * `attachFromDisk`, `attachFromUrl` and `attachFromUpload` all read the bytes
+   * when they are called. A hook that could not await them would leave a mailable
+   * with no way to use any of them.
+   */
+  test('may return a promise from attachments()', async () => {
+    class WithFile extends Mailable {
+      envelope(): Envelope {
+        return { to: 'ada@example.com', subject: 'Here it is' }
+      }
+
+      content(): Content {
+        return { html: '<p>Attached.</p>' }
+      }
+
+      override async attachments(): Promise<Attachment[]> {
+        return [await attachFromUpload(new File(['hello'], 'note.txt', { type: 'text/plain' }))]
+      }
+    }
+
+    const app = new Application(process.cwd())
+    app.config.set('mail.default', 'array')
+    app.config.set('mail.from', 'hello@example.com')
+    app.config.set('mail.mailers', { array: { transport: 'array' } })
+
+    const manager = new MailManager(app)
+    const fake = manager.fake()
+
+    await manager.to('ada@example.com').send(new WithFile({}))
+
+    fake.assertSent('WithFile').assertHasAttachment('note.txt')
+
+    manager.restore()
+  })
+})

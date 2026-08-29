@@ -65,6 +65,36 @@ Elvel
 [mail page](/digging-deeper/mail#markdown) gives: Gmail strips `<style>` blocks.
 The closing name is the application's, from `config/app.ts`.
 
+### The fields a provider reads
+
+```ts
+new MailMessage()
+  .subject('Your receipt')
+  .cc('accounts@example.com')
+  .bcc('archive@example.com')
+  .tag('billing')
+  .metadata('invoice', String(invoice.id))
+  .priority(1)
+```
+
+`cc` and `bcc` take one address or a list. `tag` and `metadata` are what Postmark,
+Mailgun and SES group and search deliveries by; a driver that has no use for them
+ignores them. `priority` becomes an `X-Priority` header.
+
+### Lines that depend on something
+
+```ts
+new MailMessage()
+  .line('Your order shipped.')
+  .lineIf(order.isGift, 'The gift note is included.')
+  .linesIf(order.delayed, ['Sorry it took a while.', 'Here is a voucher.'])
+  .when(user.isAdmin, (mail) => mail.line(`Internal reference: ${order.id}`))
+  .unless(user.verified, (mail) => mail.action('Verify your address', url))
+```
+
+Without these the alternative is a local variable and a branch, which is how a
+message that reads like a message turns into a message that reads like code.
+
 `via()` receives the notifiable, so a recipient can decide the channels:
 
 ```ts
@@ -72,6 +102,17 @@ via(user) {
   return user.wantsEmail ? ['mail', 'database'] : ['database']
 }
 ```
+
+A notification that only mails can say so without the list:
+
+```ts
+via() {
+  return 'mail'
+}
+```
+
+An empty string, or an empty list, sends nothing — which is what a `via()` that
+computes its answer and comes back with nothing should do.
 
 ## Who receives it
 
@@ -161,6 +202,37 @@ even when the notification asked to be queued. A queued notification is
 registered by name, for the reason jobs and mailables are: a payload can only
 carry a name, and the name has to resolve in a different process.
 
+**One job per channel.** A mail server being down must not stop the inbox row
+from being written, and each can be retried on its own.
+
+### Channels that go different ways
+
+```ts
+viaQueues() {
+  return { mail: 'mail-queue' }
+}
+
+viaConnections() {
+  return { mail: 'redis' }
+}
+```
+
+Name only the exceptions; anything unlisted keeps the notification's own `queue`
+and `connection`. The two channels are not alike — mail goes through a provider
+that rate-limits and can be down for minutes, a database row is one insert — so
+routing them together makes the slow one hold up the fast one.
+
+```ts
+middleware(notifiable, channel) {
+  return channel === 'mail' ? [new RateLimited(limiter(), 'mail', 60)] : []
+}
+```
+
+Queue [middleware](/digging-deeper/queues#when-a-job-should-not-run), per channel and for the
+same reason: a limiter protecting a mail provider has no business delaying the
+row. It is rebuilt in the worker rather than carried in the payload, because a
+middleware holding its own state is not something a queue can serialise.
+
 ## The recipient's language
 
 ```ts
@@ -187,6 +259,21 @@ afterSending(notifiable, channel, response) {
   log().info(`sent by ${channel}`)
 }
 ```
+
+### Calling a send off from outside
+
+```ts
+events().listen('notification.sending', ({ notification, channel }) => {
+  if (channel === 'mail' && suppressed.has(notification)) return false
+})
+```
+
+Returning `false` stops that channel and records a `notification.skipped`.
+`shouldSend()` covers what the notification itself knows about; this covers what
+it should not have to — a suppression list, a quiet-hours window, a customer who
+asked for no mail.
+
+The sender also announces `notification.sent` and `notification.failed`.
 
 ## Testing
 

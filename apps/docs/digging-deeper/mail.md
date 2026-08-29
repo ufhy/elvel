@@ -108,6 +108,140 @@ markdownToHtml('<script>x</script>')
 Markdown for a mail usually contains a value somebody typed, and passing tags
 through is how a display name becomes a phishing link.
 
+A link's *target* is the same question with a different answer, and it took longer to
+get right — measured, `[Click](javascript:alert(1))` used to emit the scheme
+verbatim. `http:`, `https:`, `mailto:` and root-relative paths survive; everything
+else becomes `#`, for links, images and buttons alike. It is mostly inert in a mail
+client, which does not run it. It is not inert in the preview below.
+
+## The parts a mail is made of
+
+`markdownContent` wraps its output in a layout, and takes the pieces a transactional
+mail usually needs:
+
+```ts
+content() {
+  return markdownContent(`
+    # Thank you
+
+    Invoice **${this.data.number}** is settled.
+  `, {
+    action: { text: 'View the receipt', url: `https://example.com/r/${this.data.number}` },
+    subcopy: `If the button does not work, open https://example.com/r/${this.data.number}`
+  })
+}
+```
+
+One button per message, on purpose: a second competes with the first, and a mail that
+asks two things gets neither done. The subcopy is what a client that hides buttons
+leaves somebody — usually the same URL as text.
+
+The pieces are exported, for a mail assembled rather than written in markdown:
+`heading`, `paragraph`, `button`, `panel`, `subcopy`, `salutation`, and `emailLayout`
+around them. `layout: false` renders the markdown alone, for a mail whose markup
+somebody else owns.
+
+::: tip This is where the notification template went
+It used to live inside `MailMessage`, which meant only a notification could have it —
+a `Mailable` had no way to render a button at all. Same markup, one owner.
+:::
+
+## Colours
+
+```ts
+// config/mail.ts
+theme: { accent: { info: '#c9241a' } }
+```
+
+Only what you name changes. Values rather than a stylesheet, for the reason the
+markup carries inline styles: a theme published as CSS looks right in a preview and
+unstyled in an inbox.
+
+| | |
+| --- | --- |
+| `page` | behind the card |
+| `card` | the card |
+| `ink` | body text and headings |
+| `muted` | small print and the salutation |
+| `line` | rules and the subcopy divider |
+| `accent` | the button, per level: `info`, `success`, `error` |
+
+## Looking at a mail without sending one
+
+```ts
+// config/mail.ts
+preview: '/_mail'
+```
+
+That is the whole setup. Every mailable in `app/Mail` is already discovered, so the
+page has its list; one joins it by saying what a sample of itself looks like:
+
+```ts
+export class InvoicePaid extends Mailable {
+  static preview() {
+    return [
+      new InvoicePaid({ number: 'INV-001', total: 1200 }),
+      new InvoicePaid({ number: 'INV-002', total: 49 })
+    ]
+  }
+}
+```
+
+Return an array to show several. An invoice paid and one overdue read very
+differently, and the second is the one nobody checks.
+
+Embedded images work here, which is not free: a `cid:` reference points at the
+message's own attachments and a browser has none of them, so the renderer inlines
+them as data URIs on the way to the page. Without that every embedded image in a
+preview is broken, and the person checking the design cannot tell that from an image
+that is genuinely missing. What goes to a real client keeps the `cid:`.
+
+::: warning Never in production
+The route is not mounted when the application is in production, whatever the config
+says. A page that renders every mail you send describes your customers to whoever
+finds it.
+:::
+
+Laravel gets the rendering half from one interface — `Mailable implements Renderable`,
+so a route returning a mailable renders it — and leaves the page to you; catching mail
+there is Mailpit, a container in `laravel/sail` rather than part of the framework.
+`mailer().render(mailable)` is the same thing when you want the HTML rather than the
+page.
+
+## Attachments
+
+```ts
+import { attachFromDisk, attachFromUpload, attachFromUrl } from '@elvel/mail'
+
+content() {
+  return { view: Invoice, with: { invoice: this.invoice } }
+}
+
+async attachments() {
+  return [
+    { filename: 'invoice.pdf', content: bytes, contentType: 'application/pdf' },
+    await attachFromDisk('s3', 'invoices/42.pdf', { as: 'invoice.pdf' }),
+    await attachFromUrl('https://example.com/terms.pdf'),
+    await attachFromUpload(uploaded, { as: 'your-photo.jpg' })
+  ]
+}
+```
+
+`attachments()` may return a promise, which it has to: all three helpers read the
+bytes **now** rather than remembering where they came from.
+That is the difference that matters for a queued mail: a path on a local disk
+means nothing to another machine, a signed URL expires, and a mail whose
+attachment is a broken link arrives looking like it worked.
+
+`as` renames the file — worth doing for an upload, since the name a browser sends
+is the name on the sender's own disk and `IMG_4021.HEIC` says nothing to whoever
+receives the mail. `cid` makes the attachment embeddable, so `<img src="cid:…">`
+in the body shows it inline.
+
+`attachFromUrl` has no allowlist, deliberately: you chose the URL. Do not pass one
+a visitor supplied — it fetches from wherever it points, including addresses only
+your server can reach.
+
 ## Transports
 
 ```ts
@@ -178,3 +312,11 @@ Also there: `assertNotSent`, `assertQueued`, `assertOnlyRecipients`,
 `assertHasReplyTo`, `assertHasMetadata`, `assertHasHeader`,
 `assertSeeInOrderInHtml`, `assertSeeInText`, `assertHasAttachedData` and
 `assertHasNoAttachments`.
+
+```ts
+await fake.assertSent('InvoicePaid').assertHasAttachmentFromDisk('s3', 'invoices/42.pdf')
+```
+
+Laravel's version of this compares the path its attachment kept. Ours has no path
+to compare — the bytes were read when the attachment was built — so it reads the
+disk and compares the content instead. It is the one assertion that awaits.

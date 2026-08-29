@@ -97,7 +97,7 @@ export class Mailer {
       subject: envelope.subject ?? '',
       html: html ?? ('html' in content ? content.html : undefined),
       text: 'text' in content ? content.text : undefined,
-      attachments: mailable.attachments(),
+      attachments: await mailable.attachments(),
       tags: envelope.tags ?? [],
       metadata: envelope.metadata ?? {},
       headers: { ...envelope.headers },
