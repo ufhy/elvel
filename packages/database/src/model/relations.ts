@@ -606,7 +606,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   }
 
   /** Insert pivot rows, ignoring pairs that already exist. */
-  async attach(ids: unknown | unknown[], attributes: Row = {}): Promise<void> {
+  async attach(ids: unknown | unknown[], attributes: Row = {}, touch = true): Promise<void> {
     const now = new Date()
 
     const values = (Array.isArray(ids) ? ids : [ids]).map((id) => ({
@@ -622,7 +622,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     const query = await ((this.related as typeof Model).query() as ModelBuilder<R>).base()
     await query.clone().from(this.pivotTable).insertOrIgnore(values)
 
-    await this.touchIfTouching()
+    if (touch) await this.touchIfTouching()
   }
 
   /** `created_at`/`updated_at` for a write, when the relation asked for them. */
@@ -636,7 +636,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
       : { [this.timestampColumns.updatedAt]: stamp }
   }
 
-  async detach(ids?: unknown | unknown[]): Promise<number> {
+  async detach(ids?: unknown | unknown[], touch = true): Promise<number> {
     const pivot = await this.pivotQuery()
 
     if (ids !== undefined) {
@@ -645,32 +645,77 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
 
     const deleted = await pivot.delete()
 
-    await this.touchIfTouching()
+    if (touch) await this.touchIfTouching()
 
     return deleted
   }
 
-  /** Make the pivot rows exactly `ids`. */
-  async sync(ids: unknown[]): Promise<void> {
-    await this.detach()
-    await this.attach(ids)
+  /**
+   * Make the pivot rows exactly `ids` — Laravel's `sync`.
+   *
+   * The rows that are already right are left alone. This used to delete every
+   * pivot row and reinsert the lot, which is cheap to write and expensive in a way
+   * that does not show up in a query count: **it destroys the pivot's
+   * `created_at`.** Adding one tag to an article rewrote "when did this article
+   * get that tag" for every tag it already had, and there is no recovering that.
+   * It also churned the index and left a window, between the delete and the
+   * insert, in which the article had no tags at all.
+   *
+   * Reads the current ids once, then issues a `DELETE … WHERE IN` only if
+   * something has to go and an `INSERT` only if something has to arrive. A sync
+   * that changes nothing is one `select`.
+   *
+   * No implicit transaction, which the audit suggested and Laravel does not do.
+   * Wrapping two statements silently would decide the transaction boundary on the
+   * caller's behalf; a caller who wants one writes it, and the diff has already
+   * made the window as small as the change itself.
+   */
+  async sync(
+    ids: unknown[],
+    detaching = true
+  ): Promise<{ attached: unknown[]; detached: unknown[] }> {
+    const current = await this.pivotIds()
+    const currently = new Set(current.map(String))
+    const wanted = new Set(ids.map(String))
+
+    const attached = ids.filter((id) => !currently.has(String(id)))
+    const detached = detaching ? current.filter((id) => !wanted.has(String(id))) : []
+
+    // Touches are held until the end, so one sync is one touch rather than two.
+    if (detached.length > 0) await this.detach(detached, false)
+    if (attached.length > 0) await this.attach(attached, {}, false)
+
+    if (attached.length > 0 || detached.length > 0) await this.touchIfTouching()
+
+    return { attached, detached }
   }
 
-  /** Attach what is missing, leaving existing rows alone. */
-  async syncWithoutDetaching(ids: unknown[]): Promise<void> {
-    await this.attach(ids)
+  /** Attach what is missing, leaving existing rows alone — `sync(ids, false)`. */
+  async syncWithoutDetaching(ids: unknown[]): Promise<{ attached: unknown[] }> {
+    const { attached } = await this.sync(ids, false)
+
+    return { attached }
   }
 
-  /** Attach the missing ids and detach the present ones. */
-  async toggle(ids: unknown | unknown[]): Promise<void> {
+  /**
+   * Attach the missing ids and detach the present ones.
+   *
+   * One touch at the end rather than one for each half, which is what Laravel does
+   * and what a caller means: a toggle is one change, not two.
+   */
+  async toggle(ids: unknown | unknown[]): Promise<{ attached: unknown[]; detached: unknown[] }> {
     const wanted = Array.isArray(ids) ? ids : [ids]
     const current = new Set((await this.pivotIds()).map(String))
 
-    const toAttach = wanted.filter((id) => !current.has(String(id)))
-    const toDetach = wanted.filter((id) => current.has(String(id)))
+    const attached = wanted.filter((id) => !current.has(String(id)))
+    const detached = wanted.filter((id) => current.has(String(id)))
 
-    if (toDetach.length > 0) await this.detach(toDetach)
-    if (toAttach.length > 0) await this.attach(toAttach)
+    if (detached.length > 0) await this.detach(detached, false)
+    if (attached.length > 0) await this.attach(attached, {}, false)
+
+    if (attached.length > 0 || detached.length > 0) await this.touchIfTouching()
+
+    return { attached, detached }
   }
 
   /** Update extra columns on one pivot row. */
