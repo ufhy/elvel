@@ -175,7 +175,7 @@ export class Worker {
           break
         }
 
-        await Bun.sleep(sleep * 1000)
+        await this.idle(queues, sleep)
         continue
       }
 
@@ -426,6 +426,25 @@ export class Worker {
     // Indexed by attempt, then held at the last value — `[5, 30, 120]` waits
     // five seconds, then thirty, then two minutes for every attempt after.
     return backoff[job.attempts() - 1] ?? backoff[backoff.length - 1] ?? 0
+  }
+
+  /**
+   * Nothing to do: wait to be woken, or sleep if the driver cannot be.
+   *
+   * A driver that supports it holds a blocking read and returns the moment a job
+   * arrives, so the wait between a push and its job starting is the push. One that
+   * does not sleeps out the interval, which is where the whole three seconds came
+   * from.
+   *
+   * Only the first queue is waited on. `high,default` means high wins, and blocking
+   * on the whole list would mean waking for a low-priority job while a high one is
+   * what the worker was told to prefer — the next poll checks every queue in order
+   * anyway.
+   */
+  private async idle(queues: string[], sleep: number): Promise<void> {
+    if (await this.driver.waitForJob?.(queues[0])) return
+
+    await Bun.sleep(sleep * 1000)
   }
 
   private async reserve(queues: string[]): Promise<QueuedJob | null> {

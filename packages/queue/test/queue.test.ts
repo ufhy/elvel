@@ -387,6 +387,66 @@ describe('Worker', () => {
 
   const worker = () => new Worker(driver, runnerFor(driver), failed)
 
+  /**
+   * An idle worker waits on the driver when the driver can be woken, and sleeps
+   * only when it cannot. Sleeping on top of a blocking read would put the whole
+   * interval back on top of a wait that had already ended.
+   */
+  test('an idle worker waits on a driver that can be woken', async () => {
+    let waited = 0
+
+    const wakeable = Object.assign(Object.create(Object.getPrototypeOf(driver)), driver, {
+      waitForJob: async () => {
+        waited += 1
+
+        return true
+      }
+    }) as DatabaseQueue
+
+    const slept = Bun.sleep
+    let sleptFor = 0
+
+    // A sleep here would be the bug, so it is recorded rather than served.
+    ;(Bun as unknown as { sleep: typeof Bun.sleep }).sleep = ((ms: number) => {
+      sleptFor += ms
+
+      return slept(0)
+    }) as typeof Bun.sleep
+
+    try {
+      const running = new Worker(wakeable, runnerFor(wakeable), failed).work(undefined, {
+        sleep: 3,
+        maxTime: 0.05
+      })
+
+      await running
+    } finally {
+      ;(Bun as unknown as { sleep: typeof Bun.sleep }).sleep = slept
+    }
+
+    expect<boolean>(waited > 0).toBe(true)
+    expect<number>(sleptFor).toBe(0)
+  })
+
+  test('and sleeps when it cannot be', async () => {
+    const slept = Bun.sleep
+    let sleptFor = 0
+
+    ;(Bun as unknown as { sleep: typeof Bun.sleep }).sleep = ((ms: number) => {
+      sleptFor += ms
+
+      return slept(0)
+    }) as typeof Bun.sleep
+
+    try {
+      await worker().work(undefined, { sleep: 3, maxTime: 0.05 })
+    } finally {
+      ;(Bun as unknown as { sleep: typeof Bun.sleep }).sleep = slept
+    }
+
+    expect<boolean>(sleptFor >= 3000).toBe(true)
+  })
+
   test('a job that deletes itself is not released', async () => {
     await driver.push({ ...payloadFor('SelfDeleting'), maxTries: 3 })
 
@@ -1963,6 +2023,101 @@ if (redisAvailable) {
       expect<string | undefined>((await driver.pop())?.payload.uuid).toBe('soon')
 
       await driver.clear()
+      driver.disconnect()
+    })
+  })
+
+  describe('an idle worker can be woken instead of polling', () => {
+    const prefix = () => `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}:`
+
+    const payload = (id: string) => ({
+      uuid: id,
+      displayName: 'Probe',
+      job: 'Probe',
+      maxTries: 1,
+      attempts: 0,
+      data: {}
+    })
+
+    /** Off unless asked for, as Laravel's `block_for` is. */
+    test('but only when it was asked for', async () => {
+      const driver = new RedisQueue('redis', { url: REDIS_URL, prefix: prefix() })
+
+      expect<boolean>(await driver.waitForJob()).toBe(false)
+
+      driver.disconnect()
+    })
+
+    /**
+     * The wait ends when the job arrives, not when the timeout does. Without this
+     * a job pushed just after a poll waited out the worker's whole sleep — three
+     * seconds by default, measured at 1,740ms on average against 2ms with this on.
+     */
+    test('and it returns as soon as a job is pushed', async () => {
+      const shared = prefix()
+      const worker = new RedisQueue('redis', { url: REDIS_URL, prefix: shared, blockFor: 5 })
+      const pusher = new RedisQueue('redis', { url: REDIS_URL, prefix: shared })
+
+      const startedAt = Date.now()
+      const waiting = worker.waitForJob()
+
+      // Long enough that a blocked read is genuinely blocked before the push.
+      await Bun.sleep(50)
+      await pusher.push(payload('wake') as never)
+
+      expect<boolean>(await waiting).toBe(true)
+      expect<boolean>(Date.now() - startedAt < 2000).toBe(true)
+
+      // The token was put back, so the job is still announced for whoever takes it.
+      expect<string | undefined>((await worker.pop())?.payload.uuid).toBe('wake')
+
+      await worker.clear()
+      worker.disconnect()
+      pusher.disconnect()
+    })
+
+    /** A wait that finds nothing still counts as having waited. */
+    test('and gives up after its own timeout rather than hanging', async () => {
+      const driver = new RedisQueue('redis', { url: REDIS_URL, prefix: prefix(), blockFor: 1 })
+
+      const startedAt = Date.now()
+
+      expect<boolean>(await driver.waitForJob()).toBe(true)
+      expect<boolean>(Date.now() - startedAt >= 900).toBe(true)
+
+      driver.disconnect()
+    })
+
+    /**
+     * One token per job, consumed when the job is taken. If they drifted apart a
+     * queue would either hold jobs nothing was told about, or wake workers forever
+     * for jobs that are not there.
+     */
+    test('the notifications track the jobs exactly', async () => {
+      const shared = prefix()
+      const driver = new RedisQueue('redis', { url: REDIS_URL, prefix: shared, blockFor: 1 })
+      const client = new RedisClient(REDIS_URL)
+      const notifications = async () =>
+        Number(await client.send('LLEN', [`${shared}default:notify`]))
+
+      for (let i = 0; i < 5; i++) await driver.push(payload(`n${i}`) as never)
+
+      expect<number>(await notifications()).toBe(5)
+
+      for (let i = 0; i < 5; i++) await (await driver.pop())?.delete()
+
+      expect<number>(await notifications()).toBe(0)
+
+      // A delayed job is announced by the sweep that makes it available.
+      await driver.later(0, payload('later') as never)
+      await driver.migrate()
+
+      expect<number>(await notifications()).toBe(1)
+
+      await driver.clear()
+
+      expect<number>(await notifications()).toBe(0)
+
       driver.disconnect()
     })
   })

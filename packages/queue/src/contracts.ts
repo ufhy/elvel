@@ -85,6 +85,19 @@ export interface QueueDriver {
   size(queue?: string): Promise<number>
 
   clear(queue?: string): Promise<number>
+
+  /**
+   * Wait for work instead of polling for it, if this driver can.
+   *
+   * An idle worker sleeps between polls, so a job pushed just after a poll waits
+   * out the whole interval before anything looks again — three seconds by default.
+   * A driver that can be woken says so by returning `true`, having already waited;
+   * `false` (or no method at all) means the worker should sleep as before.
+   *
+   * It may return before there is anything to take. A wake-up is a hint to look,
+   * never a promise, so the caller loops rather than assuming.
+   */
+  waitForJob?(queue?: string): Promise<boolean>
 }
 
 /** Where failed jobs go. */

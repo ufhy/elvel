@@ -42,7 +42,19 @@ export default {
        * its time, and a job abandoned by a dead worker is recovered that much later.
        * `0` sweeps on every pop, which is what Laravel does.
        */
-      migrateEvery: 1
+      migrateEvery: 1,
+      /**
+       * Seconds an idle worker waits to be woken, instead of polling.
+       *
+       * Unset, a worker with nothing to do sleeps `--sleep` seconds between looks,
+       * so a job pushed just after a look waits that long to start — 1.7 seconds on
+       * average with the default of three. Set, the worker holds a blocking read
+       * and starts the job in about two milliseconds.
+       *
+       * The cost is a second Redis connection per worker, held open for as long as
+       * it waits. Unset by default for that reason, as Laravel's `block_for` is.
+       */
+      blockFor: undefined as number | undefined
     }
   },
 

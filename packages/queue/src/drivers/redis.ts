@@ -17,6 +17,16 @@ export type RedisQueueOptions = {
    * Laravel's behaviour exactly.
    */
   migrateEvery?: number
+  /**
+   * Seconds an idle worker will wait to be woken, instead of polling.
+   *
+   * Off by default, as Laravel's `block_for` is. With it set, a worker with nothing
+   * to do holds a `BLPOP` on the queue's notification list and starts the next job
+   * the moment it is pushed, rather than up to `--sleep` seconds later. It costs a
+   * connection held open per worker, which is why it is a choice rather than the
+   * default.
+   */
+  blockFor?: number
   client?: ConstructorParameters<typeof RedisClient>[1]
 }
 
@@ -36,9 +46,22 @@ if(job ~= false) then
   reserved['attempts'] = reserved['attempts'] + 1
   reserved = cjson.encode(reserved)
   redis.call('zadd', KEYS[2], ARGV[1], reserved)
+  redis.call('lpop', KEYS[3])
 end
 
 return {job, reserved}
+`
+
+/**
+ * Push a job, and a token saying one arrived.
+ *
+ * The token is what a blocked worker is waiting on. It has to be written in the
+ * same step as the job: pushed afterwards, a worker could be woken by a token for
+ * a job that is not there yet, and pushed before, a job could sit unannounced.
+ */
+const PUSH = `
+redis.call('rpush', KEYS[1], ARGV[1])
+redis.call('rpush', KEYS[2], 1)
 `
 
 /** Move a reserved job onto the delayed set, so a retry waits its backoff. */
@@ -62,6 +85,10 @@ if(next(val) ~= nil) then
 
   for i = 1, #val, 100 do
     redis.call('rpush', KEYS[2], unpack(val, i, math.min(i+99, #val)))
+
+    for _ = i, math.min(i+99, #val) do
+      redis.call('rpush', KEYS[3], 1)
+    end
   end
 end
 
@@ -70,7 +97,7 @@ return #val
 
 const CLEAR = `
 local size = redis.call('llen', KEYS[1]) + redis.call('zcard', KEYS[2]) + redis.call('zcard', KEYS[3])
-redis.call('del', KEYS[1], KEYS[2], KEYS[3])
+redis.call('del', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
 return size
 `
 
@@ -89,6 +116,17 @@ export class RedisQueue implements QueueDriver {
   private readonly prefix: string
   private readonly retryAfter: number
   private readonly migrateEvery: number
+  private readonly blockFor: number | undefined
+
+  /**
+   * A second connection, opened only for the blocking read.
+   *
+   * `BLPOP` holds the connection it runs on for as long as it waits. Sharing the
+   * driver's client would mean a worker's idle wait stalling every `push`, `size`
+   * and `pop` issued from the same process — including its own next one. Opened
+   * lazily, so a driver that never blocks never opens it.
+   */
+  private waiter: RedisClient | undefined
 
   /** When each queue was last swept, so the sweep can be throttled per queue. */
   private readonly sweptAt = new Map<string, number>()
@@ -103,6 +141,9 @@ export class RedisQueue implements QueueDriver {
    */
   private readonly shas = new Map<string, string>()
 
+  private readonly url: string
+  private readonly clientOptions: ConstructorParameters<typeof RedisClient>[1]
+
   constructor(
     readonly connectionName: string,
     options: RedisQueueOptions = {}
@@ -111,10 +152,10 @@ export class RedisQueue implements QueueDriver {
     this.defaultQueue = options.queue ?? 'default'
     this.retryAfter = options.retryAfter ?? 90
     this.migrateEvery = options.migrateEvery ?? 1
-    this.client = new RedisClient(
-      options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
-      options.client
-    )
+    this.blockFor = options.blockFor
+    this.url = options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379'
+    this.clientOptions = options.client
+    this.client = new RedisClient(this.url, this.clientOptions)
   }
 
   /**
@@ -145,7 +186,9 @@ export class RedisQueue implements QueueDriver {
   }
 
   async push(payload: JobPayload, queue?: string): Promise<string> {
-    await this.client.send('RPUSH', [this.key(queue), JSON.stringify(payload)])
+    const name = this.key(queue)
+
+    await this.run(PUSH, ['2', name, `${name}:notify`, JSON.stringify(payload)])
 
     return payload.uuid
   }
@@ -159,6 +202,8 @@ export class RedisQueue implements QueueDriver {
       JSON.stringify(payload)
     ])
 
+    // The sweep is what makes it visible, and the sweep pushes the notification.
+
     // Due within the sweep window, so the next pop has to look rather than wait.
     if (delay <= this.migrateEvery) this.sweepSoon(name)
 
@@ -171,9 +216,10 @@ export class RedisQueue implements QueueDriver {
     await this.migrate(name, false)
 
     const result = (await this.run(POP, [
-      '2',
+      '3',
       this.key(name),
       `${this.key(name)}:reserved`,
+      `${this.key(name)}:notify`,
       String(this.availableAt(this.retryAfter))
     ])) as [string | null, string | null] | null
 
@@ -204,7 +250,13 @@ export class RedisQueue implements QueueDriver {
   async clear(queue?: string): Promise<number> {
     const name = this.key(queue)
 
-    const cleared = await this.run(CLEAR, ['3', name, `${name}:delayed`, `${name}:reserved`])
+    const cleared = await this.run(CLEAR, [
+      '4',
+      name,
+      `${name}:delayed`,
+      `${name}:reserved`,
+      `${name}:notify`
+    ])
 
     return Number(cleared)
   }
@@ -229,8 +281,8 @@ export class RedisQueue implements QueueDriver {
 
     const now = String(Math.floor(Date.now() / 1000))
 
-    await this.run(MIGRATE, ['2', `${name}:delayed`, name, now, '100'])
-    await this.run(MIGRATE, ['2', `${name}:reserved`, name, now, '100'])
+    await this.run(MIGRATE, ['3', `${name}:delayed`, name, `${name}:notify`, now, '100'])
+    await this.run(MIGRATE, ['3', `${name}:reserved`, name, `${name}:notify`, now, '100'])
   }
 
   /**
@@ -280,8 +332,36 @@ export class RedisQueue implements QueueDriver {
     await this.client.send('ZREM', [`${this.key(queue)}:reserved`, reserved])
   }
 
+  /**
+   * Wait to be woken rather than polling — Laravel's `block_for`.
+   *
+   * `BLPOP` on the queue's notification list returns the moment a job is pushed or
+   * a delayed one is swept back, so a worker starts it then instead of on its next
+   * poll. Without `blockFor` this answers `false` and the worker sleeps as before.
+   *
+   * The token is put back. A `BLPOP` consumes it, but the job it announced is still
+   * on the list and it is `pop` that takes the pair — so returning without
+   * replacing it would leave the queue holding a job that nothing was told about.
+   * Two workers woken by one token is harmless: the second finds nothing and waits
+   * again, which is exactly what the return contract says can happen.
+   */
+  async waitForJob(queue?: string): Promise<boolean> {
+    if (this.blockFor === undefined) return false
+
+    const notify = `${this.key(queue)}:notify`
+    const client = (this.waiter ??= new RedisClient(this.url, this.clientOptions))
+
+    const woken = await client.send('BLPOP', [notify, String(this.blockFor)])
+
+    if (woken !== null) await this.client.send('RPUSH', [notify, '1'])
+
+    return true
+  }
+
   disconnect(): void {
     this.client.close()
+    this.waiter?.close()
+    this.waiter = undefined
   }
 
   private key(queue?: string): string {
