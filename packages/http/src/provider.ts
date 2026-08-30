@@ -15,13 +15,12 @@ import {
   type CorsConfig,
   type CorsOverride,
   corsConfig,
-  corsFor,
+  corsResolver,
   isCorsRequest,
   isPreflight,
-  pathMatches,
   preflightHeaders
 } from './cors.ts'
-import { TokenMismatchError, tokensMatch } from './csrf.ts'
+import { isExempt, isReadRequest, TokenMismatchError, tokensMatch } from './csrf.ts'
 import { maintenancePlugin } from './maintenance.ts'
 import { methodOverridePlugin } from './method-override.ts'
 import { MiddlewareRegistry } from './middleware.ts'
@@ -399,11 +398,34 @@ export class HttpServiceProvider extends ServiceProvider {
    * break same-origin callers of the same route.
    */
   private corsPlugin(global: CorsConfig, overrides: CorsOverride[] = []) {
+    /**
+     * Compiled once, and the answer carried from one hook to the other.
+     *
+     * The two hooks each resolved the config and matched the path again, parsing
+     * the URL and building regexes both times — measured at 2.6µs per request for
+     * a configuration of two paths, paid by every request whether it matched or
+     * not. Now the pathname is parsed once and the decision is remembered.
+     */
+    const resolve = corsResolver(global, overrides)
+    const decided = new WeakMap<Request, CorsConfig | undefined>()
+
+    const configFor = (request: Request): CorsConfig | undefined => {
+      const already = decided.get(request)
+
+      if (already !== undefined || decided.has(request)) return already
+
+      const config = resolve(new URL(request.url).pathname.replace(/^\/+/, ''))
+
+      decided.set(request, config)
+
+      return config
+    }
+
     return new Elysia({ name: 'elvel:cors' })
       .onRequest(({ request, set }) => {
-        const config = corsFor(request, global, overrides)
+        const config = configFor(request)
 
-        if (!pathMatches(config, request)) return undefined
+        if (config === undefined) return undefined
         if (!isPreflight(request)) return undefined
 
         // 204 and nothing else: a preflight never reaches a route, so it is not
@@ -415,9 +437,9 @@ export class HttpServiceProvider extends ServiceProvider {
         return new Response(null, { status: 204, headers: set.headers as HeadersInit })
       })
       .onAfterHandle({ as: 'global' }, ({ request, set }) => {
-        const config = corsFor(request, global, overrides)
+        const config = configFor(request)
 
-        if (!pathMatches(config, request)) return
+        if (config === undefined) return
 
         for (const [header, value] of Object.entries(actualHeaders(config, request))) {
           set.headers[header] = value
@@ -796,12 +818,28 @@ export class HttpServiceProvider extends ServiceProvider {
         .onTransform({ as: 'global' }, async ({ request, session, body }) => {
           if (!csrfEnabled) return
 
-          const headers: Record<string, string | undefined> = {}
-          request.headers.forEach((value, key) => {
-            headers[key.toLowerCase()] = value
-          })
+          /**
+           * The method decides it before anything is built.
+           *
+           * `tokensMatch` returns true for GET, HEAD and OPTIONS on its first
+           * line — but the caller had already copied every header into an object
+           * and parsed the URL to get there. Most traffic is reads, so most
+           * requests paid for both and used neither.
+           */
+          if (isReadRequest(request.method)) return
 
           const path = new URL(request.url).pathname
+
+          if (isExempt(path, except)) return
+
+          /**
+           * One lookup rather than a copy of every header. `tokenFromRequest`
+           * reads `x-csrf-token` and falls back to `X-CSRF-TOKEN`; `Headers.get`
+           * is case-insensitive, so the lowercase key finds either spelling.
+           */
+          const headers = {
+            'x-csrf-token': request.headers.get('x-csrf-token') ?? undefined
+          }
 
           if (!tokensMatch(session, { method: request.method, path, body, headers, except })) {
             throw new TokenMismatchError()

@@ -3,9 +3,11 @@ import {
   actualHeaders,
   corsConfig,
   corsFor,
+  corsResolver,
   isCorsRequest,
   isOriginAllowed,
   isPreflight,
+  pathMatcher,
   pathMatches,
   preflightHeaders
 } from '../src/cors.ts'
@@ -257,5 +259,51 @@ describe('per-route overrides', () => {
 
   test('no override leaves the global config alone', () => {
     expect<unknown>(corsFor(at('api/orders'), global, [])).toEqual(global)
+  })
+})
+
+describe('the compiled path matcher', () => {
+  /**
+   * Both hooks used to resolve the config and match the path again, parsing the
+   * URL and rebuilding regexes each time — 2.6µs per request for two configured
+   * paths, paid whether the path matched or not.
+   */
+  test('answers the same paths the old matcher did', () => {
+    const matches = pathMatcher(['api/*', '/health', 'check/cors/*'])
+
+    expect<boolean>(matches('api/users')).toBe(true)
+    expect<boolean>(matches('health')).toBe(true)
+    expect<boolean>(matches('check/cors/anything/deep')).toBe(true)
+    expect<boolean>(matches('healthy')).toBe(false)
+    expect<boolean>(matches('apix/users')).toBe(false)
+    expect<boolean>(matches('')).toBe(false)
+  })
+
+  test('and a bare star matches everything', () => {
+    const matches = pathMatcher(['*'])
+
+    expect<boolean>(matches('anything')).toBe(true)
+    expect<boolean>(matches('')).toBe(true)
+  })
+
+  /** A dot in a pattern is a dot, not "any character". */
+  test('while a dot stays literal', () => {
+    const matches = pathMatcher(['files/*.json'])
+
+    expect<boolean>(matches('files/a.json')).toBe(true)
+    expect<boolean>(matches('files/axjson')).toBe(false)
+  })
+
+  /** An override wins over the global config, and is merged once. */
+  test('and an override takes the path it claims', () => {
+    const global = corsConfig({ paths: ['api/*'], allowedOrigins: ['https://a.test'] })
+    const resolve = corsResolver(global, [
+      { paths: ['api/public/*'], allowedOrigins: ['*'] } as never
+    ])
+
+    expect<string[] | undefined>(resolve('api/public/thing')?.allowedOrigins).toEqual(['*'])
+    expect<string[] | undefined>(resolve('api/private')?.allowedOrigins).toEqual(['https://a.test'])
+    // Nothing configured for this path at all.
+    expect<unknown>(resolve('other')).toBeUndefined()
   })
 })

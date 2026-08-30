@@ -99,6 +99,63 @@ export function pathMatches(config: CorsConfig, request: Request): boolean {
   })
 }
 
+/**
+ * The path patterns, compiled once, as a function that answers a pathname.
+ *
+ * `pathMatches` built a `RegExp` for every wildcard pattern on every call, and the
+ * plugin called it twice per request — once in `onRequest` and again in
+ * `onAfterHandle` — each time parsing the URL afresh. With two configured paths
+ * that is two URL parses and up to four regex compilations to answer a question
+ * whose inputs were fixed at boot.
+ *
+ * Exact patterns become a `Set` lookup; wildcards become one compiled `RegExp`.
+ */
+export function pathMatcher(paths: string[]): (pathname: string) => boolean {
+  const trimmed = paths.map((pattern) => pattern.replace(/^\/+/, ''))
+
+  if (trimmed.includes('*')) return () => true
+
+  const exact = new Set(trimmed.filter((pattern) => !pattern.includes('*')))
+  const patterns = trimmed
+    .filter((pattern) => pattern.includes('*'))
+    .map(
+      (pattern) =>
+        new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`)
+    )
+
+  return (pathname) => {
+    if (exact.has(pathname)) return true
+
+    for (const pattern of patterns) if (pattern.test(pathname)) return true
+
+    return false
+  }
+}
+
+/**
+ * The configuration for a request, decided by compiled matchers.
+ *
+ * Returns `undefined` when no configured path matches, which is the common answer
+ * and the one the plugin should be able to reach without building anything.
+ */
+export function corsResolver(
+  global: CorsConfig,
+  overrides: CorsOverride[] = []
+): (pathname: string) => CorsConfig | undefined {
+  const globalMatches = pathMatcher(global.paths)
+  const compiled = overrides.map((override) => ({
+    matches: pathMatcher(override.paths),
+    // Merged once: an override's config does not change between requests.
+    config: { ...global, ...override } as CorsConfig
+  }))
+
+  return (pathname) => {
+    for (const override of compiled) if (override.matches(pathname)) return override.config
+
+    return globalMatches(pathname) ? global : undefined
+  }
+}
+
 export function isOriginAllowed(config: CorsConfig, origin: string): boolean {
   if (config.allowedOrigins.includes('*')) return true
   if (config.allowedOrigins.includes(origin)) return true
