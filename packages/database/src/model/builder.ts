@@ -1241,33 +1241,98 @@ export class ModelBuilder<M extends Model> {
    * `match()`: collect the parents' keys, fetch the children in a single
    * `where in`, build a dictionary, then assign. Parents with a null key are
    * skipped rather than matched against null.
+   *
+   * Names are grouped by their first segment before anything runs, and that is not
+   * only about speed. `with('posts.comments', 'posts.likes')` used to load `posts`
+   * twice — and the second load *replaced* the first, so the `Post` models
+   * carrying `comments` were thrown away and the result had `likes` and nothing
+   * else. One load of `posts`, then both tails against the same models.
+   *
+   * Laravel arrives at the same place from the other direction: `with('a.b')`
+   * records `a` and `a.b`, `eagerLoadRelations` runs only the names without a dot,
+   * and `relationsNestedUnder` hands the tails to the relation's own query. The
+   * grouping is the same grouping; here it happens at load time because the
+   * recursion lives in this method rather than in each of the nine relation types.
    */
   async eagerLoadRelations(models: M[], relations: string[] = [...this.eagerLoad]): Promise<void> {
     if (models.length === 0 || relations.length === 0) return
 
+    /** `posts.comments` and `posts.likes` → one `posts`, two tails. */
+    const heads = new Map<string, string[]>()
+
     for (const name of relations) {
-      // `posts.comments` — load the near relation, then recurse into the far one.
-      const [head, ...rest] = name.split('.')
-      const relation = models[0]?.resolveRelation(head as string)
-      if (!relation) continue
+      const separator = name.indexOf('.')
+      const head = separator === -1 ? name : name.slice(0, separator)
+      const tails = heads.get(head) ?? []
 
-      await relation.eagerLoad(models, head as string, this.eagerConstraints.get(name))
+      if (separator !== -1) tails.push(name.slice(separator + 1))
 
-      if (rest.length === 0) continue
+      heads.set(head, tails)
+    }
+
+    const load = async ([head, tails]: [string, string[]]): Promise<void> => {
+      const relation = models[0]?.resolveRelation(head)
+      if (!relation) return
+
+      await relation.eagerLoad(models, head, this.eagerConstraints.get(head))
+
+      if (tails.length === 0) return
 
       const related = models.flatMap((model) => {
-        const value = model.getRelation(head as string)
+        const value = model.getRelation(head)
 
         if (value instanceof Collection) return value.all() as Model[]
 
         return value ? [value as Model] : []
       })
 
-      if (related.length === 0) continue
+      if (related.length === 0) return
 
       const nested = await (related[0] as Model).newQuery()
-      await nested.eagerLoadRelations(related as never[], [rest.join('.')])
+
+      /**
+       * The constraint follows the name it was written against.
+       *
+       * `with({ 'posts.comments': (query) => … })` is a constraint on the comments
+       * query, and it used to be handed to the *posts* query instead — where it
+       * narrowed the wrong relation — and then lost, because the recursion built a
+       * fresh builder that had never heard of it.
+       */
+      for (const tail of tails) {
+        const constrain = this.eagerConstraints.get(`${head}.${tail}`)
+
+        if (constrain !== undefined) nested.eagerConstraints.set(tail, constrain)
+      }
+
+      await nested.eagerLoadRelations(related as never[], tails)
     }
+
+    /**
+     * Independent relations are fetched at the same time.
+     *
+     * `with('author', 'tags', 'comments')` is three `where in` queries that share
+     * nothing but the parent keys, and awaiting them one after another spends three
+     * round trips where one would do. On a database across a network that is the
+     * whole cost of the eager load.
+     *
+     * **Not inside a transaction.** A transaction is pinned to one reserved
+     * connection, and issuing concurrent statements down it is a question about the
+     * driver rather than about this code. Sequential there costs a transaction a
+     * round trip it was already paying; it is the cheap side of a bet I cannot
+     * settle without measuring against every driver.
+     */
+    const groups = [...heads]
+    const connection = await (this.model as typeof Model).getConnection(
+      (this.model as typeof Model).connection
+    )
+
+    if (connection.transactions !== undefined || groups.length === 1) {
+      for (const group of groups) await load(group)
+
+      return
+    }
+
+    await Promise.all(groups.map(load))
   }
 
   // ---------------------------------------------------------------- retrieval
