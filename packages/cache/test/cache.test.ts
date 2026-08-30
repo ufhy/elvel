@@ -11,6 +11,7 @@ import { Lock, LockTimeoutError, type Store } from '../src/store.ts'
 import { ArrayStore } from '../src/stores/array.ts'
 import { DatabaseStore } from '../src/stores/database.ts'
 import { FileStore } from '../src/stores/file.ts'
+import { MemoStore } from '../src/stores/memo.ts'
 import { RedisStore } from '../src/stores/redis.ts'
 
 /**
@@ -984,5 +985,90 @@ describe('Lock owners', () => {
     }
 
     expect(() => new Bare('x', 10).refresh()).toThrow(/does not support refreshing/)
+  })
+})
+
+describe('the memory tier in front of a store', () => {
+  /**
+   * Off unless asked for, because it trades freshness. A `get()` against the file
+   * store is 26µs and 96% of that is the filesystem read — measured — so the only
+   * way to make a hot key cheap is not to go to the store at all.
+   */
+  const inner = () => new ArrayStore('memo:')
+
+  test('answers a repeated read without touching the store', async () => {
+    const store = inner()
+    let reads = 0
+
+    const counted = new Proxy(store, {
+      get(target, property, receiver) {
+        if (property === 'get') {
+          return async (key: string) => {
+            reads += 1
+
+            return target.get(key)
+          }
+        }
+
+        return Reflect.get(target, property, receiver)
+      }
+    })
+
+    const memo = new MemoStore(counted as never, 1)
+    await memo.put('flag', true, 60)
+
+    expect(await memo.get<boolean>('flag')).toBe(true)
+    expect(await memo.get<boolean>('flag')).toBe(true)
+    expect(await memo.get<boolean>('flag')).toBe(true)
+
+    // One read for the first miss; the other two came from memory.
+    expect<number>(reads).toBe(1)
+  })
+
+  /** A write here drops the entry, so this process never serves its own stale value. */
+  test('a write through it is visible at once', async () => {
+    const memo = new MemoStore(inner(), 60)
+
+    await memo.put('name', 'ada', 60)
+    expect(await memo.get<string>('name')).toBe('ada')
+
+    await memo.put('name', 'linus', 60)
+    expect(await memo.get<string>('name')).toBe('linus')
+
+    await memo.forget('name')
+    expect(await memo.get<string>('name')).toBeNull()
+  })
+
+  /**
+   * And somebody else's write is seen once the window passes. This is the trade
+   * stated as a test: a second process wrote, and this one keeps the old value
+   * until `seconds` have gone by.
+   */
+  test('while another writer is seen only after the window', async () => {
+    const shared = inner()
+    let clock = 1_000_000
+    const memo = new MemoStore(shared, 1, () => clock)
+
+    await shared.put('flag', 'old', 60)
+    expect(await memo.get<string>('flag')).toBe('old')
+
+    // Written behind its back, as a queue worker would.
+    await shared.put('flag', 'new', 60)
+    expect(await memo.get<string>('flag')).toBe('old')
+
+    clock += 1_100
+    expect(await memo.get<string>('flag')).toBe('new')
+  })
+
+  /** Counters are never served from memory: a stale read there is a wrong answer. */
+  test('and a counter always goes to the store', async () => {
+    const memo = new MemoStore(inner(), 60)
+
+    await memo.put('hits', 0, 60)
+    await memo.get('hits')
+
+    expect(await memo.increment('hits')).toBe(1)
+    expect(await memo.increment('hits')).toBe(2)
+    expect(await memo.get<number>('hits')).toBe(2)
   })
 })

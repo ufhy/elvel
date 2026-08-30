@@ -4,6 +4,7 @@ import type { Store } from './store.ts'
 import { ArrayStore } from './stores/array.ts'
 import { DatabaseStore } from './stores/database.ts'
 import { FileStore } from './stores/file.ts'
+import { MemoStore } from './stores/memo.ts'
 import { RedisStore } from './stores/redis.ts'
 
 export type StoreConfig = { driver: string } & Record<string, unknown>
@@ -72,6 +73,21 @@ export class CacheManager {
   }
 
   private build(name: string, config: StoreConfig): Store {
+    const store = this.driverFor(name, config)
+
+    /**
+     * Wrapped only when asked for, because it trades freshness for the read.
+     *
+     * `MemoStore` says what the trade is. A store-level `memory` wins over the
+     * global one, so a counter store can opt out of a tier the rest of the
+     * application wants.
+     */
+    const seconds = Number(config.memory ?? this.app.config.get<number>('cache.memory', 0))
+
+    return seconds > 0 ? new MemoStore(store, seconds) : store
+  }
+
+  private driverFor(name: string, config: StoreConfig): Store {
     const custom = this.customDrivers.get(config.driver)
     if (custom) return custom(config, this.app)
 
