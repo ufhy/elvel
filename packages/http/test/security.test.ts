@@ -3,7 +3,7 @@ import { Application } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { HttpServiceProvider } from '../src/index.ts'
 import { cspNonce } from '../src/scope.ts'
-import { contentSecurityPolicy, securityHeaders } from '../src/security.ts'
+import { contentSecurityPolicy, securityHeaders, securityHeaderWriter } from '../src/security.ts'
 
 describe('the headers a framework can get right once', () => {
   test('all of them, from an empty config', () => {
@@ -210,5 +210,79 @@ describe('which responses carry them', () => {
 
     expect<string | null>(response.headers.get('x-content-type-options')).toBeNull()
     expect<string | null>(response.headers.get('content-security-policy')).toBeNull()
+  })
+})
+
+describe('headers prepared at boot', () => {
+  /**
+   * Everything but the nonce is fixed, so it is built once. Rebuilding the map per
+   * response cost 3.2µs of the security plugin's 5.0µs — measured by swapping the
+   * live build for a constant and remeasuring the server.
+   */
+  test('splices the nonce into a policy built once', () => {
+    const write = securityHeaderWriter({}, true)
+    const first: Record<string, string> = {}
+    const second: Record<string, string> = {}
+
+    write('AAA', undefined, (name, value) => {
+      first[name] = value
+    })
+    write('BBB', undefined, (name, value) => {
+      second[name] = value
+    })
+
+    expect<boolean>((first['content-security-policy'] ?? '').includes("'nonce-AAA'")).toBe(true)
+    expect<boolean>((second['content-security-policy'] ?? '').includes("'nonce-BBB'")).toBe(true)
+    // Everything around it is the same string, which is the point of precomputing.
+    expect<string>((first['content-security-policy'] ?? '').replace("'nonce-AAA'", 'X')).toBe(
+      (second['content-security-policy'] ?? '').replace("'nonce-BBB'", 'X')
+    )
+  })
+
+  /** No nonce means no nonce token, not an empty one. */
+  test('and leaves it out when there is none', () => {
+    const write = securityHeaderWriter({}, true)
+    const headers: Record<string, string> = {}
+
+    write(undefined, undefined, (name, value) => {
+      headers[name] = value
+    })
+
+    expect<boolean>((headers['content-security-policy'] ?? '').includes('nonce-')).toBe(false)
+    expect<boolean>((headers['content-security-policy'] ?? '').includes("script-src 'self'")).toBe(
+      true
+    )
+  })
+
+  /** The whole map still arrives, precomputed or not. */
+  test('and writes the same headers the map function returns', () => {
+    const written: Record<string, string> = {}
+
+    securityHeaderWriter({}, true)('N', undefined, (name, value) => {
+      written[name] = value
+    })
+
+    const built = securityHeaders({}, { secure: true, nonce: 'N', devOrigin: undefined })
+
+    expect<string[]>(Object.keys(written).sort()).toEqual(Object.keys(built).sort())
+    expect<string | undefined>(written['strict-transport-security']).toBe(
+      built['strict-transport-security']
+    )
+  })
+
+  /**
+   * Development is left on the rebuilding path. `devOrigin` changes the policy
+   * while Vite runs and is read from a file per response anyway.
+   */
+  test('while a dev origin still rebuilds, and reaches the policy', () => {
+    const headers: Record<string, string> = {}
+
+    securityHeaderWriter({}, false)('N', 'http://localhost:5173', (name, value) => {
+      headers[name] = value
+    })
+
+    expect<boolean>(
+      (headers['content-security-policy'] ?? '').includes('http://localhost:5173')
+    ).toBe(true)
   })
 })

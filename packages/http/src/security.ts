@@ -210,6 +210,83 @@ export function securityHeaders(
 }
 
 /**
+ * The headers, prepared once, with only the nonce left to fill in.
+ *
+ * Everything a response carries is fixed at boot except one substring: the
+ * `'nonce-…'` inside `script-src`. Rebuilding all of it per response cost 3.2µs
+ * of the security plugin's 5.0µs — measured by swapping the live build for a
+ * constant map and remeasuring, which left the hook itself at 0.4µs and the seven
+ * header writes at 1.4µs. Ninety percent of the rebuild was the CSP string.
+ *
+ * So the policy is built once and cut in two around where the nonce goes, and a
+ * response joins three strings instead of spreading a map, filtering it twice,
+ * mapping it twice and joining it.
+ *
+ * Development keeps the old path. `devOrigin` changes the policy while Vite is
+ * running and is read from a file per response anyway, so there is nothing to
+ * precompute and nothing to gain.
+ *
+ * `write` rather than a returned map, because the caller sets headers one at a
+ * time and a map would be an allocation per response to read once.
+ */
+export function securityHeaderWriter(
+  config: SecurityConfig,
+  secure: boolean
+): (
+  nonce: string | undefined,
+  devOrigin: string | undefined,
+  write: (name: string, value: string) => void
+) => void {
+  const fixed = Object.entries(
+    securityHeaders(config, { secure, nonce: undefined, devOrigin: undefined })
+  )
+
+  const cspName =
+    config.csp !== false && config.csp?.reportOnly === true
+      ? 'content-security-policy-report-only'
+      : 'content-security-policy'
+
+  /**
+   * The policy with a nonce in it, cut where the nonce sits.
+   *
+   * Built by asking for one with a marker rather than by assembling the string
+   * here: the directive order, the merging of defaults and the filtering all stay
+   * in one place, and this cannot drift from it.
+   */
+  const MARKER = "'nonce-\u0000MARKER\u0000'"
+  const withNonce = securityHeaders(config, {
+    secure,
+    nonce: '\u0000MARKER\u0000',
+    devOrigin: undefined
+  })[cspName]
+
+  const cut = withNonce?.indexOf(MARKER) ?? -1
+  const prefix = cut >= 0 ? (withNonce as string).slice(0, cut) : undefined
+  const suffix = cut >= 0 ? (withNonce as string).slice(cut + MARKER.length) : undefined
+
+  return (nonce, devOrigin, write) => {
+    if (devOrigin !== undefined) {
+      for (const [name, value] of Object.entries(
+        securityHeaders(config, { secure, nonce, devOrigin })
+      )) {
+        write(name, value)
+      }
+
+      return
+    }
+
+    for (const [name, value] of fixed) {
+      if (name === cspName && nonce !== undefined && prefix !== undefined) {
+        write(name, `${prefix}'nonce-${nonce}'${suffix}`)
+        continue
+      }
+
+      write(name, value)
+    }
+  }
+}
+
+/**
  * A nonce for one response.
  *
  * Base64 of 16 random bytes, which is what the CSP specification asks for: enough

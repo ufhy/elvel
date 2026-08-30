@@ -30,7 +30,7 @@ import { PREVIOUS_URL_KEY, redirect } from './redirect.ts'
 import { compileRoutes } from './router/compile.ts'
 import { RouteRegistry } from './routes.ts'
 import { enterRequestScope } from './scope.ts'
-import { newNonce, type SecurityConfig, securityHeaders } from './security.ts'
+import { newNonce, type SecurityConfig, securityHeaderWriter } from './security.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
 import { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
 import { hasValidSignature, InvalidSignatureError } from './signed-url.ts'
@@ -510,12 +510,18 @@ export class HttpServiceProvider extends ServiceProvider {
       return origin === '' ? undefined : origin
     }
 
-    const headersFor = (request: Request) =>
-      securityHeaders(config, {
-        secure: overHttps,
-        nonce: this.nonces.get(request),
-        devOrigin: devOrigin()
+    // Everything but the nonce is settled at boot; see `securityHeaderWriter`.
+    const writeHeaders = securityHeaderWriter(config, overHttps)
+
+    const headersFor = (request: Request) => {
+      const headers: Record<string, string> = {}
+
+      writeHeaders(this.nonces.get(request), devOrigin(), (name, value) => {
+        headers[name] = value
       })
+
+      return headers
+    }
 
     if (this.app.bound('request.lifecycle')) {
       this.app.make('request.lifecycle').finishing((request, response) => {
@@ -538,9 +544,10 @@ export class HttpServiceProvider extends ServiceProvider {
     return new Elysia({ name: 'elvel:security' }).mapResponse(
       { as: 'global' },
       ({ request, set }) => {
-        for (const [name, value] of Object.entries(headersFor(request))) {
+        // Written straight onto `set`, so nothing is allocated to be read once.
+        writeHeaders(this.nonces.get(request), devOrigin(), (name, value) => {
           set.headers[name] ??= value
-        }
+        })
 
         // Nothing is being mapped: the body stays whatever the handler answered.
         return undefined
