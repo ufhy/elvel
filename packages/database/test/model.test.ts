@@ -1703,7 +1703,7 @@ describe('walking a large table', () => {
     expect(pages).toBe(1)
   })
 
-  test('chunk() by offset is the one that skips', async () => {
+  test('chunk() no longer skips, because an unordered walk pages by key', async () => {
     const seen: string[] = []
 
     await User.query().chunk(2, async (models) => {
@@ -1712,10 +1712,52 @@ describe('walking a large table', () => {
       for (const user of models.all()) await user.delete()
     })
 
-    // Documented rather than fixed: `chunk` pages by offset, so deleting while
-    // walking moves the window past rows that were never handed over. This is why
-    // `chunkById` exists, and the test says so out loud.
-    expect(seen.length).toBeLessThan(7)
+    // This used to hand back fewer than seven: paging by offset, deleting a row
+    // from an earlier page shifted everything back and the next page stepped over
+    // a row nobody saw. Nothing was ordered here, so nothing promised those page
+    // boundaries in the first place, and the walk goes by key instead.
+    expect(seen).toHaveLength(7)
+  })
+
+  test('but an ordered chunk still pages by offset, and still skips', async () => {
+    const seen: string[] = []
+
+    await User.query()
+      .orderBy('name')
+      .chunk(2, async (models) => {
+        seen.push(...models.map((user) => user.name).all())
+
+        for (const user of models.all()) await user.delete()
+      })
+
+    // The caller asked for an order, so they get that order — and with it the
+    // offset paging that order requires, hazard included. `chunkById` is the
+    // answer when the walk deletes.
+    expect<boolean>(seen.length < 7).toBe(true)
+  })
+
+  test('lazy() walks by key when nothing was ordered', async () => {
+    const seen: string[] = []
+
+    for await (const user of User.query().lazy(2)) {
+      seen.push(user.name as string)
+
+      // Deleting mid-walk is what an offset stream cannot survive.
+      await user.delete()
+    }
+
+    expect<number>(seen.length).toBe(7)
+  })
+
+  test('and keeps the caller’s order when there is one', async () => {
+    const seen: string[] = []
+
+    for await (const user of User.query().orderByDesc('name').lazy(3)) {
+      seen.push(user.name as string)
+    }
+
+    expect<string>(seen[0] as string).toBe('User 7')
+    expect<string>(seen[6] as string).toBe('User 1')
   })
 
   test('cursorPaginate walks forwards', async () => {

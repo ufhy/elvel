@@ -282,6 +282,24 @@ describe('reading', () => {
     expect(seen).toEqual(['Ada', 'Linus', 'Grace'])
   })
 
+  /**
+   * Unordered, `chunk` pages by key instead. Nothing was promised about which
+   * rows land on which page without an `order by`, so ordering by the key is the
+   * stricter reading — and it is what stops the walk stepping over a row when
+   * something is deleted while it runs.
+   */
+  test('an unordered chunk walks by key and survives a delete', async () => {
+    const seen: string[] = []
+
+    await users().chunk(2, async (rows) => {
+      seen.push(...rows.pluck('name').map(String).all())
+
+      for (const row of rows) await users().where('id', row.id).delete()
+    })
+
+    expect<number>(seen.length).toBe(3)
+  })
+
   test('chunk stops early when the callback returns false', async () => {
     const seen: string[] = []
 
