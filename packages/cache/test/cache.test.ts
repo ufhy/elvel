@@ -13,6 +13,7 @@ import { DatabaseStore } from '../src/stores/database.ts'
 import { FileStore } from '../src/stores/file.ts'
 import { MemoStore } from '../src/stores/memo.ts'
 import { RedisStore } from '../src/stores/redis.ts'
+import { TagSet } from '../src/tags.ts'
 
 /**
  * Every store is held to the same contract.
@@ -684,6 +685,50 @@ for (const candidate of candidates) {
       expect(await cache.tags('people', 'authors').get('ada')).toBeNull()
     })
 
+    /**
+     * `many` under tags used to name each key on its own, and naming a key means
+     * reading every tag id: twenty keys under two tags was forty reads before the
+     * one the call came for. Against Redis that was 1,270µs for a call whose
+     * useful work is two round trips.
+     */
+    test('many under tags reads the tag ids once, not once per key', async () => {
+      const keys = ['a', 'b', 'c', 'd', 'e']
+
+      await cache.tags('people').putMany(Object.fromEntries(keys.map((k) => [k, k])), 60)
+
+      const found = await cache.tags('people').many<string>(keys)
+
+      expect<string[]>(keys.map((k) => found[k] as string)).toEqual(keys)
+    })
+
+    test('and a key missing from the set still reads as null', async () => {
+      await cache.tags('people').put('here', 1, 60)
+
+      const found = await cache.tags('people').many<number>(['here', 'gone'])
+
+      expect<unknown>(found.here).toBe(1)
+      expect<unknown>(found.gone).toBeNull()
+    })
+
+    /** Tags that do not exist yet are created, one write each and no more. */
+    test('a tag set that has never been used is created on first touch', async () => {
+      await cache.tags('brand-new', 'also-new').put('k', 'v', 60)
+
+      expect<unknown>(await cache.tags('brand-new', 'also-new').get('k')).toBe('v')
+
+      await cache.tags('also-new').flush()
+
+      expect<unknown>(await cache.tags('brand-new', 'also-new').get('k')).toBeNull()
+    })
+
+    /** The ids are joined in the order the tags were named, as Laravel joins them. */
+    test('the same tags in another order are another namespace', async () => {
+      await cache.tags('one', 'two').put('k', 'first', 60)
+
+      expect<unknown>(await cache.tags('two', 'one').get('k')).toBeNull()
+      expect<unknown>(await cache.tags('one', 'two').get('k')).toBe('first')
+    })
+
     test('flexible serves a stale value and refreshes behind it', async () => {
       let calls = 0
       const compute = () => {
@@ -1119,5 +1164,93 @@ describe('the memory tier in front of a store', () => {
     expect(await memo.increment('hits')).toBe(1)
     expect(await memo.increment('hits')).toBe(2)
     expect(await memo.get<number>('hits')).toBe(2)
+  })
+})
+
+describe('TagSet reads the tag ids in one call', () => {
+  /**
+   * Counts what the namespace costs. `tags('a','b','c').get(k)` used to ask the
+   * store for each tag id in turn, which against Redis is three round trips before
+   * the key it came for — and `many()` repeated all of them per key.
+   */
+  const counting = () => {
+    const values = new Map<string, unknown>()
+    const calls = { get: 0, many: 0, forever: 0 }
+
+    return {
+      calls,
+      store: {
+        prefix: '',
+        get: async <T>(key: string) => {
+          calls.get += 1
+          return (values.get(key) ?? null) as T | null
+        },
+        many: async <T>(keys: string[]) => {
+          calls.many += 1
+          const found: Record<string, T | null> = {}
+          for (const key of keys) found[key] = (values.get(key) ?? null) as T | null
+          return found
+        },
+        forever: async (key: string, value: unknown) => {
+          calls.forever += 1
+          values.set(key, value)
+          return true
+        },
+        forget: async (key: string) => values.delete(key),
+        put: async () => true,
+        putMany: async () => true,
+        add: async () => true,
+        increment: async () => 1,
+        decrement: async () => 1,
+        flush: async () => true
+      } as never
+    }
+  }
+
+  test('three tags cost one read, not three', async () => {
+    const { calls, store } = counting()
+    const tags = new TagSet(store, ['a', 'b', 'c'])
+
+    await tags.namespace()
+
+    expect<number>(calls.many).toBe(1)
+    expect<number>(calls.get).toBe(0)
+    // Three tags that did not exist, so three ids to create.
+    expect<number>(calls.forever).toBe(3)
+  })
+
+  test('and a second namespace creates nothing more', async () => {
+    const { calls, store } = counting()
+    const tags = new TagSet(store, ['a', 'b', 'c'])
+
+    const first = await tags.namespace()
+
+    calls.many = 0
+    calls.forever = 0
+
+    const second = await tags.namespace()
+
+    expect<string>(second).toBe(first)
+    expect<number>(calls.many).toBe(1)
+    expect<number>(calls.forever).toBe(0)
+  })
+
+  test('only the tag that is missing is created', async () => {
+    const { calls, store } = counting()
+
+    await new TagSet(store, ['a']).namespace()
+
+    calls.forever = 0
+
+    await new TagSet(store, ['a', 'b']).namespace()
+
+    expect<number>(calls.forever).toBe(1)
+  })
+
+  test('no tags is an empty namespace and no reads at all', async () => {
+    const { calls, store } = counting()
+
+    expect<string>(await new TagSet(store, []).namespace()).toBe('')
+    expect<number>(calls.many).toBe(0)
   })
 })

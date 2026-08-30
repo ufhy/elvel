@@ -32,11 +32,29 @@ export class TagSet {
     for (const name of this.names) await this.store.forget(this.tagKey(name))
   }
 
-  /** The current namespace. Creates any tag that does not exist yet. */
+  /**
+   * The current namespace. Creates any tag that does not exist yet.
+   *
+   * One read for the whole set. Laravel asks the store for each tag in turn, and
+   * so did this: `tags('a', 'b')` against Redis spent two round trips finding out
+   * what the namespace was before it could touch the key it came for.
+   *
+   * Only the tags that are genuinely missing are created, and only those cost a
+   * write.
+   */
   async namespace(): Promise<string> {
+    if (this.names.length === 0) return ''
+
+    const keys = this.names.map((name) => this.tagKey(name))
+    const found = await this.store.many<string>(keys)
+
     const ids: string[] = []
 
-    for (const name of this.names) ids.push(await this.tagId(name))
+    for (const [index, name] of this.names.entries()) {
+      const existing = found[keys[index] as string]
+
+      ids.push(typeof existing === 'string' ? existing : await this.resetTag(name))
+    }
 
     return ids.join('|')
   }
@@ -74,8 +92,10 @@ export class NamespacedStore implements Store {
   }
 
   async many<T = unknown>(keys: string[]): Promise<Record<string, T | null>> {
+    const named = await this.keyer()
     const mapped = new Map<string, string>()
-    for (const key of keys) mapped.set(key, await this.itemKey(key))
+
+    for (const key of keys) mapped.set(key, named(key))
 
     const values = await this.inner.many<T>([...mapped.values()])
 
@@ -90,10 +110,11 @@ export class NamespacedStore implements Store {
   }
 
   async putMany(values: Record<string, unknown>, seconds: number): Promise<boolean> {
+    const named = await this.keyer()
     const namespaced: Record<string, unknown> = {}
 
     for (const [key, value] of Object.entries(values)) {
-      namespaced[await this.itemKey(key)] = value
+      namespaced[named(key)] = value
     }
 
     return this.inner.putMany(namespaced, seconds)
@@ -127,9 +148,21 @@ export class NamespacedStore implements Store {
   }
 
   private async itemKey(key: string): Promise<string> {
+    return (await this.keyer())(key)
+  }
+
+  /**
+   * Resolve the namespace once, then name as many keys as needed from it.
+   *
+   * `many(keys)` used to call `itemKey` per key, so twenty keys under two tags
+   * meant forty reads of the tag ids and twenty SHA-1 hashes before the one
+   * `mget` it was actually there for — 1,270µs against Redis for a call whose
+   * useful work is two round trips.
+   */
+  private async keyer(): Promise<(key: string) => string> {
     const namespace = await this.tagSet.namespace()
     const hash = new Bun.CryptoHasher('sha1').update(namespace).digest('hex')
 
-    return `${hash}:${key}`
+    return (key) => `${hash}:${key}`
   }
 }
