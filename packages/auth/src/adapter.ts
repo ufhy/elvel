@@ -2,11 +2,11 @@ import type { Connection, ConnectionManager, Row } from '@elvel/database'
 import { Expression, QueryBuilder } from '@elvel/database'
 import type {
   AdapterFactory,
+  createAdapterFactory as AdapterFactoryBuilder,
   CleanedWhere,
   CustomAdapter,
   DBAdapterDebugLogOption
 } from 'better-auth/adapters'
-import { createAdapterFactory } from 'better-auth/adapters'
 import type { BetterAuthOptions } from 'better-auth/types'
 
 /**
@@ -52,8 +52,13 @@ export function elvelAdapter(db: ConnectionManager, options: ElvelAdapterOptions
   // exactly as better-auth's own memory adapter does.
   let lazyOptions: BetterAuthOptions = {}
 
-  const build = (resolve: () => Promise<Connection>): AdapterFactory<BetterAuthOptions> =>
-    createAdapterFactory({
+  const build = (resolve: () => Promise<Connection>): AdapterFactory<BetterAuthOptions> => {
+    // Lazy for the same reason as `betterAuth` itself — see the note in the
+    // provider. `require`, because this is reached from a synchronous factory.
+    const createAdapterFactory = require('better-auth/adapters')
+      .createAdapterFactory as typeof AdapterFactoryBuilder
+
+    return createAdapterFactory({
       config: {
         adapterId: 'elvel',
         adapterName: 'Elvel Adapter',
@@ -261,6 +266,7 @@ export function elvelAdapter(db: ConnectionManager, options: ElvelAdapterOptions
         }
       }
     })
+  }
 
   const factory = build(async () => db.connection(options.connection))
 

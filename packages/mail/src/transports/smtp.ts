@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer'
+import type nodemailer from 'nodemailer'
 import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { formatAddress } from '../mailable.ts'
 import type { DeliveryResult, SentMessage, Transport } from '../message.ts'
@@ -108,7 +108,18 @@ export class SmtpTransport implements Transport {
 
     if (this.options.pool) options.pool = true
 
-    this.transporter = nodemailer.createTransport(
+    /**
+     * Loaded here rather than at the top of the file.
+     *
+     * `nodemailer` costs 18ms to evaluate and is reached only by an application
+     * that sends over SMTP — and only when it sends its first mail. Importing it
+     * at module scope made every process pay, including the ones whose mailer is
+     * `log` or `array`. `require`, because this method is synchronous and its
+     * callers have no reason to become async for a transport they may never build.
+     */
+    const mailer = require('nodemailer') as typeof nodemailer
+
+    this.transporter = mailer.createTransport(
       options
     ) as nodemailer.Transporter<SMTPTransport.SentMessageInfo>
 

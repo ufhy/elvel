@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import juice from 'juice'
 
 /**
  * The stylesheet every mail is drawn with, and the inliner that applies it.
@@ -172,6 +171,30 @@ export function resolveThemeCss(source: string | undefined, basePath: string): s
   }
 }
 
+type Juice = (html: string, options: Record<string, unknown>) => string
+
+let loaded: Juice | undefined
+
+/**
+ * `juice`, loaded the first time a mail is actually rendered.
+ *
+ * Evaluating it costs **62ms**, and it was being paid at import time — by every
+ * process that touched `@elvel/mail`, which is every process, because
+ * `config/app.ts` names the provider. `elvel key:generate` was loading a CSS
+ * inliner. An application that never sends a mail now never loads it.
+ *
+ * `require` rather than `await import`, because `inlineTheme` is synchronous and
+ * making it async would push `await` through every markdown mail and every mail
+ * notification for a dependency most calls do not reach either. Bun resolves it
+ * lazily from source and the bundler defers the module body the same way — checked
+ * against a built bundle, not assumed.
+ */
+function inliner(): Juice {
+  loaded ??= (require('juice') as { default: Juice }).default
+
+  return loaded
+}
+
 /**
  * Put the stylesheet into the markup, which is the only place a mail client reads it.
  *
@@ -200,7 +223,7 @@ export function resolveThemeCss(source: string | undefined, basePath: string): s
  * block loses nothing that makes the mail unreadable.
  */
 export function inlineTheme(html: string, css: string = DEFAULT_THEME_CSS): string {
-  return juice(html, {
+  return inliner()(html, {
     extraCss: css,
     preserveMediaQueries: true,
     removeStyleTags: true,

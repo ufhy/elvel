@@ -1,5 +1,5 @@
 import { type Credentials, signRequest } from '@elvel/support'
-import MailComposer from 'nodemailer/lib/mail-composer'
+import type MailComposer from 'nodemailer/lib/mail-composer'
 import { formatAddress } from '../mailable.ts'
 import type { DeliveryResult, SentMessage, Transport } from '../message.ts'
 
@@ -121,7 +121,14 @@ export class SesTransport implements Transport {
 
   /** The whole MIME document, for a message with attachments. */
   private async mime(message: SentMessage): Promise<Buffer> {
-    const composer = new MailComposer({
+    /**
+     * Loaded on the first raw send, not at import. See the note in the SMTP
+     * transport: nodemailer is 18ms of module evaluation that an application which
+     * never sends a raw MIME message has no reason to pay.
+     */
+    const Composer = require('nodemailer/lib/mail-composer') as typeof MailComposer
+
+    const composer = new Composer({
       from: formatAddress(message.from),
       to: message.to.map(formatAddress),
       cc: message.cc.length > 0 ? message.cc.map(formatAddress) : undefined,

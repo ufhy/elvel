@@ -1,6 +1,5 @@
 import { ServiceProvider } from '@elvel/core'
 import { middlewares, registerCurrentPasswordRule } from '@elvel/http'
-import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
 import { type Dialect, elvelAdapter } from './adapter.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
@@ -168,6 +167,16 @@ export class AuthServiceProvider extends ServiceProvider {
 
     const db = this.app.make('db')
     const dialect = (await db.connection(connection)).grammar.dialect as Dialect
+
+    /**
+     * Loaded here, not at the top of the file.
+     *
+     * `better-auth` costs 65ms to evaluate, and an application registers the
+     * provider in `config/app.ts` whether or not a request ever reaches an auth
+     * route — so every CLI command and every boot paid it to build something they
+     * would not use. This method is already async and already the only caller.
+     */
+    const { betterAuth } = await import('better-auth')
 
     return betterAuth({
       ...this.withMail(options, notifications),

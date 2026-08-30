@@ -60,8 +60,17 @@ function strip(source: string): string {
     .replace(/`(?:[^`\\]|\\.)*`/gs, '``')
 }
 
+/**
+ * `require` counts too.
+ *
+ * The heavy dependencies are loaded on first use rather than at module scope —
+ * `juice` and `nodemailer` in the mailer, `better-auth/adapters` in the auth
+ * adapter — and from a synchronous function that means `require`, not `import`.
+ * A scanner that only saw `import` called those dependencies unused and told the
+ * mailer to drop the inliner it inlines with.
+ */
 const SPECIFIER =
-  /(?:^|[\s;{(])(?:import|export)\s(?:[^'"()]*?\sfrom\s)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]/gm
+  /(?:^|[\s;{(])(?:import|export)\s(?:[^'"()]*?\sfrom\s)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]|(?:^|[\s;{(=])require\(\s*['"]([^'"]+)['"]/gm
 
 /** Every package a directory's TypeScript imports, by package name. */
 async function imported(directory: string): Promise<Set<string>> {
@@ -81,7 +90,7 @@ async function imported(directory: string): Promise<Set<string>> {
       if (!/\.tsx?$/.test(entry.name)) continue
 
       for (const match of strip(await readFile(full, 'utf8')).matchAll(SPECIFIER)) {
-        const specifier = (match[1] ?? match[2]) as string
+        const specifier = (match[1] ?? match[2] ?? match[3]) as string
 
         if (/^[.]|^node:|^bun:/.test(specifier)) continue
 
