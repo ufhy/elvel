@@ -73,9 +73,21 @@ export class Logger implements LoggerContract {
     // await `write()` on the driver directly. Logging never blocks a request.
     void this.options.driver.write(record)
 
-    void this.options.dispatcher?.dispatch(
-      new MessageLogged(level, rendered, merged, this.options.channel)
-    )
+    /**
+     * Built only if somebody is listening.
+     *
+     * Every log line emitted one of these, and an application with no listener
+     * registered allocated it to drop it. `!== false` rather than `=== true`: a
+     * dispatcher that does not answer the question gets the event, because
+     * silently swallowing it would be the worse way to be wrong.
+     */
+    const dispatcher = this.options.dispatcher as
+      | { dispatch(event: object): unknown; hasListeners?(event: unknown): boolean }
+      | undefined
+
+    if (dispatcher !== undefined && dispatcher.hasListeners?.(MessageLogged) !== false) {
+      void dispatcher.dispatch(new MessageLogged(level, rendered, merged, this.options.channel))
+    }
   }
 
   emergency(message: string, context?: LogContext): void {

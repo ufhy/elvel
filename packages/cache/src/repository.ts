@@ -6,8 +6,16 @@ import { NamespacedStore, TagSet } from './tags.ts'
 /** Seconds, an absolute moment, or null for "keep it forever". */
 export type Ttl = number | Date | null
 
-/** Where cache events go. The events package satisfies this structurally. */
-export type Dispatcher = { dispatch(event: string, payload?: unknown): unknown }
+/**
+ * Where cache events go. The events package satisfies this structurally.
+ *
+ * `hasListeners` is optional so a hand-rolled dispatcher still fits, but the real
+ * one has it and it is what keeps an unheard event cheap.
+ */
+export type Dispatcher = {
+  dispatch(event: string, payload?: unknown): unknown
+  hasListeners?(event: string): boolean
+}
 
 export type RepositoryOptions = {
   events?: Dispatcher
@@ -404,8 +412,27 @@ export class Repository {
     return this.defaultSeconds
   }
 
+  /**
+   * Tell whoever is listening, and do nothing at all when nobody is.
+   *
+   * Every read and every write emits one of these, and an application that
+   * registered no cache listener — the ordinary one — was still merging a second
+   * object and entering the dispatcher's async machinery for each. Asking first
+   * costs a `Map.get`.
+   *
+   * The caller's payload literal is still built. Threading a thunk through eleven
+   * call sites to save one small object would cost more in reading than it saves
+   * in allocation.
+   */
   protected event(name: string, payload: Record<string, unknown>): void {
-    this.options.events?.dispatch(name, { store: this.options.name, ...payload })
+    const events = this.options.events
+
+    // `=== false`, so a dispatcher that cannot answer the question still gets the
+    // event: swallowing it silently would be the worse way to be wrong.
+    if (events === undefined) return
+    if (events.hasListeners?.(name) === false) return
+
+    events.dispatch(name, { store: this.options.name, ...payload })
   }
 
   private async typed<T>(key: string, expected: string, fallback?: T): Promise<T> {

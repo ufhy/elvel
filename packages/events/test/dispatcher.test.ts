@@ -238,6 +238,51 @@ describe('registry', () => {
     expect(dispatcher.hasListeners(OrderShipped)).toBe(true)
   })
 
+  /**
+   * A caller that has to *build* the event to dispatch it wants the answer before
+   * it builds. A log line, a cache hit and a finished query each construct an
+   * object, and with nobody listening — the ordinary case — all of it was built to
+   * be dropped.
+   */
+  test('hasListeners answers for a class, not only an instance', () => {
+    expect<boolean>(dispatcher.hasListeners(OrderShipped)).toBe(false)
+
+    dispatcher.listen(OrderShipped, () => {})
+
+    expect<boolean>(dispatcher.hasListeners(OrderShipped)).toBe(true)
+    expect<boolean>(dispatcher.hasListeners(new OrderShipped(1))).toBe(true)
+  })
+
+  /**
+   * A listener on a base class hears the subclass, so answering "nobody" for the
+   * subclass would silence it — and the caller would never build the event.
+   */
+  test('and finds a listener registered on an ancestor', () => {
+    class DomainEvent {}
+    class InvoicePaid extends DomainEvent {}
+
+    expect<boolean>(dispatcher.hasListeners(InvoicePaid)).toBe(false)
+
+    dispatcher.listen(DomainEvent, () => {})
+
+    expect<boolean>(dispatcher.hasListeners(InvoicePaid)).toBe(true)
+    expect<boolean>(dispatcher.hasListeners(new InvoicePaid())).toBe(true)
+  })
+
+  /** The early exit must not change what a dispatch to nobody answers. */
+  test('dispatching to nobody is still an empty list, not null', async () => {
+    expect<unknown>(await dispatcher.dispatch('nobody.listening')).toEqual([])
+    expect<unknown>(await dispatcher.until('nobody.listening')).toBeNull()
+  })
+
+  test('and a listener added afterwards is still heard', async () => {
+    expect<unknown>(await dispatcher.dispatch('late')).toEqual([])
+
+    dispatcher.listen('late', () => 'heard')
+
+    expect<unknown>(await dispatcher.dispatch('late')).toEqual(['heard'])
+  })
+
   test('forget removes direct listeners', async () => {
     dispatcher.listen('probe', () => 'x')
     dispatcher.forget('probe')

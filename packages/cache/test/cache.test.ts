@@ -806,6 +806,55 @@ for (const candidate of candidates) {
         'cache.forgotten'
       ])
     })
+
+    /**
+     * Every read and write emits one of these, and most applications register no
+     * cache listener at all. Asked and answered "nobody", the repository builds
+     * nothing and dispatches nothing.
+     */
+    test('and asks before it dispatches', async () => {
+      const asked: string[] = []
+      let dispatched = 0
+
+      const quiet = new Repository(store, {
+        name: candidate.name,
+        events: {
+          dispatch: () => {
+            dispatched += 1
+            return undefined
+          },
+          hasListeners: (event: string) => {
+            asked.push(event)
+            return false
+          }
+        }
+      })
+
+      await quiet.put('k', 1, 60)
+      await quiet.get('k')
+
+      expect<string[]>(asked).toEqual(['cache.written', 'cache.hit'])
+      expect<number>(dispatched).toBe(0)
+    })
+
+    /** A dispatcher that cannot answer still gets the event — silence is worse. */
+    test('but dispatches anyway when it cannot answer', async () => {
+      let dispatched = 0
+
+      const unsure = new Repository(store, {
+        name: candidate.name,
+        events: {
+          dispatch: () => {
+            dispatched += 1
+            return undefined
+          }
+        }
+      })
+
+      await unsure.get('nothing-here')
+
+      expect<number>(dispatched).toBe(1)
+    })
   })
 }
 

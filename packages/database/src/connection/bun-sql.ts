@@ -419,6 +419,20 @@ export class BunSqlConnection implements Connection {
 
   /** Time every query and announce it, which is what makes a query log possible. */
   private async run<T>(sql: string, bindings: unknown[], execute: () => Promise<T>): Promise<T> {
+    /**
+     * Nobody listening means nothing to time: no clock read, no event object.
+     * `DB.listen` and the query log are the callers that make this worth doing.
+     *
+     * `!== false`, so a dispatcher that cannot answer still gets the event.
+     */
+    const dispatcher = this.dispatcher as
+      | { dispatch(event: object): unknown; hasListeners?(event: unknown): boolean }
+      | undefined
+
+    if (dispatcher === undefined || dispatcher.hasListeners?.(QueryExecuted) === false) {
+      return execute()
+    }
+
     const started = Bun.nanoseconds()
 
     try {

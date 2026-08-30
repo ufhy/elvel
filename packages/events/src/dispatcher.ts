@@ -238,20 +238,8 @@ export class Dispatcher implements EventDispatcher {
     }
   }
 
-  hasListeners(event: EventKey): boolean {
-    const name = eventName(event)
-
-    return (this.listeners.get(name)?.length ?? 0) > 0 || this.hasWildcardListeners(name)
-  }
-
   hasWildcardListeners(event: EventKey): boolean {
-    const name = eventName(event)
-
-    for (const pattern of this.wildcards.keys()) {
-      if (patternToRegExp(pattern).test(name)) return true
-    }
-
-    return false
+    return this.wildcardsFor(eventName(event)).length > 0
   }
 
   subscribe(subscriber: EventSubscriber): void {
@@ -261,12 +249,70 @@ export class Dispatcher implements EventDispatcher {
   /** Every listener for a name: direct ones first, then matching wildcards. */
   getListeners(event: EventKey): StoredListener[] {
     const name = eventName(event)
+    const direct = this.listeners.get(name)
+    const wildcards = this.wildcardsFor(name)
+
+    // Two spreads was the largest single cost of dispatching to nobody, and the
+    // common shape is one side empty or both.
+    if (wildcards.length === 0) return direct === undefined ? [] : [...direct]
+    if (direct === undefined) return [...wildcards]
+
+    return [...direct, ...wildcards]
+  }
+
+  /**
+   * Is anybody listening for this name?
+   *
+   * For callers that build a payload to dispatch. A cache hit, a log line and a
+   * finished query each construct an event object and hand it over, and with no
+   * listener registered — the ordinary case — all of that is built to be dropped.
+   * Asking first costs a `Map.get`.
+   *
+   * Ancestors are walked for a class-based event, because a listener registered on
+   * a base class hears it, and answering "no" while one is registered would silence
+   * it. A **class** may be passed instead of an instance, which is the point for a
+   * caller deciding whether to build the event at all.
+   */
+  hasListeners(event: EventKey | object): boolean {
+    const name = eventName(event as EventKey)
+
+    if (this.hasDirectOrWildcard(name)) return true
+
+    if (typeof event === 'string') return false
+
+    // The class, whether one was handed over or an instance of it was.
+    const target = typeof event === 'function' ? event : (event as object).constructor
+
+    if (typeof target !== 'function') return false
+
+    let ancestor = Object.getPrototypeOf(target) as { name?: string } | null
+
+    while (ancestor && typeof ancestor.name === 'string' && ancestor.name !== '') {
+      if (ancestor.name !== name && this.hasDirectOrWildcard(ancestor.name)) return true
+
+      ancestor = Object.getPrototypeOf(ancestor) as { name?: string } | null
+    }
+
+    return false
+  }
+
+  private hasDirectOrWildcard(name: string): boolean {
+    if ((this.listeners.get(name)?.length ?? 0) > 0) return true
+
+    return this.wildcardsFor(name).length > 0
+  }
+
+  /** The wildcard listeners matching a name, resolved once and remembered. */
+  private wildcardsFor(name: string): StoredListener[] {
     const cached = this.wildcardsCache.get(name)
-    const wildcards = cached ?? this.resolveWildcardListeners(name)
 
-    if (!cached) this.wildcardsCache.set(name, wildcards)
+    if (cached !== undefined) return cached
 
-    return [...(this.listeners.get(name) ?? []), ...wildcards]
+    const resolved = this.resolveWildcardListeners(name)
+
+    this.wildcardsCache.set(name, resolved)
+
+    return resolved
   }
 
   private resolveWildcardListeners(name: string): StoredListener[] {
@@ -344,6 +390,12 @@ export class Dispatcher implements EventDispatcher {
     halt: boolean
   ): Promise<any> {
     const name = eventName(event)
+
+    // Nobody is listening, which is the ordinary case for the events the framework
+    // itself emits — a cache hit, a log line, a finished query. Nothing below has
+    // an effect when the list is empty, so none of it runs.
+    if (!this.hasListeners(event as EventKey)) return halt ? null : []
+
     // A class-based event is its own payload; that is what makes
     // `dispatch(new UserRegistered(user))` read the way it does.
     const resolved = typeof event === 'string' ? payload : event
