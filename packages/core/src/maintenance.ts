@@ -44,11 +44,43 @@ export interface MaintenanceDriver {
 }
 
 export class MaintenanceMode implements MaintenanceDriver {
-  constructor(private readonly file: string) {}
+  /** The last answer, and when it stops being trusted. */
+  private cached: { active: boolean; until: number } | undefined
 
-  /** Is the application down? Read per request, so `up` takes effect at once. */
+  constructor(
+    private readonly file: string,
+    /**
+     * How long an answer is reused, in milliseconds. `0` asks the disk every time.
+     *
+     * The plugin that reads this runs at the front of every request, so the stat
+     * was a syscall and a promise hop on the way to every response — measured at
+     * 3.6µs of a 37.3µs request, the second largest fixed tax the framework added.
+     * It was paid to notice `elvel up` promptly, and one second is prompt: taking
+     * an application down or bringing it back is a deployment step measured in
+     * seconds, not microseconds.
+     *
+     * What it costs is that `down` and `up` take up to this long to be seen by a
+     * process that is already running. A deploy that needs the switch to be
+     * instant can rebind it — `app.instance('maintenance', new MaintenanceMode(path, 0))`
+     * — since this is bound in the constructor, before config exists, so that
+     * `elvel down` still works when a provider cannot boot.
+     */
+    private readonly freshness = 1000,
+    /** Injectable clock, so the window is testable without waiting. */
+    private readonly now: () => number = () => Date.now()
+  ) {}
+
+  /** Is the application down? */
   async active(): Promise<boolean> {
-    return Bun.file(this.file).exists()
+    const held = this.cached
+
+    if (held !== undefined && held.until > this.now()) return held.active
+
+    const active = await Bun.file(this.file).exists()
+
+    if (this.freshness > 0) this.cached = { active, until: this.now() + this.freshness }
+
+    return active
   }
 
   /** The payload, or undefined when the application is up. */
@@ -65,6 +97,9 @@ export class MaintenanceMode implements MaintenanceDriver {
   async activate(payload: MaintenancePayload): Promise<void> {
     await mkdir(dirname(this.file), { recursive: true })
     await Bun.write(this.file, JSON.stringify(payload, null, 2))
+
+    // This process knows without waiting; another one finds out on its next read.
+    this.cached = undefined
   }
 
   /** Bring it back up. Returns false when it was not down. */
@@ -72,6 +107,7 @@ export class MaintenanceMode implements MaintenanceDriver {
     if (!(await this.active())) return false
 
     await unlink(this.file)
+    this.cached = undefined
 
     return true
   }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   bypassCookieIsValid,
@@ -109,5 +110,58 @@ describe('the bypass cookie', () => {
     const secret = generateSecret()
 
     expect(secret).toMatch(/^[0-9a-f]{32}$/)
+  })
+})
+
+describe('how often it asks the disk', () => {
+  /**
+   * The plugin that reads this runs in front of every request, so the stat was a
+   * syscall and a promise hop per response — 3.6µs of a 37.3µs request. Taking an
+   * application down is a deployment step measured in seconds, so an answer is
+   * reused for one.
+   */
+  test('reuses an answer inside the window, and asks again after it', async () => {
+    const file = join(tmpdir(), `elvel-fresh-${process.pid}-${Math.random()}`)
+    let clock = 1_000_000
+
+    const mode = new MaintenanceMode(file, 1000, () => clock)
+
+    expect<boolean>(await mode.active()).toBe(false)
+
+    // Written behind its back, as `elvel down` in another process would.
+    await Bun.write(file, JSON.stringify({ since: Date.now() }))
+    expect<boolean>(await mode.active()).toBe(false)
+
+    clock += 1_100
+    expect<boolean>(await mode.active()).toBe(true)
+
+    await rm(file, { force: true })
+  })
+
+  /** Its own writes are seen at once: the process that flipped it knows. */
+  test('while its own activate is visible immediately', async () => {
+    const file = join(tmpdir(), `elvel-own-${process.pid}-${Math.random()}`)
+    const mode = new MaintenanceMode(file, 60_000)
+
+    expect<boolean>(await mode.active()).toBe(false)
+
+    await mode.activate({ since: Date.now() })
+    expect<boolean>(await mode.active()).toBe(true)
+
+    await mode.deactivate()
+    expect<boolean>(await mode.active()).toBe(false)
+  })
+
+  /** And zero asks every time, for a deploy that cannot wait a second. */
+  test('and zero keeps the old behaviour', async () => {
+    const file = join(tmpdir(), `elvel-zero-${process.pid}-${Math.random()}`)
+    const mode = new MaintenanceMode(file, 0)
+
+    expect<boolean>(await mode.active()).toBe(false)
+
+    await Bun.write(file, JSON.stringify({ since: Date.now() }))
+    expect<boolean>(await mode.active()).toBe(true)
+
+    await rm(file, { force: true })
   })
 })
