@@ -19,6 +19,25 @@ type Value = unknown
  * It records a `QueryComponents` description and hands it to the connection's
  * grammar, so one builder serves every dialect and `toSql()` needs no database.
  */
+/** A thing that can be embedded as a subquery: a builder, or anything shaped like one. */
+export type Subqueryable =
+  | { compile(): { sql: string; bindings: unknown[] } }
+  | { toSql(): string; getBindings(): unknown[] }
+
+/**
+ * One compilation, whichever shape arrived.
+ *
+ * `joinSub` and friends accept anything with `toSql`/`getBindings` so a caller can
+ * pass a hand-rolled query object. A real builder is compiled once through
+ * `compile()`; the duck-typed form still costs two passes, because two methods is
+ * all it offers.
+ */
+function compileSub(query: Subqueryable): { sql: string; bindings: unknown[] } {
+  if ('compile' in query) return query.compile()
+
+  return { sql: query.toSql(), bindings: query.getBindings() }
+}
+
 export class QueryBuilder<T extends Row = Row> {
   private query: QueryComponents
 
@@ -83,25 +102,27 @@ export class QueryBuilder<T extends Row = Row> {
    * the bindings, in the position they will be read.
    */
   joinSub(
-    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
+    query: QueryBuilder<Row> | Subqueryable,
     alias: string,
     first: string,
     operator: Operator,
     second: string,
     type: JoinClause['type'] = 'inner'
   ): this {
+    const sub = compileSub(query)
+
     this.query.joins.push({
       type,
-      table: raw(`(${query.toSql()}) as ${this.connection.grammar.wrapTable(alias)}`),
+      table: raw(`(${sub.sql}) as ${this.connection.grammar.wrapTable(alias)}`),
       wheres: [{ type: 'column', first, operator, second, boolean: 'and' }],
-      bindings: query.getBindings()
+      bindings: sub.bindings
     })
 
     return this
   }
 
   leftJoinSub(
-    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
+    query: QueryBuilder<Row> | Subqueryable,
     alias: string,
     first: string,
     operator: Operator,
@@ -749,12 +770,24 @@ export class QueryBuilder<T extends Row = Row> {
     return this
   }
 
+  /**
+   * The SQL and its bindings, from one pass over the query.
+   *
+   * `toSql()` and `getBindings()` each compiled the whole tree, so anything that
+   * wanted both — every `joinSub`, `fromSub`, `crossJoinSub` and `insertUsing` —
+   * compiled it twice. Nested subqueries multiply that: two levels deep is four
+   * compilations of the innermost query for one build.
+   */
+  compile(): { sql: string; bindings: unknown[] } {
+    return this.connection.grammar.compileSelect(this.query)
+  }
+
   toSql(): string {
-    return this.connection.grammar.compileSelect(this.query).sql
+    return this.compile().sql
   }
 
   getBindings(): unknown[] {
-    return this.connection.grammar.compileSelect(this.query).bindings
+    return this.compile().bindings
   }
 
   // ----------------------------------------------------------------- reading
@@ -1136,18 +1169,16 @@ export class QueryBuilder<T extends Row = Row> {
    * through this process to write them back is a round trip per batch and a lot
    * of memory for data that was already where it needed to be.
    */
-  async insertUsing(
-    columns: string[],
-    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] }
-  ): Promise<number> {
+  async insertUsing(columns: string[], query: QueryBuilder<Row> | Subqueryable): Promise<number> {
+    const sub = compileSub(query)
     const table = this.connection.grammar.wrapTable(this.query.from)
     const wrapped = columns.map((column) => this.connection.grammar.wrap(column)).join(', ')
 
     // `affectingStatement`, not `statement`: the latter is for DDL and reports
     // nothing, so this used to answer 0 while inserting the rows perfectly well.
     return this.connection.affectingStatement(
-      `insert into ${table} (${wrapped}) ${query.toSql()}`,
-      query.getBindings()
+      `insert into ${table} (${wrapped}) ${sub.sql}`,
+      sub.bindings
     )
   }
 
@@ -1157,26 +1188,24 @@ export class QueryBuilder<T extends Row = Row> {
    * For anything that has to aggregate and then filter on the aggregate, which a
    * `having` cannot always express.
    */
-  fromSub(
-    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
-    alias: string
-  ): this {
-    this.query.fromRaw = raw(`(${query.toSql()}) as ${this.connection.grammar.wrapTable(alias)}`)
-    this.query.fromBindings = [...query.getBindings()]
+  fromSub(query: QueryBuilder<Row> | Subqueryable, alias: string): this {
+    const sub = compileSub(query)
+
+    this.query.fromRaw = raw(`(${sub.sql}) as ${this.connection.grammar.wrapTable(alias)}`)
+    this.query.fromBindings = [...sub.bindings]
 
     return this
   }
 
   /** A cartesian join against a subquery. */
-  crossJoinSub(
-    query: QueryBuilder<Row> | { toSql(): string; getBindings(): unknown[] },
-    alias: string
-  ): this {
+  crossJoinSub(query: QueryBuilder<Row> | Subqueryable, alias: string): this {
+    const sub = compileSub(query)
+
     this.query.joins.push({
       type: 'cross',
-      table: raw(`(${query.toSql()}) as ${this.connection.grammar.wrapTable(alias)}`),
+      table: raw(`(${sub.sql}) as ${this.connection.grammar.wrapTable(alias)}`),
       wheres: [],
-      bindings: query.getBindings()
+      bindings: sub.bindings
     })
 
     return this

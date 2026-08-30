@@ -137,6 +137,38 @@ describe('subqueries', () => {
     expect((rows.first() as { grand: number }).grand).toBe(35)
   })
 
+  /**
+   * `toSql()` and `getBindings()` each compiled the whole query, so a subquery was
+   * compiled twice for one embed and a nested one four times. They are wrappers
+   * around a single `compile()` now, and the two halves have to keep agreeing:
+   * a builder whose SQL and bindings came from different passes would bind the
+   * wrong values the moment compilation stopped being pure.
+   */
+  test('compile answers the same as the two methods it replaced', async () => {
+    const query = (await db.table('sales'))
+      .select('region')
+      .where('amount', '>', 5)
+      .where('region', 'a')
+      .groupBy('region')
+
+    const compiled = query.compile()
+
+    expect<string>(compiled.sql).toBe(query.toSql())
+    expect<unknown[]>(compiled.bindings).toEqual(query.getBindings())
+    expect<unknown[]>(compiled.bindings).toEqual([5, 'a'])
+  })
+
+  /** A subquery embed still carries the inner bindings, in order, ahead of its own. */
+  test('an embedded subquery keeps its bindings in front', async () => {
+    const inner = (await db.table('sales')).select('region').where('amount', '>', 5)
+    const outer = (await db.table('sales'))
+      .joinSub(inner, 's', 's.region', '=', 'sales.region')
+      .where('sales.amount', '<', 100)
+
+    expect<unknown[]>(outer.getBindings()).toEqual([5, 100])
+    expect<boolean>(outer.toSql().includes('(select')).toBe(true)
+  })
+
   test('insertUsing copies rows without bringing them here', async () => {
     const connection = await db.connection()
     await connection.statement('create table archive (id integer, region text, amount integer)')
