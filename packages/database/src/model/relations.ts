@@ -25,6 +25,11 @@ export abstract class Relation<R extends Model> {
     protected readonly parent: Model
   ) {}
 
+  /** The model on the other side, for callers that need to ask it something. */
+  get relatedClass(): typeof Model {
+    return this.related as typeof Model
+  }
+
   /** A query for this relation, constrained to the parent. */
   abstract query(): ModelBuilder<R>
 
@@ -48,6 +53,55 @@ export abstract class Relation<R extends Model> {
     foreign: string
     local: string
     related: ModelClass<R>
+  }
+
+  /**
+   * Bump `updated_at` on every row this relation reaches, with one UPDATE.
+   *
+   * Laravel's `Relation::touch()`, which is `rawUpdate([updated_at => now])` — a
+   * single statement against the related table. What was here instead selected the
+   * rows and saved each one, so attaching a tag that 500 articles already carry
+   * issued 501 queries and, because each save is a save, fired 500 sets of model
+   * events for a timestamp bump. Laravel fires none of them for a touch, and
+   * neither does this now.
+   *
+   * One statement, because most relations constrain the related table with a plain
+   * `where` and can be updated through it directly. `belongsTo` is the common case
+   * and it is the cheapest: the owner's key is already sitting in the child's
+   * attributes, so nothing is read at all.
+   *
+   * The relations that reach across a join override this — see `touchByKey` — since
+   * `UPDATE … JOIN` is not something sqlite will accept.
+   *
+   * A related model with `timestamps = false` has no column to bump, so nothing is
+   * written: the same check Laravel makes with `isIgnoringTouch()`.
+   *
+   * The update passes no values of its own. `ModelBuilder.update` supplies
+   * `updated_at` when the model keeps timestamps, and that is the whole of what a
+   * touch writes.
+   */
+  async touch(): Promise<number> {
+    if (!(this.related as typeof Model).timestamps) return 0
+
+    return this.query().update({})
+  }
+
+  /**
+   * The same touch for a relation whose query joins another table.
+   *
+   * Read the keys, then update by key: two statements, portable everywhere, and
+   * still two whether the relation reaches one row or a million.
+   */
+  protected async touchByKey(): Promise<number> {
+    const related = this.related as typeof Model
+
+    if (!related.timestamps) return 0
+
+    const keys = (await this.query().pluck<unknown>(related.primaryKey)).all()
+
+    if (keys.length === 0) return 0
+
+    return (related.query() as ModelBuilder<R>).whereIn(related.primaryKey, keys).update({})
   }
 
   protected keysOf(models: Model[], key: string): unknown[] {
@@ -433,6 +487,11 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
     return builder
   }
 
+  /** Its query joins another table, so the rows are touched by key instead. */
+  override async touch(): Promise<number> {
+    return this.touchByKey()
+  }
+
   /** Every pivot-level constraint, in one place so lazy and eager agree. */
   protected applyPivotConstraints(builder: ModelBuilder<R>): void {
     for (const [column, value] of this.pivotWheres) {
@@ -533,7 +592,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
 
     if (!candidates.some((name) => wanted.includes(name))) return
 
-    for (const model of await this.query().get()) await model.touch()
+    await this.touch()
   }
 
   /** The property name this relation was reached through, when it can be known. */
@@ -1036,6 +1095,11 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
       .where(`${this.throughTable}.${this.firstKey}`, this.parent.attributes[this.localKey])
   }
 
+  /** Its query joins another table, so the rows are touched by key instead. */
+  override async touch(): Promise<number> {
+    return this.touchByKey()
+  }
+
   async get(): Promise<Collection<R>> {
     return this.query().get()
   }
@@ -1220,6 +1284,11 @@ export class HasOneOfMany<R extends Model> extends Relation<R> {
         this.parent.attributes[this.localKey]
       )
     )
+  }
+
+  /** Its query joins another table, so the rows are touched by key instead. */
+  override async touch(): Promise<number> {
+    return this.touchByKey()
   }
 
   /** Join the per-parent aggregate, whatever the outer query is filtered by. */
@@ -1417,6 +1486,11 @@ export class MorphToManyThrough<R extends Model> extends Relation<R> {
           this.parent.attributes[this.localKey]
         )
     )
+  }
+
+  /** Its query joins another table, so the rows are touched by key instead. */
+  override async touch(): Promise<number> {
+    return this.touchByKey()
   }
 
   async get(): Promise<Collection<R>> {

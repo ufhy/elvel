@@ -348,15 +348,46 @@ export class Model {
     ).sendNow(this, notification)
   }
 
-  /** Touch every relation `static touches` names. */
-  private async touchRelations(): Promise<void> {
+  /**
+   * Touch every relation `static touches` names — Laravel's `touchOwners`.
+   *
+   * One UPDATE per relation, not one per row. This used to fetch the relation and
+   * call `touch()` on what came back, which meant a save per owner, and it did not
+   * work at all for a relation with more than one row on the other side: `get()`
+   * hands back a `Collection`, a `Collection` has no `touch`, and naming a
+   * `hasMany` in `touches` threw a `TypeError` at the first save.
+   *
+   * The chain still propagates — a comment touching a post whose own `touches`
+   * names a thread bumps the thread — because Laravel's does, through
+   * `$this->$relation->touchOwners()`. It is followed only when the related class
+   * actually declares `touches`, so the common case pays no extra read for the
+   * possibility.
+   *
+   * `seen` is the recursion guard, Laravel's `withoutRecursion` by another name. A
+   * pair of models that touch each other used to bump one another until the
+   * process was killed; now the second visit to the same row is a no-op.
+   */
+  private async touchRelations(seen: Set<string> = new Set()): Promise<void> {
+    const here = `${this.self.name}:${String(this.attributes[this.self.primaryKey])}`
+
+    if (seen.has(here)) return
+
+    seen.add(here)
+
     for (const name of this.self.touches) {
-      const relation = (this as Record<string, unknown>)[name]
-      if (typeof relation !== 'function') continue
+      const method = (this as Record<string, unknown>)[name]
+      if (typeof method !== 'function') continue
 
-      const owner = await (relation.call(this) as { get(): Promise<Model | undefined> }).get()
+      const relation = method.call(this) as Relation<Model>
 
-      await owner?.touch()
+      await relation.touch()
+
+      if (!relation.relatedClass.touches.length) continue
+
+      const owners = await relation.get()
+      const models = owners instanceof Collection ? owners.all() : owners ? [owners] : []
+
+      for (const owner of models) await owner.touchRelations(seen)
     }
   }
 
