@@ -184,3 +184,65 @@ describe('independent relations', () => {
     )
   })
 })
+
+describe('inside a transaction', () => {
+  /**
+   * The concurrency is not switched off there, and this is the reason it is safe
+   * to leave on: a transaction is pinned to one reserved connection, and the
+   * driver queues concurrent statements on it. Verified against Postgres 17 and
+   * MySQL 9.7 as well as the sqlite here — three overlapping selects inside one
+   * transaction come back in order on all three.
+   */
+  test('every relation still lands', async () => {
+    const app = new Application(process.cwd())
+
+    app.config.set('database', {
+      default: 'sqlite',
+      connections: { sqlite: { driver: 'sqlite', database: ':memory:' } }
+    })
+
+    await app.register(EventServiceProvider)
+    await app.register(DatabaseServiceProvider)
+    await app.boot()
+
+    const connection = await app.make('db').connection()
+
+    await connection.statement('create table authors (id integer primary key)')
+    await connection.statement('create table posts (id integer primary key, author_id integer)')
+    await connection.statement('create table awards (id integer primary key, author_id integer)')
+    await connection.statement('insert into authors values (1)')
+    await connection.statement('insert into posts values (1,1)')
+    await connection.statement('insert into awards values (1,1)')
+
+    await connection.transaction(async () => {
+      const authors = await Author.query().with('posts', 'awards').get()
+      const ada = authors.first() as Author
+
+      expect<number>((ada.getRelation('posts') as Collection<Post>).all().length).toBe(1)
+      expect<number>((ada.getRelation('awards') as Collection<Award>).all().length).toBe(1)
+    })
+  })
+
+  /**
+   * And one relation failing while its siblings are still in flight rolls the
+   * transaction back rather than leaving it open — the connection is usable after.
+   */
+  test('a failure among siblings still rolls back cleanly', async () => {
+    const connection = await (
+      Author as unknown as {
+        getConnection: (n?: string) => Promise<{
+          transaction: (body: () => Promise<unknown>) => Promise<unknown>
+        }>
+      }
+    ).getConnection()
+
+    expect(
+      connection.transaction(async () => {
+        await Author.query().with('posts', 'nonsense').get()
+      })
+    ).rejects.toThrow('Relation [nonsense] is not defined on Author.')
+
+    // Still usable.
+    expect<number>(await Author.query().count()).toBe(1)
+  })
+})

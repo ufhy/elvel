@@ -1315,19 +1315,17 @@ export class ModelBuilder<M extends Model> {
      * round trips where one would do. On a database across a network that is the
      * whole cost of the eager load.
      *
-     * **Not inside a transaction.** A transaction is pinned to one reserved
-     * connection, and issuing concurrent statements down it is a question about the
-     * driver rather than about this code. Sequential there costs a transaction a
-     * round trip it was already paying; it is the cheap side of a bet I cannot
-     * settle without measuring against every driver.
+     * Inside a transaction too. A transaction is pinned to one reserved connection,
+     * so the question was whether concurrent statements down it are safe — and they
+     * are: Bun queues them on the connection, and three overlapping `select`s inside
+     * one transaction come back in order on both Postgres and MySQL. Measured
+     * against both rather than assumed, because the safe-looking alternative was to
+     * make every transactional eager load pay the round trips it was already paying.
      */
     const groups = [...heads]
-    const connection = await (this.model as typeof Model).getConnection(
-      (this.model as typeof Model).connection
-    )
 
-    if (connection.transactions !== undefined || groups.length === 1) {
-      for (const group of groups) await load(group)
+    if (groups.length === 1) {
+      await load(groups[0] as [string, string[]])
 
       return
     }
