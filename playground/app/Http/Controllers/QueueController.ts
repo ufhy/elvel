@@ -233,7 +233,7 @@ export default new Elysia({ name: 'queue' })
         attempts: record.payload.attempts
       })),
       log: (await cache().get<string[]>('digest:log')) ?? [],
-      jobs: queue().jobs.names()
+      jobs: await queue().jobs.all()
     }
   })
 

@@ -295,7 +295,7 @@ export class QueueManager {
        * the retries and the failure record everything else in a worker gets.
        */
       dispatchCallback: async (job, batchId) => {
-        const jobClass = this.jobs.get(job)
+        const jobClass = await this.jobs.find(job)
         if (!jobClass) return
 
         const instance = new (jobClass as unknown as new (data: unknown) => AnyJob)({ batchId })

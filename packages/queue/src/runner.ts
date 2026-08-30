@@ -121,7 +121,7 @@ export class JobRunner {
 
   /** Rebuild the job instance a payload names. */
   async resolve(queued: QueuedJob): Promise<AnyJob> {
-    const jobClass = this.jobs.get(queued.payload.job)
+    const jobClass = await this.jobs.find(queued.payload.job)
 
     if (!jobClass) {
       throw new Error(

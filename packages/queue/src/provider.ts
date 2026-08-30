@@ -74,7 +74,7 @@ export class QueueServiceProvider extends ServiceProvider {
 
     const manager = this.app.make('queue')
 
-    manager.jobs.register(...(await this.discoverJobs()))
+    manager.jobs.discoverWith(() => this.discoverJobs())
 
     this.wireQueuedListeners(manager)
   }
@@ -131,13 +131,25 @@ export class QueueServiceProvider extends ServiceProvider {
       return []
     }
 
+    const files = entries
+      .filter((entry) => /\.(ts|js|mts|mjs)$/.test(entry) && !entry.endsWith('.d.ts'))
+      .sort()
+
+    /**
+     * Imported together, registered in name order.
+     *
+     * Each file pulls in whatever the job uses — models, mailers, clients — so
+     * awaiting them one at a time added up: seven files took 118ms in sequence and
+     * 50ms at once. The order that matters is the registration order, and that is
+     * restored by mapping over the sorted list rather than by the imports racing.
+     */
+    const modules = await Promise.all(
+      files.map(async (entry) => (await import(join(directory, entry))) as Record<string, unknown>)
+    )
+
     const jobs: JobClass[] = []
 
-    for (const entry of entries.sort()) {
-      if (!/\.(ts|js|mts|mjs)$/.test(entry) || entry.endsWith('.d.ts')) continue
-
-      const module = (await import(join(directory, entry))) as Record<string, unknown>
-
+    for (const module of modules) {
       for (const exported of Object.values(module)) {
         if (!QueueServiceProvider.looksLikeJob(exported)) continue
 

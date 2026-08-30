@@ -236,8 +236,32 @@ export type JobClass = (new (
 export class JobRegistry {
   private readonly jobs = new Map<string, JobClass>()
 
+  /** How to find the jobs nobody registered by hand, and whether it has run. */
+  private discovery: (() => Promise<JobClass[]>) | undefined
+  private discovered: Promise<void> | undefined
+
   register(...jobs: JobClass[]): this {
     for (const job of jobs) this.jobs.set(job.name, job)
+
+    return this
+  }
+
+  /**
+   * Where to look for jobs nobody named, when somebody asks for one that is missing.
+   *
+   * `app/Jobs` used to be read and imported during `boot()`, on every process:
+   * seven job files cost **118ms** on the playground, paid by `elvel key:generate`
+   * as much as by a worker, because a job file pulls in the models and mailers it
+   * uses. Almost nothing needs it — dispatching a job registers its own class on
+   * the way past, so the only caller that resolves a name it has never seen is a
+   * worker rebuilding a job from a payload.
+   *
+   * The cost of waiting is where a broken job file surfaces: at the first lookup
+   * that misses rather than at boot. A worker still finds it on its first job, and
+   * `queue:work` on an empty queue was never going to run the file anyway.
+   */
+  discoverWith(discovery: () => Promise<JobClass[]>): this {
+    this.discovery = discovery
 
     return this
   }
@@ -246,11 +270,46 @@ export class JobRegistry {
     return this.jobs.get(name)
   }
 
+  /**
+   * The job a name refers to, discovering `app/Jobs` if it has not been read yet.
+   *
+   * Discovery runs at most once, whether it found the name or not: a second miss
+   * is a job that does not exist, and re-reading the directory to be told so again
+   * would turn a typo in a payload into a directory scan per failed job.
+   */
+  async find(name: string): Promise<JobClass | undefined> {
+    const known = this.jobs.get(name)
+
+    if (known !== undefined) return known
+
+    await this.discover()
+
+    return this.jobs.get(name)
+  }
+
   has(name: string): boolean {
     return this.jobs.has(name)
   }
 
+  /** Every job this application has, which means reading `app/Jobs` first. */
+  async all(): Promise<string[]> {
+    await this.discover()
+
+    return this.names()
+  }
+
+  /** Only what is registered — `all()` is the one that goes looking. */
   names(): string[] {
     return [...this.jobs.keys()].sort()
+  }
+
+  private async discover(): Promise<void> {
+    if (this.discovery === undefined) return
+
+    this.discovered ??= this.discovery().then((jobs) => {
+      this.register(...jobs)
+    })
+
+    await this.discovered
   }
 }
