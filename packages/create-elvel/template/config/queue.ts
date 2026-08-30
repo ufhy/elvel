@@ -29,7 +29,20 @@ export default {
       driver: 'redis',
       url: env('REDIS_URL', 'redis://127.0.0.1:6379'),
       queue: 'default',
-      retryAfter: 90
+      retryAfter: 90,
+      /**
+       * Seconds between sweeps for due delayed jobs and expired reservations.
+       *
+       * The sweep runs on `pop`, which on a busy queue happens as fast as jobs are
+       * taken — two extra round trips per job to ask whether anything became due in
+       * the meantime. Both sets are scored in whole seconds, so once a second finds
+       * everything a busier sweep would.
+       *
+       * The cost is patience: a delayed job may start up to this many seconds after
+       * its time, and a job abandoned by a dead worker is recovered that much later.
+       * `0` sweeps on every pop, which is what Laravel does.
+       */
+      migrateEvery: 1
     }
   },
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
 import { ConnectionManager } from '@elvel/database'
 import { EventRegistry, ListenerRegistry, QueuedListener } from '@elvel/events'
+import { RedisClient } from 'bun'
 import { ArrayBatchRepository } from '../src/batch.ts'
 import { PendingBatch } from '../src/bus.ts'
 import type { JobPayload, QueueDriver } from '../src/contracts.ts'
@@ -1802,3 +1803,167 @@ describe('afterCommit', () => {
     expect(await manager.connection().size()).toBe(1)
   })
 })
+
+if (redisAvailable) {
+  describe('the redis driver sends hashes, and sweeps on a clock', () => {
+    const client = new RedisClient(REDIS_URL)
+
+    /** Command counters, read straight off the server. */
+    const counts = async (): Promise<Record<string, number>> => {
+      const info = String(await client.send('INFO', ['commandstats']))
+      const seen: Record<string, number> = {}
+
+      for (const line of info.split('\n')) {
+        const match = line.match(/^cmdstat_(\w+):calls=(\d+)/)
+
+        if (match) seen[match[1] as string] = Number(match[2])
+      }
+
+      return seen
+    }
+
+    const since = async (before: Record<string, number>, command: string): Promise<number> =>
+      ((await counts())[command] ?? 0) - (before[command] ?? 0)
+
+    const queue = () =>
+      new RedisQueue('redis', {
+        url: REDIS_URL,
+        prefix: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}:`,
+        retryAfter: 1
+      })
+
+    const payload = (id: string) => ({
+      uuid: id,
+      displayName: 'Probe',
+      job: 'Probe',
+      maxTries: 1,
+      attempts: 0,
+      data: {}
+    })
+
+    /**
+     * `EVAL` sends the whole script every time — 861 bytes across the three a
+     * single `pop` ran. Loading once and sending the hash took a pop from 122µs to
+     * 45µs against a local server.
+     */
+    test('a script is loaded once and then addressed by hash', async () => {
+      const driver = queue()
+
+      for (let i = 0; i < 5; i++) await driver.push(payload(`p${i}`) as never)
+
+      await driver.pop()
+
+      const before = await counts()
+
+      for (let i = 0; i < 4; i++) await driver.pop()
+
+      expect<number>(await since(before, 'script')).toBe(0)
+      expect<number>(await since(before, 'eval')).toBe(0)
+      expect<boolean>((await since(before, 'evalsha')) > 0).toBe(true)
+
+      await driver.clear()
+      driver.disconnect()
+    })
+
+    /** A server that forgot the script — restarted, or a different node — relearns it. */
+    test('and is taught again when the server has forgotten it', async () => {
+      const driver = queue()
+
+      await driver.push(payload('first') as never)
+      await driver.pop()
+
+      await client.send('SCRIPT', ['FLUSH'])
+
+      await driver.push(payload('second') as never)
+
+      expect<string | undefined>((await driver.pop())?.payload.uuid).toBe('second')
+
+      await driver.clear()
+      driver.disconnect()
+    })
+
+    /**
+     * The sweep for due delayed jobs and expired reservations ran on every pop —
+     * two thirds of the commands a busy queue sent, asking whether anything became
+     * due in the microsecond since the last time.
+     */
+    test('the sweep runs on a clock, not on every pop', async () => {
+      const driver = queue()
+
+      for (let i = 0; i < 20; i++) await driver.push(payload(`s${i}`) as never)
+
+      await driver.pop()
+
+      const before = await counts()
+
+      for (let i = 0; i < 19; i++) await driver.pop()
+
+      /**
+       * One script call per pop rather than three. Bounded rather than exact: the
+       * counter is the whole server's, so anything else touching this Redis would
+       * break an equality without saying anything about the sweep.
+       */
+      const ran = await since(before, 'evalsha')
+
+      expect<boolean>(ran >= 19).toBe(true)
+      expect<boolean>(ran < 19 * 2).toBe(true)
+
+      await driver.clear()
+      driver.disconnect()
+    })
+
+    test('unless the interval is zero, which is what Laravel does', async () => {
+      const driver = new RedisQueue('redis', {
+        url: REDIS_URL,
+        prefix: `t0${Date.now().toString(36)}:`,
+        retryAfter: 1,
+        migrateEvery: 0
+      })
+
+      for (let i = 0; i < 10; i++) await driver.push(payload(`z${i}`) as never)
+
+      await driver.pop()
+
+      const before = await counts()
+
+      for (let i = 0; i < 9; i++) await driver.pop()
+
+      // Three per pop: the two sweeps and the pop itself.
+      expect<boolean>((await since(before, 'evalsha')) >= 27).toBe(true)
+
+      await driver.clear()
+      driver.disconnect()
+    })
+
+    /**
+     * A retry with no delay means now, and it goes onto the delayed set where only
+     * a sweep finds it. The driver that put it there cancels its own throttle, so
+     * the next pop looks rather than waits out the interval.
+     */
+    test('a job released for immediate retry is not left waiting for the clock', async () => {
+      const driver = queue()
+
+      await driver.push(payload('retry') as never)
+
+      const first = await driver.pop()
+
+      await first?.release(0)
+
+      expect<string | undefined>((await driver.pop())?.payload.uuid).toBe('retry')
+
+      await driver.clear()
+      driver.disconnect()
+    })
+
+    test('and neither is one scheduled inside the interval', async () => {
+      const driver = queue()
+
+      await driver.later(0, payload('soon') as never)
+
+      expect<string | undefined>((await driver.pop())?.payload.uuid).toBe('soon')
+
+      await driver.clear()
+      driver.disconnect()
+    })
+  })
+}

@@ -7,6 +7,16 @@ export type RedisQueueOptions = {
   queue?: string
   /** Seconds a reservation is trusted for before the job is migrated back. */
   retryAfter?: number
+  /**
+   * Seconds between sweeps for due delayed jobs and expired reservations.
+   *
+   * Laravel sweeps on every `pop`, which on a busy queue is two extra round trips
+   * for every job taken — two thirds of the traffic, spent asking whether anything
+   * became due in the microsecond since the last time. Once a second is often
+   * enough for a mechanism whose own resolution is whole seconds, and `0` restores
+   * Laravel's behaviour exactly.
+   */
+  migrateEvery?: number
   client?: ConstructorParameters<typeof RedisClient>[1]
 }
 
@@ -78,6 +88,20 @@ export class RedisQueue implements QueueDriver {
   private readonly client: RedisClient
   private readonly prefix: string
   private readonly retryAfter: number
+  private readonly migrateEvery: number
+
+  /** When each queue was last swept, so the sweep can be throttled per queue. */
+  private readonly sweptAt = new Map<string, number>()
+
+  /**
+   * The SHA of each script, once Redis has been told about it.
+   *
+   * `EVAL` sends the whole script body every time — 861 bytes per `pop` across the
+   * three it ran. `EVALSHA` sends forty. The load is lazy and the fall back to
+   * `EVAL` is real: a Redis that was restarted, or a replica that never saw the
+   * load, answers `NOSCRIPT`, and the next call teaches it again.
+   */
+  private readonly shas = new Map<string, string>()
 
   constructor(
     readonly connectionName: string,
@@ -86,10 +110,38 @@ export class RedisQueue implements QueueDriver {
     this.prefix = options.prefix ?? 'queues:'
     this.defaultQueue = options.queue ?? 'default'
     this.retryAfter = options.retryAfter ?? 90
+    this.migrateEvery = options.migrateEvery ?? 1
     this.client = new RedisClient(
       options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
       options.client
     )
+  }
+
+  /**
+   * Run a script by hash, teaching Redis the body only when it has to.
+   *
+   * The first call for a script pays one extra round trip to `SCRIPT LOAD`; every
+   * call after sends the hash. `NOSCRIPT` means the server forgot — restarted, or
+   * a different node — so the body goes again and the hash is relearned.
+   */
+  private async run(script: string, args: string[]): Promise<unknown> {
+    const known = this.shas.get(script)
+
+    if (known !== undefined) {
+      try {
+        return await this.client.send('EVALSHA', [known, ...args])
+      } catch (error) {
+        if (!String((error as Error).message).includes('NOSCRIPT')) throw error
+
+        this.shas.delete(script)
+      }
+    }
+
+    const sha = String(await this.client.send('SCRIPT', ['LOAD', script]))
+
+    this.shas.set(script, sha)
+
+    return this.client.send('EVALSHA', [sha, ...args])
   }
 
   async push(payload: JobPayload, queue?: string): Promise<string> {
@@ -99,11 +151,16 @@ export class RedisQueue implements QueueDriver {
   }
 
   async later(delay: number, payload: JobPayload, queue?: string): Promise<string> {
+    const name = this.key(queue)
+
     await this.client.send('ZADD', [
-      `${this.key(queue)}:delayed`,
+      `${name}:delayed`,
       String(this.availableAt(delay)),
       JSON.stringify(payload)
     ])
+
+    // Due within the sweep window, so the next pop has to look rather than wait.
+    if (delay <= this.migrateEvery) this.sweepSoon(name)
 
     return payload.uuid
   }
@@ -111,10 +168,9 @@ export class RedisQueue implements QueueDriver {
   async pop(queue?: string): Promise<QueuedJob | null> {
     const name = queue ?? this.defaultQueue
 
-    await this.migrate(name)
+    await this.migrate(name, false)
 
-    const result = (await this.client.send('EVAL', [
-      POP,
+    const result = (await this.run(POP, [
       '2',
       this.key(name),
       `${this.key(name)}:reserved`,
@@ -148,38 +204,75 @@ export class RedisQueue implements QueueDriver {
   async clear(queue?: string): Promise<number> {
     const name = this.key(queue)
 
-    const cleared = await this.client.send('EVAL', [
-      CLEAR,
-      '3',
-      name,
-      `${name}:delayed`,
-      `${name}:reserved`
-    ])
+    const cleared = await this.run(CLEAR, ['3', name, `${name}:delayed`, `${name}:reserved`])
 
     return Number(cleared)
   }
 
-  /** Delayed jobs that are due, and reservations that expired. */
-  async migrate(queue?: string): Promise<void> {
+  /**
+   * Delayed jobs that are due, and reservations that expired.
+   *
+   * Throttled per queue by `migrateEvery`, because `pop` calls it and `pop` is
+   * called as fast as jobs are taken. Both sets are scored in whole seconds, so
+   * sweeping more than once a second cannot find anything a one-second sweep would
+   * miss — it only asks sooner. A due job therefore waits up to `migrateEvery`
+   * seconds longer than its own delay, and an abandoned reservation is recovered
+   * that much later; set it to `0` and every `pop` sweeps, as Laravel's does.
+   *
+   * Called directly — by `queue:retry`, or a test — it always sweeps. The throttle
+   * belongs to the polling path, not to the operation.
+   */
+  async migrate(queue?: string, force = true): Promise<void> {
     const name = this.key(queue)
+
+    if (!force && !this.sweepDue(name)) return
+
     const now = String(Math.floor(Date.now() / 1000))
 
-    await this.client.send('EVAL', [MIGRATE, '2', `${name}:delayed`, name, now, '100'])
-    await this.client.send('EVAL', [MIGRATE, '2', `${name}:reserved`, name, now, '100'])
+    await this.run(MIGRATE, ['2', `${name}:delayed`, name, now, '100'])
+    await this.run(MIGRATE, ['2', `${name}:reserved`, name, now, '100'])
+  }
+
+  /**
+   * Something was just put where only a sweep will find it, so sweep next time.
+   *
+   * `release(0)` means retry now, and the retry goes onto the delayed set — where
+   * a throttled sweep would leave it sitting for up to a second. The driver that
+   * put it there knows, so it cancels its own throttle. Another process releasing
+   * the same job cannot cancel this one's, which is the bound the throttle carries
+   * and the reason `migrateEvery` is configurable.
+   */
+  private sweepSoon(name: string): void {
+    this.sweptAt.delete(name)
+  }
+
+  /** Has enough time passed since this queue was last swept? */
+  private sweepDue(name: string): boolean {
+    if (this.migrateEvery <= 0) return true
+
+    const now = Date.now()
+    const last = this.sweptAt.get(name) ?? 0
+
+    if (now - last < this.migrateEvery * 1000) return false
+
+    this.sweptAt.set(name, now)
+
+    return true
   }
 
   /** Called by a job releasing itself. */
   async releaseJob(reserved: string, queue: string, delay: number): Promise<void> {
     const name = this.key(queue)
 
-    await this.client.send('EVAL', [
-      RELEASE,
+    await this.run(RELEASE, [
       '2',
       `${name}:delayed`,
       `${name}:reserved`,
       reserved,
       String(this.availableAt(delay))
     ])
+
+    if (delay <= this.migrateEvery) this.sweepSoon(name)
   }
 
   /** Called by a job that finished or failed. */

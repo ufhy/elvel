@@ -474,7 +474,8 @@ export class QueueManager {
           url: config.url as string | undefined,
           prefix: config.prefix as string | undefined,
           queue: config.queue as string | undefined,
-          retryAfter: config.retryAfter as number | undefined
+          retryAfter: config.retryAfter as number | undefined,
+          migrateEvery: config.migrateEvery as number | undefined
         })
 
       case 'sqs':
