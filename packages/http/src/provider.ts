@@ -729,12 +729,16 @@ export class HttpServiceProvider extends ServiceProvider {
       // Encrypted when configured and possible; signed otherwise. Reading falls
       // back to the other form so a running application survives the switch
       // without logging everyone out.
-      const id =
-        (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ??
-        jar.unsign(cookies[name]) ??
-        Session.newId()
+      const presented =
+        (encryptSession ? jar.decrypt(name, cookies[name]) : undefined) ?? jar.unsign(cookies[name])
 
-      const session = await new Session(id, driver, name).start()
+      // Whether the id was presented decides whether the store is read at all.
+      const session = await new Session(
+        presented ?? Session.newId(),
+        driver,
+        name,
+        presented === undefined
+      ).start()
 
       sessions.set(request, session)
 
