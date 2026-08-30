@@ -42,6 +42,6 @@ describe('without a terminal', () => {
   test('secret refuses instead, since a blank password is not an answer', async () => {
     const output = new Output()
 
-    expect(output.secret('Token?')).rejects.toThrow(/needs a terminal/)
+    await expect(output.secret('Token?')).rejects.toThrow(/needs a terminal/)
   })
 })

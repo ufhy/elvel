@@ -1436,13 +1436,23 @@ export class ModelBuilder<M extends Model> {
     return (await this.base()).avg(column)
   }
 
-  /** One page of results, plus the totals a UI needs. */
+  /**
+   * One page of results, plus the totals a UI needs.
+   *
+   * The count and the page are issued together. They are two independent queries
+   * against two clones — neither reads the other's answer — and awaiting them one
+   * after another spent a round trip on nothing but the ordering. A paginated
+   * listing is the shape most applications serve most often, so it is the round
+   * trip most worth not spending.
+   */
   async paginate(page = 1, perPage = 15): Promise<Paginated<M>> {
-    const total = await this.clone().count()
-    const data = await this.clone()
-      .offset((Math.max(1, page) - 1) * perPage)
-      .limit(perPage)
-      .get()
+    const [total, data] = await Promise.all([
+      this.clone().count(),
+      this.clone()
+        .offset((Math.max(1, page) - 1) * perPage)
+        .limit(perPage)
+        .get()
+    ])
 
     return {
       data,

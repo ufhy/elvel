@@ -272,7 +272,7 @@ for (const { name, config } of available) {
         await table(tables.account).insert(account('a1'))
 
         // The same identity again. Whatever each dialect calls it, it is a refusal.
-        expect(table(tables.account).insert(account('a2'))).rejects.toThrow()
+        await expect(table(tables.account).insert(account('a2'))).rejects.toThrow()
 
         expect(await table(tables.account).count()).toBe(1)
       } finally {
@@ -656,7 +656,7 @@ for (const { name, config } of available) {
           })
 
           await accounts.insert(row('a1'))
-          expect(accounts.insert(row('a2'))).rejects.toThrow()
+          await expect(accounts.insert(row('a2'))).rejects.toThrow()
 
           // And back down, so the migration is one somebody dares run twice.
           await patch.instance.down({ schema } as never)

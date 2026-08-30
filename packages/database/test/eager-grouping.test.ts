@@ -179,7 +179,7 @@ describe('independent relations', () => {
    * concurrently must not turn it into a silent empty result.
    */
   test('and a name that is not a relation still says so', async () => {
-    expect(Author.query().with('posts', 'nonsense').get()).rejects.toThrow(
+    await expect(Author.query().with('posts', 'nonsense').get()).rejects.toThrow(
       'Relation [nonsense] is not defined on Author.'
     )
   })
@@ -236,7 +236,7 @@ describe('inside a transaction', () => {
       }
     ).getConnection()
 
-    expect(
+    await expect(
       connection.transaction(async () => {
         await Author.query().with('posts', 'nonsense').get()
       })

@@ -331,6 +331,6 @@ describe('against a socket', () => {
 
     controller.abort()
 
-    expect(inFlight).rejects.toThrow()
+    await expect(inFlight).rejects.toThrow()
   })
 })
