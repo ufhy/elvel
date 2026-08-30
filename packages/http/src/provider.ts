@@ -753,7 +753,7 @@ export class HttpServiceProvider extends ServiceProvider {
 
       if (already !== undefined) return already
 
-      const cookies = CookieJar.parse(request.headers.get('cookie'))
+      const cookies = CookieJar.parseOnce(request)
 
       // Encrypted when configured and possible; signed otherwise. Reading falls
       // back to the other form so a running application survives the switch

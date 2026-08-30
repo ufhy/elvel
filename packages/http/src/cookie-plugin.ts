@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { CookieBag, currentCookieBag, enterCookieBag, readCookies } from './cookie-bag.ts'
+import { CookieBag, cookieRevealer, currentCookieBag, enterCookieBag } from './cookie-bag.ts'
 import { CookieJar } from './cookies.ts'
 
 export type CookieMiddlewareOptions = {
@@ -28,6 +28,9 @@ export type CookieMiddlewareOptions = {
 export function cookiePlugin(jar: CookieJar, options: CookieMiddlewareOptions = {}) {
   const except = options.except ?? []
 
+  // Decided once at boot: whether there is anything to decrypt at all, and how.
+  const reveal = cookieRevealer(jar, except)
+
   return (
     new Elysia({ name: 'elvel:cookies' })
       /**
@@ -36,7 +39,7 @@ export function cookiePlugin(jar: CookieJar, options: CookieMiddlewareOptions = 
        * of the handler that wants to read a cookie.
        */
       .onBeforeHandle({ as: 'global' }, ({ request }) => {
-        enterCookieBag(new CookieBag(readCookies(request.headers.get('cookie'), jar, except)))
+        enterCookieBag(new CookieBag(CookieJar.parseOnce(request), reveal))
       })
       .onAfterHandle({ as: 'global' }, ({ set }) => {
         const bag = currentCookieBag()

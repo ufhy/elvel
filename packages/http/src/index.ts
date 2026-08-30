@@ -15,6 +15,7 @@ export { SessionTableCommand } from './console/session-table.ts'
 export {
   CookieBag,
   cookie,
+  cookieRevealer,
   currentCookieBag,
   enterCookieBag,
   forgetCookie,

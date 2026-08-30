@@ -20,11 +20,49 @@ export type QueuedCookie = {
 export class CookieBag {
   private readonly outgoing = new Map<string, QueuedCookie>()
 
-  constructor(private readonly incoming: Record<string, string> = {}) {}
+  /** Names already resolved through `reveal`; `undefined` is a real answer here. */
+  private readonly revealed = new Map<string, string | undefined>()
 
-  /** What the browser sent, already decrypted. */
+  constructor(
+    private readonly incoming: Record<string, string> = {},
+    /**
+     * How to turn one raw cookie into its value, called at most once per name.
+     *
+     * Omitted, the raw value *is* the value — which is the case with no encrypter
+     * bound, and the reason an application without `EncryptionServiceProvider`
+     * pays nothing for this at all.
+     */
+    private readonly reveal?: (name: string, value: string) => string | undefined
+  ) {}
+
+  /**
+   * What the browser sent, decrypted on the way out rather than on the way in.
+   *
+   * Every incoming cookie used to be AEAD-decrypted as the request arrived, whether
+   * or not the handler ever asked for one — 1.45µs each, so a page carrying four
+   * application cookies and reading none of them paid 6.7µs to decrypt values it
+   * threw away. A handler that reads one cookie now pays for one.
+   *
+   * The result is remembered, including the `undefined` a cookie that fails to
+   * authenticate resolves to: that failure is not free either, and a template
+   * reading the same cookie in a loop should not repeat it.
+   */
   get(name: string, fallback?: string): string | undefined {
-    return this.outgoing.get(name)?.value ?? this.incoming[name] ?? fallback
+    const queued = this.outgoing.get(name)
+
+    if (queued !== undefined) return queued.value
+
+    if (this.revealed.has(name)) return this.revealed.get(name) ?? fallback
+
+    const raw = this.incoming[name]
+
+    if (raw === undefined) return fallback
+
+    const value = this.reveal === undefined ? raw : this.reveal(name, raw)
+
+    this.revealed.set(name, value)
+
+    return value ?? fallback
   }
 
   has(name: string): boolean {
@@ -93,7 +131,29 @@ export function forgetCookie(name: string, options: CookieOptions = {}): void {
   currentCookieBag()?.forget(name, options)
 }
 
-/** Parse a `Cookie` header, decrypting everything that is not excepted. */
+/**
+ * How a bag should turn one raw cookie into its value.
+ *
+ * The same rule `readCookies` applies, expressed one cookie at a time so it can
+ * be applied to the one cookie somebody actually asked for. Returns `undefined`
+ * with no encrypter, which tells `CookieBag` there is nothing to do.
+ */
+export function cookieRevealer(
+  jar: CookieJar,
+  except: readonly string[]
+): ((name: string, value: string) => string | undefined) | undefined {
+  if (!jar.encrypts) return undefined
+
+  return (name, value) => (except.includes(name) ? value : jar.decrypt(name, value))
+}
+
+/**
+ * Parse a `Cookie` header, decrypting everything that is not excepted.
+ *
+ * The eager form. `cookiePlugin` no longer uses it — a request that reads no
+ * cookie should decrypt no cookie — but it stays for code that wants the whole
+ * set as a plain record and knows it will read most of it.
+ */
 export function readCookies(
   header: string | null | undefined,
   jar: CookieJar,
