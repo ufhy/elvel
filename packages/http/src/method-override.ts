@@ -22,6 +22,18 @@ export type MethodOverrideOptions = {
   allow?: string[]
   /** Read `?_method=` as well as the body. Off by default, as in Symfony. */
   fromQuery?: boolean
+  /**
+   * Largest body, in bytes, this will read to look for `_method`. No limit by
+   * default.
+   *
+   * Finding the field means copying the body, so an upload has two copies alive
+   * at once — measured at 9ms and +50MB for a 50MB form. A limit bounds that, and
+   * the edge is sharp: a spoofed form above it is not spoofed, and the `PUT`
+   * arrives as a `POST` with nothing said. Clients that send the
+   * `X-HTTP-Method-Override` header are unaffected either way — that path reads
+   * no body at all.
+   */
+  sniffLimit?: number
 }
 
 /**
@@ -66,6 +78,23 @@ export function methodOverridePlugin(
      * booted application, so neither ever put a real token through a real
      * spoofed form.
      */
+    /**
+     * The header settles it without reading a byte, so it is asked first.
+     *
+     * It used to be asked *after* the body had already been cloned into memory:
+     * `readOverride` checks it on its first line and says so — "it needs no body
+     * to be read at all" — but the buffer was materialised before the call.
+     * Every API client sending `X-HTTP-Method-Override` paid for a copy of its
+     * own body to reach a branch that never looks at one.
+     */
+    const declared = request.headers.get(METHOD_HEADER)
+
+    if (declared) {
+      const spoofed = declared.toUpperCase()
+
+      return allowed.has(spoofed) ? respoof(request, spoofed, handler) : undefined
+    }
+
     const type = request.headers.get('content-type') ?? ''
     const carriesFields =
       type.includes('application/x-www-form-urlencoded') || type.includes('multipart/form-data')
@@ -82,22 +111,61 @@ export function methodOverridePlugin(
      * which is most of them — passes straight through and Elysia parses it as it
      * did before this plugin existed.
      */
-    const bytes = carriesFields ? await request.clone().arrayBuffer() : undefined
+    const bytes =
+      carriesFields && withinLimit(request, options.sniffLimit)
+        ? await request.clone().arrayBuffer()
+        : undefined
+
     const spoofed = await readOverride(request, bytes, type, options.fromQuery ?? false)
 
     if (!spoofed || !allowed.has(spoofed)) return undefined
 
-    const headers = new Headers(request.headers)
-    headers.set(APPLIED, '1')
-
-    return handler(
-      new Request(request.url, {
-        method: spoofed,
-        headers,
-        ...(bytes === undefined ? {} : { body: bytes })
-      })
-    )
+    return respoof(request, spoofed, handler, bytes)
   })
+}
+
+/**
+ * Whether the body is small enough to look inside.
+ *
+ * Undefined means no limit, which is the default and is the only setting that
+ * cannot surprise anybody: a form that says `_method` is always honoured. The
+ * cost of that is memory — the body is copied to be read, so a 50MB upload has
+ * two copies alive at once, measured at 9ms and +50MB.
+ *
+ * Setting a limit trades that back, and the trade has a sharp edge: a spoofed
+ * form larger than the limit is not spoofed at all, and a `PUT` quietly arrives
+ * as a `POST`. Set it only if the application's forms are known to be small, or
+ * if its clients send the header instead — that path reads nothing either way.
+ */
+function withinLimit(request: Request, limit: number | undefined): boolean {
+  if (limit === undefined) return true
+
+  const declared = Number(request.headers.get('content-length'))
+
+  // An unknown length is treated as too large, because guessing the other way
+  // is what the limit was set to prevent.
+  return Number.isFinite(declared) && declared <= limit
+}
+
+/** Hand the request back through the router as the method it asked to be. */
+function respoof(
+  request: Request,
+  method: string,
+  handler: (request: Request) => Promise<Response>,
+  bytes?: ArrayBuffer
+): Promise<Response> {
+  const headers = new Headers(request.headers)
+  headers.set(APPLIED, '1')
+
+  return handler(
+    new Request(request.url, {
+      method,
+      headers,
+      ...(bytes === undefined
+        ? ({ body: request.body, duplex: 'half' } as RequestInit)
+        : { body: bytes })
+    })
+  )
 }
 
 /**

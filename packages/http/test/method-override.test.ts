@@ -188,3 +188,79 @@ describe('methodField', () => {
     )
   })
 })
+
+describe('what the plugin reads before it decides', () => {
+  const echo = async (request: Request) =>
+    new Response(JSON.stringify({ method: request.method, body: await request.text() }))
+
+  /**
+   * The header settles it, so the body is never touched.
+   *
+   * It used to be cloned into memory first and the header checked afterwards —
+   * measured at 9ms and +50MB for a 50MB form, spent to reach a branch that reads
+   * no body. This asserts the body is still readable downstream *and* that the
+   * stream was never consumed here.
+   */
+  test('a header spoof reads no body at all', async () => {
+    const app = new Elysia().use(methodOverridePlugin(echo)).put('/x', () => 'unused')
+
+    const answer = await app.handle(
+      new Request('http://localhost/x', {
+        method: 'POST',
+        headers: {
+          'content-type': 'multipart/form-data; boundary=b',
+          'x-http-method-override': 'PUT'
+        },
+        body: '--b\r\nContent-Disposition: form-data; name="note"\r\n\r\nkept\r\n--b--\r\n'
+      })
+    )
+
+    const seen = (await answer.json()) as { method: string; body: string }
+
+    expect<string>(seen.method).toBe('PUT')
+    // The body survived, which is the point of not having consumed it.
+    expect<boolean>(seen.body.includes('kept')).toBe(true)
+  })
+
+  /** A body spoof still works, because that is what the field is for. */
+  test('and a field spoof still reaches the route', async () => {
+    const app = new Elysia().use(methodOverridePlugin(echo)).put('/x', () => 'unused')
+
+    const answer = await app.handle(
+      new Request('http://localhost/x', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: '_method=PUT&title=hello'
+      })
+    )
+
+    expect<string>(((await answer.json()) as { method: string }).method).toBe('PUT')
+  })
+
+  /**
+   * Above the limit the body is left alone — and the request stays a POST.
+   *
+   * That is the sharp edge the option carries, asserted rather than described:
+   * setting a limit means a large spoofed form silently is not spoofed.
+   */
+  test('while a limit leaves a large body unread, and unspoofed', async () => {
+    const app = new Elysia()
+      .use(methodOverridePlugin(echo, { sniffLimit: 8 }))
+      .put('/x', () => 'unused')
+      .post('/x', () => 'stayed a post')
+
+    const body = `_method=PUT&pad=${'x'.repeat(200)}`
+    const answer = await app.handle(
+      new Request('http://localhost/x', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'content-length': String(body.length)
+        },
+        body
+      })
+    )
+
+    expect<string>(await answer.text()).toBe('stayed a post')
+  })
+})
