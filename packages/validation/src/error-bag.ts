@@ -21,6 +21,25 @@ export class ErrorBag {
     return this
   }
 
+  /**
+   * Fold another bag's messages into this one, keeping this one's key order.
+   *
+   * Attributes are validated concurrently, so their failures arrive in whatever
+   * order the slowest rule finished — but a form reports its errors in the order
+   * its fields were declared, and `first()` means the first field, not the first
+   * database round trip to come back. Each attribute fills its own bag and the
+   * bags are merged here in declaration order.
+   */
+  merge(other: ErrorBag): this {
+    for (const [attribute, messages] of other.bag) {
+      for (const message of messages) {
+        this.add(attribute, message, other.implicitFailures.has(attribute))
+      }
+    }
+
+    return this
+  }
+
   has(attribute?: string): boolean {
     return attribute === undefined ? this.bag.size > 0 : (this.bag.get(attribute)?.length ?? 0) > 0
   }

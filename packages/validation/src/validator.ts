@@ -55,8 +55,31 @@ export class ValidationError extends Error {
  *   rather than also "min" and "email"
  * - `exclude*` rules remove the attribute from `validated()` instead of failing
  */
+/**
+ * The rules that can wait on something, read off their own declarations at load.
+ *
+ * A hand-kept list would be a thing to forget: add a rule that reaches the network
+ * and the list is silently wrong, while `async` on the handler cannot be. Once at
+ * module scope, because asking every handler its constructor name on every
+ * validation cost more than the concurrency it was deciding about.
+ */
+const BLOCKING_RULES = new Set(
+  Object.entries(RULES)
+    .filter(([, handler]) => handler.constructor.name === 'AsyncFunction')
+    .map(([name]) => name)
+)
+
 export class Validator {
   private readonly rules: Record<string, ParsedRule[]> = {}
+
+  /**
+   * Whether any rule here could wait on something, decided once as they are parsed.
+   *
+   * It settles whether the attributes are worth running together. A closure counts
+   * — the application wrote it and it may do anything — and so does any handler
+   * declared `async`.
+   */
+  private canBlock = false
   private readonly afterCallbacks: Array<(validator: Validator) => void | Promise<void>> = []
   private readonly excluded = new Set<string>()
   readonly errors = new ErrorBag()
@@ -86,7 +109,11 @@ export class Validator {
         declaration instanceof ConditionalRules ? declaration.resolve(this.data) : declaration
 
       if (!attribute.includes('*')) {
-        this.rules[attribute] = Validator.parse(resolved)
+        const parsed = Validator.parse(resolved)
+
+        this.noteBlocking(parsed)
+        this.rules[attribute] = parsed
+
         continue
       }
 
@@ -106,6 +133,7 @@ export class Validator {
             : resolved
         )
 
+        this.noteBlocking(parsed)
         this.rules[expanded] = [...(this.rules[expanded] ?? []), ...parsed]
       }
     }
@@ -174,22 +202,63 @@ export class Validator {
     if (this.ran) return this.errors.isEmpty()
     this.ran = true
 
-    for (const [attribute, rules] of Object.entries(this.rules)) {
-      if (this.options.stopOnFirstFailure && this.errors.isNotEmpty()) break
-      if (this.excluded.has(attribute)) continue
+    const attributes = Object.entries(this.rules)
 
-      for (const rule of rules) {
-        const passed = await this.runRule(attribute, rule, rules)
+    if (this.options.stopOnFirstFailure || !this.canBlock) {
+      /**
+       * Sequential, for one of two reasons.
+       *
+       * `stopOnFirstFailure` is a statement about order — it means the first
+       * attribute that fails, and running them together would make it whichever
+       * attribute's slowest rule came back first.
+       *
+       * Or there is nothing to overlap: every rule here answers without waiting on
+       * anything, so a task and a promise per attribute would be pure overhead on a
+       * form that finishes in under three microseconds.
+       */
+      for (const [attribute, rules] of attributes) {
+        if (this.options.stopOnFirstFailure && this.errors.isNotEmpty()) break
+        if (this.excluded.has(attribute)) continue
 
-        // An excluded attribute is not validated at all: its remaining rules
-        // describe a value that will never reach `validated()`.
-        if (this.excluded.has(attribute)) break
+        // The chain is written out rather than calling `runAttribute`, which costs
+        // an async frame per attribute. This branch exists for the forms where that
+        // is the whole budget.
+        for (const rule of rules) {
+          const passed = await this.runRule(attribute, rule, rules, this.errors)
 
-        if (passed) continue
+          if (this.excluded.has(attribute)) break
+          if (passed) continue
+          if (this.shouldStopValidating(attribute, rules, this.errors)) break
+        }
+      }
+    } else {
+      /**
+       * One task per attribute, run together.
+       *
+       * A form with `unique:` on three fields made three database round trips one
+       * after another, and `active_url` can hold a DNS lookup for three seconds
+       * while every attribute after it waits its turn. Attributes are independent:
+       * `bail` and implicit failures stop *an attribute*, and the `exclude*` family
+       * only ever excludes the attribute it is written on.
+       *
+       * Each fills its own bag. `ErrorBag` is a map and its key order is the order
+       * a form reports its fields in, so the bags are merged below in the order the
+       * rules were declared rather than the order the network answered.
+       */
+      const bags = await Promise.all(
+        attributes.map(async ([attribute, rules]) => {
+          if (this.excluded.has(attribute)) return undefined
 
-        // Stop this attribute when `bail` is set, or when an implicit rule
-        // failed: reporting "min" on an absent value is noise.
-        if (this.shouldStopValidating(attribute, rules)) break
+          const bag = new ErrorBag()
+
+          await this.runAttribute(attribute, rules, bag)
+
+          return bag
+        })
+      )
+
+      for (const bag of bags) {
+        if (bag !== undefined) this.errors.merge(bag)
       }
     }
 
@@ -228,6 +297,36 @@ export class Validator {
     return result
   }
 
+  /** Remember whether this set brought anything that waits. */
+  private noteBlocking(rules: ParsedRule[]): void {
+    if (this.canBlock) return
+
+    for (const rule of rules) {
+      if (rule.closure !== undefined || BLOCKING_RULES.has(rule.name)) {
+        this.canBlock = true
+
+        return
+      }
+    }
+  }
+
+  /** One attribute's rules, in order, until one of them says to stop. */
+  private async runAttribute(attribute: string, rules: ParsedRule[], bag: ErrorBag): Promise<void> {
+    for (const rule of rules) {
+      const passed = await this.runRule(attribute, rule, rules, bag)
+
+      // An excluded attribute is not validated at all: its remaining rules
+      // describe a value that will never reach `validated()`.
+      if (this.excluded.has(attribute)) return
+
+      if (passed) continue
+
+      // Stop this attribute when `bail` is set, or when an implicit rule
+      // failed: reporting "min" on an absent value is noise.
+      if (this.shouldStopValidating(attribute, rules, bag)) return
+    }
+  }
+
   /**
    * Run one rule, returning whether validation should continue for this
    * attribute. Records a failure when the rule does not pass.
@@ -235,7 +334,8 @@ export class Validator {
   private async runRule(
     attribute: string,
     rule: ParsedRule,
-    siblings: ParsedRule[]
+    siblings: ParsedRule[],
+    bag: ErrorBag
   ): Promise<boolean> {
     if (NON_VALIDATING_RULES.has(rule.name) && !EXCLUDE_RULES.has(rule.name)) return true
 
@@ -262,7 +362,7 @@ export class Validator {
       if (typeof outcome === 'string') {
         // The closure's own message, used verbatim: it was written for this
         // failure, and a catalogue entry could only be vaguer.
-        this.errors.add(attribute, outcome)
+        bag.add(attribute, outcome)
 
         return false
       }
@@ -304,7 +404,7 @@ export class Validator {
 
     if (await handler(context)) return true
 
-    this.addFailure(attribute, rule, value, siblings)
+    this.addFailure(attribute, rule, value, siblings, bag)
 
     return false
   }
@@ -361,12 +461,12 @@ export class Validator {
     return isFilled(value) || implicit
   }
 
-  private shouldStopValidating(attribute: string, siblings: ParsedRule[]): boolean {
-    if (this.hasRule(siblings, 'bail')) return this.errors.has(attribute)
+  private shouldStopValidating(attribute: string, siblings: ParsedRule[], bag: ErrorBag): boolean {
+    if (this.hasRule(siblings, 'bail')) return bag.has(attribute)
 
     // An implicit failure means the value was absent; later rules would only
     // restate that.
-    return this.errors.failedImplicit(attribute)
+    return bag.failedImplicit(attribute)
   }
 
   private hasRule(rules: ParsedRule[], name: string): boolean {
@@ -377,7 +477,8 @@ export class Validator {
     attribute: string,
     rule: ParsedRule,
     value: unknown,
-    siblings: ParsedRule[]
+    siblings: ParsedRule[],
+    bag: ErrorBag
   ): void {
     const numeric = siblings.some((sibling) =>
       ['numeric', 'integer', 'decimal'].includes(sibling.name)
@@ -386,7 +487,7 @@ export class Validator {
     const type = SIZE_RULES.has(rule.name) ? typeOf(value, numeric) : 'string'
     const template = resolveMessage(rule.name, type, this.customMessagesFor(attribute))
 
-    this.errors.add(
+    bag.add(
       attribute,
       interpolate(template, this.replacements(attribute, rule)),
       IMPLICIT_RULES.has(rule.name)
