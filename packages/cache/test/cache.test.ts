@@ -796,7 +796,22 @@ for (const candidate of candidates) {
        * window lapses it is gone and the next attempt runs.
        */
       expect(await limiter.attempt('sms', 1, () => 'ok', 1)).toBe('ok')
-      expect(await limiter.attempts('sms')).toBe(1)
+
+      /**
+       * The count is not asserted here, and that is the fix rather than a gap.
+       *
+       * `expect(await limiter.attempts('sms')).toBe(1)` used to sit on this line
+       * and it failed a release on a loaded Postgres runner: recording an attempt
+       * is several round trips, and reading the count is one more, so a
+       * one-second window can lapse in the middle and answer `0` — the limiter
+       * behaving correctly and the assertion lying about why, which is exactly
+       * what the note above describes happening once before.
+       *
+       * Nothing is lost. The test above counts to two and reads it back under a
+       * sixty-second window, where no round trip can outrun the window. What
+       * needs a one-second window is the expiry below, and that is all this test
+       * keeps.
+       */
 
       /**
        * Comfortably past the window, not barely past it.
