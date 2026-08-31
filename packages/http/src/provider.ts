@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { flushDeferred, ServiceProvider } from '@elvel/core'
+import { type DeferredQueue, enterDeferredScope, flushDeferred, ServiceProvider } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { BindingRegistry, resolveBindings } from './bindings.ts'
 import { MakeRequestCommand } from './console/make-request.ts'
@@ -455,9 +455,34 @@ export class HttpServiceProvider extends ServiceProvider {
    * itself is a core primitive with no idea that HTTP exists.
    */
   private deferPlugin() {
-    return new Elysia({ name: 'elvel:defer' }).onAfterResponse({ as: 'global' }, async () => {
-      await flushDeferred((error) => this.app.make('exception.handler').report(error))
-    })
+    /**
+     * One queue per request, found again after the response.
+     *
+     * `onAfterResponse` may not run in the execution context the handler did, so
+     * the queue cannot be read back out of async storage there — it is kept
+     * against the `Request`, the way every other per-request thing here is.
+     */
+    const queues = new WeakMap<Request, DeferredQueue>()
+
+    return (
+      new Elysia({ name: 'elvel:defer' })
+        /**
+         * Synchronous, like the request scope and the cookie bag: `enterWith`
+         * applies to the rest of the current execution, and an `await` first would
+         * leave the handler deferring into the process-wide queue — which is what
+         * this exists to stop.
+         */
+        .onBeforeHandle({ as: 'global' }, ({ request }) => {
+          queues.set(request, enterDeferredScope())
+        })
+        .onAfterResponse({ as: 'global' }, async ({ request }) => {
+          const queue = queues.get(request)
+
+          if (queue === undefined) return
+
+          await flushDeferred((error) => this.app.make('exception.handler').report(error), queue)
+        })
+    )
   }
 
   /**

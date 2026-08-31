@@ -14,7 +14,14 @@ export {
   type RouteModule
 } from './application.ts'
 export { Config } from './config.ts'
-export { defer, deferredCount, flushDeferred, forgetDeferred } from './defer.ts'
+export {
+  type DeferredQueue,
+  defer,
+  deferredCount,
+  enterDeferredScope,
+  flushDeferred,
+  forgetDeferred
+} from './defer.ts'
 export { Env, env, parseEnvFile } from './env.ts'
 export {
   CARRIES_RESPONSE,
