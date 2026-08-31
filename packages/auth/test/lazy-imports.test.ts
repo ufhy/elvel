@@ -18,7 +18,9 @@ const ask = async (body: string): Promise<string> => {
   const src = join(import.meta.dir, '..', 'src')
 
   const script = `
-const loaded = (fragment) => Object.keys(require.cache ?? {}).some((path) => path.includes(fragment))
+// Separators normalised: a module path is backslash-separated on Windows, and
+// matching '/juice/' there found nothing whether it was loaded or not.
+const loaded = (fragment) => Object.keys(require.cache ?? {}).some((path) => path.replaceAll('\\\\', '/').includes(fragment))
 const src = ${JSON.stringify(src)}
 ${body}
 `

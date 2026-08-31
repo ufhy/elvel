@@ -16,6 +16,14 @@ import { LocalDisk } from '../src/disks/local.ts'
  * enough to arrive in one piece. What they could not see is a file that does not:
  * a streamed hash that mishandled its second chunk would have passed all of them.
  */
+/**
+ * Windows has no POSIX file mode, so `chmod` is close to a no-op there and the two
+ * visibility tests below assert something the platform does not have. The rest of
+ * this file is about bytes and applies everywhere. The same flag as
+ * `storage.test.ts`, which had already learned this.
+ */
+const posixModes = process.platform !== 'win32'
+
 let root: string
 
 const disk = () => new LocalDisk('local', { root } as never)
@@ -55,7 +63,7 @@ describe('append', () => {
    * has to end up private, which is what stops a log written under a public disk
    * root being readable by anything that can reach it.
    */
-  test('giving a new file the disk’s visibility', async () => {
+  test.skipIf(!posixModes)('giving a new file the disk’s visibility', async () => {
     const store = new LocalDisk('local', { root, visibility: 'private' } as never)
 
     await store.append('private.log', 'secret\n')
@@ -65,7 +73,7 @@ describe('append', () => {
     expect<boolean>((mode & 0o077) === 0).toBe(true)
   })
 
-  test('and a public disk’s files stay readable', async () => {
+  test.skipIf(!posixModes)('and a public disk’s files stay readable', async () => {
     const store = new LocalDisk('local', { root, visibility: 'public' } as never)
 
     await store.append('public.log', 'open\n')
