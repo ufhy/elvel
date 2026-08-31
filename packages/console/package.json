@@ -1,6 +1,6 @@
 {
   "name": "@elvel/console",
-  "version": "1.0.0-alpha.21",
+  "version": "1.0.0-alpha.22",
   "description": "The CLI for Elvel — command signatures, generators, prompts, and the kernel that runs them",
   "keywords": [
     "elvel",
