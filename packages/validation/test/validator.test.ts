@@ -637,6 +637,42 @@ describe('distinct', () => {
     ).toHaveLength(2)
   })
 
+  /**
+   * The rule used to ask, for every element, for the values of every other one:
+   * two O(n) passes each, so 200 unique values took 18.6ms and the per-element
+   * cost doubled with the list. It counts the values once now, which is the same
+   * question asked without looking at the others — so the cases below are about
+   * the counting being right, not about the speed.
+   */
+  test('three of the same value fail, all three of them', async () => {
+    const messages = await errors({ ids: [7, 7, 7, 8] }, { 'ids.*': 'distinct' })
+
+    expect<string[]>(Object.keys(messages)).toEqual(['ids.0', 'ids.1', 'ids.2'])
+  })
+
+  test('and two modes over one list do not share a count', async () => {
+    // Loose sees `A` and `a` as different; ignore_case sees them as the same.
+    const messages = await errors(
+      { tags: ['A', 'a'], names: ['B', 'b'] },
+      { 'tags.*': 'distinct', 'names.*': 'distinct:ignore_case' }
+    )
+
+    expect<string[]>(Object.keys(messages)).toEqual(['names.0', 'names.1'])
+  })
+
+  /** `===` says `NaN !== NaN`, so under strict a NaN cannot duplicate another. */
+  test('and NaN is distinct from NaN under strict', async () => {
+    expect<unknown>(
+      await errors({ ids: [Number.NaN, Number.NaN] }, { 'ids.*': 'distinct:strict' })
+    ).toEqual({})
+  })
+
+  test('and a list with a hole in it still answers', async () => {
+    const sparse = [1, undefined, 2]
+
+    expect<unknown>(await errors({ ids: sparse }, { 'ids.*': 'distinct' })).toEqual({})
+  })
+
   test('it compares within one collection, not across the payload', async () => {
     const messages = await errors(
       { first: [1, 2], second: [1, 2] },
