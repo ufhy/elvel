@@ -36,9 +36,29 @@ ${body}
   await Bun.write(file, script)
 
   try {
-    const run = Bun.spawn(['bun', file], { cwd: join(import.meta.dir, '..'), stdout: 'pipe' })
+    const run = Bun.spawn(['bun', file], {
+      cwd: join(import.meta.dir, '..'),
+      stdout: 'pipe',
+      stderr: 'pipe'
+    })
 
-    return (await new Response(run.stdout).text()).trim()
+    const [out, err, code] = await Promise.all([
+      new Response(run.stdout).text(),
+      new Response(run.stderr).text(),
+      run.exited
+    ])
+
+    /**
+     * A subprocess that did not run is not the same as a module that was loaded,
+     * and comparing its empty output to `'false'` says neither. This failed on
+     * somebody else's machine and reported nothing but `expected 'false', got ''`,
+     * which is the whole reason this check is here.
+     */
+    if (code !== 0) {
+      throw new Error(`The probe exited ${code} instead of answering:\n${err.trim() || out.trim()}`)
+    }
+
+    return out.trim()
   } finally {
     await Bun.file(file).delete()
   }
