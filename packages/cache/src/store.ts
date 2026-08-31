@@ -20,6 +20,21 @@ export interface Store {
 
   increment(key: string, value?: number): Promise<number | false>
 
+  /**
+   * Increment, giving the key a window if it did not exist — the new count.
+   *
+   * Optional, because a driver that cannot do it in one step should not pretend to:
+   * a caller falls back to `add` then `increment`, which is what this replaces.
+   * `increment` alone cannot be used for a counter that has to expire — on a
+   * missing key it creates one with no window, and a rate limit that never resets
+   * is not a rate limit.
+   *
+   * The window is set **only when the key is created**. Extending it on every hit
+   * would turn a fixed window into a sliding one, and a client that keeps knocking
+   * would never be let back in.
+   */
+  incrementWithin?(key: string, seconds: number, value?: number): Promise<number>
+
   decrement(key: string, value?: number): Promise<number | false>
 
   forever(key: string, value: unknown): Promise<boolean>

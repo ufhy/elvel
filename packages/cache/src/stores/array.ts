@@ -76,6 +76,30 @@ export class ArrayStore implements Store, LockProvider {
     return this.put(key, value, seconds)
   }
 
+  /**
+   * The same as `increment`, except a key that did not exist gets the window.
+   *
+   * `increment` deliberately creates a counter that never expires — a caller
+   * incrementing a plain number should not have a TTL invented for it — so a rate
+   * limit needs this instead.
+   */
+  async incrementWithin(key: string, seconds: number, value = 1): Promise<number> {
+    const entry = this.entries.get(this.prefix + key)
+
+    if (!entry || this.hasExpired(entry) || typeof entry.value !== 'number') {
+      await this.put(key, value, seconds)
+
+      return value
+    }
+
+    const next = entry.value + value
+
+    // The window belongs to the first hit, not to this one.
+    this.entries.set(this.prefix + key, { value: next, expires: entry.expires })
+
+    return next
+  }
+
   async increment(key: string, value = 1): Promise<number | false> {
     const entry = this.entries.get(this.prefix + key)
 

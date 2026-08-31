@@ -124,11 +124,16 @@ export async function enforceThrottle(
       })
     }
 
-    await counter.hit(limit.key, limit.decaySeconds)
+    const hits = await counter.hit(limit.key, limit.decaySeconds)
 
-    // Kept for the response hook, which cannot recompute them without knowing
-    // which limits this request was measured against.
-    applied(context as never).push(limit)
+    /**
+     * The count is carried to the response hook, not read again there.
+     *
+     * `hit` already answered how many attempts this key has, and the hook was
+     * asking the cache the same question a moment later — a fifth round trip on
+     * every throttled request to learn something this line already knows.
+     */
+    applied(context as never).push({ limit, hits })
   }
 }
 
@@ -146,11 +151,10 @@ export async function writeRateHeaders(context: {
   const limits = applied(context as never)
   if (limits.length === 0) return
 
-  const counter = rateLimiter()
   let tightest: { max: number; left: number } | undefined
 
-  for (const limit of limits) {
-    const left = await counter.remaining(limit.key, limit.maxAttempts)
+  for (const { limit, hits } of limits) {
+    const left = Math.max(0, limit.maxAttempts - hits)
 
     if (!tightest || left < tightest.left) tightest = { max: limit.maxAttempts, left }
   }
@@ -161,14 +165,17 @@ export async function writeRateHeaders(context: {
   context.set.headers['X-RateLimit-Remaining'] = String(tightest.left)
 }
 
-/** Limits applied to one request, kept per request rather than on the plugin. */
-const appliedLimits = new WeakMap<Request, Limit[]>()
+/** A limit this request was measured against, and what the count came back as. */
+type Measured = { limit: Limit; hits: number }
 
-function applied(context: { request: Request }): Limit[] {
+/** Limits applied to one request, kept per request rather than on the plugin. */
+const appliedLimits = new WeakMap<Request, Measured[]>()
+
+function applied(context: { request: Request }): Measured[] {
   const existing = appliedLimits.get(context.request)
   if (existing) return existing
 
-  const fresh: Limit[] = []
+  const fresh: Measured[] = []
   appliedLimits.set(context.request, fresh)
 
   return fresh

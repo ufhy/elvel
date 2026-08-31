@@ -18,6 +18,24 @@ export type RedisStoreOptions = {
  * locks: both are one `SET … NX` rather than a read followed by a write, because
  * anything else races across processes.
  */
+/**
+ * Increment, and set the expiry only when the increment created the key.
+ *
+ * `n == ARGV[1]` means this call brought the counter into existence, which is the
+ * one moment the window should be set: extending it on every hit would make a
+ * fixed window sliding, and a client that keeps knocking would never be let back
+ * in. A window of zero means forever, so it is left alone.
+ */
+const INCREMENT_WITHIN = `
+local n = redis.call('incrby', KEYS[1], ARGV[1])
+
+if n == tonumber(ARGV[1]) and tonumber(ARGV[2]) > 0 then
+  redis.call('expire', KEYS[1], ARGV[2])
+end
+
+return n
+`
+
 export class RedisStore implements Store, LockProvider {
   readonly prefix: string
 
@@ -90,6 +108,26 @@ export class RedisStore implements Store, LockProvider {
       // The key holds something that is not a number.
       return false
     }
+  }
+
+  /**
+   * `INCRBY` and, only if the key was just created, `EXPIRE` — one round trip.
+   *
+   * A rate limit was three calls to express: add the counter to give it a window,
+   * increment it, and put it back if the window had already gone. One script does
+   * all three, and the `n == v` test is what makes the window belong to the first
+   * hit rather than the latest.
+   */
+  async incrementWithin(key: string, seconds: number, value = 1): Promise<number> {
+    const answer = await this.client.send('EVAL', [
+      INCREMENT_WITHIN,
+      '1',
+      this.prefix + key,
+      String(value),
+      String(seconds)
+    ])
+
+    return Number(answer)
   }
 
   async decrement(key: string, value = 1): Promise<number | false> {

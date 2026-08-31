@@ -136,6 +136,16 @@ export class Repository {
     return this.store.increment(key, value)
   }
 
+  /**
+   * Increment, giving the key a window if it did not exist — see `Store`.
+   *
+   * `undefined` when the store cannot do it in one step, so a caller can fall back
+   * rather than be handed a counter that never expires.
+   */
+  incrementWithin(key: string, seconds: number, value = 1): Promise<number> | undefined {
+    return this.store.incrementWithin?.(key, seconds, value)
+  }
+
   async decrement(key: string, value = 1): Promise<number | false> {
     return this.store.decrement(key, value)
   }
