@@ -275,6 +275,21 @@ Pivot columns are selected as `pivot_<column>` and moved onto the accessor after
 hydration, so a pivot's own `created_at` cannot overwrite the model's. `using()`
 hydrates them as a `Pivot` subclass of yours; `as()` renames the accessor.
 
+`sync()` changes what has to change and reports what it changed:
+
+```ts
+const { attached, detached } = await article.tags().sync([1, 2, 3])
+```
+
+Rows already correct are left alone — which matters beyond the query count, because
+a pivot carries its own `created_at`. Deleting and reinserting the lot would rewrite
+"when did this article get that tag" for every tag it already had. A `sync` that
+changes nothing writes nothing at all.
+
+`syncWithoutDetaching(ids)` adds without removing, and `toggle(ids)` flips each id
+and reports both halves. All three fire one touch rather than one per half, so a
+related model naming the inverse in `static touches` is bumped once per change.
+
 ### One row, across many or through another table
 
 ```ts
@@ -292,10 +307,37 @@ two rows.
 
 ```ts
 await Article.query().chunkById(500, handle)
+
+for await (const article of Article.query().lazyById(1000)) {
+  // one at a time, without the whole table in memory
+}
 ```
 
-Pages by primary key rather than by offset, which is what makes it safe to delete
-or update rows as you go — an offset shifts under you and skips records.
+Both page by primary key. That is what makes them safe to delete or update rows as
+you go: an offset shifts under you and skips records.
+
+`chunk()` and `lazy()` page by key too — **unless you ordered the query yourself**:
+
+```ts
+// By key: nothing was ordered, so nothing was promised about page boundaries.
+await Article.query().chunk(500, handle)
+
+// By offset: you asked for this order, so you get it — and its cost.
+await Article.query().orderBy('title').chunk(500, handle)
+```
+
+Without an `order by`, a `limit`/`offset` pair promises nothing about which rows
+land on which page, so ordering by the key is stricter than what was there rather
+than looser. With one, the order is the point and paging has to honour it.
+
+Two things follow from that, and they are the reason to prefer the `ById` forms
+whenever the order does not matter to you:
+
+- An **ordered** walk still skips rows if you delete as you go. `chunkById` never
+  does, whatever it was ordered by, because it replaces the order with the key's.
+- Offset paging makes the database find and discard every row before the page it
+  wants, so reaching page N costs more the larger N is. Walking 400,000 rows took
+  4.06s by offset against 0.70s by key.
 
 ## Scopes
 

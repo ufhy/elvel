@@ -202,6 +202,31 @@ because it needs no service and survives a restart. `database` needs
 The prefix exists so two applications can share one Redis or one cache table
 without colliding — and changing it is a cache flush by another name.
 
+## A memory tier in front of the store
+
+```ts
+// config/cache.ts
+memory: 1
+```
+
+Off by default. Set to a number of seconds, it keeps values in process memory for
+that long in front of whatever store is configured. A `get` against the file store
+costs about 26µs and 96% of that is the filesystem read, so the only way to make a
+hot key cheap is not to go to the store at all — 25µs becomes 0.09µs.
+
+**It trades freshness for that, and the trade is real.** A cache is shared: another
+process — a second web worker, a queue worker, a `bun elvel` command — can write a
+key this process is still serving from memory. Writes made *here* drop the entry
+immediately, so a single-process application never sees a stale value; a
+multi-process one sees at most `memory` seconds of staleness after somebody else's
+write.
+
+One second suits configuration, feature flags and permission maps: things read on
+every request and changed by a deploy. Do not put it in front of a counter, a rate
+limiter or a lock — those are read-modify-write, and a stale read there is a wrong
+answer rather than an old one. Counters and locks pass straight through for exactly
+that reason.
+
 ## Events
 
 `cache.hit`, `cache.missed`, `cache.written` and `cache.forgotten` are

@@ -188,6 +188,42 @@ transaction, and it is tested against real Postgres and MySQL on every push
 including the two-workers-race case — SQLite serialises writes anyway, so it
 would pass whether or not the lock were there.
 
+### Two Redis options worth knowing
+
+```ts
+redis: {
+  driver: 'redis',
+  url: env('REDIS_URL', 'redis://127.0.0.1:6379'),
+  retryAfter: 90,
+  migrateEvery: 1,      // seconds between sweeps for due and expired jobs
+  blockFor: undefined   // seconds an idle worker waits to be woken
+}
+```
+
+`migrateEvery` is how often the driver looks for delayed jobs that have come due
+and reservations that have expired. It runs on `pop`, which on a busy queue happens
+as fast as jobs are taken, so doing it every time is two extra round trips per job
+to ask whether anything changed in the microsecond since the last look. Both sets
+are scored in whole seconds, so once a second finds everything a busier sweep
+would. The cost is patience: a delayed job may start up to this many seconds after
+its time, and a job abandoned by a dead worker is recovered that much later. `0`
+sweeps on every pop, which is what Laravel does.
+
+`blockFor` decides how an idle worker waits. Unset, it sleeps `--sleep` seconds
+between looks, so a job pushed just after a look waits that long to start — 1.7
+seconds on average with the default of three. Set, the worker holds a blocking read
+on a notification list and starts the job in about two milliseconds:
+
+```ts
+redis: { driver: 'redis', url: env('REDIS_URL'), blockFor: 5 }
+```
+
+The cost is a second Redis connection per worker, held open for as long as it
+waits — which is why it is a choice rather than the default, as Laravel's
+`block_for` is. The blocking read gets its own connection deliberately: `BLPOP`
+holds whichever connection it runs on, and sharing the driver's would mean a
+worker's idle wait stalling every `push` from the same process.
+
 ```bash
 bun elvel queue:table && bun elvel migrate
 ```
