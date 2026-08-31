@@ -349,7 +349,10 @@ export class RedisQueue implements QueueDriver {
     if (this.blockFor === undefined) return false
 
     const notify = `${this.key(queue)}:notify`
-    const client = (this.waiter ??= new RedisClient(this.url, this.clientOptions))
+
+    this.waiter ??= new RedisClient(this.url, this.clientOptions)
+
+    const client = this.waiter
 
     const woken = await client.send('BLPOP', [notify, String(this.blockFor)])
 
