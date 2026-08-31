@@ -1,6 +1,6 @@
 {
   "name": "@elvel/auth",
-  "version": "1.0.0-alpha.19",
+  "version": "1.0.0-alpha.20",
   "description": "Authentication for Elvel — token guard, gate, and better-auth over the framework ORM",
   "keywords": [
     "auth",
