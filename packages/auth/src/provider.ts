@@ -39,6 +39,20 @@ export type AuthConfig = {
    * whenever `@elvel/notifications` is registered.
    */
   notifications?: boolean
+  /**
+   * better-auth's own rate limit, which guards the endpoints it mounts.
+   *
+   * Left alone it follows **`app.env`**, not `NODE_ENV`. better-auth's default is
+   * `NODE_ENV === 'production'`, and an application deployed the way this framework
+   * documents — `APP_ENV=production`, nothing said about `NODE_ENV` — left
+   * `/api/auth/sign-in/email` with no limit at all while `throttle:6,1` guarded a
+   * route the auth client never calls. Measured: twenty failed sign-ins in a row
+   * answered `401` twenty times.
+   *
+   * Set it to override, including `{ enabled: false }` to turn it off in production
+   * on purpose.
+   */
+  rateLimit?: { enabled?: boolean; window?: number; max?: number; [option: string]: unknown }
   [option: string]: unknown
 }
 
@@ -180,9 +194,32 @@ export class AuthServiceProvider extends ServiceProvider {
 
     return betterAuth({
       ...this.withMail(options, notifications),
+      ...this.withRateLimit(options),
       basePath: basePath ?? '/api/auth',
       database: elvelAdapter(db, { connection, dialect })
     }) as unknown as AuthInstance
+  }
+
+  /**
+   * Make better-auth's rate limit follow this application's environment.
+   *
+   * better-auth decides for itself from `NODE_ENV === 'production'`. An Elvel
+   * application says what environment it is in through `app.env`, and a deployment
+   * that sets `APP_ENV=production` without `NODE_ENV` is the documented way to run
+   * one — which left the endpoints better-auth mounts with no rate limit while
+   * `throttle:6,1` guarded a route the auth client does not call. Twenty failed
+   * sign-ins in a row answered `401` twenty times; they answer `429` after three
+   * now.
+   *
+   * An explicit `auth.rateLimit` wins, so an application can still turn it off in
+   * production or tighten it beyond the default.
+   */
+  private withRateLimit(options: Record<string, unknown>): Record<string, unknown> {
+    const given = options.rateLimit as { enabled?: boolean } | undefined
+
+    if (given?.enabled !== undefined) return {}
+
+    return { rateLimit: { ...given, enabled: this.app.isProduction() } }
   }
 
   /**

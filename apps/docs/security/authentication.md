@@ -79,6 +79,33 @@ better-auth ships nothing enabled by default. A sign-up route that 404s usually
 means `emailAndPassword.enabled` is not set, not that something is broken.
 :::
 
+### Rate limiting the auth endpoints
+
+`rateLimit` is one option the framework does not pass through untouched. Left
+unset, it follows **`APP_ENV`**: on in production, off everywhere else.
+
+```ts
+// config/auth.ts
+rateLimit: { enabled: true, window: 10, max: 100 }   // to decide for yourself
+```
+
+better-auth's own default reads `NODE_ENV`, and an application deployed the way
+this framework documents — `APP_ENV=production`, nothing said about `NODE_ENV` —
+had **no limit on the endpoints better-auth mounts**. Twenty failed sign-ins in a
+row against `/api/auth/sign-in/email` answered `401` twenty times. The
+`throttle:6,1` on the starter kit's own `/api/login` did not help, because that is
+not the route a better-auth client calls.
+
+Both limits are worth having, and they are not the same thing:
+
+- **`throttle:` on your own routes** counts in your cache, is keyed the way you
+  choose, and answers `429` with `Retry-After`.
+- **`rateLimit` in `config/auth.ts`** guards the twelve endpoints better-auth
+  mounts, which your own middleware never sees.
+
+An explicit `enabled` wins either way, so `{ enabled: false }` turns it off in
+production on purpose and `{ enabled: true }` turns it on while developing.
+
 ## Adding a better-auth plugin
 
 Two lines. `config/auth.ts` passes everything it does not recognise straight to
