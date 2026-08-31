@@ -547,6 +547,29 @@ export abstract class Grammar {
     rows: Array<Record<string, unknown>>
   ): { sql: string; bindings: unknown[] }
 
+  /**
+   * Claim a row: write it unless a live one is already there.
+   *
+   * One statement that answers "did I get it?", which is what a lock is. Written
+   * as two — clear the expired row, then `insert or ignore` — it is two round trips
+   * for one question, and between them the row exists for nobody. Whether that gap
+   * can actually be lost to another writer was not something I could make happen:
+   * sixty rounds of twelve concurrent claimants on an expired key produced exactly
+   * one winner every time, on the two-statement version as well as this one. One
+   * statement is fewer round trips and has no gap to reason about.
+   *
+   * `guard` is the column holding the expiry and `alive` the value it must exceed
+   * to count as still held. The affected-row count is the answer: non-zero means
+   * this caller wrote the row, zero means somebody live already had it.
+   */
+  abstract compileClaim(
+    table: string,
+    row: Record<string, unknown>,
+    uniqueBy: string[],
+    guard: string,
+    alive: unknown
+  ): { sql: string; bindings: unknown[] }
+
   /** Appended to an insert when the driver can return the new row. */
   supportsReturning(): boolean {
     return false

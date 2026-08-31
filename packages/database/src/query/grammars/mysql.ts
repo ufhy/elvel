@@ -83,6 +83,39 @@ export class MySqlGrammar extends Grammar {
     }
   }
 
+  /**
+   * MySQL has no `where` on `on duplicate key update`, so the condition moves into
+   * the assignments: each column is set to the new value when the row is dead and
+   * to itself when it is alive.
+   *
+   * Assigning a column to itself changes nothing, and MySQL's affected-row count
+   * says so — 1 for an insert, 2 for a real update, **0 when nothing changed**. So
+   * a non-zero count means this caller won, the same answer the other dialects give.
+   */
+  override compileClaim(
+    table: string,
+    row: Record<string, unknown>,
+    uniqueBy: string[],
+    guard: string,
+    alive: unknown
+  ) {
+    const insert = this.compileInsert(table, [row])
+    const columns = Object.keys(row).filter((column) => !uniqueBy.includes(column))
+    const bindings: unknown[] = [...insert.bindings]
+
+    const assignments = columns
+      .map((column) => {
+        const wrapped = this.wrap(column)
+
+        bindings.push(alive)
+
+        return `${wrapped} = if(${this.wrap(guard)} <= ${this.parameter(bindings.length)}, values(${wrapped}), ${wrapped})`
+      })
+      .join(', ')
+
+    return { sql: `${insert.sql} on duplicate key update ${assignments}`, bindings }
+  }
+
   /** `json_length(col, '$."a"') > ?` — MySQL counts elements of an array. */
   protected override compileJsonLength(column: string, operator: string, value: string): string {
     const { column: field, path } = this.jsonPathParts(column)

@@ -1156,6 +1156,30 @@ export class QueryBuilder<T extends Row = Row> {
     return this.connection.affectingStatement(sql, bindings)
   }
 
+  /**
+   * Write a row unless a live one already holds its key — one statement.
+   *
+   * The primitive behind a lock and behind `Cache::add`. `guard` names the column
+   * carrying the expiry and `alive` the value it must exceed to still count; the
+   * answer is whether this caller wrote the row.
+   */
+  async claim(
+    row: Record<string, unknown>,
+    uniqueBy: string[],
+    guard: string,
+    alive: unknown
+  ): Promise<boolean> {
+    const { sql, bindings } = this.connection.grammar.compileClaim(
+      this.query.from,
+      row,
+      uniqueBy,
+      guard,
+      alive
+    )
+
+    return (await this.connection.affectingStatement(sql, bindings)) > 0
+  }
+
   async update(values: Record<string, unknown>): Promise<number> {
     const { sql, bindings } = this.connection.grammar.compileUpdate(this.query, values)
 

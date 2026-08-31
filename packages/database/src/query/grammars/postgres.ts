@@ -103,6 +103,36 @@ export class PostgresGrammar extends Grammar {
     }
   }
 
+  /**
+   * `on conflict (key) do update set … where "table"."guard" <= ?`
+   *
+   * The `where` on the update is what makes it a claim rather than a takeover: a
+   * conflict with a row that is still alive updates nothing and reports zero.
+   */
+  override compileClaim(
+    table: string,
+    row: Record<string, unknown>,
+    uniqueBy: string[],
+    guard: string,
+    alive: unknown
+  ) {
+    const insert = this.compileInsert(table, [row])
+    const conflict = uniqueBy.map((column) => this.wrap(column)).join(', ')
+    const assignments = Object.keys(row)
+      .filter((column) => !uniqueBy.includes(column))
+      .map((column) => `${this.wrap(column)} = excluded.${this.wrap(column)}`)
+      .join(', ')
+
+    // `parameter()`, not a literal `?`: Postgres numbers its placeholders and the
+    // insert above has already used the first of them.
+    return {
+      sql:
+        `${insert.sql} on conflict (${conflict}) do update set ${assignments} ` +
+        `where ${this.wrapTable(table)}.${this.wrap(guard)} <= ${this.parameter(insert.bindings.length + 1)}`,
+      bindings: [...insert.bindings, alive]
+    }
+  }
+
   override supportsReturning(): boolean {
     return true
   }

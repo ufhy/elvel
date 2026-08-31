@@ -68,6 +68,31 @@ export class SQLiteGrammar extends Grammar {
     }
   }
 
+  /** The same `on conflict … where` as Postgres — see the note there. */
+  override compileClaim(
+    table: string,
+    row: Record<string, unknown>,
+    uniqueBy: string[],
+    guard: string,
+    alive: unknown
+  ) {
+    const insert = this.compileInsert(table, [row])
+    const conflict = uniqueBy.map((column) => this.wrap(column)).join(', ')
+    const assignments = Object.keys(row)
+      .filter((column) => !uniqueBy.includes(column))
+      .map((column) => `${this.wrap(column)} = excluded.${this.wrap(column)}`)
+      .join(', ')
+
+    // `parameter()`, not a literal `?`: Postgres numbers its placeholders and the
+    // insert above has already used the first of them.
+    return {
+      sql:
+        `${insert.sql} on conflict (${conflict}) do update set ${assignments} ` +
+        `where ${this.wrapTable(table)}.${this.wrap(guard)} <= ${this.parameter(insert.bindings.length + 1)}`,
+      bindings: [...insert.bindings, alive]
+    }
+  }
+
   override supportsReturning(): boolean {
     // RETURNING landed in SQLite 3.35; Bun ships a newer build.
     return true
