@@ -200,7 +200,29 @@ export async function resolveBindings(
   })
   const plain = entries.filter((entry) => !scoped.includes(entry))
 
-  for (const [name, value] of [...plain, ...scoped]) {
+  /**
+   * The plain ones together, the scoped ones in order after them.
+   *
+   * A plain binding is a query of its own — `/{post}/{author}` is two rows from
+   * two tables that know nothing about each other — and resolving them in turn
+   * spent a round trip on the ordering. A scoped binding is the opposite: it is
+   * constrained by its parent, so it cannot start until the parent is in `store`.
+   */
+  if (plain.length > 1) {
+    const found = await Promise.all(
+      plain.map(async ([name, value]) => {
+        return [name, await resolveOne(registry, name, value, store, request, hints)] as const
+      })
+    )
+
+    for (const [name, value] of found) store.set(name, value)
+  } else {
+    for (const [name, value] of plain) {
+      store.set(name, await resolveOne(registry, name, value, store, request, hints))
+    }
+  }
+
+  for (const [name, value] of scoped) {
     store.set(name, await resolveOne(registry, name, value, store, request, hints))
   }
 }
