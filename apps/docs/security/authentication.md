@@ -106,6 +106,70 @@ Both limits are worth having, and they are not the same thing:
 An explicit `enabled` wins either way, so `{ enabled: false }` turns it off in
 production on purpose and `{ enabled: true }` turns it on while developing.
 
+### Caching the session in a cookie
+
+Every guarded request resolves the session, and resolving it reads the store.
+`session.cookieCache` puts the session and the user row in the cookie instead, so
+most requests read nothing at all. It is off in all four kits, and turning it on
+is worth doing with the numbers in front of you.
+
+```ts
+// config/auth.ts
+session: {
+  cookieCache: { enabled: true, maxAge: 300 }
+}
+```
+
+Measured on the `api` kit against Postgres 17, production mode, 50 concurrent
+sessions hitting `/api/auth/get-session`, best of three rounds after a discarded
+warm-up:
+
+| | req/s | p50 |
+| --- | --- | --- |
+| off, as shipped | 6,664 | 7.18 ms |
+| on, `CACHE_STORE=redis` | 9,252 | 4.98 ms |
+| on, `CACHE_STORE=file` | 8,853 | 5.12 ms |
+
+#### What the framework fills in
+
+Cached sessions have a well-known hole: **nothing reads the store any more, so a
+session that has been signed out keeps working until its cookie expires** — five
+minutes at the `maxAge` above. That is the wrong answer for a shared computer, an
+admin disabling an account, or a stolen laptop, and it is the case where "log out
+everywhere" has to mean it.
+
+Turn the cache on and the framework closes that hole for you. Two things arrive
+with it, and both can be taken back:
+
+- **`version` becomes a revocation epoch.** One number per user, kept in your
+  cache store, bumped by better-auth's own database hooks whenever a session is
+  deleted, a user is updated or deleted, or an account is updated — which is where
+  a password change lands. better-auth throws away a cached cookie whose version
+  no longer matches and reads the store, so a revoked session is refused on its
+  **next** request rather than five minutes later. That check is the difference
+  between 10,241 req/s and the 9,252 above.
+- **`strategy` defaults to `'jwe'`,** not better-auth's `'compact'`. `compact` is
+  base64 JSON — signed, so it cannot be forged, but readable by anyone holding the
+  cookie, including the user's own row and any field you have added to it. Caching
+  the session and publishing it to the client are separate decisions, and only the
+  first one was asked for.
+
+Write either key yourself and yours is used instead; your own database hooks are
+called too, not replaced.
+
+#### What to know before turning it on
+
+- **It needs a cache store your processes share.** The epoch lives there, so
+  `file`, `redis` and `database` all work and `memory` does not: with more than
+  one process, a revocation recorded in one worker is invisible to the others.
+  Both stores in the table above are shared ones.
+- **If the cache cannot be read, the cache is not trusted.** An unreachable Redis
+  makes every request fall through to the store — slower, and still correct. What
+  it never does is assume nothing was revoked.
+- **It does not help bearer tokens.** A client sending `Authorization: Bearer …`
+  carries no cookie to cache in, so the `api` kit's own `/api/login`, which
+  answers with a token, is unaffected either way.
+
 ## Adding a better-auth plugin
 
 Two lines. `config/auth.ts` passes everything it does not recognise straight to

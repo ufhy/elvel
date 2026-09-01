@@ -15,6 +15,7 @@ import {
   guestOnly,
   requirePassword
 } from './middleware.ts'
+import { type CacheLike, SessionRevocations } from './revocation.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -53,6 +54,38 @@ export type AuthConfig = {
    * on purpose.
    */
   rateLimit?: { enabled?: boolean; window?: number; max?: number; [option: string]: unknown }
+  /**
+   * better-auth's session options, of which one has a framework opinion attached.
+   *
+   * **`cookieCache` is off, and turning it on is a real decision.** It puts the
+   * session and the user row in a cookie so most requests need no store lookup:
+   * measured on the `api` kit against Postgres 17, 50 concurrent sessions,
+   * `get-session` goes from 6,664 req/s to 10,241. What it costs is that nothing
+   * reads the store any more, so a revoked session keeps working until the cookie
+   * expires.
+   *
+   * Turn it on and the framework closes that hole for you — see
+   * {@link SessionRevocations}. A per-user epoch, bumped by better-auth's own
+   * database hooks whenever a session, user or account changes, becomes the
+   * cookie's `version`; a revoked session mismatches on its next request and the
+   * store is read. That check plus the encryption below costs a tenth of the win:
+   * 9,252 req/s against Redis, 8,853 against the file store — still well above
+   * the 6,664 of no cache at all. Write your own `version` to take it over.
+   *
+   * `strategy` also defaults to `'jwe'` here rather than better-auth's
+   * `'compact'`, which is base64 JSON — signed, but readable by anyone holding
+   * the cookie, the user's own row included.
+   */
+  session?: {
+    cookieCache?: {
+      enabled?: boolean
+      maxAge?: number
+      strategy?: 'compact' | 'jwt' | 'jwe'
+      version?: string | ((session: unknown, user: unknown) => string | Promise<string>)
+      [option: string]: unknown
+    }
+    [option: string]: unknown
+  }
   [option: string]: unknown
 }
 
@@ -195,9 +228,115 @@ export class AuthServiceProvider extends ServiceProvider {
     return betterAuth({
       ...this.withMail(options, notifications),
       ...this.withRateLimit(options),
+      ...this.withCookieCache(options),
       basePath: basePath ?? '/api/auth',
       database: elvelAdapter(db, { connection, dialect })
     }) as unknown as AuthInstance
+  }
+
+  /**
+   * Make `session.cookieCache` revocable, for whoever turns it on.
+   *
+   * Off — which is what every kit ships — this adds nothing at all, and
+   * better-auth is configured exactly as the application wrote it.
+   *
+   * On, three things are filled in that an application would otherwise have to
+   * know to write itself:
+   *
+   * - `version` becomes the user's revocation epoch, so a cached cookie is
+   *   thrown away and the store read the moment one of their sessions is revoked
+   * - the database hooks that bump that epoch — session deleted, user updated or
+   *   deleted, account updated, which is where a password change lands
+   * - `strategy: 'jwe'`, because better-auth's default `'compact'` is base64
+   *   JSON and putting the user's row in a cookie the client can read is a
+   *   different decision from caching it
+   *
+   * Anything the application wrote wins, including its own `version` and its own
+   * hooks — those are called first and then the epoch is bumped, rather than
+   * replaced.
+   */
+  private withCookieCache(options: Record<string, unknown>): Record<string, unknown> {
+    const session = options.session as Record<string, unknown> | undefined
+    const cookieCache = session?.cookieCache as Record<string, unknown> | undefined
+
+    if (cookieCache?.enabled !== true) return {}
+
+    // better-auth's own fallback when `maxAge` is unset, and the epoch has to
+    // outlive the cookie it invalidates or a stale cookie could match again.
+    const maxAge = typeof cookieCache.maxAge === 'number' ? cookieCache.maxAge : 300
+
+    const revocations = new SessionRevocations(
+      () =>
+        this.app.bound('cache')
+          ? (this.app.make('cache' as never) as unknown as CacheLike)
+          : undefined,
+      maxAge + 60
+    )
+
+    return {
+      session: {
+        ...session,
+        cookieCache: {
+          strategy: 'jwe',
+          ...cookieCache,
+          version:
+            cookieCache.version ??
+            ((_session: unknown, user: unknown) =>
+              revocations.epoch(String((user as { id?: unknown })?.id ?? '')))
+        }
+      },
+      databaseHooks: this.withRevocationHooks(options, revocations)
+    }
+  }
+
+  /**
+   * The database hooks that bump the epoch, merged with the application's own.
+   *
+   * Hooks rather than endpoint middleware, so this covers the paths that never
+   * see an HTTP request: a console command clearing sessions, a worker banning an
+   * account. `delete.after` is handed the row that was deleted — including its
+   * `userId` — and fires once per row of a `deleteMany`, so signing out of every
+   * device bumps the epoch as surely as signing out of one.
+   *
+   * Four models, for four ways a session stops being good:
+   *
+   * - `session.delete` — signed out, revoked, or cleaned up as expired
+   * - `user.update` — banned, or any other change to the row a cached cookie
+   *   is carrying a copy of
+   * - `user.delete` — the account is gone
+   * - `account.update` — where a password change is written
+   */
+  private withRevocationHooks(
+    options: Record<string, unknown>,
+    revocations: SessionRevocations
+  ): Record<string, unknown> {
+    type Row = Record<string, unknown>
+    type Hooks = Record<string, { delete?: Hook; update?: Hook } | undefined>
+    type Hook = { after?: (row: Row, context: unknown) => unknown; [key: string]: unknown }
+
+    const given = (options.databaseHooks ?? {}) as Hooks
+
+    const bumping = (hook: Hook | undefined, owner: (row: Row) => unknown): Hook => ({
+      ...hook,
+      after: async (row: Row, context: unknown) => {
+        await hook?.after?.(row, context)
+        await revocations.revoke(String(owner(row) ?? ''))
+      }
+    })
+
+    const byUserId = (row: Row) => row.userId
+    const byId = (row: Row) => row.id
+
+    return {
+      ...given,
+      session: { ...given.session, delete: bumping(given.session?.delete, byUserId) },
+      user: {
+        ...given.user,
+        update: bumping(given.user?.update, byId),
+        delete: bumping(given.user?.delete, byId)
+      },
+      account: { ...given.account, update: bumping(given.account?.update, byUserId) }
+    }
   }
 
   /**
