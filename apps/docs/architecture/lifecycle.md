@@ -224,6 +224,59 @@ Nothing registered here may **answer**. A hook that returns a value in Elysia's
 error pipeline pins the response, which would let the machinery describing an error
 replace it.
 
+## One context per request, and what rides in it
+
+The session, the cookie bag, the current route and the signed-in user are all
+reachable from anywhere inside a request without being threaded through a
+signature:
+
+```ts
+currentScope()?.session      // @elvel/http — the request's session
+cookie('theme')              // @elvel/http — the cookie bag
+currentRouteName()           // @elvel/http — which route is answering
+auth().user()                // @elvel/auth — who is signed in
+```
+
+None of that is a global. Each is a slot in a single `AsyncLocalStorage` that the
+first hook of the request opens, and outside a request every one of them reads as
+absent rather than as the last request's answer.
+
+It was five storages, one per thing, each entering a context of its own. A CPU
+profile of a scaffolded `api` application put entering them at **11% of samples**
+on a route returning a constant — so there is one context now, and everything
+after the first hook assigns a property to it.
+
+### Giving a package its own slot
+
+A package that needs per-request state of its own declares a slot rather than
+another storage:
+
+```ts
+import { requestSlot } from '@elvel/core'
+
+const tenant = requestSlot<Tenant>('tenant')
+
+// From a **synchronous** hook, once per request:
+tenant.set(resolveTenant(request))
+
+// Anywhere inside the request:
+tenant.get()
+```
+
+Two rules, and the first is the one that bites:
+
+- **Set it from a synchronous hook.** `AsyncLocalStorage.enterWith` applies to the
+  remainder of the current execution, and an `await` restores the frame its
+  continuation was scheduled with — so a slot written inside an async `derive` is
+  already gone by the time the handler runs. Reading is fine anywhere, awaits
+  included.
+- **The symbol is the identity, not the name.** Two packages that both call theirs
+  `'session'` get two slots, not one they overwrite for each other.
+
+`slot.run(value, body)` sets it for one call and restores it afterwards, leaving
+the rest of the context in place — which is what `AuthManager.runWith` uses to let
+a test act as a signed-in user.
+
 ## Why `bootstrap/app.ts` names every config file
 
 ```ts

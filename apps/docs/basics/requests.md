@@ -152,6 +152,27 @@ const data = await validate(body, { email: 'required|email' })
 The [validation page](/basics/validation) has the rules, `unique`/`exists`, and
 error bags.
 
+## The path, without parsing a URL
+
+```ts
+import { requestPath, requestSearch, requestTarget } from '@elvel/core'
+
+requestPath(request)     // '/photos/42'
+requestSearch(request)   // '?page=2', or '' when there is none
+requestTarget(request)   // '/photos/42?page=2'
+```
+
+`new URL(request.url).pathname` gives the same answers and costs more than the
+route it is guarding. `request.url` is already absolute and already **normalised**
+by the `Request` constructor — `/build/../.env` arrives as `/.env`, and
+`/%2e%2e/secret` as `/secret` — so these read the string rather than building a
+URL object. Eight plugins inside the framework each wrote the `new URL` form, and
+a CPU profile put it at 4.2% of samples on a route that returns a constant.
+
+Reach for a real `URL` when you mean to **change** it — adding a query parameter,
+building a redirect. These are for the common case: comparing a path against a
+prefix.
+
 ## Shaping a response
 
 ```ts
