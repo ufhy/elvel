@@ -4,7 +4,8 @@ import {
   HttpException,
   issueBypassCookie,
   type MaintenanceMode,
-  type MaintenancePayload
+  type MaintenancePayload,
+  requestPath
 } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { CookieJar } from './cookies.ts'
@@ -47,7 +48,7 @@ export function maintenancePlugin(maintenance: MaintenanceMode, cookiePath = '/'
     // safe reading is "we are down", with the defaults.
     const payload: MaintenancePayload = data ?? { since: 0 }
 
-    const path = new URL(request.url).pathname
+    const path = requestPath(request)
 
     if (isExcepted(path, payload.except ?? [])) return undefined
 

@@ -1,3 +1,4 @@
+import { requestSearch } from '@elvel/core'
 import { Elysia } from 'elysia'
 
 /** The field a form carries, and the header a client may send instead. */
@@ -204,7 +205,7 @@ async function readOverride(
   }
 
   if (fromQuery) {
-    const field = new URL(request.url).searchParams.get(METHOD_FIELD)
+    const field = new URLSearchParams(requestSearch(request)).get(METHOD_FIELD)
     if (field) return field.toUpperCase()
   }
 

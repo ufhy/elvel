@@ -1,3 +1,4 @@
+import { requestPath } from '@elvel/core'
 /**
  * CORS, transcribed from `fruitcake/php-cors` — the service Laravel delegates to.
  *
@@ -85,7 +86,7 @@ export function isPreflight(request: Request): boolean {
 
 /** Does this path opt into CORS at all? `api/*` matches `api/anything/here`. */
 export function pathMatches(config: CorsConfig, request: Request): boolean {
-  const path = new URL(request.url).pathname.replace(/^\/+/, '')
+  const path = requestPath(request).replace(/^\/+/, '')
 
   return config.paths.some((pattern) => {
     const trimmed = pattern.replace(/^\/+/, '')

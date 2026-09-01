@@ -1,4 +1,4 @@
-import { ServiceProvider } from '@elvel/core'
+import { requestPath, ServiceProvider } from '@elvel/core'
 import { Str } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { LogTailCommand } from './console/log-tail.ts'
@@ -57,7 +57,7 @@ export class LogServiceProvider extends ServiceProvider {
           .channel(channel)
           .log(status >= 500 ? 'error' : 'info', 'request', {
             method: request.method,
-            path: new URL(request.url).pathname,
+            path: requestPath(request),
             status,
             duration_ms: duration,
             request_id: requestId

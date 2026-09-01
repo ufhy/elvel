@@ -1,3 +1,4 @@
+import { requestPath, requestSearch } from '@elvel/core'
 /**
  * Where a request really came from, when something sits in front of us.
  *
@@ -197,7 +198,8 @@ export function clientUrl(
   const protocol = clientProtocol(request, socket, options)
   const host = clientHost(request, socket, options)
   const port = clientPort(request, socket, options)
-  const { pathname, search } = new URL(request.url)
+  const pathname = requestPath(request)
+  const search = requestSearch(request)
 
   // Only when it is not the default for the scheme — a `:443` in a link is not
   // wrong, but it is the kind of detail people report as a bug.

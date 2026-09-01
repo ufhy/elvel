@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, normalize, resolve, sep } from 'node:path'
+import { requestPath } from '@elvel/core'
 import { Elysia } from 'elysia'
 
 /**
@@ -170,7 +171,7 @@ export function compressedAssets(options: CompressedAssetsOptions) {
   return new Elysia({ name: 'elvel:compressed-assets' }).onRequest(({ request }) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') return
 
-    const { pathname } = new URL(request.url)
+    const pathname = requestPath(request)
 
     if (!pathname.startsWith(prefix)) return
 

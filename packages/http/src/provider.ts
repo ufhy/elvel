@@ -1,6 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type DeferredQueue, enterDeferredScope, flushDeferred, ServiceProvider } from '@elvel/core'
+import {
+  type DeferredQueue,
+  enterDeferredScope,
+  flushDeferred,
+  requestPath,
+  requestTarget,
+  ServiceProvider
+} from '@elvel/core'
 import { Elysia } from 'elysia'
 import { BindingRegistry, resolveBindings } from './bindings.ts'
 import { MakeRequestCommand } from './console/make-request.ts'
@@ -414,7 +421,7 @@ export class HttpServiceProvider extends ServiceProvider {
 
       if (already !== undefined || decided.has(request)) return already
 
-      const config = resolve(new URL(request.url).pathname.replace(/^\/+/, ''))
+      const config = resolve(requestPath(request).replace(/^\/+/, ''))
 
       decided.set(request, config)
 
@@ -729,10 +736,7 @@ export class HttpServiceProvider extends ServiceProvider {
               !isCorsRequest(request) &&
               response.status < 400
             ) {
-              session.put(
-                PREVIOUS_URL_KEY,
-                new URL(request.url).pathname + new URL(request.url).search
-              )
+              session.put(PREVIOUS_URL_KEY, requestTarget(request))
             }
 
             /**
@@ -853,7 +857,7 @@ export class HttpServiceProvider extends ServiceProvider {
            */
           if (isReadRequest(request.method)) return
 
-          const path = new URL(request.url).pathname
+          const path = requestPath(request)
 
           if (isExempt(path, except)) return
 
@@ -902,10 +906,7 @@ export class HttpServiceProvider extends ServiceProvider {
              * a CSRF token — which is what made its session worth writing.
              */
             if (request.method === 'GET' && !isCorsRequest(request)) {
-              session.put(
-                PREVIOUS_URL_KEY,
-                new URL(request.url).pathname + new URL(request.url).search
-              )
+              session.put(PREVIOUS_URL_KEY, requestTarget(request))
             }
 
             await session.save()

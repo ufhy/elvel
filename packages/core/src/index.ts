@@ -55,4 +55,5 @@ export {
   type MaintenanceStore
 } from './maintenance.ts'
 export { PortInUseError, portInUse, portInUseMessage } from './port.ts'
+export { requestPath, requestSearch, requestTarget } from './request-path.ts'
 export { ServiceProvider } from './service-provider.ts'
