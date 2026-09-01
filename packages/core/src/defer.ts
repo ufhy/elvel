@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { requestSlot } from './request-context.ts'
 
 /** A callback deferred until after the response has been sent. */
 type Deferred = { key?: string; callback: () => unknown; always: boolean }
@@ -17,11 +17,13 @@ export type DeferredQueue = Deferred[]
  * requests, so two callers deferring `{ key: 'refresh' }` at the same moment ran
  * it once and one of them silently lost its work.
  *
- * `enterWith` rather than `run`, for the reason `scope.ts` gives: the queue has to
- * be visible to everything the handler awaits, and it is entered from a
- * synchronous hook.
+ * A slot in the one request context rather than a storage of its own, for the
+ * reason `request-context.ts` gives: entering a context costs, and this used to
+ * be the fifth thing paying for it separately. It is still set from a
+ * synchronous hook, because the queue has to be visible to everything the
+ * handler awaits.
  */
-const storage = new AsyncLocalStorage<DeferredQueue>()
+const slot = requestSlot<DeferredQueue>('deferred')
 
 /** What a caller outside any request defers into — a console command, or boot. */
 const pending: DeferredQueue = []
@@ -48,7 +50,7 @@ export function defer(
   callback: () => unknown,
   options: { key?: string; always?: boolean } = {}
 ): void {
-  const queue = storage.getStore() ?? pending
+  const queue = slot.get() ?? pending
 
   if (options.key !== undefined && queue.some((entry) => entry.key === options.key)) return
 
@@ -63,7 +65,7 @@ export function defer(
  * into the process-wide queue.
  */
 export function enterDeferredScope(queue: DeferredQueue = []): DeferredQueue {
-  storage.enterWith(queue)
+  slot.set(queue)
 
   return queue
 }
@@ -77,7 +79,7 @@ export function enterDeferredScope(queue: DeferredQueue = []): DeferredQueue {
  */
 export async function flushDeferred(
   report: (error: unknown) => void = () => undefined,
-  queue: DeferredQueue = storage.getStore() ?? pending
+  queue: DeferredQueue = slot.get() ?? pending
 ): Promise<number> {
   const entries = queue.splice(0, queue.length)
 
@@ -93,11 +95,11 @@ export async function flushDeferred(
 }
 
 /** Throw away what has been deferred without running it. */
-export function forgetDeferred(queue: DeferredQueue = storage.getStore() ?? pending): number {
+export function forgetDeferred(queue: DeferredQueue = slot.get() ?? pending): number {
   return queue.splice(0, queue.length).length
 }
 
 /** How many callbacks are waiting. For tests and diagnostics. */
-export function deferredCount(queue: DeferredQueue = storage.getStore() ?? pending): number {
+export function deferredCount(queue: DeferredQueue = slot.get() ?? pending): number {
   return queue.length
 }

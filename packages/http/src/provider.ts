@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import {
   type DeferredQueue,
   enterDeferredScope,
+  enterRequestContext,
   flushDeferred,
   requestPath,
   requestTarget,
@@ -314,6 +315,26 @@ export class HttpServiceProvider extends ServiceProvider {
      * and a CSRF check that ran on the wrong method is a check on the wrong
      * question.
      */
+    /**
+     * First of everything, and it registers nothing but a context.
+     *
+     * The request scope, the cookie bag, the current route, the auth session and
+     * the deferred queue are five slots in one `AsyncLocalStorage` rather than
+     * five storages — a CPU profile put entering a context five times at 11% of
+     * samples on a route that reads nothing. This opens the one context, so every
+     * slot after it assigns a property instead of entering anything.
+     *
+     * Synchronous, and before the plugins that write to it, which is the whole
+     * requirement. `enterWith` applies to the remainder of the current execution:
+     * an async hook here would leave every slot to open its own context and the
+     * saving would be gone.
+     */
+    this.use(
+      new Elysia({ name: 'elvel:request-context' }).onRequest(() => {
+        enterRequestContext()
+      })
+    )
+
     if (this.config<boolean>('http.methodOverride', true) !== false) {
       this.use(
         methodOverridePlugin((request) => this.app.router.handle(request), {

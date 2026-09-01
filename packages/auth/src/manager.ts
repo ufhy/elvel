@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { requestSlot } from '@elvel/core'
 import type { AuthUser } from './gate.ts'
 
 /** The shape better-auth's `getSession` returns, narrowed to what we rely on. */
@@ -29,7 +29,15 @@ type Scope = { session: AuthSession | null; request?: Request }
  * returns null rather than leaking the last request's user.
  */
 export class AuthManager {
-  private readonly storage = new AsyncLocalStorage<Scope>()
+  /**
+   * A slot in the one request context, not a storage of its own.
+   *
+   * Per instance rather than per module, which `requestSlot` gives for free — it
+   * mints a fresh symbol on every call, so two managers in one test suite do not
+   * read each other's sessions. `request-context.ts` says why there is a single
+   * context underneath them all.
+   */
+  private readonly slot = requestSlot<Scope>('auth-session')
 
   /**
    * Sessions resolved for a request but not yet in scope.
@@ -55,7 +63,7 @@ export class AuthManager {
 
   /** Run `callback` with this request's session in scope. */
   async withSession<T>(request: Request, callback: () => Promise<T> | T): Promise<T> {
-    return this.storage.run({ session: await this.resolve(request) }, callback)
+    return this.slot.run({ session: await this.resolve(request) }, callback)
   }
 
   /**
@@ -144,18 +152,18 @@ export class AuthManager {
    * Put a session in scope for the rest of this async context.
    *
    * Elysia has no way to wrap a handler, so a `derive` cannot call
-   * `storage.run()` around it. `enterWith` is the documented answer: it enters
+   * `slot.run()` around it. `enterWith` is the documented answer: it enters
    * the store for the remainder of the current execution, and each request runs
    * in its own async context, so two concurrent requests never see each other's
    * user.
    */
   enterScope(session: AuthSession | null, request?: Request): void {
-    this.storage.enterWith(request === undefined ? { session } : { session, request })
+    this.slot.set(request === undefined ? { session } : { session, request })
   }
 
   /** Run `callback` with a session already in hand. Used by tests and commands. */
   runWith<T>(session: AuthSession | null, callback: () => Promise<T> | T): Promise<T> | T {
-    return this.storage.run({ session }, callback)
+    return this.slot.run({ session }, callback)
   }
 
   /**
@@ -205,7 +213,7 @@ export class AuthManager {
    * That split is invisible until somebody writes the first application test.
    */
   user(): AuthUser | null {
-    const scoped = this.storage.getStore()?.session
+    const scoped = this.slot.get()?.session
 
     if (scoped !== undefined) return scoped?.user ?? null
 
@@ -256,7 +264,7 @@ export class AuthManager {
       throw new Error(`Auth guard [${name}] is not defined. Known guards: ${known}.`)
     }
 
-    const request = this.storage.getStore()?.request
+    const request = this.slot.get()?.request
 
     if (!request) {
       // A guard reads the request; outside one there is nothing to read, and
@@ -289,7 +297,7 @@ export class AuthManager {
 
   /** The session record itself — token, expiry, ip. */
   session(): AuthSession['session'] | null {
-    const scoped = this.storage.getStore()?.session
+    const scoped = this.slot.get()?.session
 
     // The same fallback as `user()`, and for the same reason: the two must agree
     // about who is acting, or a check reads the user from one and the session id
@@ -301,7 +309,7 @@ export class AuthManager {
 
   /** Replace the session in the current scope, e.g. after signing in. */
   setSession(session: AuthSession | null): void {
-    const scope = this.storage.getStore()
+    const scope = this.slot.get()
     if (scope) scope.session = session
   }
 

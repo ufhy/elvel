@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { requestSlot } from '@elvel/core'
 import type { RouteDefinition } from './route.ts'
 
 /**
@@ -17,27 +17,27 @@ import type { RouteDefinition } from './route.ts'
  * component that reads the *path* breaks the moment the path changes, which is the
  * whole reason routes have names.
  *
- * `AsyncLocalStorage`, and entered from a **synchronous** hook. `enterWith`
+ * A slot in the one request context, set from a **synchronous** hook. `enterWith`
  * applies to the remainder of the current execution; an `await` restores the frame
  * its continuation was scheduled with, so entering from an async hook is already
- * lost by the time the handler runs. `scope.ts` learned this first and says so at
- * more length.
+ * lost by the time the handler runs. `scope.ts` learned this first and
+ * `request-context.ts` says why there is a single context.
  */
-const storage = new AsyncLocalStorage<RouteDefinition>()
+const slot = requestSlot<RouteDefinition>('current-route')
 
 /** Called by the compiled router, once per request, before the handler. */
 export function enterCurrentRoute(route: RouteDefinition | undefined): void {
-  if (route !== undefined) storage.enterWith(route)
+  if (route !== undefined) slot.set(route)
 }
 
 /** Run `body` with a route current. For tests, and for anything not in a hook. */
 export function withCurrentRoute<T>(route: RouteDefinition, body: () => T): T {
-  return storage.run(route, body)
+  return slot.run(route, body)
 }
 
 /** The route answering this request, or nothing outside one. */
 export function current(): RouteDefinition | undefined {
-  return storage.getStore()
+  return slot.get()
 }
 
 /**
@@ -47,7 +47,7 @@ export function current(): RouteDefinition | undefined {
  * accidentally match a path, and a route with no name has no answer to give.
  */
 export function currentRouteName(): string | undefined {
-  return storage.getStore()?.routeName
+  return slot.get()?.routeName
 }
 
 /**
@@ -67,7 +67,7 @@ export function currentRouteNamed(...patterns: string[]): boolean {
 
 /** The current URI as it was written — `/photos/{photo}`. */
 export function currentRouteUri(): string | undefined {
-  return storage.getStore()?.uri
+  return slot.get()?.uri
 }
 
 function toExpression(pattern: string): RegExp {

@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { requestSlot } from '@elvel/core'
 import { CookieJar, type CookieOptions } from './cookies.ts'
 
 /** A cookie waiting to go out with the response. */
@@ -93,21 +93,21 @@ export class CookieBag {
   }
 }
 
-const storage = new AsyncLocalStorage<CookieBag>()
+const slot = requestSlot<CookieBag>('cookie-bag')
 
-/** Its own storage, so cookies work with sessions turned off. */
+/** Its own slot, so cookies work with sessions turned off. */
 export function currentCookieBag(): CookieBag | undefined {
-  return storage.getStore()
+  return slot.get()
 }
 
 /** Must be called from a **synchronous** hook — see `scope.ts` for why. */
 export function enterCookieBag(bag: CookieBag): void {
-  storage.enterWith(bag)
+  slot.set(bag)
 }
 
 /** Run `body` with this bag current. For tests, and for anything not in a hook. */
 export function withCookieBag<T>(bag: CookieBag, body: () => T): T {
-  return storage.run(bag, body)
+  return slot.run(bag, body)
 }
 
 /**
