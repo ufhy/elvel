@@ -18,6 +18,11 @@ import { AuthServiceProvider } from '../src/index.ts'
  * These tests **must** run against a listening server. `app.handle()` has no
  * socket, so `server.requestIP` is absent, the framework injects nothing, and
  * every one of them would pass on the broken code for the wrong reason.
+ *
+ * The port comes from the OS, not from this file. Fixed ports were the first
+ * version and CI refused them: `Failed to start server. Is port 39102 in use?`
+ * on Linux while macOS and Windows passed. A test that needs a port it does not
+ * own is a test that fails for reasons that have nothing to do with it.
  */
 
 const servers: Application[] = []
@@ -28,8 +33,6 @@ afterEach(async () => {
   }
 })
 
-let next = 39_100
-
 /**
  * A distinct address block per server, which the tests **need**.
  *
@@ -39,16 +42,19 @@ let next = 39_100
  * exhausted buckets and asserts whatever that leaves behind. Found by running
  * these against the unfixed provider and getting a failure in a test that should
  * have passed there.
+ *
+ * Counted here rather than derived from the port, because the port is whatever
+ * the OS hands out and two of those can land in the same block.
  */
-function block(port: number): number {
-  return port - 39_100
-}
+let blocks = 0
 
-async function serve(config: Record<string, unknown> = {}): Promise<number> {
-  const port = next++
+/** A server on a port the OS chose, and the block its addresses come from. */
+async function serve(
+  config: Record<string, unknown> = {}
+): Promise<{ port: number; block: number }> {
   const app = new Application(process.cwd())
 
-  app.config.set('app', { key: 'a'.repeat(40), url: `http://localhost:${port}`, name: 'Test' })
+  app.config.set('app', { key: 'a'.repeat(40), url: 'http://localhost', name: 'Test' })
   app.config.set('app.env', 'production')
   app.config.set('session', { driver: 'memory', csrf: false })
   app.config.set('cache', { default: 'array', stores: { array: { driver: 'array' } } })
@@ -56,10 +62,11 @@ async function serve(config: Record<string, unknown> = {}): Promise<number> {
     default: 'sqlite',
     connections: { sqlite: { driver: 'sqlite', database: ':memory:' } }
   })
-  app.config.set('http', { trustedProxies: config.trustedProxies ?? [] })
+  // `checkPort` off: its probe cannot answer for port 0, which has no port yet.
+  app.config.set('http', { trustedProxies: config.trustedProxies ?? [], checkPort: false })
   app.config.set('auth', {
     secret: 'b'.repeat(40),
-    baseURL: `http://localhost:${port}`,
+    baseURL: 'http://localhost',
     emailAndPassword: { enabled: true },
     ...(config.auth as Record<string, unknown> | undefined)
   })
@@ -69,11 +76,15 @@ async function serve(config: Record<string, unknown> = {}): Promise<number> {
   await app.register(HttpServiceProvider)
   await app.register(AuthServiceProvider)
   await app.boot()
-  await app.listen(port, '127.0.0.1')
+  await app.listen(0, '127.0.0.1')
 
   servers.push(app)
 
-  return port
+  const port = (app as unknown as { router: { server?: { port?: number } } }).router.server?.port
+
+  if (port === undefined) throw new Error('the server reported no port')
+
+  return { port, block: blocks++ }
 }
 
 /**
@@ -95,7 +106,7 @@ async function attempts(
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        origin: `http://localhost:${port}`,
+        origin: 'http://localhost',
         ...header?.(n)
       },
       body: JSON.stringify({ email: 'nobody@example.test', password: 'wrongwrongwrong' })
@@ -106,13 +117,13 @@ async function attempts(
   return statuses
 }
 
-const rotatingForwardedFor = (port: number) => (n: number) => ({
-  'x-forwarded-for': `203.0.${block(port)}.${n + 1}`
+const rotatingForwardedFor = (block: number) => (n: number) => ({
+  'x-forwarded-for': `203.0.${block}.${n + 1}`
 })
 
 describe('the rate limit', () => {
   test('still refuses a caller who sends no headers at all', async () => {
-    const port = await serve()
+    const { port } = await serve()
 
     expect(await attempts(port, 8)).toContain(429)
   })
@@ -125,9 +136,9 @@ describe('the rate limit', () => {
    * request.
    */
   test('is not bypassed by rotating x-forwarded-for', async () => {
-    const port = await serve()
+    const { port, block } = await serve()
 
-    expect(await attempts(port, 10, rotatingForwardedFor(port))).toContain(429)
+    expect(await attempts(port, 10, rotatingForwardedFor(block))).toContain(429)
   })
 
   /**
@@ -137,19 +148,19 @@ describe('the rate limit', () => {
    * deletion this would be the same bypass with a different header name.
    */
   test('is not bypassed by rotating the header the framework injects', async () => {
-    const port = await serve()
+    const { port, block } = await serve()
     const statuses = await attempts(port, 10, (n) => ({
-      'x-elvel-client-ip': `198.51.${block(port)}.${n + 1}`
+      'x-elvel-client-ip': `198.51.${block}.${n + 1}`
     }))
 
     expect(statuses).toContain(429)
   })
 
   test('is not bypassed by sending both', async () => {
-    const port = await serve()
+    const { port, block } = await serve()
     const statuses = await attempts(port, 10, (n) => ({
-      'x-forwarded-for': `203.0.${block(port)}.${n + 1}`,
-      'x-elvel-client-ip': `198.51.${block(port)}.${n + 1}`
+      'x-forwarded-for': `203.0.${block}.${n + 1}`,
+      'x-elvel-client-ip': `198.51.${block}.${n + 1}`
     }))
 
     expect(statuses).toContain(429)
@@ -166,15 +177,15 @@ describe('a trusted proxy', () => {
    * trustworthy here.
    */
   test('gets a bucket per forwarded address', async () => {
-    const port = await serve({ trustedProxies: ['127.0.0.1'] })
-    const statuses = await attempts(port, 10, rotatingForwardedFor(port))
+    const { port, block } = await serve({ trustedProxies: ['127.0.0.1'] })
+    const statuses = await attempts(port, 10, rotatingForwardedFor(block))
 
     expect(statuses).not.toContain(429)
   })
 
   test('does not make an untrusted socket trustworthy', async () => {
-    const port = await serve({ trustedProxies: ['10.1.2.3'] })
-    const statuses = await attempts(port, 10, rotatingForwardedFor(port))
+    const { port, block } = await serve({ trustedProxies: ['10.1.2.3'] })
+    const statuses = await attempts(port, 10, rotatingForwardedFor(block))
 
     expect(statuses).toContain(429)
   })
@@ -189,10 +200,10 @@ describe('an application that names its own ipAddressHeaders', () => {
    * does not overrule it.
    */
   test('is left alone', async () => {
-    const port = await serve({
+    const { port, block } = await serve({
       auth: { advanced: { ipAddress: { ipAddressHeaders: ['x-forwarded-for'] } } }
     })
-    const statuses = await attempts(port, 10, rotatingForwardedFor(port))
+    const statuses = await attempts(port, 10, rotatingForwardedFor(block))
 
     expect(statuses).not.toContain(429)
   })
