@@ -1,6 +1,6 @@
 {
   "name": "@elvel/http",
-  "version": "1.0.0-alpha.24",
+  "version": "1.0.0-alpha.25",
   "description": "The HTTP layer for Elvel — middleware, sessions, cookies, CSRF and rate limiting",
   "keywords": [
     "bun",

@@ -1,6 +1,6 @@
 {
   "name": "@elvel/vite",
-  "version": "1.0.0-alpha.24",
+  "version": "1.0.0-alpha.25",
   "description": "The Vite plugin for Elvel \u2014 hot file, server-side reload, build output and asset URLs",
   "keywords": [
     "bun",
@@ -44,8 +44,8 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@elvel/core": "1.0.0-alpha.24",
-    "@elvel/http": "1.0.0-alpha.24",
+    "@elvel/core": "1.0.0-alpha.25",
+    "@elvel/http": "1.0.0-alpha.25",
     "vite": ">=6.0.0",
     "elysia": ">=1.4.0"
   },
