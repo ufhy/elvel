@@ -98,7 +98,8 @@ export {
   clientUrl,
   type ForwardedHeader,
   isTrustedProxy,
-  type ProxyOptions
+  type ProxyOptions,
+  type SocketAddress
 } from './proxies.ts'
 export {
   back,

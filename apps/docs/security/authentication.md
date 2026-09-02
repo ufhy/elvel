@@ -170,6 +170,54 @@ called too, not replaced.
   carries no cookie to cache in, so the `api` kit's own `/api/login`, which
   answers with a token, is unaffected either way.
 
+#### The address it counts, and why it is not `x-forwarded-for`
+
+better-auth resolves the client from **headers only** — it never sees the socket
+— and its default is `x-forwarded-for`. With no trusted proxies named, its own
+`getIPFromHeader` trusts a single-value header outright. That is a limit turned
+off by one header: thirty failed sign-ins against one account, a different
+`x-forwarded-for` on each, measured on a scaffolded `api` kit in production with
+nothing in front of it, **none of them refused**. Thirty with no header at all
+had twenty-seven refused.
+
+Configuring better-auth's own `trustedProxies` does not close it. Its chain walk
+returns the rightmost untrusted hop, and for a single-value header that is still
+the value the caller wrote. Nothing in a forwarded header can be trusted when
+nothing appended it.
+
+So the framework answers the question itself, and hands better-auth the answer:
+
+```
+client → socket address ─┐
+                         ├─ clientIp() ─→ x-elvel-client-ip ─→ better-auth
+X-Forwarded-For ─────────┘   (header used only when the socket
+                              belongs to a trusted proxy)
+```
+
+`advanced.ipAddress.ipAddressHeaders` is set to `x-elvel-client-ip`, a header
+this framework writes on every auth request after **deleting** any copy that
+arrived. So `x-forwarded-for` is no longer read, sending
+`x-elvel-client-ip` yourself changes nothing, and the socket address is always
+available — which also means there is always a bucket per client rather than
+better-auth's `no-trusted-ip` fallback, where three failed sign-ins from anyone
+lock the endpoint for everybody.
+
+Behind a real proxy, name it and forwarded addresses count again:
+
+```dotenv
+TRUSTED_PROXIES=127.0.0.1,::1
+```
+
+**List both loopback forms if that is where your proxy is.** `127.0.0.1` and
+`::1` are different addresses, and a proxy connecting over IPv6 loopback while
+only the IPv4 form is trusted has its headers ignored — which is the safe
+direction, and a confusing afternoon. Measured: with `TRUSTED_PROXIES=127.0.0.1`,
+the same rotating header gets a bucket each through `127.0.0.1` and one shared
+bucket through `[::1]`.
+
+Writing your own `advanced.ipAddress.ipAddressHeaders` takes all of this back —
+the injection stops with it, and better-auth reads the headers you named.
+
 ## Adding a better-auth plugin
 
 Two lines. `config/auth.ts` passes everything it does not recognise straight to

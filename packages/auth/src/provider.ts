@@ -1,5 +1,11 @@
 import { ServiceProvider } from '@elvel/core'
-import { middlewares, registerCurrentPasswordRule } from '@elvel/http'
+import {
+  clientIp,
+  middlewares,
+  type ProxyOptions,
+  registerCurrentPasswordRule,
+  type SocketAddress
+} from '@elvel/http'
 import { Elysia } from 'elysia'
 import { type Dialect, elvelAdapter } from './adapter.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
@@ -16,6 +22,17 @@ import {
   requirePassword
 } from './middleware.ts'
 import { type CacheLike, SessionRevocations } from './revocation.ts'
+
+/**
+ * The header better-auth is told to read the client address from.
+ *
+ * Its own, rather than `x-forwarded-for`, because that one is written by whoever
+ * is calling. See {@link AuthServiceProvider.withClientAddress}.
+ */
+const CLIENT_IP_HEADER = 'x-elvel-client-ip'
+
+/** What the auth routes need from Elysia's context to see the socket. */
+type RequestServer = { requestIP(request: Request): SocketAddress }
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -76,6 +93,24 @@ export type AuthConfig = {
    * `'compact'`, which is base64 JSON — signed, but readable by anyone holding
    * the cookie, the user's own row included.
    */
+  /**
+   * better-auth's `advanced` options, of which one is filled in for you.
+   *
+   * `advanced.ipAddress.ipAddressHeaders` is set to a header this framework
+   * writes itself, so better-auth reads an address the caller cannot choose —
+   * see {@link AuthServiceProvider.withClientAddress}. Write your own
+   * `ipAddressHeaders` to take it back, and the injection stops with it.
+   */
+  advanced?: {
+    ipAddress?: {
+      ipAddressHeaders?: string[]
+      trustedProxies?: string[]
+      disableIpTracking?: boolean
+      ipv6Subnet?: number
+      [option: string]: unknown
+    }
+    [option: string]: unknown
+  }
   session?: {
     cookieCache?: {
       enabled?: boolean
@@ -100,6 +135,15 @@ export type AuthConfig = {
  * through a Gate with policies.
  */
 export class AuthServiceProvider extends ServiceProvider {
+  /**
+   * Whether this provider owns the header better-auth reads the address from.
+   *
+   * False when the application wrote its own `ipAddressHeaders`: injecting a
+   * header nothing reads would be dead work, and overriding a decision the
+   * application made explicitly would be worse.
+   */
+  private ownsClientAddress = false
+
   /**
    * The five aliases that need to know who is signed in.
    *
@@ -229,6 +273,7 @@ export class AuthServiceProvider extends ServiceProvider {
       ...this.withMail(options, notifications),
       ...this.withRateLimit(options),
       ...this.withCookieCache(options),
+      ...this.withClientAddress(options),
       basePath: basePath ?? '/api/auth',
       database: elvelAdapter(db, { connection, dialect })
     }) as unknown as AuthInstance
@@ -362,6 +407,71 @@ export class AuthServiceProvider extends ServiceProvider {
   }
 
   /**
+   * Point better-auth's rate limit at an address the caller cannot choose.
+   *
+   * better-auth resolves the client from headers only — it never sees the
+   * socket. Its default is `x-forwarded-for`, and with no `trustedProxies`
+   * configured `getIPFromHeader` **trusts a single-value header outright**
+   * (`@better-auth/core/utils/ip`). Measured on a scaffolded `api` kit in
+   * production with nothing in front of it: thirty failed sign-ins against one
+   * account, a different `x-forwarded-for` on each, and **none of them refused**
+   * — where thirty with no header at all had twenty-seven refused. The limit
+   * added in `1.0.0-alpha.22` was turned off by one header.
+   *
+   * Configuring `trustedProxies` does not fix it. The chain walk returns the
+   * rightmost untrusted hop, and for a single-value header that is still the
+   * value the caller wrote. Nothing in the header can be trusted when nothing
+   * appended it, and better-auth cannot tell the difference.
+   *
+   * So the framework answers the question itself. `clientIp` in `@elvel/http`
+   * already does it correctly — the socket address, or `X-Forwarded-For` **only
+   * when the socket belongs to a proxy `http.trustedProxies` names** — and the
+   * result is written to a header of our own that better-auth is told to read
+   * instead. The handler in {@link AuthServiceProvider.plugin} deletes any
+   * inbound copy before setting it, so a caller sending
+   * `x-elvel-client-ip` themselves changes nothing.
+   *
+   * That closes the other half too. With no resolvable address better-auth falls
+   * back to `no-trusted-ip` — one shared bucket per path, where three failed
+   * sign-ins from anyone lock the endpoint for everybody. The socket address is
+   * always there, so there is always a bucket per client.
+   */
+  private withClientAddress(options: Record<string, unknown>): Record<string, unknown> {
+    const advanced = options.advanced as Record<string, unknown> | undefined
+    const given = advanced?.ipAddress as Record<string, unknown> | undefined
+
+    // An application that named its own headers has decided; leave it alone.
+    if (given?.ipAddressHeaders !== undefined) return {}
+
+    this.ownsClientAddress = true
+
+    return {
+      advanced: {
+        ...advanced,
+        ipAddress: { ...given, ipAddressHeaders: [CLIENT_IP_HEADER] }
+      }
+    }
+  }
+
+  /**
+   * The address to hand better-auth for this request, or nothing.
+   *
+   * Nothing when there is no server to ask — `app.handle()` in a test has no
+   * socket — in which case the header is left off rather than set to an empty
+   * string, and better-auth falls back the way it would have anyway.
+   */
+  private addressFor(
+    request: Request,
+    server: RequestServer | null | undefined
+  ): string | undefined {
+    const address = clientIp(request, server?.requestIP(request), {
+      trustedProxies: this.app.config.get<string[] | '*'>('http.trustedProxies', [])
+    } as ProxyOptions)
+
+    return address === '' ? undefined : address
+  }
+
+  /**
    * Fill in better-auth's mail callbacks from the notification manager.
    *
    * better-auth builds the tokens and URLs and then asks the application to
@@ -405,7 +515,28 @@ export class AuthServiceProvider extends ServiceProvider {
    */
   private plugin(auth: AuthInstance, manager: AuthManager) {
     const basePath = this.config<string>('auth.basePath', '/api/auth')
-    const handler = ({ request }: { request: Request }) => auth.handler(request)
+    /**
+     * Every auth endpoint, with the client's address written in by us.
+     *
+     * The inbound copy is **deleted** before ours is set: the whole point is
+     * that a caller cannot choose the value better-auth rate limits them by, and
+     * a header they sent themselves would do exactly that.
+     *
+     * When the application named its own `ipAddressHeaders` there is nothing to
+     * inject into, and the request is passed through untouched rather than
+     * copied for nothing.
+     */
+    const handler = ({ request, server }: { request: Request; server?: RequestServer | null }) => {
+      if (!this.ownsClientAddress) return auth.handler(request)
+
+      const headers = new Headers(request.headers)
+      const address = this.addressFor(request, server)
+
+      headers.delete(CLIENT_IP_HEADER)
+      if (address !== undefined) headers.set(CLIENT_IP_HEADER, address)
+
+      return auth.handler(new Request(request, { headers }))
+    }
 
     const plugin = new Elysia({ name: 'elvel:auth' })
       // Resolving is async and its result is held on the manager rather than
