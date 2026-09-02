@@ -1,6 +1,6 @@
 {
   "name": "@elvel/client",
-  "version": "1.0.0-alpha.23",
+  "version": "1.0.0-alpha.24",
   "description": "The browser half of an Elvel application \u2014 one fetch, with the session, the CSRF token and the error shapes already decided",
   "keywords": [
     "bun",
