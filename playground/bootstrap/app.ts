@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { Application } from '@elvel/core'
 import { AppServiceProvider } from '../app/Providers/AppServiceProvider.ts'
+import { TelescopeServiceProvider } from '../app/Providers/TelescopeServiceProvider.ts'
 
 /**
  * Bootstrap the application.
@@ -34,6 +35,7 @@ export default await Application.configure(join(import.meta.dir, '..'))
     session: () => import('../config/session.ts'),
     view: () => import('../config/view.ts')
   })
-  .withProviders([AppServiceProvider])
+  .withProviders([AppServiceProvider, TelescopeServiceProvider])
   .withRoutes(() => import('../routes/web.ts'))
+  .withRoutes(() => import('../routes/telescope.ts'))
   .create()
