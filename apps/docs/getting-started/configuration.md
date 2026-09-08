@@ -23,6 +23,19 @@ config('app.name')
 config('database.connections.mysql.host', '127.0.0.1')  // with a fallback
 ```
 
+## Paths, from anywhere
+
+```ts
+base_path('bootstrap', 'app.ts')   // the application root
+storage_path('logs')               // storage/, where the framework writes
+public_path('build')               // what the static handler serves
+resource_path('views')             // resources/, the source side
+```
+
+Each takes any number of segments and joins them, so no caller assembles a path
+with `join()` and a guess about the root. They read the running application, which
+is why a config file may call one while it is being evaluated.
+
 ## `Env` is typed, and refuses nonsense
 
 `process.env` is all strings, which is how `APP_DEBUG=false` ends up switching

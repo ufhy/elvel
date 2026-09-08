@@ -183,6 +183,47 @@ An encrypted `X-XSRF-TOKEN` is still *rejected* rather than waved through, becau
 a header is not a cookie and treating one as the other is how a CSRF check gets
 bypassed.
 
+### Your own cookies
+
+Three helpers, reachable anywhere inside a request — a controller, a middleware,
+a component three levels deep — because they read the request context rather than
+a parameter somebody had to thread through.
+
+```ts
+import { cookie, forgetCookie, queueCookie } from '@elvel/http'
+
+cookie('theme')                       // undefined when absent
+cookie('theme', 'light')              // with a fallback
+
+queueCookie('theme', 'dark', { maxAge: 31_536_000 })
+forgetCookie('theme')
+```
+
+`queueCookie` does not write a header — it queues the cookie, and the response
+carries it once the handler returns. That is what lets a component set one, and
+what makes `forgetCookie` after a `queueCookie` in the same request cancel it
+rather than fight it.
+
+The options are the cookie's own: `path`, `domain`, `maxAge`, `expires`,
+`httpOnly`, `secure`, `sameSite`. Nothing is required.
+
+**`forgetCookie` needs the same `path` and `domain` the cookie was set with.** A
+browser matches on those, so a cookie set for `/admin` survives a forget aimed at
+`/` — and the user stays signed in to something you thought you had cleared:
+
+```ts
+queueCookie('admin_hint', 'x', { path: '/admin' })
+forgetCookie('admin_hint', { path: '/admin' })   // not forgetCookie('admin_hint')
+```
+
+**A cookie read is a cookie decrypted, when encryption is on.** One that fails to
+decrypt reads as absent, which is what turns a rotated key into "the preference
+reset" rather than an exception on every page.
+
+All three need `APP_KEY`: the jar signs what it writes, so with no key the plugin
+is not mounted, `cookie()` reads `undefined` and the queue is dropped. `elvel
+key:generate` is the fix, and the boot warning says so.
+
 ### The flags on the session cookie
 
 ```ts

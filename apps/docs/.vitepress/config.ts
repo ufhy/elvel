@@ -67,6 +67,7 @@ export default defineConfig({
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Starter kits', link: '/getting-started/starter-kits' },
           { text: 'Configuration', link: '/getting-started/configuration' },
+          { text: 'Environment variables', link: '/getting-started/environment' },
           { text: 'Deployment', link: '/getting-started/deployment' }
         ]
       },

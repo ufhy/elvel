@@ -159,5 +159,32 @@ client's `content-type` — both are claims. See [images](/digging-deeper/images
 bun elvel make:rule Slug
 ```
 
+That writes `app/Rules/Slug.ts` — a function taking the value and the rule's
+parameters, returning `false` to fail:
+
+```ts
+export const slug: RuleHandler = ({ value }) => {
+  return typeof value === 'string' && /^[a-z0-9-]+$/.test(value)
+}
+```
+
+**Generating it is not enough — register it**, in a service provider, so the
+string name works anywhere a rule string does:
+
+```ts
+// app/Providers/AppServiceProvider.ts
+import { extendRules } from '@elvel/validation'
+import { slug } from '../Rules/Slug.ts'
+
+extendRules('slug', slug)
+```
+
+```ts
+{ handle: 'required|slug' }
+```
+
+The message comes from the `validation` messages under the same key; without one
+the validator falls back to naming the rule.
+
 `after(callback)` on a validator runs once every rule has, which is where a check
 spanning several fields belongs.

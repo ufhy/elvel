@@ -71,7 +71,7 @@ part of their guess was correct.
 
 | Where | How |
 | --- | --- |
-| Cookies | `SESSION_ENCRYPT=true`, or `cookies().encrypt(name, value)` — bound to the cookie name |
+| Cookies | `SESSION_ENCRYPT=true`, or `app('cookies').encrypt(name, value)` — bound to the cookie name |
 | Queue payloads | `static encrypted = true` on a job; the queue stores a ciphertext it cannot read |
 | Model columns | `casts = { editor_note: 'encrypted' }`, or `'encrypted:json'` |
 

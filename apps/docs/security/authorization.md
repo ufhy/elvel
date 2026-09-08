@@ -191,6 +191,22 @@ exists:
 somebody else — useful in an admin screen that shows what another account can
 see.
 
+For the common shape — render this only if allowed — there are two wrappers,
+Blade's `@can` and `@cannot`:
+
+```tsx
+{await whenCan('update', article, () => <a href={editUrl}>Edit</a>)}
+{await whenCannot('update', article, () => <p>Ask an editor to change this.</p>)}
+```
+
+Both are awaited, and have to be: a policy may read the database, and a version
+answering synchronously could only ever consult abilities that need nothing —
+which is not what a policy is for. They return an empty string when the answer is
+no, so the surrounding markup is unaffected.
+
+`whenAuth` and `whenGuest` are the same shape for "is anybody signed in", and
+need no `await` because that question touches nothing.
+
 ## Auditing a decision
 
 Every check dispatches `gate.evaluated` with the user, the ability, the arguments
