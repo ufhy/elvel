@@ -18,6 +18,46 @@ export type Batch = {
 
 export const TABLE = 'telescope_entries'
 
+/** Longest SQL kept. A query with a thousand-item `IN` is not worth megabytes. */
+const MAX_SQL = 2_000
+
+/**
+ * A value's **shape**, never its content.
+ *
+ * The security review of the first version was right twice over, and both paths
+ * were ones this file's own comment had warned about and then walked past:
+ *
+ * - `cache.hit` and `cache.written` carry the cached **value**
+ *   (`packages/cache/src/repository.ts:58` and `:92`), so a cached token, email
+ *   or one-time code went into the table as plain text
+ * - a query's `bindings` are its parameters, so
+ *   `insert into "user" ("email", "password_hash") values (?, ?)` stored both
+ *
+ * Neither is a hypothetical: a debugging tool is exactly the thing somebody
+ * leaves running and later reads over a shoulder, and this table has no
+ * encryption and a permissive read route. What is useful for debugging is almost
+ * always the shape — "a 42-character string", "an array of 3" — so that is what
+ * is kept, and the value never leaves the process.
+ */
+export function shapeOf(value: unknown): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+
+  if (typeof value === 'string') return `string(${value.length})`
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return typeof value
+  }
+  if (Array.isArray(value)) return `array(${value.length})`
+  if (value instanceof Date) return 'Date'
+
+  return `object(${Object.keys(value as object).length})`
+}
+
+/** SQL, truncated, with a marker rather than a silent cut. */
+export function trimSql(sql: string): string {
+  return sql.length <= MAX_SQL ? sql : `${sql.slice(0, MAX_SQL)}… (${sql.length} chars)`
+}
+
 /**
  * The batch belonging to the request in flight.
  *

@@ -1,6 +1,6 @@
 import { describe, expect, test as it } from 'bun:test'
 import { test } from '@elvel/testing'
-import { TABLE } from '../app/Telescope/Recorder.ts'
+import { shapeOf, TABLE, trimSql } from '../app/Telescope/Recorder.ts'
 import app from '../bootstrap/app.ts'
 import './database.ts'
 
@@ -170,6 +170,79 @@ describe('the telescope spike', () => {
     const rows = await entries()
 
     expect<number>(rows.filter((row) => row.type === 'request').length).toBe(1)
+  })
+
+  /**
+   * The value never reaches the table — only its shape.
+   *
+   * `cache.written` carries the value it wrote (`repository.ts:92`), and
+   * `/check/cache/basics` writes the literal `'first'` under `probe`. The first
+   * version of this spike stored it, which a security review caught: this table
+   * has no encryption, a read route, and is exactly the thing left running and
+   * read later.
+   */
+  it('stores the shape of a cached value, never the value', async () => {
+    await clear()
+
+    await visit('/check/cache/basics')
+
+    const rows = await entries()
+    const cache = rows.filter((row) => row.type === 'cache')
+
+    expect<boolean>(cache.length > 0).toBe(true)
+
+    // The route caches the string `first` and an object under `shape`.
+    for (const row of cache) {
+      expect<boolean>(row.content.includes('"first"')).toBe(false)
+    }
+
+    // And the shape is still there, so the entry is still worth having.
+    const written = cache
+      .map((row) => JSON.parse(row.content) as { payload: Record<string, unknown> })
+      .find((entry) => typeof entry.payload.value === 'string')
+
+    expect<boolean>(String(written?.payload.value ?? '').startsWith('string(')).toBe(true)
+  })
+
+  /**
+   * A query's parameters are its parameters.
+   *
+   * On a real sign-in, `insert into "user" ("email", "password_hash") values
+   * (?, ?)` binds both. Asserted on the function rather than only through a route,
+   * because the playground's read paths happen to bind nothing — which is luck,
+   * not a property.
+   */
+  it('describes a binding without carrying it', () => {
+    expect<string>(shapeOf('super-secret-token')).toBe('string(18)')
+    expect<string>(shapeOf(42)).toBe('number')
+    expect<string>(shapeOf(null)).toBe('null')
+    expect<string>(shapeOf([1, 2, 3])).toBe('array(3)')
+    expect<string>(shapeOf({ a: 1, b: 2 })).toBe('object(2)')
+
+    // Nothing of the value survives.
+    expect<boolean>(shapeOf('super-secret-token').includes('secret')).toBe(false)
+  })
+
+  it('truncates a query too long to be worth storing', () => {
+    const huge = `select * from t where id in (${'1,'.repeat(3_000)}1)`
+    const kept = trimSql(huge)
+
+    expect<boolean>(kept.length < huge.length).toBe(true)
+    expect<boolean>(kept.endsWith(`(${huge.length} chars)`)).toBe(true)
+  })
+
+  /**
+   * A guest cannot read it.
+   *
+   * The first version defined the ability as `allowGuests: true` whenever
+   * `app.env === 'local'`, which the security review objected to and was right
+   * about: `HOST=` empty binds every interface, so anybody on the network could
+   * read every query, cached key and mail recipient with no credential.
+   */
+  it('refuses to show anything to a guest', async () => {
+    const response = await test(app).getJson('/telescope/entries')
+
+    expect<boolean>(response.status === 200).toBe(false)
   })
 
   /**

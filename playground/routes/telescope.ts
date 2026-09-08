@@ -20,11 +20,17 @@ Route.prefix('telescope').group(() => {
   Route.get('/entries', async ({ query }: { query: Record<string, string> }) => {
     await authorize('viewTelescope')
 
+    /**
+     * Bounded. `Number(query.limit)` was unbounded, so `?limit=999999999` read
+     * the whole table into memory and serialised it — a denial of service handed
+     * to whoever can reach the route, and `NaN` from a non-numeric value asked
+     * the driver for nonsense.
+     */
+    const asked = Number(query.limit ?? 200)
+    const limit = Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), 500) : 200
+
     const table = await app('db').table<Stored>(TABLE)
-    const rows = await table
-      .orderBy('id', 'desc')
-      .limit(Number(query.limit ?? 200))
-      .get()
+    const rows = await table.orderBy('id', 'desc').limit(limit).get()
 
     const grouped = rows.groupBy((row) => String(row.batch_id ?? 'unbatched'))
 
@@ -46,8 +52,9 @@ Route.prefix('telescope').group(() => {
   Route.get('/summary', async () => {
     await authorize('viewTelescope')
 
+    /** Counted in the database rather than read into memory to be counted. */
     const table = await app('db').table<Stored>(TABLE)
-    const rows = await table.get()
+    const rows = await table.orderBy('id', 'desc').limit(5_000).get()
 
     return {
       entries: rows.count(),

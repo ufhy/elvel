@@ -2,7 +2,7 @@ import { gate } from '@elvel/auth'
 import { ServiceProvider } from '@elvel/core'
 import type { QueryExecuted } from '@elvel/database'
 import { Elysia } from 'elysia'
-import { Recorder, TABLE } from '../Telescope/Recorder.ts'
+import { Recorder, shapeOf, TABLE, trimSql } from '../Telescope/Recorder.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -29,6 +29,26 @@ export class TelescopeServiceProvider extends ServiceProvider {
    * from the class name — so there is no list of names to subscribe to, and the
    * wildcard is not a convenience here but the only way in.
    */
+  /**
+   * Payload keys that hold content rather than describe it.
+   *
+   * `cache.hit` and `cache.written` both carry `value`; a notification carries
+   * its `notifiable`. Keeping the key and dropping the content is the difference
+   * between "the cache was written" and "here is what was in it".
+   */
+  private static readonly CONTENT_KEYS = new Set([
+    'value',
+    'values',
+    'body',
+    'message',
+    'payload',
+    'token',
+    'password',
+    'secret',
+    'notifiable',
+    'user'
+  ])
+
   private static readonly MODEL_EVENTS = new Set([
     'creating',
     'created',
@@ -54,13 +74,23 @@ export class TelescopeServiceProvider extends ServiceProvider {
     this.watchRequests(telescope)
 
     /**
-     * Who may read it. Telescope's `viewTelescope`, and the reason it exists:
-     * this data is every query, every cached value and every mail recipient the
-     * application has touched.
+     * Who may read it — closed by default, on purpose.
+     *
+     * The first version was `allowGuests: true` when `app.env === 'local'`, and
+     * the security review was right to object: `HOST=` empty binds **every
+     * interface**, so "local" means anybody on the network could read every
+     * query, cached key and mail recipient the application had touched, with no
+     * credential at all.
+     *
+     * So: a signed-in user, and never in production. An application wanting this
+     * reachable in a shared environment must write a policy that says who —
+     * which is the decision this refuses to make on its behalf.
      */
-    gate().define('viewTelescope', () => this.app.config.get<string>('app.env') === 'local', {
-      allowGuests: true
-    })
+    gate().define(
+      'viewTelescope',
+      (user) => user !== null && this.app.config.get<string>('app.env') === 'local',
+      { allowGuests: false }
+    )
   }
 
   /**
@@ -78,8 +108,10 @@ export class TelescopeServiceProvider extends ServiceProvider {
       if (query.sql.includes(TABLE)) return
 
       telescope.record('query', {
-        sql: query.sql,
-        bindings: query.bindings,
+        sql: trimSql(query.sql),
+        // Shapes, not values: these are the query's parameters, and on a sign-in
+        // that is the email and the password hash.
+        bindings: query.bindings.map(shapeOf),
         milliseconds: query.time,
         connection: query.connectionName
       })
@@ -132,7 +164,14 @@ export class TelescopeServiceProvider extends ServiceProvider {
       await telescope.complete({
         method: request.method,
         path: url.pathname,
-        query: url.search,
+        /**
+         * The parameter **names**, not their values.
+         *
+         * `?token=…`, `?signature=…` and `?api_key=…` are all query strings, and
+         * storing one verbatim puts a working credential in a table built to be
+         * read later. Which keys were present is what a request entry is for.
+         */
+        queryKeys: [...url.searchParams.keys()],
         status
       })
     }
@@ -171,17 +210,17 @@ export class TelescopeServiceProvider extends ServiceProvider {
    * in a table somebody reads over a shoulder.
    */
   private static summarise(payload: unknown): Record<string, unknown> {
-    if (payload === null || typeof payload !== 'object') return { value: String(payload) }
+    if (payload === null || typeof payload !== 'object') return { value: shapeOf(payload) }
 
     const summary: Record<string, unknown> = {}
 
     for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
       if (typeof value === 'function') continue
 
-      summary[key] =
-        value !== null && typeof value === 'object'
-          ? `[${value.constructor?.name ?? 'object'}]`
-          : value
+      // A key naming the thing itself is the payload's content, not its
+      // description — `cache.written` carries `value`, and a mail event carries
+      // the message. Those are kept as shapes.
+      summary[key] = TelescopeServiceProvider.CONTENT_KEYS.has(key) ? shapeOf(value) : value
     }
 
     return summary
