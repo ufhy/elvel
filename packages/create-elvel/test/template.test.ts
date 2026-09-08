@@ -282,6 +282,44 @@ describe('the bootstrap can be followed by a bundler', () => {
 
     expect<string[]>(extra).toEqual([])
   })
+
+  /**
+   * Every variable the example ships reaches a key in a config file.
+   *
+   * `SESSION_ENCRYPT` is why this exists. `_env.example` shipped it,
+   * `basics/session.md` and `security/encryption.md` both told you to set it to
+   * `true`, `@elvel/http` reads `session.encrypt` — and the template's
+   * `config/session.ts` had no such key, so setting the variable did nothing in
+   * every scaffolded application. Signing covered what the cookie actually
+   * holds, so nothing leaked; what was broken was the promise.
+   *
+   * `VIEW_CACHE` was the other half: shipped in both examples and read by
+   * nothing anywhere, a knob that did not exist. Removed rather than wired,
+   * because JSX views have nothing to cache the way a compiled template does.
+   *
+   * A variable in `.env` is a claim that something reads it. This holds the two
+   * files together so neither can drift again.
+   */
+  async function unreadVariables(directory: string, example: string): Promise<string[]> {
+    const shipped = [
+      ...(await Bun.file(resolve(directory, example)).text()).matchAll(/^([A-Z][A-Z0-9_]*)=/gm)
+    ].map((match) => match[1] as string)
+
+    let configs = ''
+    for (const file of await readdir(resolve(directory, 'config'))) {
+      if (file.endsWith('.ts')) configs += await Bun.file(resolve(directory, 'config', file)).text()
+    }
+
+    return shipped.filter((name) => !configs.includes(`'${name}'`))
+  }
+
+  test('every variable the example ships is read by a config file', async () => {
+    expect<string[]>(await unreadVariables(templateDir, '_env.example')).toEqual([])
+  })
+
+  test('and the playground ships none nothing reads either', async () => {
+    expect<string[]>(await unreadVariables(resolve(root, 'playground'), '.env.example')).toEqual([])
+  })
 })
 
 /**

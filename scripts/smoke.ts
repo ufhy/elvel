@@ -4600,7 +4600,6 @@ async function proveTheKitWorks(target: string): Promise<void> {
       'CACHE_STORE=file',
       'QUEUE_CONNECTION=sync',
       'MAIL_MAILER=log',
-      'VIEW_CACHE=false',
       /**
        * `info`, not `error`, because the mail *is* the log here.
        *

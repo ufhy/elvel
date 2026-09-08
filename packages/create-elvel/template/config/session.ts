@@ -85,11 +85,25 @@ export default {
   store: env('SESSION_STORE', '') || undefined,
 
   /**
+   * Encrypt the session cookie instead of only signing it.
+   *
+   * Signing is enough for what it holds — an opaque id, and nothing secret
+   * belongs in a cookie — so this is off. Turning it on also hides the id from
+   * anything reading the browser's storage, and needs `@elvel/encryption`
+   * registered; without it the provider warns and the cookie stays signed.
+   *
+   * This key was missing while `_env.example` shipped the variable and two
+   * documentation pages told you to set it, so `SESSION_ENCRYPT=true` did
+   * nothing in a scaffolded application. A template test now holds every
+   * `SESSION_*` in the example to a key here.
+   */
+  encrypt: env('SESSION_ENCRYPT', false),
+
+  /**
    * CSRF protection for state-changing requests.
    *
    * The session cookie holds only an opaque id, so signing it is enough — never
-   * put anything secret in a cookie. Add `@elvel/encryption` and set
-   * `encrypt: true` here to encrypt it as well.
+   * put anything secret in a cookie.
    */
   csrf: env('SESSION_CSRF', true),
 
