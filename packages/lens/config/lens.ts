@@ -61,6 +61,24 @@ export default {
       hiddenResponseParameters: [] as string[]
     },
 
+    exception: {
+      enabled: env('LENS_EXCEPTION_WATCHER', true),
+      /** Frames from these paths never answer "where did this fail". */
+      ignorePaths: [] as string[]
+    },
+
+    log: {
+      enabled: env('LENS_LOG_WATCHER', true),
+      /**
+       * The floor, as Telescope sets it.
+       *
+       * `debug` in a chatty application out-grows every other entry type
+       * combined, which is why this is not the default even though it is the
+       * default log level.
+       */
+      level: env('LENS_LOG_LEVEL', 'error')
+    },
+
     query: {
       enabled: env('LENS_QUERY_WATCHER', true),
       /** Milliseconds at or above which a query is tagged `slow`. */

@@ -1,10 +1,14 @@
 import type { ApplicationContract } from '@elvel/contracts'
+import { ExceptionWatcher } from './exception.ts'
+import { LogWatcher } from './log.ts'
 import { QueryWatcher } from './query.ts'
 import { RequestWatcher } from './request.ts'
 import type { Watcher, WatcherOptions } from './watcher.ts'
 
 /** Watcher name as it appears in `lens.watchers` to the class behind it. */
 const WATCHERS: Record<string, new (options: WatcherOptions) => Watcher> = {
+  exception: ExceptionWatcher,
+  log: LogWatcher,
   query: QueryWatcher,
   request: RequestWatcher
 }
@@ -53,6 +57,8 @@ export function registerWatchers(
   return registered
 }
 
+export { ExceptionWatcher } from './exception.ts'
+export { LogWatcher } from './log.ts'
 export { QueryWatcher } from './query.ts'
 export { type RequestFacts, RequestWatcher } from './request.ts'
 export { Watcher, type WatcherOptions } from './watcher.ts'

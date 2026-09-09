@@ -38,6 +38,7 @@ export { EntryResult } from './entry-result.ts'
 export { EntryType, type EntryTypeName, entryTypes } from './entry-type.ts'
 export { EntryUpdate } from './entry-update.ts'
 export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.ts'
+export { atLeast, PRIORITIES } from './log-level.ts'
 export { PAUSE_KEY, PAUSE_TTL, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
 export {
@@ -53,6 +54,8 @@ export {
 } from './storage/database-repository.ts'
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
+  ExceptionWatcher,
+  LogWatcher,
   QueryWatcher,
   type RequestFacts,
   RequestWatcher,
