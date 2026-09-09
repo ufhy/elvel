@@ -25,8 +25,10 @@ import './database.ts'
  * - and the flush is fire-and-forget, so a test that read the table straight
  *   after a request read it empty — a `sleep` would have passed and been a flake
  *
- * The one it could not fix is skipped below: request slots leak between two
- * `app.handle()` calls from one frame, which is issue #9.
+ * And one it could not fix itself, which was the most useful output of the lot:
+ * request slots leaked between two `app.handle()` calls from one frame. That was
+ * issue #9, in the framework, and it is fixed — `keeps two requests apart` below
+ * is the assertion that found it.
  */
 
 type Stored = { batch_id: string | null; type: string; content: string }
@@ -109,20 +111,15 @@ describe('the telescope spike', () => {
   })
 
   /**
-   * Skipped, and the reason is the spike's most useful output.
+   * This is the assertion that proved issue #9, and the one that now proves it
+   * fixed.
    *
-   * Two `app.handle()` calls from one frame **share** a request context, so the
-   * second request inherits the first's batch, finds it already completed and
-   * writes nothing. That is not the recorder's bug — it is issue #9, in the
-   * single-request-context change: `enterRequestContext` inherits what surrounds
-   * it so `AuthManager.runWith` keeps working, and `enterWith` inside `handle()`
-   * reaches the caller's frame.
-   *
-   * It does not affect a served request — each one arrives in its own frame — but
-   * it does affect every test that makes two, including through `test(app)`.
-   * Un-skip this when #9 is fixed; it is the assertion that will prove it.
+   * It could not pass while two `app.handle()` calls from one frame shared a
+   * request context: the second request inherited the first's batch, found it
+   * already completed and wrote nothing, so `drained` timed out. The framework
+   * marks a request's context now and the next one starts clean.
    */
-  it.skip('keeps two requests apart', async () => {
+  it('keeps two requests apart', async () => {
     await clear()
 
     await visit('/check/articles')

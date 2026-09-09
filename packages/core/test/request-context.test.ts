@@ -213,6 +213,57 @@ describe('enterRequestContext', () => {
   })
 
   /**
+   * But it does **not** carry the previous request's work forward.
+   *
+   * `enterWith` inside `app.handle()` reaches the caller's frame, so two requests
+   * driven from one frame had the second inherit the first's slots — its session,
+   * its cookie jar, its signed-in user. Inheriting everything was the first
+   * answer and this is the half it got wrong.
+   */
+  test('does not carry a previous request’s slots into the next one', () => {
+    const slot = requestSlot<string>('previous-request')
+
+    withoutRequestContext(() => {
+      // One request opens a context and writes to it.
+      enterRequestContext()
+      slot.set('from the first request')
+
+      expect(slot.get()).toBe('from the first request')
+
+      // The next one, from the same frame, starts clean.
+      enterRequestContext()
+
+      expect(slot.get()).toBeUndefined()
+    })
+  })
+
+  /**
+   * And the two rules together, in the order that matters.
+   *
+   * Something outside establishes a session; the first request inherits it and
+   * adds its own; the second request inherits the outside session again and none
+   * of the first request's.
+   */
+  test('inherits from outside on every request, and from no request', () => {
+    const acting = requestSlot<string>('acting-as')
+    const perRequest = requestSlot<string>('per-request')
+
+    withoutRequestContext(() => {
+      acting.set('a signed-in user')
+
+      enterRequestContext()
+      perRequest.set('first')
+
+      expect(acting.get()).toBe('a signed-in user')
+
+      enterRequestContext()
+
+      expect(acting.get()).toBe('a signed-in user')
+      expect(perRequest.get()).toBeUndefined()
+    })
+  })
+
+  /**
    * And still a fresh object, which is the other half.
    *
    * What the request writes must not escape into whatever surrounds it, or one

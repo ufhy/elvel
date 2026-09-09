@@ -273,6 +273,35 @@ Two rules, and the first is the one that bites:
 - **The symbol is the identity, not the name.** Two packages that both call theirs
   `'session'` get two slots, not one they overwrite for each other.
 
+### What one request cannot see of another
+
+A slot a request writes is that request's alone, and **that holds even when two
+requests are handled from the same place** — which is what a test does:
+
+```ts
+await app.handle(new Request('http://localhost/a'))
+await app.handle(new Request('http://localhost/b'))   // starts clean
+```
+
+Worth stating because it was briefly untrue. `enterWith` inside `app.handle()`
+reaches the caller's frame, so with the context inheriting everything it found,
+the second request began with the first one's session, cookie jar and signed-in
+user. A served request never saw it — each arrives from `Bun.serve` in a frame of
+its own — but `test(app)` is `app.handle()`, so a test making two requests saw it
+every time, in the direction that makes a wrong assertion pass.
+
+What still crosses in is what something **outside** the requests established,
+which is the point of `AuthManager.runWith`: it sets a session and then calls the
+application, and a test acting as a signed-in user expects every request inside
+that block to see them.
+
+```ts
+await actingAs(user, async () => {
+  await get('/one')   // signed in
+  await get('/two')   // still signed in, and sees nothing of /one
+})
+```
+
 `slot.run(value, body)` sets it for one call and restores it afterwards, leaving
 the rest of the context in place — which is what `AuthManager.runWith` uses to let
 a test act as a signed-in user.
