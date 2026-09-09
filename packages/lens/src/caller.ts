@@ -4,7 +4,19 @@ export type CallerFrame = {
   line: number
 }
 
-/** Frames inside these never answer "who ran this query". */
+/**
+ * Frames inside these never answer "who ran this query".
+ *
+ * `node_modules/` covers the framework as an application sees it, which is where
+ * the frames between the application and here come from: a gate check reaches
+ * this through `@elvel/auth` and `@elvel/events`, and reporting the dispatcher
+ * as the place somebody authorised is worse than reporting nothing.
+ *
+ * It does not cover the framework as *this repository* sees it, where the same
+ * code is `packages/events/src/`. Watchers pass those through `ignorePaths` in
+ * their own tests rather than this list carrying a rule that would also skip an
+ * application's own `packages/` in a monorepo.
+ */
 const ALWAYS_IGNORED = ['node_modules/', 'packages/lens/src/', '/bun:', 'node:internal']
 
 /**

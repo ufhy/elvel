@@ -61,6 +61,19 @@ export default {
       hiddenResponseParameters: [] as string[]
     },
 
+    cache: {
+      enabled: env('LENS_CACHE_WATCHER', true),
+      /**
+       * Keys whose value is masked, and keys dropped outright.
+       *
+       * Both take a name or a `prefix*` glob. Worth setting: a cache entry's
+       * **value is recorded**, which Telescope also does, so whatever the
+       * application caches ends up in a table.
+       */
+      hidden: [] as string[],
+      ignore: [] as string[]
+    },
+
     exception: {
       enabled: env('LENS_EXCEPTION_WATCHER', true),
       /** Frames from these paths never answer "where did this fail". */
@@ -77,6 +90,22 @@ export default {
        * default log level.
        */
       level: env('LENS_LOG_LEVEL', 'error')
+    },
+
+    gate: {
+      enabled: env('LENS_GATE_WATCHER', true),
+      ignoreAbilities: [] as string[],
+      ignorePaths: [] as string[]
+    },
+
+    model: {
+      enabled: env('LENS_MODEL_WATCHER', true),
+      /** Model class names never recorded. */
+      ignore: [] as string[]
+    },
+
+    schedule: {
+      enabled: env('LENS_SCHEDULE_WATCHER', true)
     },
 
     query: {

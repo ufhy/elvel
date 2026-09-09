@@ -31,7 +31,11 @@ export function watcherStatus(
 
 /** The watcher that feeds each entry type, for `status`. */
 export const WATCHER_FOR: Partial<Record<EntryTypeName, string>> = {
+  cache: 'cache',
   exception: 'exception',
+  gate: 'gate',
+  model: 'model',
+  schedule: 'schedule',
   log: 'log',
   query: 'query',
   request: 'request'
