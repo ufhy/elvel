@@ -244,6 +244,8 @@
         "@elvel/core": "workspace:*",
         "@elvel/database": "workspace:*",
         "@elvel/http": "workspace:*",
+        "@elvel/view": "workspace:*",
+        "@kitajs/html": "^4.2.13",
         "elysia": ">=1.4.0",
       },
       "devDependencies": {

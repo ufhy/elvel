@@ -6,6 +6,7 @@ import { LensPruneCommand } from './console/lens-prune.ts'
 import { LensResumeCommand } from './console/lens-resume.ts'
 import { LensTableCommand } from './console/lens-table.ts'
 import type { EntriesRepository } from './contracts.ts'
+import { lensDashboard } from './http/dashboard.ts'
 import { lensPlugin } from './http/plugin.ts'
 import { lensRoutes } from './http/routes.ts'
 import { refreshPause } from './pause.ts'
@@ -84,6 +85,14 @@ export class LensServiceProvider extends ServiceProvider {
      * Mounted only when Lens is enabled, so a disabled recorder adds no hook to
      * the request path at all rather than one that returns early.
      */
+    const readSide = {
+      path: this.config<string>('lens.path', 'lens'),
+      enabled: true,
+      watchers: this.config<WatcherConfig>('lens.watchers', {})
+    }
+
+    this.use(lensDashboard(this.app, readSide))
+
     this.use(
       lensRoutes(this.app, {
         path: this.config<string>('lens.path', 'lens'),

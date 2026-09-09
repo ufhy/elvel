@@ -1,0 +1,173 @@
+import { describe, expect, test } from 'bun:test'
+import { Application } from '@elvel/core'
+import { ConnectionManager } from '@elvel/database'
+import { JsxViewFactory } from '@elvel/view'
+import { Elysia } from 'elysia'
+import { IncomingEntry } from '../src/entry.ts'
+import { EntryType, type EntryTypeName } from '../src/entry-type.ts'
+import { lensDashboard } from '../src/http/dashboard.ts'
+import { Recorder } from '../src/recorder.ts'
+import { DatabaseEntriesRepository } from '../src/storage/database-repository.ts'
+
+async function dashboard(options: { open?: boolean } = {}) {
+  const app = new Application(process.cwd())
+
+  app.config.set('database.default', 'lens-dash')
+  app.config.set('database.connections.lens-dash', { driver: 'sqlite', database: ':memory:' })
+
+  const db = new ConnectionManager(app)
+  const schema = await db.schema()
+
+  await schema.create('lens_entries', (table) => {
+    table.bigIncrements('sequence')
+    table.uuid('uuid')
+    table.uuid('batch_id')
+    table.string('family_hash').nullable()
+    table.boolean('should_display_on_index').default(true)
+    table.string('type', 20)
+    table.longText('content')
+    table.dateTime('created_at').nullable()
+    table.unique(['uuid'])
+  })
+  await schema.create('lens_entries_tags', (table) => {
+    table.uuid('entry_uuid')
+    table.string('tag')
+    table.primary(['entry_uuid', 'tag'])
+  })
+  await schema.create('lens_entries_monitoring', (table) => {
+    table.string('tag').primary()
+  })
+
+  const entries = new DatabaseEntriesRepository(db, { table: 'lens_entries' })
+  const recorder = new Recorder()
+
+  recorder.enable(true)
+  if (options.open !== false) recorder.auth(() => true)
+
+  app.instance('lens', recorder)
+  app.instance('lens.entries', entries)
+  app.instance('view', new JsxViewFactory())
+
+  const router = new Elysia().use(
+    lensDashboard(app, {
+      path: 'lens',
+      enabled: true,
+      watchers: { request: { enabled: true }, query: { enabled: true } } as never
+    })
+  )
+
+  return { router, entries, recorder }
+}
+
+function entry(
+  type: EntryTypeName = EntryType.QUERY,
+  content: Record<string, unknown> = {},
+  batchId = 'b1'
+) {
+  return IncomingEntry.make(content).withType(type).withBatch(batchId)
+}
+
+describe('the dashboard', () => {
+  test('the index sends you to requests', async () => {
+    const { router } = await dashboard()
+
+    const response = await router.handle(new Request('http://localhost/lens'))
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('/lens/request')
+  })
+
+  test('a list renders a page, not JSON', async () => {
+    const { router, entries } = await dashboard()
+
+    await entries.store([
+      entry(EntryType.REQUEST, { method: 'GET', uri: '/orders', responseStatus: 200, duration: 12 })
+    ])
+
+    const response = await router.handle(new Request('http://localhost/lens/request'))
+    const body = await response.text()
+
+    expect(response.headers.get('content-type')).toContain('text/html')
+    expect(body.startsWith('<!DOCTYPE html>')).toBe(true)
+    expect(body).toContain('/orders')
+    expect(body).toContain('GET')
+  })
+
+  /**
+   * The reason a list is empty, on the page rather than in a config file.
+   */
+  test('an empty list says why it is empty', async () => {
+    const { router } = await dashboard()
+
+    const body = await (await router.handle(new Request('http://localhost/lens/query'))).text()
+
+    expect(body).toContain('Nothing recorded yet')
+  })
+
+  test('a detail page carries the rest of the batch', async () => {
+    const { router, entries } = await dashboard()
+    const subject = entry(EntryType.REQUEST, { method: 'GET', uri: '/x' }, 'together')
+
+    await entries.store([
+      subject,
+      entry(EntryType.QUERY, { sql: 'select * from orders' }, 'together'),
+      entry(EntryType.QUERY, { sql: 'select * from elsewhere' }, 'apart')
+    ])
+
+    const body = await (
+      await router.handle(new Request(`http://localhost/lens/request/${subject.uuid}`))
+    ).text()
+
+    expect(body).toContain('related · 1')
+    expect(body).toContain('select * from orders')
+    expect(body).not.toContain('select * from elsewhere')
+  })
+
+  /**
+   * A recorder stores what an attacker sent, and then shows it to an
+   * administrator. `@kitajs/html` does not escape by default, so this is the
+   * test that keeps a recorded path from becoming a script tag in the one page
+   * whose reader is always privileged.
+   */
+  test('a recorded value cannot become markup', async () => {
+    const { router, entries } = await dashboard()
+    const nasty = '/x?<script>alert(1)</script>'
+
+    await entries.store([
+      entry(EntryType.REQUEST, { method: 'GET', uri: nasty, responseStatus: 200 })
+    ])
+
+    const body = await (await router.handle(new Request('http://localhost/lens/request'))).text()
+
+    expect(body).not.toContain('<script>alert(1)</script>')
+    expect(body).toContain('&lt;script&gt;')
+  })
+
+  test('a value in an entry detail cannot become markup either', async () => {
+    const { router, entries } = await dashboard()
+    const subject = entry(EntryType.QUERY, { sql: "select '<img src=x onerror=alert(1)>'" })
+
+    await entries.store([subject])
+
+    const body = await (
+      await router.handle(new Request(`http://localhost/lens/query/${subject.uuid}`))
+    ).text()
+
+    expect(body).not.toContain('<img src=x')
+    expect(body).toContain('&lt;img')
+  })
+
+  test('an unknown type is a 404', async () => {
+    const { router } = await dashboard()
+
+    expect((await router.handle(new Request('http://localhost/lens/nonsense'))).status).toBe(404)
+  })
+
+  test('every page is behind the gate', async () => {
+    const { router } = await dashboard({ open: false })
+
+    for (const path of ['/lens', '/lens/request', `/lens/request/${crypto.randomUUID()}`]) {
+      expect((await router.handle(new Request(`http://localhost${path}`))).status).toBe(403)
+    }
+  })
+})
