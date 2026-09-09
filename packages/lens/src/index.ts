@@ -17,6 +17,10 @@ import { app } from '@elvel/core'
 import type { Recorder } from './recorder.ts'
 
 export { type CallerFrame, callerFrom } from './caller.ts'
+export { LensClearCommand } from './console/lens-clear.ts'
+export { LensInstallCommand } from './console/lens-install.ts'
+export { LensPruneCommand } from './console/lens-prune.ts'
+export { LensTableCommand } from './console/lens-table.ts'
 export {
   type ClearableRepository,
   type EntriesDriver,

@@ -1,5 +1,6 @@
 import { ServiceProvider } from '@elvel/core'
 import { LensClearCommand } from './console/lens-clear.ts'
+import { LensInstallCommand } from './console/lens-install.ts'
 import { LensPruneCommand } from './console/lens-prune.ts'
 import { LensTableCommand } from './console/lens-table.ts'
 import type { EntriesRepository } from './contracts.ts'
@@ -38,7 +39,9 @@ export class LensServiceProvider extends ServiceProvider {
 
   override boot(): void {
     if (this.app.bound('elvel')) {
-      this.app.make('elvel').register(LensClearCommand, LensPruneCommand, LensTableCommand)
+      this.app
+        .make('elvel')
+        .register(LensClearCommand, LensInstallCommand, LensPruneCommand, LensTableCommand)
     }
 
     if (!this.config<boolean>('lens.enabled', false)) return

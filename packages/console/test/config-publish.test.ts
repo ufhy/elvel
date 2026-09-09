@@ -33,6 +33,23 @@ async function mapped(): Promise<Record<string, string>> {
   ) as Record<string, string>
 }
 
+/**
+ * Config files whose package publishes them itself.
+ *
+ * `config:publish` is the framework's catalogue: a name, the package that owns
+ * the default, and a copy into `config/`. That fits a capability an application
+ * configures and then uses. It does not fit a tool that has to be installed —
+ * Laravel draws the same line, and `config:publish` there has never known about
+ * Telescope: the package registers `publishes([...], 'telescope-config')` and
+ * `telescope:install` fetches it, along with the migration and the provider
+ * stub, because a config file alone leaves the tool inert.
+ *
+ * `lens` is that shape. `lens:install` writes its config, and `@elvel/mail`'s
+ * `mail:theme` is the same idea already in the tree. Listing it here as well
+ * would offer a publish that produces a disabled recorder with no tables.
+ */
+const PUBLISHES_ITSELF = new Set(['lens'])
+
 /** `{ mail: 'mail', … }`, read from what is on disk. */
 async function shipped(): Promise<Record<string, string>> {
   const found: Record<string, string> = {}
@@ -43,7 +60,9 @@ async function shipped(): Promise<Record<string, string>> {
     const files = await readdir(join(packagesDir, entry.name, 'config')).catch(() => [])
 
     for (const file of files) {
-      if (file.endsWith('.ts')) found[file.slice(0, -'.ts'.length)] = entry.name
+      const name = file.slice(0, -'.ts'.length)
+
+      if (file.endsWith('.ts') && !PUBLISHES_ITSELF.has(name)) found[name] = entry.name
     }
   }
 

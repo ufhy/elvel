@@ -662,7 +662,6 @@ const CONFIG_OWNERS: Record<string, string> = {
   hashing: 'hashing',
   http: 'http',
   image: 'image',
-  lens: 'lens',
   logging: 'log',
   mail: 'mail',
   notifications: 'notifications',
