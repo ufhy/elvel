@@ -46,7 +46,7 @@
     "@elvel/support": "workspace:*",
     "@types/nodemailer": "^8.0.1",
     "juice": "^12.1.2",
-    "nodemailer": "9.0.5"
+    "nodemailer": "9.1.1"
   },
   "peerDependencies": {
     "elysia": ">=1.4.0"
