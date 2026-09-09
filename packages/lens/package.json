@@ -42,6 +42,8 @@
     "@elvel/console": "workspace:*",
     "@elvel/contracts": "workspace:*",
     "@elvel/core": "workspace:*",
-    "@elvel/database": "workspace:*"
+    "@elvel/database": "workspace:*",
+    "@elvel/http": "workspace:*",
+    "elysia": ">=1.4.0"
   }
 }

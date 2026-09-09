@@ -70,6 +70,18 @@ export class Recorder {
   /** Turned on per unit of work by {@link start}; off means nothing records. */
   private enabled = false
 
+  /**
+   * How many batches have finished storing.
+   *
+   * A flush is fire-and-forget by nature — it happens after the response, and
+   * nothing is waiting on it — which leaves a test with no moment to read the
+   * table at. Waiting for the write to be *in flight* is not enough either: at
+   * the point a test asks, the flush has often not started. So the count is
+   * exposed and a test waits for it to reach a number, which is the one thing
+   * that cannot be raced.
+   */
+  private completed = 0
+
   constructor(private readonly report: (error: unknown) => void = () => {}) {}
 
   /**
@@ -209,6 +221,7 @@ export class Recorder {
 
     if (entries.length === 0 && updates.length === 0) {
       await this.terminate(repository)
+      this.completed++
 
       return
     }
@@ -241,6 +254,7 @@ export class Recorder {
       batch.suppressed--
 
       await this.terminate(repository)
+      this.completed++
     }
   }
 
@@ -266,6 +280,11 @@ export class Recorder {
   /** The open batch's id, for a watcher that needs to correlate. */
   batchId(): string | undefined {
     return batchSlot.get()?.batchId
+  }
+
+  /** How many batches have finished storing — see {@link completed}. */
+  flushes(): number {
+    return this.completed
   }
 
   private async terminate(repository: EntriesRepository): Promise<void> {

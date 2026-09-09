@@ -45,6 +45,22 @@ export default {
    * listener that returns early.
    */
   watchers: {
+    request: {
+      enabled: env('LENS_REQUEST_WATCHER', true),
+      /**
+       * Kilobytes of response body kept before the whole thing is replaced.
+       *
+       * Telescope's number and Telescope's arithmetic — whole kilobytes, at or
+       * under the limit. Above it the body is not truncated but dropped, because
+       * half a JSON document is not worth storing.
+       */
+      sizeLimit: Number(env('LENS_RESPONSE_SIZE_LIMIT', 64)),
+      ignoreHttpMethods: [] as string[],
+      ignoreStatusCodes: [] as number[],
+      /** Response keys masked on the way in, beside the request's `password`. */
+      hiddenResponseParameters: [] as string[]
+    },
+
     query: {
       enabled: env('LENS_QUERY_WATCHER', true),
       /** Milliseconds at or above which a query is tagged `slow`. */

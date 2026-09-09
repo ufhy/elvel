@@ -4,9 +4,11 @@ import { LensInstallCommand } from './console/lens-install.ts'
 import { LensPruneCommand } from './console/lens-prune.ts'
 import { LensTableCommand } from './console/lens-table.ts'
 import type { EntriesRepository } from './contracts.ts'
+import { lensPlugin } from './http/plugin.ts'
 import { Recorder } from './recorder.ts'
 import { DatabaseEntriesRepository } from './storage/database-repository.ts'
 import { registerWatchers, type WatcherConfig } from './watchers/index.ts'
+import { RequestWatcher } from './watchers/request.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -46,8 +48,26 @@ export class LensServiceProvider extends ServiceProvider {
 
     if (!this.config<boolean>('lens.enabled', false)) return
 
-    registerWatchers(this.app, this.config<WatcherConfig>('lens.watchers', {}), (error) =>
-      this.app.make('exception.handler').report(error)
+    const watchers = registerWatchers(
+      this.app,
+      this.config<WatcherConfig>('lens.watchers', {}),
+      (error) => this.app.make('exception.handler').report(error)
+    )
+
+    /**
+     * The plugin is what opens a batch and what flushes it.
+     *
+     * Mounted only when Lens is enabled, so a disabled recorder adds no hook to
+     * the request path at all rather than one that returns early.
+     */
+    this.use(
+      lensPlugin(this.app, {
+        onlyPaths: this.config<string[]>('lens.onlyPaths', []),
+        ignorePaths: this.config<string[]>('lens.ignorePaths', []),
+        requestWatcher: watchers.find(
+          (watcher): watcher is RequestWatcher => watcher instanceof RequestWatcher
+        )
+      })
     )
   }
 

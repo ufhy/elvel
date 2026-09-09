@@ -35,6 +35,7 @@ export { type EntryContent, IncomingEntry } from './entry.ts'
 export { EntryResult } from './entry-result.ts'
 export { EntryType, type EntryTypeName, entryTypes } from './entry-type.ts'
 export { EntryUpdate } from './entry-update.ts'
+export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.ts'
 export { LensServiceProvider } from './provider.ts'
 export {
   type AfterStoringHook,
@@ -49,7 +50,11 @@ export {
 } from './storage/database-repository.ts'
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
+  HIDDEN_HEADERS,
+  HIDDEN_PARAMETERS,
   QueryWatcher,
+  type RequestFacts,
+  RequestWatcher,
   registerWatchers,
   Watcher,
   type WatcherConfig,
