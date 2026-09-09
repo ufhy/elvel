@@ -5,17 +5,43 @@ import type { Recorder } from '../recorder.ts'
 import { Watcher } from './watcher.ts'
 
 /**
- * Headers hidden by default.
+ * A copy deep enough to mask into without touching what the handler still holds.
  *
- * Telescope's list is `['authorization', 'php-auth-pw']`; the second is a PHP
- * CGI variable with no counterpart. `cookie` is deliberately not added — it is
- * not on Telescope's list either, because that is what the published provider
- * stub is for, and `lens:install` publishes the same seam.
+ * `structuredClone` refuses a `File` or a stream, both of which turn up in a
+ * parsed body, so this copies plain objects and arrays and leaves anything else
+ * by reference — those are never the thing a dotted path descends into.
  */
-export const HIDDEN_HEADERS = ['authorization']
+function structuredCopy(value: Record<string, unknown>): Record<string, unknown> {
+  const copy: Record<string, unknown> = {}
 
-/** Parameters hidden by default — Telescope's list, verbatim. */
-export const HIDDEN_PARAMETERS = ['password', 'password_confirmation']
+  for (const [key, held] of Object.entries(value)) {
+    copy[key] =
+      held !== null && typeof held === 'object' && !Array.isArray(held)
+        ? structuredCopy(held as Record<string, unknown>)
+        : held
+  }
+
+  return copy
+}
+
+/** Replace the value at a dotted path, if the whole path is there. */
+function maskPath(target: Record<string, unknown>, path: string[]): void {
+  const [head, ...rest] = path
+
+  if (head === undefined) return
+
+  if (rest.length === 0) {
+    if (head in target) target[head] = '********'
+
+    return
+  }
+
+  const next = target[head]
+
+  if (next !== null && typeof next === 'object' && !Array.isArray(next)) {
+    maskPath(next as Record<string, unknown>, rest)
+  }
+}
 
 /**
  * What `onAfterResponse` can actually tell us, rather than what would be tidy.
@@ -72,6 +98,8 @@ export class RequestWatcher extends Watcher {
   record(lens: Recorder, facts: RequestFacts): void {
     if (!lens.recording()) return
 
+    const hidden = lens.hidden()
+
     const method = facts.request.method
 
     if (this.ignoredMethods().includes(method.toLowerCase())) return
@@ -86,13 +114,15 @@ export class RequestWatcher extends Watcher {
         uri: `${url.pathname}${url.search}` || '/',
         method,
         route: facts.route ?? null,
-        headers: this.headers(facts.request.headers),
-        payload: this.payload(url, facts.body),
-        session: this.hide(facts.session ?? {}, HIDDEN_PARAMETERS),
+        headers: this.headers(facts.request.headers, hidden.headers),
+        payload: this.payload(url, facts.body, hidden.parameters),
+        session: this.hide(facts.session ?? {}, hidden.parameters),
         responseHeaders:
-          facts.responseHeaders === undefined ? {} : this.headers(facts.responseHeaders),
+          facts.responseHeaders === undefined
+            ? {}
+            : this.headers(facts.responseHeaders, hidden.headers),
         responseStatus: facts.status,
-        response: this.response(facts),
+        response: this.response(facts, hidden.responseParameters),
         duration: Math.floor(facts.duration)
       })
     )
@@ -107,16 +137,16 @@ export class RequestWatcher extends Watcher {
    *
    * The body wins on a collision, which is Laravel's precedence.
    */
-  private payload(url: URL, body: unknown): unknown {
+  private payload(url: URL, body: unknown, hidden: string[]): unknown {
     const query: Record<string, unknown> = {}
 
     for (const [key, value] of url.searchParams.entries()) query[key] = value
 
     if (typeof body === 'string') return body
-    if (body === undefined || body === null) return this.hide(query, HIDDEN_PARAMETERS)
-    if (typeof body !== 'object') return this.hide(query, HIDDEN_PARAMETERS)
+    if (body === undefined || body === null) return this.hide(query, hidden)
+    if (typeof body !== 'object') return this.hide(query, hidden)
 
-    return this.hide({ ...query, ...(body as Record<string, unknown>) }, HIDDEN_PARAMETERS)
+    return this.hide({ ...query, ...(body as Record<string, unknown>) }, hidden)
   }
 
   /**
@@ -128,7 +158,7 @@ export class RequestWatcher extends Watcher {
    * markup nobody reads in a list. Over `size_limit` kilobytes it is replaced
    * wholesale, because the point of the limit is not to store the thing.
    */
-  private response(facts: RequestFacts): unknown {
+  private response(facts: RequestFacts, hiddenKeys: string[]): unknown {
     const location = facts.location ?? facts.responseHeaders?.get('location') ?? undefined
 
     if (facts.status >= 300 && facts.status < 400 && location !== undefined) {
@@ -141,7 +171,7 @@ export class RequestWatcher extends Watcher {
 
     if (typeof value === 'object') {
       return this.withinLimits(JSON.stringify(value) ?? '')
-        ? this.hide(value as Record<string, unknown>, this.hiddenResponseKeys())
+        ? this.hide(value as Record<string, unknown>, hiddenKeys)
         : 'Purged By Lens'
     }
 
@@ -158,18 +188,14 @@ export class RequestWatcher extends Watcher {
     return this.withinLimits(String(value)) ? value : 'Purged By Lens'
   }
 
-  private hiddenResponseKeys(): string[] {
-    return this.option<string[]>('hiddenResponseParameters', [])
-  }
-
   /** Telescope's arithmetic: whole kilobytes, at or under the limit. */
   private withinLimits(content: string): boolean {
     return Math.trunc(content.length / 1000) <= this.option('sizeLimit', 64)
   }
 
   /** Header values, with the hidden ones masked rather than dropped. */
-  private headers(headers: Headers): Record<string, string> {
-    const hidden = new Set(HIDDEN_HEADERS.map((name) => name.toLowerCase()))
+  private headers(headers: Headers, hiddenNames: string[]): Record<string, string> {
+    const hidden = new Set(hiddenNames.map((name) => name.toLowerCase()))
     const found: Record<string, string> = {}
 
     for (const [name, value] of headers.entries()) {
@@ -180,17 +206,25 @@ export class RequestWatcher extends Watcher {
   }
 
   /**
-   * Mask a key that is present, whatever it holds.
+   * Mask the named keys, following a dotted path into nested objects.
    *
-   * Telescope masks only a *truthy* value — `if (Arr::get($data, $parameter))` —
-   * so a `password` of `'0'` is recorded as `'0'`. Deliberately not copied: the
-   * difference is invisible in a dashboard and the safer rule is shorter.
+   * The dots matter and were missing at first. Telescope reaches these keys with
+   * `Arr::get`/`Arr::set`, which walk `user.password` — so hiding a nested key
+   * works there and silently did nothing here, which is worse than not offering
+   * it: a payload of `{ user: { password } }` went into the row in full while
+   * the configuration said it would not. Found by a review of the commit that
+   * introduced it.
+   *
+   * One deliberate difference from Telescope remains: a key that is *present* is
+   * masked, where Telescope masks only a truthy value, so a `password` of `'0'`
+   * is recorded verbatim there. The difference is invisible in a dashboard and
+   * the safer rule is the shorter one.
    */
   private hide(data: Record<string, unknown>, keys: string[]): Record<string, unknown> {
-    const masked: Record<string, unknown> = { ...data }
+    const masked = structuredCopy(data)
 
     for (const key of keys) {
-      if (key in masked) masked[key] = '********'
+      maskPath(masked, key.split('.'))
     }
 
     return masked

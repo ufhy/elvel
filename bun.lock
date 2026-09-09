@@ -246,6 +246,9 @@
         "@elvel/http": "workspace:*",
         "elysia": ">=1.4.0",
       },
+      "devDependencies": {
+        "@elvel/cache": "workspace:*",
+      },
     },
     "packages/log": {
       "name": "@elvel/log",

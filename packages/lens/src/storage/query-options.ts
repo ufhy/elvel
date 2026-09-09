@@ -26,6 +26,27 @@ export class EntryQueryOptions {
 
   static readonly maxLimit = 200
 
+  /**
+   * Everything in one batch — what a detail page shows beside the entry.
+   *
+   * Telescope asks for this with `limit(-1)`, meaning unbounded, and gets away
+   * with it because a batch is one request's worth of activity. This caps it
+   * instead: the cap is not reachable from the URL, so it is not the unbounded
+   * URL parameter the spike's security review objected to, but a request that
+   * ran fifty thousand queries should still not be assembled into one JSON
+   * response.
+   */
+  static forBatch(batchId: string): EntryQueryOptions {
+    const options = new EntryQueryOptions()
+
+    options.batchId = batchId
+    options.limit = EntryQueryOptions.batchLimit
+
+    return options
+  }
+
+  static readonly batchLimit = 1000
+
   static fromRequest(query: Record<string, string | undefined>): EntryQueryOptions {
     const options = new EntryQueryOptions()
 

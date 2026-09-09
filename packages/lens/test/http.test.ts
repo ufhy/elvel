@@ -211,6 +211,60 @@ describe('the lens plugin', () => {
     expect(JSON.stringify(payload)).not.toContain('sekrit')
   })
 
+  /**
+   * The leak a review of the introducing commit found.
+   *
+   * Telescope reaches hidden keys with `Arr::get`/`Arr::set`, which walk
+   * `user.password`. The first version here masked only top-level keys, so a
+   * nested password went into the row in full while the configuration said it
+   * would not — worse than not offering the option.
+   */
+  test('a nested key named by a dotted path is masked', async () => {
+    const { router, entries, recorder } = await harness()
+
+    recorder.hideRequestParameters(['user.password', 'deep.a.b'])
+
+    await router.handle(
+      new Request('http://localhost/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          user: { email: 'ada@example.test', password: 'nested-sekrit' },
+          deep: { a: { b: 'buried-sekrit' } }
+        })
+      })
+    )
+    await drained(recorder, 1)
+
+    const payload = (await recorded(entries))[0]?.content.payload as {
+      user: Record<string, unknown>
+      deep: { a: Record<string, unknown> }
+    }
+
+    expect(payload.user.password).toBe('********')
+    expect(payload.user.email).toBe('ada@example.test')
+    expect(payload.deep.a.b).toBe('********')
+    expect(JSON.stringify(payload)).not.toContain('sekrit')
+  })
+
+  test('masking does not mutate what the handler still holds', async () => {
+    const { router, recorder } = await harness()
+
+    recorder.hideRequestParameters(['user.password'])
+
+    const response = await router.handle(
+      new Request('http://localhost/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ user: { password: 'still-here' } })
+      })
+    )
+    await drained(recorder, 1)
+
+    // The handler echoes its own body; masking must not have reached it.
+    expect(await response.text()).toContain('still-here')
+  })
+
   test('a status code can be ignored', async () => {
     const { router, entries, recorder } = await harness({ watcher: { ignoreStatusCodes: [503] } })
 

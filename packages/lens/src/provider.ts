@@ -1,10 +1,14 @@
 import { ServiceProvider } from '@elvel/core'
 import { LensClearCommand } from './console/lens-clear.ts'
 import { LensInstallCommand } from './console/lens-install.ts'
+import { LensPauseCommand } from './console/lens-pause.ts'
 import { LensPruneCommand } from './console/lens-prune.ts'
+import { LensResumeCommand } from './console/lens-resume.ts'
 import { LensTableCommand } from './console/lens-table.ts'
 import type { EntriesRepository } from './contracts.ts'
 import { lensPlugin } from './http/plugin.ts'
+import { lensRoutes } from './http/routes.ts'
+import { refreshPause } from './pause.ts'
 import { Recorder } from './recorder.ts'
 import { DatabaseEntriesRepository } from './storage/database-repository.ts'
 import { registerWatchers, type WatcherConfig } from './watchers/index.ts'
@@ -43,10 +47,30 @@ export class LensServiceProvider extends ServiceProvider {
     if (this.app.bound('elvel')) {
       this.app
         .make('elvel')
-        .register(LensClearCommand, LensInstallCommand, LensPruneCommand, LensTableCommand)
+        .register(
+          LensClearCommand,
+          LensInstallCommand,
+          LensPauseCommand,
+          LensPruneCommand,
+          LensResumeCommand,
+          LensTableCommand
+        )
     }
 
     if (!this.config<boolean>('lens.enabled', false)) return
+
+    /**
+     * Read the pause flag once at boot, and again after each flush.
+     *
+     * Not awaited here: `boot()` is where a server is about to start listening,
+     * and a cache round trip before the first request would be paid by every
+     * boot to answer a question that is almost always "no".
+     */
+    void refreshPause(this.app, this.app.make('lens'))
+
+    this.app.make('lens').afterStoring(() => {
+      void refreshPause(this.app, this.app.make('lens'))
+    })
 
     const watchers = registerWatchers(
       this.app,
@@ -60,6 +84,14 @@ export class LensServiceProvider extends ServiceProvider {
      * Mounted only when Lens is enabled, so a disabled recorder adds no hook to
      * the request path at all rather than one that returns early.
      */
+    this.use(
+      lensRoutes(this.app, {
+        path: this.config<string>('lens.path', 'lens'),
+        enabled: true,
+        watchers: this.config<WatcherConfig>('lens.watchers', {})
+      })
+    )
+
     this.use(
       lensPlugin(this.app, {
         onlyPaths: this.config<string[]>('lens.onlyPaths', []),

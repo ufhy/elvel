@@ -49,13 +49,42 @@ export class LensInstallCommand extends Command {
     await Bun.write(destination, await Bun.file(source).text())
 
     this.info('Published config/lens.ts')
+
+    await this.publishProvider()
+
     this.line('')
-    this.line('Two steps left:')
-    this.line("  1. Name it in bootstrap/app.ts:  lens: () => import('../config/lens.ts')")
-    this.line('  2. Create the tables:            elvel lens:table && elvel migrate')
+    this.line('Three steps left:')
+    this.line("  1. Name the config in bootstrap/app.ts:  lens: () => import('../config/lens.ts')")
+    this.line('  2. Register both providers, Lens after HttpServiceProvider:')
+    this.line('       LensServiceProvider (yours), then LensServiceProvider from @elvel/lens')
+    this.line('  3. Create the tables:                    elvel lens:table && elvel migrate')
     this.line('')
-    this.comment('Then set LENS_ENABLED=true. It is off until you do.')
+    this.comment('Then add yourself to authorise() and set LENS_ENABLED=true.')
+    this.comment('Both are refusals until you do: the gate denies everyone and recording is off.')
 
     return 0
+  }
+
+  /**
+   * Write the application's own provider, where the gate and the filter live.
+   *
+   * Never overwritten, `--force` or not: this is a file somebody edits, and the
+   * one thing it holds is the list of people allowed to read the dashboard.
+   * Losing that to a re-run of an install command would be a bad trade.
+   */
+  private async publishProvider(): Promise<void> {
+    const destination = this.app.appPath('Providers', 'LensServiceProvider.ts')
+
+    if (await Bun.file(destination).exists()) {
+      this.comment('app/Providers/LensServiceProvider.ts already exists, left alone.')
+
+      return
+    }
+
+    const source = join(import.meta.dir, '..', '..', 'stubs', 'lens-provider.stub')
+
+    await Bun.write(destination, await Bun.file(source).text())
+
+    this.info('Published app/Providers/LensServiceProvider.ts')
   }
 }

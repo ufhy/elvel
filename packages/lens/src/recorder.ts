@@ -71,6 +71,35 @@ export class Recorder {
   private enabled = false
 
   /**
+   * Paused by hand, through `lens:pause`.
+   *
+   * Telescope reads the cache key on every `startRecording()`, which it can do
+   * because a PHP cache read is synchronous. Opening a batch here happens in a
+   * synchronous hook — it has to, `enterWith` applies to the current execution
+   * — so the flag is held and refreshed asynchronously instead: once at boot,
+   * and after each flush. A pause takes effect from the next request rather
+   * than the current one, which is the whole of the difference.
+   */
+  private paused = false
+
+  /** The gate, if the application installed one. */
+  private authorise: ((request: Request) => boolean | Promise<boolean>) | undefined
+
+  /**
+   * What never reaches a row, held here so the application can add to it.
+   *
+   * Telescope keeps these as statics on `Telescope` and the published provider
+   * stub appends to them — `cookie`, `x-csrf-token` and `_token` outside local.
+   * Same seam, same defaults: `authorization` is Telescope's list minus
+   * `php-auth-pw`, which is a PHP CGI variable with no counterpart.
+   */
+  private hiddenRequestHeaders = ['authorization']
+
+  private hiddenRequestParameters = ['password', 'password_confirmation']
+
+  private hiddenResponseParameters: string[] = []
+
+  /**
    * How many batches have finished storing.
    *
    * A flush is fire-and-forget by nature — it happens after the response, and
@@ -93,7 +122,7 @@ export class Recorder {
    * try, and the entries already recorded must not be dropped.
    */
   start(): Batch | undefined {
-    if (!this.enabled) return undefined
+    if (!this.enabled || this.paused) return undefined
 
     const open = batchSlot.get()
 
@@ -128,6 +157,41 @@ export class Recorder {
     const batch = batchSlot.get()
 
     return batch !== undefined && batch.suppressed === 0 && !batch.flushed
+  }
+
+  /** Whether recording is paused by hand. */
+  isPaused(): boolean {
+    return this.paused
+  }
+
+  /** Set from the cache, at boot and after each flush. */
+  setPaused(paused: boolean): void {
+    this.paused = paused
+  }
+
+  /**
+   * Who may read the dashboard — Telescope's `Telescope::auth()`.
+   *
+   * Closed until an application says otherwise. Telescope's default is
+   * `app()->environment('local')`, and that is the shape the published provider
+   * stub carries; the default *here* is a refusal, because `local` plus an empty
+   * `HOST` binds every interface on the machine, which is what the spike's
+   * security review objected to.
+   */
+  auth(callback: (request: Request) => boolean | Promise<boolean>): this {
+    this.authorise = callback
+
+    return this
+  }
+
+  async check(request: Request): Promise<boolean> {
+    if (this.authorise === undefined) return false
+
+    try {
+      return await this.authorise(request)
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -255,6 +319,32 @@ export class Recorder {
 
       await this.terminate(repository)
       this.completed++
+    }
+  }
+
+  hideRequestHeaders(headers: string[]): this {
+    this.hiddenRequestHeaders = [...new Set([...this.hiddenRequestHeaders, ...headers])]
+
+    return this
+  }
+
+  hideRequestParameters(keys: string[]): this {
+    this.hiddenRequestParameters = [...new Set([...this.hiddenRequestParameters, ...keys])]
+
+    return this
+  }
+
+  hideResponseParameters(keys: string[]): this {
+    this.hiddenResponseParameters = [...new Set([...this.hiddenResponseParameters, ...keys])]
+
+    return this
+  }
+
+  hidden(): { headers: string[]; parameters: string[]; responseParameters: string[] } {
+    return {
+      headers: this.hiddenRequestHeaders,
+      parameters: this.hiddenRequestParameters,
+      responseParameters: this.hiddenResponseParameters
     }
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "@elvel/lens",
   "version": "1.0.0-alpha.26",
-  "description": "Request, query and job recorder for Elvel — a debug dashboard in the spirit of Laravel Telescope",
+  "description": "Request, query and job recorder for Elvel \u2014 a debug dashboard in the spirit of Laravel Telescope",
   "keywords": [
     "bun",
     "debug",
@@ -45,5 +45,8 @@
     "@elvel/database": "workspace:*",
     "@elvel/http": "workspace:*",
     "elysia": ">=1.4.0"
+  },
+  "devDependencies": {
+    "@elvel/cache": "workspace:*"
   }
 }

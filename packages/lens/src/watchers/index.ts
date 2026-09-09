@@ -54,5 +54,5 @@ export function registerWatchers(
 }
 
 export { QueryWatcher } from './query.ts'
-export { HIDDEN_HEADERS, HIDDEN_PARAMETERS, type RequestFacts, RequestWatcher } from './request.ts'
+export { type RequestFacts, RequestWatcher } from './request.ts'
 export { Watcher, type WatcherOptions } from './watcher.ts'

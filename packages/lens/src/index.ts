@@ -19,7 +19,9 @@ import type { Recorder } from './recorder.ts'
 export { type CallerFrame, callerFrom } from './caller.ts'
 export { LensClearCommand } from './console/lens-clear.ts'
 export { LensInstallCommand } from './console/lens-install.ts'
+export { LensPauseCommand } from './console/lens-pause.ts'
 export { LensPruneCommand } from './console/lens-prune.ts'
+export { LensResumeCommand } from './console/lens-resume.ts'
 export { LensTableCommand } from './console/lens-table.ts'
 export {
   type ClearableRepository,
@@ -36,6 +38,7 @@ export { EntryResult } from './entry-result.ts'
 export { EntryType, type EntryTypeName, entryTypes } from './entry-type.ts'
 export { EntryUpdate } from './entry-update.ts'
 export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.ts'
+export { PAUSE_KEY, PAUSE_TTL, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
 export {
   type AfterStoringHook,
@@ -50,8 +53,6 @@ export {
 } from './storage/database-repository.ts'
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
-  HIDDEN_HEADERS,
-  HIDDEN_PARAMETERS,
   QueryWatcher,
   type RequestFacts,
   RequestWatcher,
