@@ -44,7 +44,6 @@
     "@elvel/http": "workspace:*",
     "@elvel/http-client": "workspace:*",
     "@elvel/image": "workspace:*",
-    "@elvel/lens": "workspace:*",
     "@elvel/log": "workspace:*",
     "@elvel/mail": "workspace:*",
     "@elvel/notifications": "workspace:*",

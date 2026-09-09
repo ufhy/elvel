@@ -445,7 +445,6 @@ const FRAMEWORK_PACKAGES = [
   'http',
   'http-client',
   'image',
-  'lens',
   'log',
   'mail',
   'notifications',

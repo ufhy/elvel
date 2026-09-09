@@ -7,6 +7,22 @@ import { MemorySessionDriver, Session, withRequestScope } from '@elvel/http'
 const root = resolve(import.meta.dir, '..', '..', '..')
 const templateDir = resolve(import.meta.dir, '..', 'template')
 
+/**
+ * Packages a scaffolded application is deliberately not given.
+ *
+ * Not a loophole for "not wired up yet" — a package belongs here only when
+ * scaffolding it would be wrong, and the reason is written beside it. Everything
+ * else must be in the template, which is what the checks below enforce.
+ *
+ * `lens` is a developer tool rather than a capability an application calls: it
+ * defaults to disabled, needs its own migration before it can store anything,
+ * and no template file imports it, so listing it would put a dependency in the
+ * union that `pruneDependencies` removes again from every kit. It comes out of
+ * here the day `lens:install` exists to publish the config, write the migration
+ * and register the provider.
+ */
+const NOT_SCAFFOLDED = new Set(['create-elvel', 'lens'])
+
 /** Every package in the workspace that a scaffolded application could use. */
 async function workspacePackages(): Promise<string[]> {
   const entries = await readdir(resolve(root, 'packages'), { withFileTypes: true })
@@ -14,7 +30,7 @@ async function workspacePackages(): Promise<string[]> {
   return entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((name) => name !== 'create-elvel')
+    .filter((name) => !NOT_SCAFFOLDED.has(name))
     .sort()
 }
 
@@ -203,7 +219,6 @@ describe('the providers a kit registers', () => {
       'concurrency',
       'http-client',
       'image',
-      'lens',
       'process'
     ])
   })

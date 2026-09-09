@@ -29,7 +29,6 @@
     "@elvel/http": "{{ dep_http }}",
     "@elvel/http-client": "{{ dep_http-client }}",
     "@elvel/image": "{{ dep_image }}",
-    "@elvel/lens": "{{ dep_lens }}",
     "@elvel/log": "{{ dep_log }}",
     "@elvel/mail": "{{ dep_mail }}",
     "@elvel/notifications": "{{ dep_notifications }}",
