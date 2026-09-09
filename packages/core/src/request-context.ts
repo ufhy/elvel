@@ -33,17 +33,18 @@ type Context = Record<symbol, unknown>
 const storage = new AsyncLocalStorage<Context>()
 
 /**
- * Marks a context as belonging to a request, so the next one does not inherit it.
+ * Marks a context as belonging to one unit of work — a request, a queued job, a
+ * console command — so the next unit does not inherit it.
  *
- * The distinction this draws is the whole of it: a context something *outside* a
- * request established — `AuthManager.runWith` setting a session before calling
- * the application — must carry forward, and a context the *previous request*
- * left behind must not.
+ * The distinction this draws is the whole of it: a context something *outside*
+ * the work established — `AuthManager.runWith` setting a session before calling
+ * the application — must carry forward, and a context the *previous* request or
+ * job left behind must not.
  */
-const REQUEST = Symbol('elvel.request')
+const WORK = Symbol('elvel.unit-of-work')
 
 /**
- * The context that surrounded the request, kept so the next one can inherit it
+ * The context that surrounded the work, kept so the next unit can inherit it
  * again.
  *
  * Marking alone was not enough. Once request one had opened a marked context,
@@ -167,16 +168,33 @@ export function requestSlot<T>(name: string): RequestSlot<T> {
  * request; a request's own work reaches none.
  */
 export function enterRequestContext(): void {
+  enterWorkContext()
+}
+
+/**
+ * The same act, named for everything that is not a request.
+ *
+ * A queued job and a console command are units of work too, and each needs its
+ * own context for the same reasons: slots must not cross between two jobs a
+ * worker runs in sequence, and a `defer()` inside one must belong to it. They
+ * had neither — `defer()` in a command was queued and never flushed, because the
+ * only caller of `enterDeferredScope` and `flushDeferred` in the workspace was
+ * the http layer.
+ *
+ * Two names for one function because a worker calling `enterRequestContext` is
+ * the kind of line that makes a reader stop trusting the code around it.
+ */
+export function enterWorkContext(): void {
   const surrounding = storage.getStore()
 
   const outside =
     surrounding === undefined
       ? undefined
-      : surrounding[REQUEST] === true
+      : surrounding[WORK] === true
         ? (surrounding[OUTSIDE] as Context | undefined)
         : surrounding
 
-  storage.enterWith({ ...outside, [REQUEST]: true, [OUTSIDE]: outside })
+  storage.enterWith({ ...outside, [WORK]: true, [OUTSIDE]: outside })
 }
 
 /** Whether anything has entered a request context here. For tests and guards. */

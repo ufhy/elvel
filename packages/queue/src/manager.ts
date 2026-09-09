@@ -326,7 +326,12 @@ export class QueueManager {
         : undefined,
       // `maxExceptions` counts in the cache, because the count has to survive a
       // release and a different worker picking the job up.
-      this.app.bound('cache') ? this.app.make('cache').store() : undefined
+      this.app.bound('cache') ? this.app.make('cache').store() : undefined,
+      // A deferred callback that throws is reported where every other unhandled
+      // failure goes, rather than swallowed.
+      this.app.bound('exception.handler')
+        ? (error: unknown) => this.app.make('exception.handler').report(error)
+        : undefined
     )
   }
 

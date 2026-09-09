@@ -1,3 +1,4 @@
+import { enterDeferredScope, enterWorkContext, flushDeferred } from '@elvel/core'
 import type { FailedJobStore, JobPayload, QueueDriver, QueuedJob } from './contracts.ts'
 import type { JobRunner } from './runner.ts'
 
@@ -100,7 +101,15 @@ export class Worker {
      * released and reserved again, possibly by a different worker, and the payload
      * is rewritten on every release.
      */
-    private readonly cache?: ExceptionCounter
+    private readonly cache?: ExceptionCounter,
+    /**
+     * Where a failing deferred callback is reported.
+     *
+     * Swallowed without one, which is `flushDeferred`'s own default: deferred
+     * work runs with nobody left to answer to, and one bad callback must not stop
+     * the rest. The queue manager wires the application's exception handler.
+     */
+    private readonly report?: (error: unknown) => void
   ) {}
 
   /** Ask the loop to finish the job in hand and return. */
@@ -225,6 +234,24 @@ export class Worker {
   async process(job: QueuedJob, options: WorkerOptions = {}): Promise<Outcome> {
     const name = job.payload.displayName
 
+    /**
+     * One job, one context, one deferred queue.
+     *
+     * Neither existed before. `enterDeferredScope` and `flushDeferred` had a
+     * single caller each — the http layer — so `defer()` inside a job pushed onto
+     * the process-wide array that nothing drains: the callback never ran, and on
+     * a long-lived worker they accumulated for the life of the process. On the
+     * `sync` connection the job runs inside a request, so the http layer flushed
+     * it into the *request's* queue, which made `defer()` behave differently
+     * depending on the queue driver.
+     *
+     * And without a context of its own, two jobs a worker runs in sequence share
+     * whatever the loop is in — the leak fixed for requests in #9, still open for
+     * jobs. `enterWorkContext` marks this one so the next job starts clean.
+     */
+    enterWorkContext()
+    const deferred = enterDeferredScope()
+
     this.events?.dispatch('queue.job.processing', { job: name, attempts: job.attempts() })
 
     try {
@@ -243,6 +270,14 @@ export class Worker {
       return 'processed'
     } catch (error) {
       return this.handleException(job, options, error)
+    } finally {
+      /**
+       * After the outcome, and whatever the outcome.
+       *
+       * A job that failed still deferred what it deferred, and dropping that work
+       * because the job threw is a second failure hidden behind the first.
+       */
+      await flushDeferred(this.report, deferred)
     }
   }
 

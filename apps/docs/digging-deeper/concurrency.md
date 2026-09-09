@@ -67,7 +67,25 @@ work is big enough for the startup cost not to matter.
 
 ## `defer` is the other tool
 
-For work that should happen *after the response is sent* rather than on another
-core — a cache refresh, a log write — `defer()` from `@elvel/core` is smaller and
-cheaper. The [cache page](/digging-deeper/cache#flexible-stale-while-revalidate)
-shows it holding a stale-while-revalidate refresh.
+For work that should happen *after the caller has their answer* rather than on
+another core — a cache refresh, a log write — `defer()` from `@elvel/core` is
+smaller and cheaper. The
+[cache page](/digging-deeper/cache#flexible-stale-while-revalidate) shows it
+holding a stale-while-revalidate refresh.
+
+It works in all three places work happens, and each has its own flush point:
+
+| where | runs when |
+| --- | --- |
+| a request | the response is out |
+| a queued job | the job ends, whether it succeeded or failed |
+| a console command | the command finishes, whatever its exit code |
+
+**Each unit of work gets its own queue.** A job's deferred callbacks are its
+own, so one job cannot flush another's, and a worker does not accumulate them
+across a long run. The last two rows were untrue until recently: only the http
+layer flushed, so `defer()` in a job or a command was queued and silently never
+ran.
+
+Nothing here is durable. A process that dies before the flush loses the work,
+which is precisely the line between `defer()` and a queued job.

@@ -73,9 +73,15 @@ export function enterDeferredScope(queue: DeferredQueue = []): DeferredQueue {
 /**
  * Run everything deferred so far.
  *
- * Called by the http layer once the response is out, and by the console kernel
- * when a command finishes. Failures are swallowed on purpose: deferred work runs
- * with nobody left to answer to, and one bad callback must not stop the rest.
+ * Called once per unit of work: by the http layer when the response is out, by
+ * `Worker.process` when a job ends, and by the console kernel when a command
+ * finishes. The second and third were claimed here and absent — the only caller
+ * in the workspace was the http layer, so `defer()` in a job or a command was
+ * queued and never run.
+ *
+ * Failures are swallowed on purpose: deferred work runs with nobody left to
+ * answer to, and one bad callback must not stop the rest. All three callers pass
+ * the application's exception handler, so swallowed does not mean unseen.
  */
 export async function flushDeferred(
   report: (error: unknown) => void = () => undefined,

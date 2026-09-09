@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { Application } from '@elvel/core'
+import { type Application, enterDeferredScope, enterWorkContext, flushDeferred } from '@elvel/core'
 import pc from 'picocolors'
 import type { Command } from './command.ts'
 import { Output } from './output.ts'
@@ -147,6 +147,24 @@ export class Kernel {
   private async execute(command: CommandConstructor, rest: string[]): Promise<number> {
     this.holdsProcess = false
 
+    /**
+     * One command, one context, one deferred queue.
+     *
+     * `flushDeferred`'s own docstring said this already happened here — "called
+     * by the http layer once the response is out, and by the console kernel when
+     * a command finishes" — and the second half was not true. So `defer()` inside
+     * a command pushed onto the process-wide array nothing drains: the callback
+     * never ran, the command reported success, and the process exited with the
+     * work still queued. Measured with a command that deferred a line and never
+     * printed it.
+     *
+     * `enterWorkContext` marks this one, so a nested `elvel` call — which
+     * `execute` supports through `Command.bind` — gets its own rather than
+     * inheriting this one's.
+     */
+    enterWorkContext()
+    const deferred = enterDeferredScope()
+
     try {
       const supplied = await this.promptForMissing(command, rest)
 
@@ -180,6 +198,23 @@ export class Kernel {
         this.output.comment(error.stack ?? '')
       }
       return 1
+    } finally {
+      /**
+       * After the exit code is decided, and whatever it was.
+       *
+       * A command that failed still deferred what it deferred; dropping that work
+       * because the command returned 1 is a second failure hidden behind the
+       * first. Reported through the application's handler rather than swallowed,
+       * and awaited, because deferring a write and then exiting is how the write
+       * does not happen.
+       */
+      await flushDeferred(
+        (error) =>
+          this.app.bound('exception.handler')
+            ? this.app.make('exception.handler').report(error)
+            : this.output.error(error instanceof Error ? error.message : String(error)),
+        deferred
+      )
     }
   }
 

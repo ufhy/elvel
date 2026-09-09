@@ -57,6 +57,7 @@ export {
 export { PortInUseError, portInUse, portInUseMessage } from './port.ts'
 export {
   enterRequestContext,
+  enterWorkContext,
   inRequestContext,
   type RequestSlot,
   requestSlot,
