@@ -41,6 +41,7 @@ export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.t
 export { atLeast, PRIORITIES } from './log-level.ts'
 export { PAUSE_KEY, PAUSE_TTL, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
+export { listenForJobs } from './queue/listener.ts'
 export {
   type AfterStoringHook,
   type Batch,

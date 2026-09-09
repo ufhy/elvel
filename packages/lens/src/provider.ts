@@ -10,6 +10,7 @@ import { lensDashboard } from './http/dashboard.ts'
 import { lensPlugin } from './http/plugin.ts'
 import { lensRoutes } from './http/routes.ts'
 import { refreshPause } from './pause.ts'
+import { listenForJobs } from './queue/listener.ts'
 import { Recorder } from './recorder.ts'
 import { DatabaseEntriesRepository } from './storage/database-repository.ts'
 import { registerWatchers, type WatcherConfig } from './watchers/index.ts'
@@ -72,6 +73,15 @@ export class LensServiceProvider extends ServiceProvider {
     this.app.make('lens').afterStoring(() => {
       void refreshPause(this.app, this.app.make('lens'))
     })
+
+    /**
+     * A queued job is a unit of work like a request, and gets a batch like one.
+     *
+     * Registered before the watchers so that a job dispatched during boot —
+     * which nothing does today, but nothing prevents — finds the listener in
+     * place rather than recording into a batch nobody opened.
+     */
+    listenForJobs(this.app)
 
     const watchers = registerWatchers(
       this.app,
