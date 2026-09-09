@@ -26,6 +26,7 @@
         "@elvel/http": "workspace:*",
         "@elvel/http-client": "workspace:*",
         "@elvel/image": "workspace:*",
+        "@elvel/lens": "workspace:*",
         "@elvel/log": "workspace:*",
         "@elvel/mail": "workspace:*",
         "@elvel/notifications": "workspace:*",
@@ -233,6 +234,16 @@
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
         "@elvel/process": "workspace:*",
+      },
+    },
+    "packages/lens": {
+      "name": "@elvel/lens",
+      "version": "1.0.0-alpha.26",
+      "dependencies": {
+        "@elvel/console": "workspace:*",
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+        "@elvel/database": "workspace:*",
       },
     },
     "packages/log": {
@@ -525,6 +536,8 @@
     "@elvel/http-client": ["@elvel/http-client@workspace:packages/http-client"],
 
     "@elvel/image": ["@elvel/image@workspace:packages/image"],
+
+    "@elvel/lens": ["@elvel/lens@workspace:packages/lens"],
 
     "@elvel/log": ["@elvel/log@workspace:packages/log"],
 

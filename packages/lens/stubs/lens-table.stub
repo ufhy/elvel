@@ -1,0 +1,63 @@
+import { Migration, type MigrationContext } from '@elvel/database'
+
+/**
+ * Tables for the `database` Lens driver.
+ *
+ * Three of them, and the split is deliberate.
+ *
+ * `{{ table }}` holds the entries. Its primary key is `sequence`, an
+ * auto-incrementing integer, while `uuid` is the identity the dashboard links
+ * by. Both are needed: `uuid` is generated before the row exists so a batch can
+ * be assembled in memory and inserted at once, and `sequence` gives the list a
+ * cursor. Paging is keyset — `where sequence < ?` — not offset, because entries
+ * arrive while somebody is reading page two.
+ *
+ * `should_display_on_index` is what makes one exception with five hundred
+ * occurrences a single row on the list and five hundred rows once you click it:
+ * the index filters on it, a lookup by `family_hash` does not.
+ *
+ * `{{ table }}_tags` is a separate table rather than a JSON column so a tag can
+ * be indexed. `{{ table }}_monitoring` holds the tags being watched, which is
+ * how an entry survives a filter that would otherwise drop it.
+ */
+export default class extends Migration {
+  async up({ schema }: MigrationContext): Promise<void> {
+    await schema.create('{{ table }}', (table) => {
+      table.bigIncrements('sequence')
+      table.uuid('uuid')
+      table.uuid('batch_id')
+      table.string('family_hash').nullable()
+      table.boolean('should_display_on_index').default(true)
+      table.string('type', 20)
+      table.longText('content')
+      table.dateTime('created_at').nullable()
+
+      table.unique(['uuid'])
+      table.index(['batch_id'])
+      table.index(['family_hash'])
+      table.index(['created_at'])
+      table.index(['type', 'should_display_on_index'])
+    })
+
+    await schema.create('{{ table }}_tags', (table) => {
+      table.uuid('entry_uuid')
+      table.string('tag')
+
+      table.primary(['entry_uuid', 'tag'])
+      table.index(['tag'])
+
+      /** Cascade, so pruning entries takes their tags with them. */
+      table.foreign(['entry_uuid']).references(['uuid']).on('{{ table }}').cascadeOnDelete()
+    })
+
+    await schema.create('{{ table }}_monitoring', (table) => {
+      table.string('tag').primary()
+    })
+  }
+
+  async down({ schema }: MigrationContext): Promise<void> {
+    await schema.dropIfExists('{{ table }}_monitoring')
+    await schema.dropIfExists('{{ table }}_tags')
+    await schema.dropIfExists('{{ table }}')
+  }
+}

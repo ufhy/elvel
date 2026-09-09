@@ -1,0 +1,58 @@
+/**
+ * Lens — a recorder and a dashboard for what an Elvel application did.
+ *
+ * The shape follows Laravel Telescope, whose design was read closely before any
+ * of this was written, with one structural departure: the entry queue lives in a
+ * request slot rather than a static, because Bun serves many requests at once in
+ * one process and a static queue would attribute one request's queries to
+ * another. See `recorder.ts`.
+ *
+ * ```ts
+ * // config/lens.ts is published with `elvel config:publish lens`
+ * // then, in a provider:
+ * lens().filter((entry) => local || entry.isSlowQuery())
+ * ```
+ */
+import { app } from '@elvel/core'
+import type { Recorder } from './recorder.ts'
+
+export { type CallerFrame, callerFrom } from './caller.ts'
+export {
+  type ClearableRepository,
+  type EntriesDriver,
+  type EntriesRepository,
+  isClearable,
+  isPrunable,
+  isTerminable,
+  type PrunableRepository,
+  type TerminableRepository
+} from './contracts.ts'
+export { type EntryContent, IncomingEntry } from './entry.ts'
+export { EntryResult } from './entry-result.ts'
+export { EntryType, type EntryTypeName, entryTypes } from './entry-type.ts'
+export { EntryUpdate } from './entry-update.ts'
+export { LensServiceProvider } from './provider.ts'
+export {
+  type AfterStoringHook,
+  type Batch,
+  type EntryFilter,
+  Recorder,
+  type TagCallback
+} from './recorder.ts'
+export {
+  DatabaseEntriesRepository,
+  type DatabaseRepositoryOptions
+} from './storage/database-repository.ts'
+export { EntryQueryOptions } from './storage/query-options.ts'
+export {
+  QueryWatcher,
+  registerWatchers,
+  Watcher,
+  type WatcherConfig,
+  type WatcherOptions
+} from './watchers/index.ts'
+
+/** The recorder, for registering filters and tag callbacks. */
+export function lens(): Recorder {
+  return app('lens')
+}
