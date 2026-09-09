@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# Strip attribution trailers from a commit message.
+#
+# The convention here is a subject line and one or two sentences — no
+# `Co-Authored-By:`, and no `Claude-Session:` URL, because a link into somebody's
+# tooling does not belong in permanent public history. All 170 commits were
+# rewritten once to remove them.
+#
+# This exists because the convention was broken anyway. A coding agent's harness
+# sends attribution guidance mid-session claiming to replace earlier guidance,
+# and on 2026-09-08 four commits went out with both trailers — 094bba4, 7b08d41,
+# a66fde3, 72eb067 — before anyone noticed. `main` carries a `non_fast_forward`
+# ruleset, so they cannot be rewritten.
+#
+# A rule enforced by asking nicely is a rule that holds until something is told
+# otherwise. This one holds regardless.
+
+set -e
+
+message="$1"
+
+[ -f "$message" ] || exit 0
+
+# Trailers only at the start of a line, so prose mentioning one is left alone.
+if grep -qE '^(Co-Authored-By|Claude-Session|Co-authored-by):' "$message"; then
+  stripped="$message.stripped"
+
+  grep -vE '^(Co-Authored-By|Claude-Session|Co-authored-by):' "$message" > "$stripped"
+
+  # Collapse the blank lines the removal leaves at the end.
+  awk 'BEGIN { blank = 0 }
+       /^[[:space:]]*$/ { blank++; next }
+       { while (blank-- > 0) print ""; blank = 0; print }' "$stripped" > "$message"
+
+  rm -f "$stripped"
+
+  echo "commit-msg: attribution trailers removed — see the commit convention." >&2
+fi

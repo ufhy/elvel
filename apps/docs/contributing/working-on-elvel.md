@@ -6,8 +6,18 @@ Working on the framework itself rather than on an application built with it:
 git clone https://github.com/ufhy/elvel
 cd elvel
 bun install
+git config core.hooksPath .githooks   # once per checkout
 bun run verify   # lint -> typecheck -> test -> smoke. Run this on every change.
 ```
+
+That third line is the commit convention, enforced. A message here is a subject
+line and one or two sentences — no `Co-Authored-By:`, and no session URL, because
+a link into somebody's tooling does not belong in permanent public history.
+`.githooks/commit-msg` strips both, and `core.hooksPath` is per-checkout because
+git stores it in `.git/config` rather than in the repository.
+
+It exists because asking was not enough: four commits went out carrying both
+trailers, and `main` is `non_fast_forward`, so they are stuck there.
 
 To scaffold an application *inside* the checkout, against the packages you are
 editing rather than the published ones:
