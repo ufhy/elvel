@@ -4,6 +4,7 @@ import { Layout } from './layout.tsx'
 export type MonitoringProps = {
   path: string
   tags: string[]
+  paused: boolean
 }
 
 /**
@@ -19,9 +20,9 @@ export type MonitoringProps = {
  * user attached to an entry, a model's `User:41`, a recipient's address on a
  * mail entry, or anything an application adds through `lens().tag()`.
  */
-export function Monitoring({ path, tags }: MonitoringProps) {
+export function Monitoring({ path, tags, paused }: MonitoringProps) {
   return (
-    <Layout title="monitoring · Lens" path={path} current="monitoring">
+    <Layout title="Monitoring · Lens" path={path} current="monitoring" paused={paused}>
       <h1>monitoring</h1>
 
       <p class="empty">

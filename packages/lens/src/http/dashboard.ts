@@ -62,6 +62,7 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
           set,
           await render(Monitoring, {
             path: options.path,
+            paused: app.make('lens').isPaused(),
             tags: await app.make('lens.entries').monitoring()
           })
         )
@@ -95,9 +96,8 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
           return 'No such entry type.'
         }
 
-        const entries = await app
-          .make('lens.entries')
-          .get(type, EntryQueryOptions.fromRequest(query))
+        const asked = EntryQueryOptions.fromRequest(query)
+        const entries = await app.make('lens.entries').get(type, asked)
 
         return html(
           set,
@@ -110,7 +110,10 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
               options.watchers,
               WATCHER_FOR[type] ?? type
             ),
-            entries
+            paused: app.make('lens').isPaused(),
+            entries,
+            limit: asked.limit,
+            tag: asked.tag
           })
         )
       })
@@ -129,7 +132,8 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
           await render(Entry, {
             path: options.path,
             entry,
-            batch: await repository.get(undefined, EntryQueryOptions.forBatch(entry.batchId))
+            batch: await repository.get(undefined, EntryQueryOptions.forBatch(entry.batchId)),
+            paused: app.make('lens').isPaused()
           })
         )
       })

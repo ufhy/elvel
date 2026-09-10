@@ -1,147 +1,242 @@
 import { EntryType, type EntryTypeName } from '../../entry-type.ts'
+import { methodTone, statusTone, type Tone } from './ui.ts'
 
 export type EntryContent = Record<string, unknown>
 
+/** A column heading, and how its column is aligned. */
+export type Heading = { label: string; align?: 'right' | 'center' }
+
 /**
- * One column of a list, as text.
+ * One rendered cell.
  *
- * Text and not JSX, deliberately. The first version of this file wrote a row
- * per type in JSX with a `safe` attribute on each cell, which meant the
- * escaping of attacker-controlled content — a request path, a header, a cache
- * key — depended on remembering an attribute nine times over. Returning strings
- * moves that to one `<td safe>` in the table, so a new column cannot forget it.
+ * `text` is a string, always, and that is the point: the table renders it
+ * through a single `<td safe>`, so escaping attacker-controlled content — a
+ * path, a header, a cache key — cannot be forgotten by a new column. The rest
+ * is presentation the table applies, not markup a column builds.
  */
-export type Column = {
-  heading: string
-  text(content: EntryContent): string
-  /** An extra class on the cell, for a status colour or a right-aligned number. */
-  cellClass?(content: EntryContent): string | undefined
+export type Cell = {
+  text: string
+  /** Renders as a coloured badge — Telescope's verb and status pills. */
+  tone?: Tone
+  align?: 'right' | 'center'
+  muted?: boolean
+  /** The full value, for a `title` attribute when the text is truncated. */
+  title?: string
 }
 
-const text = (value: unknown): string =>
-  value === null || value === undefined ? '' : String(value)
+const str = (value: unknown): string => (value === null || value === undefined ? '' : String(value))
 
-/** One line, whatever it is. The whole thing is on the detail page. */
+/** One line in a table. The whole value is on the detail page, and in `title`. */
 export function shorten(value: string, limit = 120): string {
   return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`
 }
 
-const ms =
-  (key: string): Column['text'] =>
-  (content) =>
-    content[key] === undefined || content[key] === null ? '' : `${text(content[key])} ms`
+/** A cell whose text is cut, keeping the original for the tooltip. */
+function clipped(value: unknown, limit = 60): Cell {
+  const full = str(value)
 
-const COLUMNS: Partial<Record<EntryTypeName, Column[]>> = {
-  [EntryType.REQUEST]: [
-    { heading: 'verb', text: (content) => text(content.method), cellClass: () => 'method' },
-    { heading: 'path', text: (content) => shorten(text(content.uri)) },
-    {
-      heading: 'status',
-      text: (content) => text(content.responseStatus),
-      cellClass: (content) => `method s${Math.floor(Number(content.responseStatus ?? 0) / 100)}`
-    },
-    { heading: 'took', text: ms('duration'), cellClass: () => 'num' }
-  ],
-
-  [EntryType.QUERY]: [
-    { heading: 'statement', text: (content) => shorten(text(content.sql)) },
-    { heading: 'connection', text: (content) => text(content.connection) },
-    {
-      heading: 'took',
-      text: ms('time'),
-      cellClass: (content) => (content.slow === true ? 'num s5' : 'num')
-    }
-  ],
-
-  /**
-   * `occurrences` earns a column of its own.
-   *
-   * The index shows one row per family, so without it the difference between a
-   * failure that happened once and one happening every second is invisible —
-   * which is the difference that decides what to look at first.
-   */
-  [EntryType.EXCEPTION]: [
-    { heading: 'class', text: (content) => text(content.class) },
-    { heading: 'message', text: (content) => shorten(text(content.message)) },
-    { heading: 'seen', text: (content) => text(content.occurrences ?? 1), cellClass: () => 'num' }
-  ],
-
-  [EntryType.LOG]: [
-    { heading: 'level', text: (content) => text(content.level), cellClass: () => 'method' },
-    { heading: 'message', text: (content) => shorten(text(content.message)) },
-    { heading: 'channel', text: (content) => text(content.channel) }
-  ],
-
-  [EntryType.CACHE]: [
-    { heading: 'event', text: (content) => text(content.type), cellClass: () => 'method' },
-    { heading: 'key', text: (content) => shorten(text(content.key)) },
-    { heading: 'store', text: (content) => text(content.store) }
-  ],
-
-  [EntryType.GATE]: [
-    { heading: 'ability', text: (content) => text(content.ability) },
-    {
-      heading: 'result',
-      text: (content) => text(content.result),
-      cellClass: (content) => (content.result === 'denied' ? 'method s5' : 'method s2')
-    },
-    { heading: 'user', text: (content) => text(content.user) }
-  ],
-
-  [EntryType.MODEL]: [
-    { heading: 'action', text: (content) => text(content.action), cellClass: () => 'method' },
-    { heading: 'model', text: (content) => text(content.model) },
-    { heading: 'changed', text: (content) => changedKeys(content.changes) }
-  ],
-
-  [EntryType.SCHEDULED_TASK]: [
-    { heading: 'task', text: (content) => text(content.task) },
-    {
-      heading: 'outcome',
-      text: (content) => text(content.outcome),
-      cellClass: (content) => (content.outcome === 'failed' ? 'method s5' : 'method')
-    },
-    { heading: 'why', text: (content) => shorten(text(content.reason ?? content.error ?? '')) }
-  ],
-
-  [EntryType.MAIL]: [
-    { heading: 'mailable', text: (content) => text(content.mailable) },
-    { heading: 'to', text: (content) => shorten(joined(content.to), 60) },
-    { heading: 'subject', text: (content) => shorten(text(content.subject), 70) }
-  ],
-
-  [EntryType.NOTIFICATION]: [
-    { heading: 'notification', text: (content) => text(content.notification) },
-    { heading: 'channel', text: (content) => text(content.channel) },
-    {
-      heading: 'outcome',
-      text: (content) => text(content.outcome),
-      cellClass: (content) => (content.outcome === 'failed' ? 'method s5' : 'method')
-    }
-  ],
-
-  [EntryType.EVENT]: [
-    { heading: 'name', text: (content) => text(content.name) },
-    { heading: 'payload', text: (content) => shorten(JSON.stringify(content.payload ?? null), 90) }
-  ]
+  return full.length <= limit ? { text: full } : { text: shorten(full, limit), title: full }
 }
 
-/** The columns for a type, or one column holding whatever the entry has. */
-export function columnsFor(type: EntryTypeName): Column[] {
-  return (
-    COLUMNS[type] ?? [
-      { heading: 'entry', text: (content) => shorten(JSON.stringify(content), 140) }
+const ms = (value: unknown): Cell =>
+  value === null || value === undefined
+    ? { text: '-', align: 'right', muted: true }
+    : { text: `${str(value)}ms`, align: 'right', muted: true }
+
+type Definition = {
+  headings: Heading[]
+  cells(content: EntryContent): Cell[]
+}
+
+const DEFINITIONS: Partial<Record<EntryTypeName, Definition>> = {
+  [EntryType.REQUEST]: {
+    headings: [
+      { label: 'Verb' },
+      { label: 'Path' },
+      { label: 'Status', align: 'center' },
+      { label: 'Duration', align: 'right' }
+    ],
+    cells: (content) => [
+      { text: str(content.method), tone: methodTone(str(content.method)) },
+      clipped(content.uri, 50),
+      {
+        text: str(content.responseStatus),
+        tone: statusTone(Number(content.responseStatus ?? 0)),
+        align: 'center'
+      },
+      ms(content.duration)
     ]
-  )
+  },
+
+  [EntryType.QUERY]: {
+    headings: [
+      { label: 'Statement' },
+      { label: 'Connection' },
+      { label: 'Duration', align: 'right' }
+    ],
+    cells: (content) => [
+      clipped(content.sql, 80),
+      { text: str(content.connection), muted: true },
+      content.slow === true
+        ? { text: `${str(content.time)}ms`, tone: 'warning', align: 'right' }
+        : ms(content.time)
+    ]
+  },
+
+  /**
+   * `Seen` earns a column: the index folds repeats into one row, so without it
+   * a failure that happened once looks like one happening every second.
+   */
+  [EntryType.EXCEPTION]: {
+    headings: [{ label: 'Type' }, { label: 'Message' }, { label: 'Seen', align: 'right' }],
+    cells: (content) => [
+      clipped(content.class, 40),
+      clipped(content.message, 70),
+      { text: str(content.occurrences ?? 1), align: 'right', muted: true }
+    ]
+  },
+
+  [EntryType.LOG]: {
+    headings: [{ label: 'Level' }, { label: 'Message' }, { label: 'Channel' }],
+    cells: (content) => [
+      { text: str(content.level), tone: levelTone(str(content.level)) },
+      clipped(content.message, 80),
+      { text: str(content.channel), muted: true }
+    ]
+  },
+
+  [EntryType.CACHE]: {
+    headings: [{ label: 'Event' }, { label: 'Key' }, { label: 'Store' }],
+    cells: (content) => [
+      { text: str(content.type), tone: cacheTone(str(content.type)) },
+      clipped(content.key, 70),
+      { text: str(content.store), muted: true }
+    ]
+  },
+
+  [EntryType.GATE]: {
+    headings: [{ label: 'Ability' }, { label: 'Result', align: 'center' }, { label: 'User' }],
+    cells: (content) => [
+      clipped(content.ability, 60),
+      {
+        text: str(content.result),
+        tone: content.result === 'denied' ? 'danger' : 'success',
+        align: 'center'
+      },
+      { text: str(content.user), muted: true }
+    ]
+  },
+
+  [EntryType.MODEL]: {
+    headings: [{ label: 'Action' }, { label: 'Model' }, { label: 'Changed' }],
+    cells: (content) => [
+      { text: str(content.action), tone: actionTone(str(content.action)) },
+      clipped(content.model, 50),
+      { text: changedKeys(content.changes), muted: true }
+    ]
+  },
+
+  [EntryType.SCHEDULED_TASK]: {
+    headings: [{ label: 'Task' }, { label: 'Outcome', align: 'center' }, { label: 'Why' }],
+    cells: (content) => [
+      clipped(content.task, 60),
+      {
+        text: str(content.outcome),
+        tone:
+          content.outcome === 'failed'
+            ? 'danger'
+            : content.outcome === 'ran'
+              ? 'success'
+              : 'warning',
+        align: 'center'
+      },
+      clipped(content.reason ?? content.error, 60)
+    ]
+  },
+
+  [EntryType.MAIL]: {
+    headings: [{ label: 'Mailable' }, { label: 'To' }, { label: 'Subject' }],
+    cells: (content) => [
+      clipped(content.mailable, 40),
+      clipped(joined(content.to), 45),
+      clipped(content.subject, 55)
+    ]
+  },
+
+  [EntryType.NOTIFICATION]: {
+    headings: [
+      { label: 'Notification' },
+      { label: 'Channel' },
+      { label: 'Outcome', align: 'center' }
+    ],
+    cells: (content) => [
+      clipped(content.notification, 45),
+      { text: str(content.channel), muted: true },
+      {
+        text: str(content.outcome),
+        tone:
+          content.outcome === 'failed'
+            ? 'danger'
+            : content.outcome === 'sent'
+              ? 'success'
+              : 'warning',
+        align: 'center'
+      }
+    ]
+  },
+
+  [EntryType.EVENT]: {
+    headings: [{ label: 'Name' }, { label: 'Payload' }],
+    cells: (content) => [
+      clipped(content.name, 50),
+      clipped(JSON.stringify(content.payload ?? null), 80)
+    ]
+  }
+}
+
+/** Nothing records this type yet, so show whatever an entry happens to hold. */
+const FALLBACK: Definition = {
+  headings: [{ label: 'Entry' }],
+  cells: (content) => [clipped(JSON.stringify(content), 120)]
+}
+
+export function headingsFor(type: EntryTypeName): Heading[] {
+  return (DEFINITIONS[type] ?? FALLBACK).headings
+}
+
+export function cellsFor(type: EntryTypeName, content: EntryContent): Cell[] {
+  return (DEFINITIONS[type] ?? FALLBACK).cells(content)
+}
+
+function levelTone(level: string): Tone {
+  if (['emergency', 'alert', 'critical', 'error'].includes(level)) return 'danger'
+  if (['warning', 'notice'].includes(level)) return 'warning'
+
+  return 'secondary'
+}
+
+function cacheTone(kind: string): Tone {
+  if (kind === 'hit') return 'success'
+  if (kind === 'missed') return 'warning'
+  if (kind === 'forget') return 'danger'
+
+  return 'info'
+}
+
+function actionTone(action: string): Tone {
+  if (action === 'created') return 'success'
+  if (action === 'deleted') return 'danger'
+
+  return 'info'
 }
 
 /** `name, email` — which columns changed, not what they changed to. */
 function changedKeys(changes: unknown): string {
   if (changes === null || typeof changes !== 'object') return ''
 
-  return shorten(Object.keys(changes as Record<string, unknown>).join(', '), 60)
+  return shorten(Object.keys(changes as Record<string, unknown>).join(', '), 50)
 }
 
 function joined(value: unknown): string {
-  return Array.isArray(value) ? value.map(text).join(', ') : text(value)
+  return Array.isArray(value) ? value.map(str).join(', ') : str(value)
 }

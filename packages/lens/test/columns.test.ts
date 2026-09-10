@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { EntryType, entryTypes } from '../src/entry-type.ts'
-import { columnsFor, shorten } from '../src/http/views/columns.ts'
+import { cellsFor, headingsFor, shorten } from '../src/http/views/columns.ts'
 
-function headings(type: Parameters<typeof columnsFor>[0]): string[] {
-  return columnsFor(type).map((column) => column.heading)
+function headings(type: Parameters<typeof headingsFor>[0]): string[] {
+  return headingsFor(type).map((heading) => heading.label)
 }
 
-function rendered(type: Parameters<typeof columnsFor>[0], content: Record<string, unknown>) {
-  return columnsFor(type).map((column) => column.text(content))
+function rendered(type: Parameters<typeof cellsFor>[0], content: Record<string, unknown>) {
+  return cellsFor(type, content).map((cell) => cell.text)
 }
 
 describe('columnsFor', () => {
@@ -33,17 +33,17 @@ describe('columnsFor', () => {
     ]
 
     for (const type of recording) {
-      expect(headings(type)).not.toEqual(['entry'])
+      expect(headings(type)).not.toEqual(['Entry'])
     }
   })
 
   test('a type nothing records yet falls back to one column', () => {
-    expect(headings(EntryType.REDIS)).toEqual(['entry'])
+    expect(headings(EntryType.REDIS)).toEqual(['Entry'])
   })
 
   test('no type is left without any column at all', () => {
     for (const type of entryTypes()) {
-      expect(columnsFor(type).length).toBeGreaterThan(0)
+      expect(headingsFor(type).length).toBeGreaterThan(0)
     }
   })
 
@@ -55,21 +55,40 @@ describe('columnsFor', () => {
         responseStatus: 201,
         duration: 34
       })
-    ).toEqual(['POST', '/orders', '201', '34 ms'])
+    ).toEqual(['POST', '/orders', '201', '34ms'])
   })
 
-  test('a status colours itself by class', () => {
-    const status = columnsFor(EntryType.REQUEST)[2]
+  /** Telescope's `requestStatusClass`, and the reason a list is scannable. */
+  test('a status badge takes its colour from the class of the code', () => {
+    const tone = (status: number) =>
+      cellsFor(EntryType.REQUEST, { responseStatus: status })[2]?.tone
 
-    expect(status?.cellClass?.({ responseStatus: 200 })).toContain('s2')
-    expect(status?.cellClass?.({ responseStatus: 503 })).toContain('s5')
+    expect(tone(200)).toBe('success')
+    expect(tone(301)).toBe('info')
+    expect(tone(404)).toBe('warning')
+    expect(tone(503)).toBe('danger')
+  })
+
+  test('a verb badge follows requestMethodClass', () => {
+    const tone = (method: string) => cellsFor(EntryType.REQUEST, { method })[0]?.tone
+
+    expect(tone('GET')).toBe('secondary')
+    expect(tone('POST')).toBe('info')
+    expect(tone('DELETE')).toBe('danger')
   })
 
   test('a slow query is marked in the duration cell', () => {
-    const took = columnsFor(EntryType.QUERY)[2]
+    expect(cellsFor(EntryType.QUERY, { time: 300, slow: true })[2]?.tone).toBe('warning')
+    expect(cellsFor(EntryType.QUERY, { time: 3, slow: false })[2]?.tone).toBeUndefined()
+  })
 
-    expect(took?.cellClass?.({ slow: true })).toContain('s5')
-    expect(took?.cellClass?.({ slow: false })).not.toContain('s5')
+  /** A cut value keeps the whole of itself for the `title` attribute. */
+  test('a truncated cell carries the full value', () => {
+    const long = '/very'.repeat(40)
+    const cell = cellsFor(EntryType.REQUEST, { uri: long })[1]
+
+    expect(cell?.text.length).toBeLessThan(long.length)
+    expect(cell?.title).toBe(long)
   })
 
   /**
@@ -142,11 +161,17 @@ describe('columnsFor', () => {
     }
   })
 
-  test('every column returns a string, which is what makes one `safe` enough', () => {
+  test('every cell returns a string, which is what makes one `safe` enough', () => {
     for (const type of entryTypes()) {
-      for (const column of columnsFor(type)) {
-        expect(typeof column.text({ nested: { deep: true }, list: [1, 2] })).toBe('string')
+      for (const cell of cellsFor(type, { nested: { deep: true }, list: [1, 2] })) {
+        expect(typeof cell.text).toBe('string')
       }
+    }
+  })
+
+  test('a heading exists for every cell a type renders', () => {
+    for (const type of entryTypes()) {
+      expect(cellsFor(type, {}).length).toBe(headingsFor(type).length)
     }
   })
 })

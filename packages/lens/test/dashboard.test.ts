@@ -101,7 +101,7 @@ describe('the dashboard', () => {
 
     const body = await (await router.handle(new Request('http://localhost/lens/query'))).text()
 
-    expect(body).toContain('Nothing recorded yet')
+    expect(body).toContain('just empty space')
   })
 
   test('a detail page carries the rest of the batch', async () => {
@@ -118,7 +118,7 @@ describe('the dashboard', () => {
       await router.handle(new Request(`http://localhost/lens/request/${subject.uuid}`))
     ).text()
 
-    expect(body).toContain('related · 1')
+    expect(body).toContain('Related · 1')
     expect(body).toContain('select * from orders')
     expect(body).not.toContain('select * from elsewhere')
   })
@@ -199,8 +199,8 @@ describe('the dashboard', () => {
 
     const body = await (await router.handle(new Request('http://localhost/lens/exception'))).text()
 
-    expect(body).toContain('<th>class</th>')
-    expect(body).toContain('<th>seen</th>')
+    expect(body).toContain('Type')
+    expect(body).toContain('Seen')
     expect(body).toContain('TypeError')
     expect(body).toContain('>3<')
   })
