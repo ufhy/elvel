@@ -11,6 +11,7 @@ import { HashServiceProvider } from '@elvel/hashing'
 import { HttpServiceProvider } from '@elvel/http'
 import { HttpClientServiceProvider } from '@elvel/http-client'
 import { ImageServiceProvider } from '@elvel/image'
+import { LensServiceProvider } from '@elvel/lens'
 import { LogServiceProvider } from '@elvel/log'
 import { MailServiceProvider } from '@elvel/mail'
 import { NotificationServiceProvider } from '@elvel/notifications'
@@ -90,6 +91,9 @@ export default {
     // Before the view provider: its static handler claims `GET /*`, which would
     // otherwise shadow the auth endpoints.
     AuthServiceProvider,
+    // Before the view provider for the same reason, and after the http provider
+    // because it opens its batch from `onRequest` — see `lensPlugin`.
+    LensServiceProvider,
     ViewServiceProvider
   ]
 }

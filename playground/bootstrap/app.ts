@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { Application } from '@elvel/core'
 import { AppServiceProvider } from '../app/Providers/AppServiceProvider.ts'
-import { TelescopeServiceProvider } from '../app/Providers/TelescopeServiceProvider.ts'
+import { LensServiceProvider } from '../app/Providers/LensServiceProvider.ts'
 
 /**
  * Bootstrap the application.
@@ -28,6 +28,7 @@ export default await Application.configure(join(import.meta.dir, '..'))
     hashing: () => import('../config/hashing.ts'),
     http: () => import('../config/http.ts'),
     image: () => import('../config/image.ts'),
+    lens: () => import('../config/lens.ts'),
     logging: () => import('../config/logging.ts'),
     mail: () => import('../config/mail.ts'),
     notifications: () => import('../config/notifications.ts'),
@@ -35,7 +36,6 @@ export default await Application.configure(join(import.meta.dir, '..'))
     session: () => import('../config/session.ts'),
     view: () => import('../config/view.ts')
   })
-  .withProviders([AppServiceProvider, TelescopeServiceProvider])
+  .withProviders([AppServiceProvider, LensServiceProvider])
   .withRoutes(() => import('../routes/web.ts'))
-  .withRoutes(() => import('../routes/telescope.ts'))
   .create()
