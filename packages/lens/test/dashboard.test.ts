@@ -157,6 +157,54 @@ describe('the dashboard', () => {
     expect(body).toContain('&lt;img')
   })
 
+  /**
+   * The refactor's real point, tested on a type whose columns are new.
+   *
+   * Escaping used to be a `safe` attribute written by hand per cell, per type.
+   * It is now one `<td safe>` for every column of every type — so this asserts
+   * the property on a path that did not exist before, rather than only on the
+   * request row that already had it.
+   */
+  test('a nasty value in a cache key cannot become markup', async () => {
+    const { router, entries } = await dashboard()
+
+    await entries.store([
+      entry(EntryType.CACHE, {
+        type: 'hit',
+        key: '<img src=x onerror=alert(1)>',
+        store: 'file'
+      })
+    ])
+
+    const body = await (await router.handle(new Request('http://localhost/lens/cache'))).text()
+
+    expect(body).not.toContain('<img src=x')
+    expect(body).toContain('&lt;img')
+  })
+
+  /**
+   * `occurrences` is counted by storage, not passed in — the first version of
+   * this test set the field itself and read back `1`, because
+   * `storeExceptions()` overwrites it with what it counted. So the repeats have
+   * to be real.
+   */
+  test('each type renders its own columns, and an exception counts its repeats', async () => {
+    const { router, entries } = await dashboard()
+
+    for (let index = 0; index < 3; index++) {
+      await entries.store([
+        entry(EntryType.EXCEPTION, { class: 'TypeError', message: 'boom' }).withFamilyHash('same')
+      ])
+    }
+
+    const body = await (await router.handle(new Request('http://localhost/lens/exception'))).text()
+
+    expect(body).toContain('<th>class</th>')
+    expect(body).toContain('<th>seen</th>')
+    expect(body).toContain('TypeError')
+    expect(body).toContain('>3<')
+  })
+
   test('an unknown type is a 404', async () => {
     const { router } = await dashboard()
 

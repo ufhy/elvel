@@ -1,6 +1,7 @@
 import type { EntryResult } from '../../entry-result.ts'
-import { EntryType, type EntryTypeName } from '../../entry-type.ts'
+import type { EntryTypeName } from '../../entry-type.ts'
 import type { WatcherStatus } from '../status.ts'
+import { type Column, columnsFor } from './columns.ts'
 import { Layout } from './layout.tsx'
 
 export type EntriesProps = {
@@ -13,11 +14,16 @@ export type EntriesProps = {
 /**
  * The list for one entry type.
  *
- * Telescope gives each type its own Vue screen, nineteen of them, because each
- * type's interesting columns differ. The same is true here, but a screen is a
- * function: `columnsFor` picks the row shape and everything else is shared.
+ * Telescope gives each type its own Vue screen, nineteen of them, because the
+ * interesting columns genuinely differ per type. They differ here too — but a
+ * screen is a list of columns rather than a component, so the table, the link,
+ * the paging and above all the **escaping** are written once. Every cell goes
+ * through one `<td safe>`, which is what stops a new column from being the one
+ * that forgets.
  */
 export function Entries({ path, type, status, entries }: EntriesProps) {
+  const columns = columnsFor(type)
+
   return (
     <Layout title={`${type} · Lens`} path={path} current={type} status={status}>
       <h1>{type}</h1>
@@ -31,26 +37,50 @@ export function Entries({ path, type, status, entries }: EntriesProps) {
           <table>
             <thead>
               <tr>
-                {headingsFor(type).map((heading) => (
-                  <th safe>{heading}</th>
+                {columns.map((column) => (
+                  <th safe>{column.heading}</th>
                 ))}
                 <th class="num">when</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => (
-                <tr>
-                  {cellsFor(type, entry, path)}
-                  <td class="num" safe>
-                    {entry.createdAt ?? ''}
-                  </td>
-                </tr>
+                <Row path={path} entry={entry} columns={columns} />
               ))}
             </tbody>
           </table>
         </div>
       )}
     </Layout>
+  )
+}
+
+/**
+ * One row. The first cell links to the detail page, the rest are plain.
+ *
+ * Only the first, because a row of four links reads as four things to click
+ * when it is one.
+ */
+function Row({ path, entry, columns }: { path: string; entry: EntryResult; columns: Column[] }) {
+  const link = `/${path}/${entry.type}/${entry.uuid}`
+
+  return (
+    <tr>
+      {columns.map((column, index) => (
+        <td class={column.cellClass?.(entry.content)}>
+          {index === 0 ? (
+            <a href={link} safe>
+              {column.text(entry.content)}
+            </a>
+          ) : (
+            <span safe>{column.text(entry.content)}</span>
+          )}
+        </td>
+      ))}
+      <td class="num" safe>
+        {entry.createdAt ?? ''}
+      </td>
+    </tr>
   )
 }
 
@@ -61,71 +91,4 @@ function emptyMessage(status: WatcherStatus): string {
     off: 'This watcher is switched off in config/lens.ts.',
     enabled: 'Nothing recorded yet.'
   }[status]
-}
-
-function headingsFor(type: EntryTypeName): string[] {
-  if (type === EntryType.REQUEST) return ['verb', 'path', 'status', 'took']
-  if (type === EntryType.QUERY) return ['statement', 'connection', 'took']
-
-  return ['entry']
-}
-
-function cellsFor(type: EntryTypeName, entry: EntryResult, path: string) {
-  const link = `/${path}/${type}/${entry.uuid}`
-  const content = entry.content
-
-  if (type === EntryType.REQUEST) {
-    const status = Number(content.responseStatus ?? 0)
-
-    return (
-      <>
-        <td>
-          <a class="method" href={link} safe>
-            {String(content.method ?? '')}
-          </a>
-        </td>
-        <td>
-          <a href={link} safe>
-            {String(content.uri ?? '')}
-          </a>
-        </td>
-        <td class={`method s${Math.floor(status / 100)}`} safe>
-          {String(status)}
-        </td>
-        <td class="num" safe>
-          {`${String(content.duration ?? 0)} ms`}
-        </td>
-      </>
-    )
-  }
-
-  if (type === EntryType.QUERY) {
-    return (
-      <>
-        <td>
-          <a href={link}>
-            <code safe>{truncate(String(content.sql ?? ''), 120)}</code>
-          </a>
-          {content.slow === true ? <span class="tag">slow</span> : null}
-        </td>
-        <td safe>{String(content.connection ?? '')}</td>
-        <td class="num" safe>
-          {`${String(content.time ?? 0)} ms`}
-        </td>
-      </>
-    )
-  }
-
-  return (
-    <td>
-      <a href={link}>
-        <code safe>{truncate(JSON.stringify(content), 140)}</code>
-      </a>
-    </td>
-  )
-}
-
-/** One line in a table, not a paragraph. The whole thing is on the detail page. */
-function truncate(value: string, limit: number): string {
-  return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`
 }
