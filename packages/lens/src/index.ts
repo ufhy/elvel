@@ -56,10 +56,13 @@ export {
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
   CacheWatcher,
+  EventWatcher,
   ExceptionWatcher,
   GateWatcher,
   LogWatcher,
+  MailWatcher,
   ModelWatcher,
+  NotificationWatcher,
   QueryWatcher,
   type RequestFacts,
   RequestWatcher,

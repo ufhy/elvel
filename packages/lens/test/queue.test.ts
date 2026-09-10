@@ -8,6 +8,7 @@ import { listenForJobs } from '../src/queue/listener.ts'
 import { Recorder } from '../src/recorder.ts'
 import { DatabaseEntriesRepository } from '../src/storage/database-repository.ts'
 import { EntryQueryOptions } from '../src/storage/query-options.ts'
+import { EventWatcher } from '../src/watchers/event.ts'
 import { ExceptionWatcher } from '../src/watchers/exception.ts'
 import { QueryWatcher } from '../src/watchers/query.ts'
 
@@ -176,5 +177,40 @@ describe('a queued job', () => {
     await events.dispatch(new QueryExecuted('orphan', [], 1, 'main'))
 
     expect(await entries.get(EntryType.QUERY, new EntryQueryOptions())).toHaveLength(0)
+  })
+})
+
+describe('the event watcher beside the others', () => {
+  /**
+   * What the framework ignore list is actually for.
+   *
+   * Not the storage feedback loop — that is closed by `withoutRecording` around
+   * the flush, and a test written to demonstrate a loop here passed with the
+   * list switched off, which is how this correction was found. The list exists
+   * to stop **double recording**: a query the application runs is already a
+   * `query` entry, and a wildcard listener would file the same statement as an
+   * `event` row beside it.
+   */
+  test('a framework event is recorded by its own watcher only', async () => {
+    const { app, events, entries, recorder } = await worker()
+
+    new EventWatcher({}).register(app)
+
+    enterWorkContext()
+    recorder.start()
+
+    // Dispatched during the batch, not during the flush, so nothing is
+    // suppressed and both watchers are given the chance.
+    await events.dispatch(new QueryExecuted('select 1', [], 1, 'main'))
+    await events.dispatch('order.placed', { id: 1 })
+
+    await recorder.store(entries)
+
+    const queries = await entries.get(EntryType.QUERY, new EntryQueryOptions())
+    const recorded = await entries.get(EntryType.EVENT, new EntryQueryOptions())
+
+    expect(queries).toHaveLength(1)
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]?.content.name).toBe('order.placed')
   })
 })

@@ -1,9 +1,12 @@
 import type { ApplicationContract } from '@elvel/contracts'
 import { CacheWatcher } from './cache.ts'
+import { EventWatcher } from './event.ts'
 import { ExceptionWatcher } from './exception.ts'
 import { GateWatcher } from './gate.ts'
 import { LogWatcher } from './log.ts'
+import { MailWatcher } from './mail.ts'
 import { ModelWatcher } from './model.ts'
+import { NotificationWatcher } from './notification.ts'
 import { QueryWatcher } from './query.ts'
 import { RequestWatcher } from './request.ts'
 import { ScheduleWatcher } from './schedule.ts'
@@ -12,10 +15,13 @@ import type { Watcher, WatcherOptions } from './watcher.ts'
 /** Watcher name as it appears in `lens.watchers` to the class behind it. */
 const WATCHERS: Record<string, new (options: WatcherOptions) => Watcher> = {
   cache: CacheWatcher,
+  event: EventWatcher,
   exception: ExceptionWatcher,
   gate: GateWatcher,
   log: LogWatcher,
+  mail: MailWatcher,
   model: ModelWatcher,
+  notification: NotificationWatcher,
   query: QueryWatcher,
   request: RequestWatcher,
   schedule: ScheduleWatcher
@@ -66,10 +72,13 @@ export function registerWatchers(
 }
 
 export { CacheWatcher } from './cache.ts'
+export { EventWatcher } from './event.ts'
 export { ExceptionWatcher } from './exception.ts'
 export { GateWatcher } from './gate.ts'
 export { LogWatcher } from './log.ts'
+export { MailWatcher } from './mail.ts'
 export { ModelWatcher } from './model.ts'
+export { NotificationWatcher } from './notification.ts'
 export { QueryWatcher } from './query.ts'
 export { type RequestFacts, RequestWatcher } from './request.ts'
 export { ScheduleWatcher } from './schedule.ts'

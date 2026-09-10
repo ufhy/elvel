@@ -74,6 +74,20 @@ export default {
       ignore: [] as string[]
     },
 
+    /**
+     * Off by default, and the only watcher that is.
+     *
+     * A wildcard listener sees every event the application dispatches, which is
+     * the most useful screen in the dashboard for some applications and pure
+     * noise in others. Turn it on deliberately.
+     */
+    event: {
+      enabled: env('LENS_EVENT_WATCHER', false),
+      /** Framework events are covered by their own watchers. */
+      ignoreFrameworkEvents: true,
+      ignore: [] as string[]
+    },
+
     exception: {
       enabled: env('LENS_EXCEPTION_WATCHER', true),
       /** Frames from these paths never answer "where did this fail". */
@@ -98,10 +112,20 @@ export default {
       ignorePaths: [] as string[]
     },
 
+    mail: {
+      enabled: env('LENS_MAIL_WATCHER', true),
+      /** Kilobytes of body kept. The body is recorded so it can be previewed. */
+      bodyLimit: Number(env('LENS_MAIL_BODY_LIMIT', 128))
+    },
+
     model: {
       enabled: env('LENS_MODEL_WATCHER', true),
       /** Model class names never recorded. */
       ignore: [] as string[]
+    },
+
+    notification: {
+      enabled: env('LENS_NOTIFICATION_WATCHER', true)
     },
 
     schedule: {
