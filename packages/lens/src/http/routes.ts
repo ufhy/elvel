@@ -2,6 +2,7 @@ import type { ApplicationContract } from '@elvel/contracts'
 import { Elysia } from 'elysia'
 import { isClearable } from '../contracts.ts'
 import { type EntryTypeName, entryTypes } from '../entry-type.ts'
+import { refreshMonitoring } from '../pause.ts'
 import type { Recorder } from '../recorder.ts'
 import { EntryQueryOptions } from '../storage/query-options.ts'
 import type { WatcherConfig } from '../watchers/index.ts'
@@ -46,6 +47,50 @@ export function lensRoutes(app: ApplicationContract, options: LensRoutesOptions)
 
       return { message: 'Forbidden' }
     })
+
+  /**
+   * The monitored tags — Telescope's three routes, same verbs.
+   *
+   * `POST .../delete` rather than `DELETE` because Telescope does it that way,
+   * and a dashboard form can only send GET or POST without JavaScript.
+   */
+  router.get(`${prefix}/monitored-tags`, async () => {
+    return { tags: await app.make('lens.entries').monitoring() }
+  })
+
+  router.post(`${prefix}/monitored-tags`, async ({ body, set }) => {
+    const tag = tagFrom(body)
+
+    if (tag === undefined) {
+      set.status = 422
+
+      return { message: 'A tag is required.' }
+    }
+
+    await app.make('lens.entries').monitor([tag])
+    await refreshMonitoring(app, app.make('lens'))
+
+    set.status = 204
+
+    return null
+  })
+
+  router.post(`${prefix}/monitored-tags/delete`, async ({ body, set }) => {
+    const tag = tagFrom(body)
+
+    if (tag === undefined) {
+      set.status = 422
+
+      return { message: 'A tag is required.' }
+    }
+
+    await app.make('lens.entries').stopMonitoring([tag])
+    await refreshMonitoring(app, app.make('lens'))
+
+    set.status = 204
+
+    return null
+  })
 
   router.delete(`${prefix}/entries`, async ({ set }) => {
     const repository = app.make('lens.entries')
@@ -99,6 +144,22 @@ export function lensRoutes(app: ApplicationContract, options: LensRoutesOptions)
   }
 
   return router
+}
+
+/**
+ * The tag from a form post or a JSON body, trimmed, or nothing.
+ *
+ * A blank tag would be monitored forever and match nothing, so it is refused
+ * rather than stored.
+ */
+function tagFrom(body: unknown): string | undefined {
+  const tag = (body as { tag?: unknown } | undefined)?.tag
+
+  if (typeof tag !== 'string') return undefined
+
+  const trimmed = tag.trim()
+
+  return trimmed === '' ? undefined : trimmed
 }
 
 async function entries(

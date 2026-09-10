@@ -38,6 +38,16 @@ export class IncomingEntry {
 
   private family: string | undefined
 
+  /**
+   * The monitored tags, as they stood when this entry was recorded.
+   *
+   * Set by the recorder rather than looked up, which is what keeps
+   * {@link hasMonitoredTag} taking no arguments — the filter an application
+   * writes is `entry.hasMonitoredTag()`, exactly as it is in Telescope, and it
+   * must not need a repository handed to it.
+   */
+  private monitored: string[] = []
+
   constructor(content: EntryContent, uuid?: string, recordedAt?: Date) {
     this.content = content
     this.uuid = uuid ?? crypto.randomUUID()
@@ -96,6 +106,28 @@ export class IncomingEntry {
     }
 
     return this.withTags([`auth:${String(user.id)}`])
+  }
+
+  /** Called by the recorder before the filters run. */
+  withMonitored(tags: string[]): this {
+    this.monitored = tags
+
+    return this
+  }
+
+  /**
+   * Is any of this entry's tags being monitored?
+   *
+   * The escape hatch in a production filter: everything else in that filter
+   * names a *kind* of entry worth keeping, and this names a *subject* — "keep
+   * everything tagged `auth:41` while I work out what is happening to that
+   * account", set from the dashboard and switched off again afterwards, with no
+   * deploy in between.
+   */
+  hasMonitoredTag(): boolean {
+    if (this.monitored.length === 0 || this.tags.length === 0) return false
+
+    return this.tags.some((tag) => this.monitored.includes(tag))
   }
 
   isRequest(): boolean {

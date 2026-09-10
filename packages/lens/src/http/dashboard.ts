@@ -2,12 +2,14 @@ import type { ApplicationContract } from '@elvel/contracts'
 import { render } from '@elvel/view'
 import { Elysia } from 'elysia'
 import { EntryType, type EntryTypeName, entryTypes } from '../entry-type.ts'
+import { refreshMonitoring } from '../pause.ts'
 import type { Recorder } from '../recorder.ts'
 import { EntryQueryOptions } from '../storage/query-options.ts'
 import type { WatcherConfig } from '../watchers/index.ts'
 import { WATCHER_FOR, watcherStatus } from './status.ts'
 import { Entries } from './views/entries.tsx'
 import { Entry } from './views/entry.tsx'
+import { Monitoring } from './views/monitoring.tsx'
 
 export type LensDashboardOptions = {
   path: string
@@ -36,62 +38,102 @@ export type LensDashboardOptions = {
 export function lensDashboard(app: ApplicationContract, options: LensDashboardOptions) {
   const prefix = `/${options.path.replace(/^\/+|\/+$/g, '')}`
 
-  return new Elysia({ name: 'elvel:lens-dashboard' })
-    .onBeforeHandle({ as: 'scoped' }, async ({ request, set }) => {
-      const lens: Recorder = app.make('lens')
+  return (
+    new Elysia({ name: 'elvel:lens-dashboard' })
+      .onBeforeHandle({ as: 'scoped' }, async ({ request, set }) => {
+        const lens: Recorder = app.make('lens')
 
-      if (await lens.check(request)) return
+        if (await lens.check(request)) return
 
-      set.status = 403
+        set.status = 403
 
-      return 'Forbidden'
-    })
-    .get(prefix, ({ redirect }) => redirect(`${prefix}/${EntryType.REQUEST}`, 302))
-    .get(`${prefix}/:type`, async ({ params, query, set }) => {
-      const type = asType(params.type)
+        return 'Forbidden'
+      })
+      .get(prefix, ({ redirect }) => redirect(`${prefix}/${EntryType.REQUEST}`, 302))
+      /**
+       * Declared before `:type`, or the type route would swallow it.
+       *
+       * Elysia matches a literal segment ahead of a parameter, so the order is not
+       * strictly required — but relying on that is the kind of thing that changes
+       * under somebody in a minor release.
+       */
+      .get(`${prefix}/monitoring`, async ({ set }) => {
+        return html(
+          set,
+          await render(Monitoring, {
+            path: options.path,
+            tags: await app.make('lens.entries').monitoring()
+          })
+        )
+      })
+      .post(`${prefix}/monitoring`, async ({ body, redirect }) => {
+        const tag = tagFrom(body)
 
-      if (type === undefined) {
-        set.status = 404
+        if (tag !== undefined) {
+          await app.make('lens.entries').monitor([tag])
+          await refreshMonitoring(app, app.make('lens'))
+        }
 
-        return 'No such entry type.'
-      }
+        return redirect(`${prefix}/monitoring`, 303)
+      })
+      .post(`${prefix}/monitoring/delete`, async ({ body, redirect }) => {
+        const tag = tagFrom(body)
 
-      const entries = await app.make('lens.entries').get(type, EntryQueryOptions.fromRequest(query))
+        if (tag !== undefined) {
+          await app.make('lens.entries').stopMonitoring([tag])
+          await refreshMonitoring(app, app.make('lens'))
+        }
 
-      return html(
-        set,
-        await render(Entries, {
-          path: options.path,
-          type,
-          status: watcherStatus(
-            app.make('lens'),
-            options.enabled,
-            options.watchers,
-            WATCHER_FOR[type] ?? type
-          ),
-          entries
-        })
-      )
-    })
-    .get(`${prefix}/:type/:id`, async ({ params, set }) => {
-      const repository = app.make('lens.entries')
-      const entry = await repository.find(params.id)
+        return redirect(`${prefix}/monitoring`, 303)
+      })
+      .get(`${prefix}/:type`, async ({ params, query, set }) => {
+        const type = asType(params.type)
 
-      if (entry === undefined) {
-        set.status = 404
+        if (type === undefined) {
+          set.status = 404
 
-        return 'No such entry.'
-      }
+          return 'No such entry type.'
+        }
 
-      return html(
-        set,
-        await render(Entry, {
-          path: options.path,
-          entry,
-          batch: await repository.get(undefined, EntryQueryOptions.forBatch(entry.batchId))
-        })
-      )
-    })
+        const entries = await app
+          .make('lens.entries')
+          .get(type, EntryQueryOptions.fromRequest(query))
+
+        return html(
+          set,
+          await render(Entries, {
+            path: options.path,
+            type,
+            status: watcherStatus(
+              app.make('lens'),
+              options.enabled,
+              options.watchers,
+              WATCHER_FOR[type] ?? type
+            ),
+            entries
+          })
+        )
+      })
+      .get(`${prefix}/:type/:id`, async ({ params, set }) => {
+        const repository = app.make('lens.entries')
+        const entry = await repository.find(params.id)
+
+        if (entry === undefined) {
+          set.status = 404
+
+          return 'No such entry.'
+        }
+
+        return html(
+          set,
+          await render(Entry, {
+            path: options.path,
+            entry,
+            batch: await repository.get(undefined, EntryQueryOptions.forBatch(entry.batchId))
+          })
+        )
+      })
+  )
 }
 
 /** A rendered page, told apart from the plain-text refusals above it. */
@@ -99,6 +141,17 @@ function html(set: { headers: Record<string, string | number> }, markup: string)
   set.headers['content-type'] = 'text/html; charset=utf-8'
 
   return markup
+}
+
+/** The tag from a form post, trimmed, or nothing. A blank tag matches nothing. */
+function tagFrom(body: unknown): string | undefined {
+  const tag = (body as { tag?: unknown } | undefined)?.tag
+
+  if (typeof tag !== 'string') return undefined
+
+  const trimmed = tag.trim()
+
+  return trimmed === '' ? undefined : trimmed
 }
 
 function asType(candidate: string): EntryTypeName | undefined {

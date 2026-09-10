@@ -1,5 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
-import { refreshPause } from '../pause.ts'
+import { refreshMonitoring, refreshPause } from '../pause.ts'
 import type { Recorder } from '../recorder.ts'
 
 /** The event that starts a job, and the three that can end one. */
@@ -39,5 +39,6 @@ export function listenForJobs(app: ApplicationContract): void {
 
     await lens.store(app.make('lens.entries'))
     await refreshPause(app, lens)
+    await refreshMonitoring(app, lens)
   })
 }

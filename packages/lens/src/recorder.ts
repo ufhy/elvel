@@ -82,6 +82,17 @@ export class Recorder {
    */
   private paused = false
 
+  /**
+   * The monitored tags, as of the last refresh.
+   *
+   * Held rather than queried for the same reason `paused` is: opening a batch
+   * and recording an entry are both synchronous, and asking the database
+   * whether a tag is monitored would make every recorded entry await. Refreshed
+   * at boot and after each flush, so a tag switched on from the dashboard takes
+   * effect from the next unit of work rather than the current one.
+   */
+  private monitored: string[] = []
+
   /** The gate, if the application installed one. */
   private authorise: ((request: Request) => boolean | Promise<boolean>) | undefined
 
@@ -169,6 +180,15 @@ export class Recorder {
     this.paused = paused
   }
 
+  /** Set from storage, at boot and after each flush. */
+  setMonitoredTags(tags: string[]): void {
+    this.monitored = tags
+  }
+
+  monitoredTags(): string[] {
+    return this.monitored
+  }
+
   /**
    * Who may read the dashboard — Telescope's `Telescope::auth()`.
    *
@@ -233,7 +253,7 @@ export class Recorder {
 
     if (batch === undefined) return
 
-    entry.withType(type).withBatch(batch.batchId)
+    entry.withType(type).withBatch(batch.batchId).withMonitored(this.monitored)
 
     this.withoutRecording(() => {
       try {

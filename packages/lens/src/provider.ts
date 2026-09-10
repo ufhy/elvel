@@ -9,7 +9,7 @@ import type { EntriesRepository } from './contracts.ts'
 import { lensDashboard } from './http/dashboard.ts'
 import { lensPlugin } from './http/plugin.ts'
 import { lensRoutes } from './http/routes.ts'
-import { refreshPause } from './pause.ts'
+import { refreshMonitoring, refreshPause } from './pause.ts'
 import { listenForJobs } from './queue/listener.ts'
 import { Recorder } from './recorder.ts'
 import { DatabaseEntriesRepository } from './storage/database-repository.ts'
@@ -68,10 +68,10 @@ export class LensServiceProvider extends ServiceProvider {
      * and a cache round trip before the first request would be paid by every
      * boot to answer a question that is almost always "no".
      */
-    void refreshPause(this.app, this.app.make('lens'))
+    void this.refreshState()
 
     this.app.make('lens').afterStoring(() => {
-      void refreshPause(this.app, this.app.make('lens'))
+      void this.refreshState()
     })
 
     /**
@@ -120,6 +120,14 @@ export class LensServiceProvider extends ServiceProvider {
         )
       })
     )
+  }
+
+  /** The two things held in memory but owned elsewhere: the pause, and the tags. */
+  private async refreshState(): Promise<void> {
+    const lens = this.app.make('lens')
+
+    await refreshPause(this.app, lens)
+    await refreshMonitoring(this.app, lens)
   }
 
   /**

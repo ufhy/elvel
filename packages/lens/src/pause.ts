@@ -38,6 +38,21 @@ export function cacheOf(app: ApplicationContract): CacheLike | undefined {
  * as it was rather than assuming either answer. Telescope makes the same choice,
  * swallowing the exception around its own cache read.
  */
+/**
+ * Read the monitored tags into the recorder.
+ *
+ * Beside {@link refreshPause} because the two are the same shape: state that
+ * lives outside the process, consulted by synchronous code, and therefore held
+ * and refreshed rather than queried.
+ */
+export async function refreshMonitoring(app: ApplicationContract, lens: Recorder): Promise<void> {
+  try {
+    lens.setMonitoredTags(await app.make('lens.entries').monitoring())
+  } catch {
+    // Before the migration runs there is no table. Recording still works.
+  }
+}
+
 export async function refreshPause(app: ApplicationContract, lens: Recorder): Promise<void> {
   const cache = cacheOf(app)
 

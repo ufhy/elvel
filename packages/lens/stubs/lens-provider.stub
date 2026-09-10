@@ -27,7 +27,15 @@ export class LensServiceProvider extends LensApplicationServiceProvider {
         entry.isFailedRequest() ||
         entry.isFailedJob() ||
         entry.isScheduledTask() ||
-        entry.isSlowQuery()
+        entry.isSlowQuery() ||
+        /**
+         * The escape hatch, and the reason the monitoring screen exists.
+         *
+         * Everything above names a *kind* of entry worth keeping. This names a
+         * *subject*: add `auth:41` from the dashboard and everything belonging
+         * to that account is kept until you remove it again, with no deploy.
+         */
+        entry.hasMonitoredTag()
       )
     })
   }

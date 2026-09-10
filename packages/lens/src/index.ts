@@ -39,7 +39,7 @@ export { EntryType, type EntryTypeName, entryTypes } from './entry-type.ts'
 export { EntryUpdate } from './entry-update.ts'
 export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.ts'
 export { atLeast, PRIORITIES } from './log-level.ts'
-export { PAUSE_KEY, PAUSE_TTL, refreshPause } from './pause.ts'
+export { PAUSE_KEY, PAUSE_TTL, refreshMonitoring, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
 export { listenForJobs } from './queue/listener.ts'
 export {

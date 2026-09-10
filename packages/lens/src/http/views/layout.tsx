@@ -48,6 +48,13 @@ export function Layout({ title, path, current, status, children }: LayoutProps) 
                 {type}
               </a>
             ))}
+
+            <a
+              class={current === 'monitoring' ? 'tab on sep' : 'tab sep'}
+              href={`/${path}/monitoring`}
+            >
+              monitoring
+            </a>
           </nav>
 
           <main class="main">{children}</main>
@@ -118,6 +125,7 @@ a { color: inherit; text-decoration: none; }
 }
 .tab:hover { background: var(--panel); color: var(--ink); }
 .tab.on { background: var(--panel); color: var(--ink); font-weight: 560; }
+.tab.sep { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
 .main { flex: 1 1 auto; min-width: 0; padding: 18px 22px 60px; }
 h1 { font-size: 17px; margin: 0 0 14px; font-weight: 620; }
 h2 { font-size: 13px; margin: 22px 0 8px; color: var(--dim); font-weight: 560;
