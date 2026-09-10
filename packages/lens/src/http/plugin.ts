@@ -51,6 +51,17 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
   const batches = new WeakMap<Request, Batch>()
   const started = new WeakMap<Request, number>()
 
+  /**
+   * The client's address, read while the socket is still open.
+   *
+   * `server.requestIP(request)` answers `null` from `onAfterResponse` —
+   * measured, on a served request, not inferred: by then the connection is
+   * gone. So it is read in `onRequest` and carried, the same way the start time
+   * is. The recorder showed `ipAddress: null` for every request until this was
+   * found by looking at a real one.
+   */
+  const addresses = new WeakMap<Request, string>()
+
   return (
     new Elysia({ name: 'elvel:lens' })
       /**
@@ -58,7 +69,9 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
        * the current execution, so an `await` before the batch is opened would put
        * it somewhere the handler cannot see.
        */
-      .onRequest(({ request }: { request: Request }) => {
+      .onRequest((context: { request: Request }) => {
+        const { request } = context
+
         /**
          * Open a context of this request's own before anything is put in it.
          *
@@ -92,6 +105,10 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
 
         batches.set(request, batch)
         started.set(request, performance.now())
+
+        const address = clientAddress(context)
+
+        if (address !== undefined) addresses.set(request, address)
       })
       .onAfterResponse({ as: 'global' }, async (context) => {
         const { request } = context
@@ -157,7 +174,7 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
             route: typeof bag.route === 'string' ? bag.route : undefined,
             body: bag.body,
             duration: begun === undefined ? 0 : performance.now() - begun,
-            ip: clientAddress(context),
+            ip: addresses.get(request),
             session: sessionData()
           })
         }

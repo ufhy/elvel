@@ -1,4 +1,5 @@
 import type { EntryResult } from '../../entry-result.ts'
+import { columnsFor } from './columns.ts'
 import { Layout } from './layout.tsx'
 
 export type EntryProps = {
@@ -83,15 +84,19 @@ export function Entry({ path, entry, batch }: EntryProps) {
   )
 }
 
-/** One line describing an entry, whatever its type. */
+/**
+ * One line describing an entry, whatever its type.
+ *
+ * Built from the same column definitions the lists use, rather than a
+ * `JSON.stringify` fallback. Seen on a running dashboard, the related table read
+ * `gate | {"ability":"access-admin","result":"denied","arguments":[],…}` — every
+ * field there is in the columns already, and the columns say it in four words.
+ */
 function summarise(entry: EntryResult): string {
-  const content = entry.content
-  const line =
-    typeof content.sql === 'string'
-      ? content.sql
-      : typeof content.uri === 'string'
-        ? `${String(content.method ?? '')} ${content.uri}`
-        : JSON.stringify(content)
+  const line = columnsFor(entry.type)
+    .map((column) => column.text(entry.content))
+    .filter((value) => value !== '')
+    .join(' · ')
 
   return line.length <= 140 ? line : `${line.slice(0, 139)}…`
 }
