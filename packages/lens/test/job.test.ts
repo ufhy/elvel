@@ -165,13 +165,76 @@ describe('the job watcher', () => {
   })
 
   /**
+   * The race the channel exists for, run in the order that breaks it.
+   *
+   * A worker can finish a job before the request that dispatched it has
+   * flushed — then the patch arrives first and finds nothing. Held and retried
+   * rather than dropped, or the job reads `pending` forever while having run.
+   */
+  test('a patch that arrives before its row is applied on the next flush', async () => {
+    const { app, events, entries, recorder } = await stage()
+
+    new JobWatcher({}).register(app)
+
+    // The worker gets there first.
+    enterWorkContext()
+    recorder.start()
+    await events.dispatch('queue.job.processed', {
+      job: 'SendInvoice',
+      uuid: 'job-uuid-1',
+      attempts: 1
+    })
+    await recorder.store(entries)
+
+    expect(recorder.pendingUpdates()).toBe(1)
+
+    // And the dispatcher flushes afterwards.
+    enterWorkContext()
+    recorder.start()
+    await events.dispatch('queue.job.queued', QUEUED)
+    await recorder.store(entries)
+
+    expect(recorder.pendingUpdates()).toBe(0)
+    expect((await entries.find('job-uuid-1'))?.content.status).toBe('processed')
+  })
+
+  /**
+   * A patch that never lands leaves an entry saying something untrue, so it is
+   * given up on out loud rather than held for ever.
+   */
+  test('a patch for a row that never appears is abandoned, loudly', async () => {
+    const { app, events, entries } = await stage()
+    const failures: unknown[] = []
+    const recorder = new Recorder((error) => failures.push(error))
+
+    recorder.enable(true)
+    app.instance('lens', recorder)
+    new JobWatcher({}).register(app)
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      enterWorkContext()
+      recorder.start()
+
+      if (attempt === 0) {
+        await events.dispatch('queue.job.processed', { job: 'X', uuid: 'never', attempts: 1 })
+      }
+
+      await recorder.store(entries)
+    }
+
+    expect(recorder.pendingUpdates()).toBe(0)
+    expect(failures).toHaveLength(1)
+    expect(String((failures[0] as Error).message)).toContain('gave up on 1')
+  })
+
+  /**
    * A patch arriving before its row is normal, not an error.
    *
    * A fast job finishes before the request that dispatched it has flushed — the
    * whole reason the channel reports pending updates instead of failing.
    */
-  test('a patch for a row that is not there yet is reported, not lost', async () => {
-    const { app, events, entries, recorder } = await stage()
+  test('a patch for a row that is not there yet is held rather than reported', async () => {
+    const { app, events, entries } = await stage()
     const failures: unknown[] = []
     const reporting = new Recorder((error) => failures.push(error))
 
@@ -181,11 +244,12 @@ describe('the job watcher', () => {
 
     enterWorkContext()
     reporting.start()
-    await events.dispatch('queue.job.processed', { job: 'X', uuid: 'never-stored', attempts: 1 })
+    await events.dispatch('queue.job.processed', { job: 'X', uuid: 'not-yet', attempts: 1 })
     await reporting.store(entries)
 
-    expect(failures).toHaveLength(1)
-    expect(String((failures[0] as Error).message)).toContain('found no row')
+    // Waiting, not an error — the row may still arrive.
+    expect(reporting.pendingUpdates()).toBe(1)
+    expect(failures).toHaveLength(0)
   })
 
   test('an event with no uuid is ignored rather than recorded half-formed', async () => {

@@ -131,7 +131,32 @@ export class Recorder {
    */
   private completed = 0
 
+  /**
+   * Patches whose row was not there, waiting for another go.
+   *
+   * The channel is eventually consistent by design: a job entry is written by
+   * whatever dispatched it and patched by the worker that ran it, and a fast job
+   * finishes before the dispatching request has flushed. Telescope hands these
+   * to a queued job that retries three times; retrying here on the next flush
+   * needs no queue, no job class, and cannot record itself — and it works across
+   * processes for the same reason Telescope's does, because the retry re-reads a
+   * table both of them share.
+   */
+  private waiting: Array<{ update: EntryUpdate; attempts: number }> = []
+
   constructor(private readonly report: (error: unknown) => void = () => {}) {}
+
+  /** How many times a patch is retried before it is given up on. */
+  static readonly updateAttempts = 3
+
+  /**
+   * How many patches may wait at once.
+   *
+   * A bound rather than a promise to stay small: if something is producing
+   * patches for rows that will never exist, the memory this holds must not grow
+   * with it.
+   */
+  static readonly maxWaiting = 500
 
   /**
    * Open a batch for this unit of work.
@@ -322,7 +347,7 @@ export class Recorder {
 
     batch.flushed = true
 
-    if (entries.length === 0 && updates.length === 0) {
+    if (entries.length === 0 && updates.length === 0 && this.waiting.length === 0) {
       await this.terminate(repository)
       this.completed++
 
@@ -334,21 +359,16 @@ export class Recorder {
     try {
       await repository.store(entries)
 
-      const pending = await repository.update(updates)
+      /**
+       * Patches from before go first.
+       *
+       * Their rows are the older ones, so they are the likelier to exist by now
+       * — and a patch that has waited should not queue behind one that has not.
+       */
+      const retrying = this.waiting.splice(0, this.waiting.length)
+      const pending = await repository.update([...retrying.map((held) => held.update), ...updates])
 
-      if (pending.length > 0) {
-        /**
-         * Patches whose rows are not there yet.
-         *
-         * Telescope hands these to a queued job that retries three times. Until
-         * the job watcher lands there is nothing that produces them, so they are
-         * reported rather than silently dropped — a count here would be a real
-         * bug, not a race.
-         */
-        this.report(
-          new Error(`[lens] ${pending.length} entry update(s) found no row in batch ${batchId}`)
-        )
-      }
+      this.hold(retrying, pending, batchId)
 
       for (const hook of this.afterStoringHooks) hook(entries, batchId)
     } catch (error) {
@@ -385,6 +405,52 @@ export class Recorder {
       parameters: this.hiddenRequestParameters,
       responseParameters: this.hiddenResponseParameters
     }
+  }
+
+  /**
+   * Keep what still found no row, and give up on what has waited long enough.
+   *
+   * Given up on *loudly*: a patch that never lands leaves an entry saying
+   * something untrue — a job stuck at `pending` that in fact ran — and a
+   * recorder that lies quietly is worse than one that records nothing.
+   */
+  private hold(
+    retried: Array<{ update: EntryUpdate; attempts: number }>,
+    pending: EntryUpdate[],
+    batchId: string
+  ): void {
+    if (pending.length === 0) return
+
+    const attemptsOf = new Map(retried.map((held) => [held.update, held.attempts]))
+    const abandoned: EntryUpdate[] = []
+
+    for (const update of pending) {
+      const attempts = (attemptsOf.get(update) ?? 0) + 1
+
+      if (attempts >= Recorder.updateAttempts) {
+        abandoned.push(update)
+
+        continue
+      }
+
+      if (this.waiting.length < Recorder.maxWaiting) this.waiting.push({ update, attempts })
+      else abandoned.push(update)
+    }
+
+    if (abandoned.length > 0) {
+      this.report(
+        new Error(
+          `[lens] gave up on ${String(abandoned.length)} entry update(s) after ${String(
+            Recorder.updateAttempts
+          )} attempts, last seen in batch ${batchId}`
+        )
+      )
+    }
+  }
+
+  /** How many patches are waiting for their row. */
+  pendingUpdates(): number {
+    return this.waiting.length
   }
 
   /** Registered filters must all agree before an entry is kept. */
