@@ -43,6 +43,7 @@ export { atLeast, PRIORITIES } from './log-level.ts'
 export { PAUSE_KEY, PAUSE_TTL, refreshMonitoring, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
 export { listenForJobs } from './queue/listener.ts'
+export { flushScheduleBatches, openScheduleBatches } from './queue/schedule.ts'
 export {
   type AfterStoringHook,
   type Batch,

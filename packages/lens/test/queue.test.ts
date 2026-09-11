@@ -5,12 +5,14 @@ import { EventServiceProvider } from '@elvel/events'
 import { MessageLogged } from '@elvel/log'
 import { EntryType } from '../src/entry-type.ts'
 import { listenForJobs } from '../src/queue/listener.ts'
+import { flushScheduleBatches, openScheduleBatches } from '../src/queue/schedule.ts'
 import { Recorder } from '../src/recorder.ts'
 import { DatabaseEntriesRepository } from '../src/storage/database-repository.ts'
 import { EntryQueryOptions } from '../src/storage/query-options.ts'
 import { EventWatcher } from '../src/watchers/event.ts'
 import { ExceptionWatcher } from '../src/watchers/exception.ts'
 import { QueryWatcher } from '../src/watchers/query.ts'
+import { ScheduleWatcher } from '../src/watchers/schedule.ts'
 
 async function worker() {
   const app = new Application(process.cwd())
@@ -212,5 +214,92 @@ describe('the event watcher beside the others', () => {
     expect(queries).toHaveLength(1)
     expect(recorded).toHaveLength(1)
     expect(recorded[0]?.content.name).toBe('order.placed')
+  })
+})
+
+describe('a scheduled task', () => {
+  /**
+   * The schedule watcher was dead code until this existed.
+   *
+   * Running `elvel schedule:run` on the playground executed three tasks and
+   * recorded nothing: a scheduler tick is not a request, and nothing had opened
+   * a batch. Found by running it, not by reading it.
+   */
+  test('records what it did', async () => {
+    const { app, events, entries, recorder } = await worker()
+
+    openScheduleBatches(app)
+    new ScheduleWatcher({}).register(app)
+    flushScheduleBatches(app)
+
+    await events.dispatch('schedule.task.starting', { event: 'prune' })
+    await events.dispatch('schedule.task.finished', { event: 'prune' })
+
+    const found = await entries.get(EntryType.SCHEDULED_TASK, new EntryQueryOptions())
+
+    expect(found).toHaveLength(1)
+    expect(found[0]?.content.task).toBe('prune')
+    expect(found[0]?.content.outcome).toBe('ran')
+    expect(recorder.flushes()).toBeGreaterThan(0)
+  })
+
+  /**
+   * `skipped` and `overlapping` are dispatched *before* `starting`, because the
+   * decision not to run is taken first — so they have no batch to land in
+   * unless the listener opens one.
+   */
+  test('records a task that never started', async () => {
+    const { app, events, entries } = await worker()
+
+    openScheduleBatches(app)
+    new ScheduleWatcher({}).register(app)
+    flushScheduleBatches(app)
+
+    await events.dispatch('schedule.task.skipped', { event: 'digest', reason: 'another server' })
+
+    const found = await entries.get(EntryType.SCHEDULED_TASK, new EntryQueryOptions())
+
+    expect(found).toHaveLength(1)
+    expect(found[0]?.content.outcome).toBe('skipped')
+    expect(found[0]?.content.reason).toBe('another server')
+  })
+
+  test('two tasks in one run do not share a batch', async () => {
+    const { app, events, entries } = await worker()
+
+    openScheduleBatches(app)
+    new ScheduleWatcher({}).register(app)
+    flushScheduleBatches(app)
+
+    for (const name of ['first', 'second']) {
+      await events.dispatch('schedule.task.starting', { event: name })
+      await events.dispatch('schedule.task.finished', { event: name })
+    }
+
+    const found = await entries.get(EntryType.SCHEDULED_TASK, new EntryQueryOptions())
+
+    expect(found).toHaveLength(2)
+    expect(new Set(found.map((entry) => entry.batchId)).size).toBe(2)
+  })
+
+  /**
+   * The ordering this depends on, asserted rather than assumed.
+   *
+   * Listeners run in registration order. Register the flush before the watcher
+   * and it stores an empty batch, dropping every entry — which is silent, and
+   * exactly the shape of bug a comment does not prevent.
+   */
+  test('a flush registered before the watcher loses the entry', async () => {
+    const { app, events, entries } = await worker()
+
+    // Flush registered before the watcher, which is the mistake under test.
+    openScheduleBatches(app)
+    flushScheduleBatches(app)
+    new ScheduleWatcher({}).register(app)
+
+    await events.dispatch('schedule.task.starting', { event: 'prune' })
+    await events.dispatch('schedule.task.finished', { event: 'prune' })
+
+    expect(await entries.get(EntryType.SCHEDULED_TASK, new EntryQueryOptions())).toHaveLength(0)
   })
 })
