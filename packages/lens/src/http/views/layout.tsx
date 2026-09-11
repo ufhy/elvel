@@ -259,6 +259,48 @@ td.muted { color: var(--dim); }
 .btn.quiet:hover { color: var(--danger-fg); }
 .row { display: flex; gap: 10px; align-items: center; }
 .hint { color: var(--dim); margin: 0 0 16px; font-size: 13px; }
+details > summary { cursor: pointer; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::after { content: '▸'; color: var(--faint); margin-left: auto; }
+details[open] > summary::after { content: '▾'; }
+table.src td { padding: 2px 1.25rem; border-top: 0; }
+table.src tr.blame { background: var(--danger-bg); }
+table.src tr.blame code { color: var(--danger-fg); font-weight: 600; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* waterfall */
+.fall { padding: 6px 1.25rem 14px; }
+.fall-scale {
+  display: flex; justify-content: space-between; color: var(--faint);
+  font-size: 11px; padding: 6px 0 8px;
+  border-bottom: 1px solid var(--line); margin-bottom: 6px;
+}
+.fall-row {
+  display: grid; grid-template-columns: 92px 1fr 64px minmax(0, 2fr);
+  align-items: center; gap: 12px; padding: 5px 0; border-radius: 6px;
+}
+.fall-row:hover { background: var(--cap); }
+.fall-row.here { background: var(--cap); box-shadow: inset 2px 0 0 var(--brand); }
+.fall-type { font-size: 11px; color: var(--dim); padding-left: 6px; }
+.fall-track { position: relative; height: 14px; background: var(--bg); border-radius: 4px; }
+.fall-bar { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--brand); }
+.fall-bar.t-request { background: var(--secondary-fg); opacity: 0.35; }
+.fall-bar.t-query { background: #6366f1; }
+.fall-bar.t-cache { background: #10b981; }
+.fall-bar.t-client_request { background: #f59e0b; }
+.fall-bar.t-exception { background: #ef4444; }
+.fall-bar.t-gate { background: #9ca3af; }
+.fall-bar.t-model { background: #3b82f6; }
+.fall-row.bare { grid-template-columns: 92px minmax(0, 1fr); }
+.fall-note { color: var(--faint); font-size: 12px; margin: 4px 0 10px; }
+.fall-ms {
+  font-size: 11px; color: var(--dim); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.fall-what {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+  color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .more { text-align: center; background: var(--cap); }
 .more a { color: var(--brand); font-size: 13px; }
 code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }

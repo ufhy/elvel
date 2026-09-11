@@ -22,6 +22,15 @@ export type AfterStoringHook = (entries: IncomingEntry[], batchId: string) => vo
  */
 export type Batch = {
   batchId: string
+  /**
+   * When this unit of work began, on the monotonic clock.
+   *
+   * `performance.now()` and not `Date.now()`: the wall clock can step, and the
+   * only thing this is used for is subtracting two readings taken milliseconds
+   * apart. It is what lets a detail page place entries on a time axis at all —
+   * `created_at` is stored to the second, so every entry in a batch shares it.
+   */
+  startedAt: number
   entries: IncomingEntry[]
   updates: EntryUpdate[]
   /**
@@ -141,6 +150,7 @@ export class Recorder {
 
     const batch: Batch = {
       batchId: crypto.randomUUID(),
+      startedAt: performance.now(),
       entries: [],
       updates: [],
       suppressed: 0,
@@ -252,6 +262,15 @@ export class Recorder {
     const batch = batchSlot.get()
 
     if (batch === undefined) return
+
+    /**
+     * Stamped here rather than by each watcher, so every type gets it and no
+     * watcher has to know a batch has a start.
+     */
+    entry.content = {
+      ...entry.content,
+      offsetMs: Math.max(0, Math.round(performance.now() - batch.startedAt))
+    }
 
     entry.withType(type).withBatch(batch.batchId).withMonitored(this.monitored)
 

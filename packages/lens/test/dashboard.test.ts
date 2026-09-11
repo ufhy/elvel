@@ -118,7 +118,7 @@ describe('the dashboard', () => {
       await router.handle(new Request(`http://localhost/lens/request/${subject.uuid}`))
     ).text()
 
-    expect(body).toContain('Related · 1')
+    expect(body).toContain('Timeline · 1 related')
     expect(body).toContain('select * from orders')
     expect(body).not.toContain('select * from elsewhere')
   })
