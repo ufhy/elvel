@@ -263,6 +263,7 @@ details > summary { cursor: pointer; list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 details > summary::after { content: '▸'; color: var(--faint); margin-left: auto; }
 details[open] > summary::after { content: '▾'; }
+.preview { width: 100%; height: 420px; border: 0; background: #fff; display: block; }
 table.src td { padding: 2px 1.25rem; border-top: 0; }
 table.src tr.blame { background: var(--danger-bg); }
 table.src tr.blame code { color: var(--danger-fg); font-weight: 600; }
