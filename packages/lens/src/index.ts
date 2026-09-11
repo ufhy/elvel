@@ -62,6 +62,7 @@ export {
   CacheWatcher,
   ClientRequestWatcher,
   CommandWatcher,
+  DumpWatcher,
   EventWatcher,
   ExceptionWatcher,
   GateWatcher,

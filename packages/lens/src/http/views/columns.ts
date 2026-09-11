@@ -241,6 +241,14 @@ const DEFINITIONS: Partial<Record<EntryTypeName, Definition>> = {
     ]
   },
 
+  [EntryType.DUMP]: {
+    headings: [{ label: 'Dump' }, { label: 'From' }],
+    cells: (content) => [
+      clipped(firstValue(content.values), 90),
+      clipped(content.file === undefined ? '' : `${str(content.file)}:${str(content.line)}`, 50)
+    ]
+  },
+
   [EntryType.VIEW]: {
     headings: [
       { label: 'View' },
@@ -339,6 +347,13 @@ function bytes(value: unknown): string {
   if (!Number.isFinite(size) || size <= 0) return ''
 
   return size < 1000 ? `${String(size)} B` : `${(size / 1000).toFixed(1)} kB`
+}
+
+/** The first dumped value, for the one line a list gets. */
+function firstValue(values: unknown): string {
+  if (!Array.isArray(values) || values.length === 0) return ''
+
+  return String((values[0] as { text?: unknown }).text ?? '').replaceAll('\n', ' ')
 }
 
 function joined(value: unknown): string {

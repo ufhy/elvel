@@ -1,6 +1,6 @@
 import { broadcaster } from '@elvel/broadcasting'
 import { cache } from '@elvel/cache'
-import { app } from '@elvel/core'
+import { app, dump } from '@elvel/core'
 import { db } from '@elvel/database'
 import { dispatch, events } from '@elvel/events'
 import { log, MemoryDriver } from '@elvel/log'
@@ -14,6 +14,21 @@ import { RecordShipments } from '../../Listeners/RecordShipments.ts'
  * Exercise surface for events and logging, asserted by `scripts/smoke.ts`.
  */
 export default new Elysia({ name: 'signal', prefix: '/signal' })
+  /**
+   * `dump()` printing, returning, and announcing itself.
+   *
+   * Returning is the half worth exercising: the helper is meant to go inside an
+   * expression rather than beside one, so a route that uses its return value is
+   * the honest test of that.
+   */
+  .get('/dump', () => {
+    const returned = dump({ order: 42, carrier: 'DHL' })
+
+    dump('two', 'values')
+
+    return { returned }
+  })
+
   /** A class event reaching a discovered listener. */
   .get('/dispatch', async () => {
     const responses = await dispatch(new OrderShipped(42, 'DHL'))

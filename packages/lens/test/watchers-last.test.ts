@@ -5,6 +5,7 @@ import type { IncomingEntry } from '../src/entry.ts'
 import { EntryType } from '../src/entry-type.ts'
 import { Recorder } from '../src/recorder.ts'
 import { ClientRequestWatcher } from '../src/watchers/client-request.ts'
+import { DumpWatcher } from '../src/watchers/dump.ts'
 import { EventWatcher } from '../src/watchers/event.ts'
 import { MailWatcher } from '../src/watchers/mail.ts'
 import { NotificationWatcher } from '../src/watchers/notification.ts'
@@ -306,5 +307,45 @@ describe('the client request watcher', () => {
     })
 
     expect(content(recorded[0]?.entry as IncomingEntry).host).toBe('')
+  })
+})
+
+describe('the dump watcher', () => {
+  test('records the values and where they came from', () => {
+    const { events, recorded } = bench(new DumpWatcher({}))
+
+    events.dispatch('dump.captured', {
+      values: [
+        { label: '1', text: '{ id: 7 }' },
+        { label: '2', text: '"Ada"' }
+      ],
+      origin: { file: '/app/routes/web.ts', line: 12 }
+    })
+
+    const fields = content(recorded[0]?.entry as IncomingEntry)
+
+    expect(recorded[0]?.type).toBe(EntryType.DUMP)
+    expect(fields.file).toBe('/app/routes/web.ts')
+    expect(fields.line).toBe(12)
+    expect((fields.values as Array<{ text: string }>).map((v) => v.text)).toEqual([
+      '{ id: 7 }',
+      '"Ada"'
+    ])
+  })
+
+  test('an unlabelled single dump keeps a null label rather than inventing one', () => {
+    const { events, recorded } = bench(new DumpWatcher({}))
+
+    events.dispatch('dump.captured', {
+      values: [{ label: undefined, text: '🐛' }],
+      origin: undefined
+    })
+
+    const values = content(recorded[0]?.entry as IncomingEntry).values as Array<{
+      label: unknown
+    }>
+
+    expect(values[0]?.label).toBeNull()
+    expect(content(recorded[0]?.entry as IncomingEntry).file).toBeNull()
   })
 })

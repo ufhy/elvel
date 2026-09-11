@@ -142,7 +142,8 @@ describe('every recording type has a panel', () => {
       EntryType.VIEW,
       EntryType.BATCH,
       EntryType.JOB,
-      EntryType.COMMAND
+      EntryType.COMMAND,
+      EntryType.DUMP
     ]
 
     /** Content shaped like the watcher that records it, or a panel finds nothing. */
@@ -162,7 +163,8 @@ describe('every recording type has a panel', () => {
       view: { view: 'Layout', size: 100 },
       batch: { batch: 'b1', totalJobs: 3 },
       job: { name: 'SendInvoice', status: 'pending' },
-      command: { command: 'migrate', exitCode: 0 }
+      command: { command: 'migrate', exitCode: 0 },
+      dump: { values: [{ label: null, text: '{ id: 1 }' }], file: '/a.ts', line: 3 }
     }
 
     for (const type of typed) {

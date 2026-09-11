@@ -212,6 +212,28 @@ function TypePanels({ type, content }: { type: EntryTypeName; content: EntryCont
     )
   }
 
+  if (type === EntryType.DUMP) {
+    const values = Array.isArray(content.values) ? content.values : []
+
+    return (
+      <>
+        <Facts rows={[['From', where(content)]]} />
+        {values.map((value) => {
+          const one = value as { label?: unknown; text?: unknown }
+
+          return (
+            <Code
+              title={
+                one.label === null || one.label === undefined ? 'Dump' : `Dump ${str(one.label)}`
+              }
+              value={str(one.text)}
+            />
+          )
+        })}
+      </>
+    )
+  }
+
   if (type === EntryType.VIEW) {
     return (
       <Facts

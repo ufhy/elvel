@@ -103,6 +103,17 @@ export default {
       ignore: ['queue:work', 'queue:listen', 'schedule:work', 'serve', 'dev', 'lens:*']
     },
 
+    /**
+     * Off by default, like the event watcher and for a related reason.
+     *
+     * A dump is written to be read now, in the terminal — Telescope goes
+     * further and only registers its watcher while the Dumps screen is open.
+     * Turn this on when you want the trail kept.
+     */
+    dump: {
+      enabled: env('LENS_DUMP_WATCHER', false)
+    },
+
     event: {
       enabled: env('LENS_EVENT_WATCHER', false),
       /** Framework events are covered by their own watchers. */

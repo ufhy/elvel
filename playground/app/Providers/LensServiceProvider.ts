@@ -1,5 +1,5 @@
 import { user } from '@elvel/auth'
-import { LensApplicationServiceProvider, lens, type IncomingEntry } from '@elvel/lens'
+import { type IncomingEntry, LensApplicationServiceProvider, lens } from '@elvel/lens'
 
 /**
  * Who may read Lens, and what it keeps.

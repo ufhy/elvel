@@ -3,6 +3,7 @@ import { BatchWatcher } from './batch.ts'
 import { CacheWatcher } from './cache.ts'
 import { ClientRequestWatcher } from './client-request.ts'
 import { CommandWatcher } from './command.ts'
+import { DumpWatcher } from './dump.ts'
 import { EventWatcher } from './event.ts'
 import { ExceptionWatcher } from './exception.ts'
 import { GateWatcher } from './gate.ts'
@@ -23,6 +24,7 @@ const WATCHERS: Record<string, new (options: WatcherOptions) => Watcher> = {
   cache: CacheWatcher,
   client_request: ClientRequestWatcher,
   command: CommandWatcher,
+  dump: DumpWatcher,
   event: EventWatcher,
   exception: ExceptionWatcher,
   gate: GateWatcher,
@@ -85,6 +87,7 @@ export { BatchWatcher } from './batch.ts'
 export { CacheWatcher } from './cache.ts'
 export { ClientRequestWatcher } from './client-request.ts'
 export { CommandWatcher } from './command.ts'
+export { DumpWatcher } from './dump.ts'
 export { EventWatcher } from './event.ts'
 export { ExceptionWatcher } from './exception.ts'
 export { GateWatcher } from './gate.ts'

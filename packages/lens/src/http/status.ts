@@ -35,6 +35,7 @@ export const WATCHER_FOR: Partial<Record<EntryTypeName, string>> = {
   cache: 'cache',
   client_request: 'client_request',
   command: 'command',
+  dump: 'dump',
   event: 'event',
   exception: 'exception',
   gate: 'gate',

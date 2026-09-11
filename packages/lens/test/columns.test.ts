@@ -34,7 +34,8 @@ describe('columnsFor', () => {
       EntryType.VIEW,
       EntryType.BATCH,
       EntryType.JOB,
-      EntryType.COMMAND
+      EntryType.COMMAND,
+      EntryType.DUMP
     ]
 
     for (const type of recording) {
