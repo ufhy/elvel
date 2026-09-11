@@ -204,6 +204,23 @@ export function headingsFor(type: EntryTypeName): Heading[] {
   return (DEFINITIONS[type] ?? FALLBACK).headings
 }
 
+/**
+ * What a detail page calls the thing it is showing.
+ *
+ * `GET /check/cache/articles`, not `Requests` — which is what the heading said
+ * until the page was looked at, because it was reusing the navigation label.
+ * Built from the first two cells so a new type gets a headline for free.
+ */
+export function headlineFor(type: EntryTypeName, content: EntryContent): string {
+  const line = cellsFor(type, content)
+    .slice(0, 2)
+    .map((cell) => cell.title ?? cell.text)
+    .filter((value) => value !== '' && value !== '-')
+    .join(' ')
+
+  return line === '' ? '' : shorten(line, 90)
+}
+
 export function cellsFor(type: EntryTypeName, content: EntryContent): Cell[] {
   return (DEFINITIONS[type] ?? FALLBACK).cells(content)
 }

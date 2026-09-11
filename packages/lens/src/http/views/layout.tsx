@@ -33,6 +33,14 @@ export function Layout({ title, path, current, paused, children }: LayoutProps) 
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title safe>{title}</title>
+        {/*
+         * Inline, the way Telescope's layout carries a base64 one.
+         *
+         * Not decoration: without it every dashboard page load asks for
+         * `/favicon.ico`, misses, and the recorder files a 404 of its own
+         * making — noise in the very list somebody came to read.
+         */}
+        <link rel="icon" href={FAVICON} />
         <style>{STYLES}</style>
       </head>
       <body>
@@ -120,6 +128,9 @@ export function Layout({ title, path, current, paused, children }: LayoutProps) 
  * Light and dark both, because the viewer's system decides and a debugging tool
  * that is blinding at two in the morning is a tool nobody opens then.
  */
+const FAVICON =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%236366f1' d='M11 3a8 8 0 1 0 4.9 14.32l4.39 4.39 1.42-1.42-4.39-4.39A8 8 0 0 0 11 3Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z'/%3E%3C/svg%3E"
+
 const STYLES = `
 :root {
   --bg: #f3f4f6; --card: #ffffff; --cap: #f9fafb; --line: #e5e7eb;
@@ -220,6 +231,34 @@ td.muted { color: var(--dim); }
 .badge.info { background: var(--info-bg); color: var(--info-fg); }
 .badge.warning { background: var(--warning-bg); color: var(--warning-fg); }
 .badge.danger { background: var(--danger-bg); color: var(--danger-fg); }
+.search { position: relative; display: flex; align-items: center; width: 260px; }
+.search svg {
+  position: absolute; left: 0.75rem; pointer-events: none; color: var(--faint);
+}
+.search input {
+  width: 100%; padding: 0.4rem 0.9rem 0.4rem 2.25rem;
+  font: inherit; font-size: 0.875rem; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 9999px;
+  appearance: none;
+}
+.search input::placeholder { color: var(--faint); }
+.search input:focus { outline: none; border-color: var(--brand); }
+.search input::-webkit-search-cancel-button { cursor: pointer; }
+.field {
+  padding: 0.4rem 0.9rem; font: inherit; font-size: 0.875rem; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+}
+.field:focus { outline: none; border-color: var(--brand); }
+.btn {
+  padding: 0.4rem 0.9rem; font: inherit; font-size: 0.875rem; cursor: pointer;
+  color: var(--ink); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.btn:hover { border-color: var(--brand); color: var(--brand); }
+.btn.quiet { border: 0; background: none; color: var(--dim); padding: 0; }
+.btn.quiet:hover { color: var(--danger-fg); }
+.row { display: flex; gap: 10px; align-items: center; }
+.hint { color: var(--dim); margin: 0 0 16px; font-size: 13px; }
 .more { text-align: center; background: var(--cap); }
 .more a { color: var(--brand); font-size: 13px; }
 code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }

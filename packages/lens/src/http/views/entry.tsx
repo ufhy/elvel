@@ -1,5 +1,5 @@
 import type { EntryResult } from '../../entry-result.ts'
-import { cellsFor } from './columns.ts'
+import { cellsFor, headlineFor } from './columns.ts'
 import { Layout } from './layout.tsx'
 import { labelFor, timeAgo } from './ui.ts'
 
@@ -22,6 +22,7 @@ export type EntryProps = {
 export function Entry({ path, entry, batch, paused }: EntryProps) {
   const related = batch.filter((candidate) => candidate.uuid !== entry.uuid)
   const label = labelFor(entry.type)
+  const headline = headlineFor(entry.type, entry.content)
 
   return (
     <Layout title={`${label} · Lens`} path={path} current={entry.type} paused={paused}>
@@ -31,7 +32,7 @@ export function Entry({ path, entry, batch, paused }: EntryProps) {
 
       <div class="card">
         <div class="card-head">
-          <h2 safe>{label}</h2>
+          <h2 safe>{headline === '' ? label : headline}</h2>
           <span class="muted" title={entry.createdAt ?? ''} safe>
             {timeAgo(entry.createdAt)}
           </span>

@@ -36,7 +36,14 @@ export function Entries({ path, type, status, paused, entries, limit, tag }: Ent
         <div class="card-head">
           <h2 safe>{label}</h2>
 
-          <form method="get" action={`/${path}/${type}`} class="filter">
+          {/*
+           * Telescope's `form-control-with-icon`: a pill with the magnifier
+           * sitting inside it rather than a browser-default box beside a label.
+           */}
+          <form method="get" action={`/${path}/${type}`} class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 2a8 8 0 1 0 4.9 14.32l4.39 4.39 1.42-1.42-4.39-4.39A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z" />
+            </svg>
             <input
               type="search"
               name="tag"
