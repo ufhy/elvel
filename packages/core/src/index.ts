@@ -22,6 +22,14 @@ export {
   flushDeferred,
   forgetDeferred
 } from './defer.ts'
+export {
+  DumpException,
+  type DumpedValue,
+  type DumpOrigin,
+  type DumpRecord,
+  dd,
+  dump
+} from './dump.ts'
 export { Env, env, parseEnvFile } from './env.ts'
 export {
   CARRIES_RESPONSE,
