@@ -2,6 +2,9 @@ import { csrfToken } from '@elvel/http'
 import type { Children } from '@kitajs/html'
 import { labelFor, SECTIONS } from './ui.ts'
 
+/** What the viewer chose, or nothing — in which case the system decides. */
+export type Theme = 'light' | 'dark' | undefined
+
 export type LayoutProps = {
   title: string
   /** Where the dashboard is mounted, with no slashes. */
@@ -10,6 +13,8 @@ export type LayoutProps = {
   current?: string
   /** Whether recording is paused, for the header's toggle. */
   paused?: boolean
+  /** The viewer's chosen theme, if they have chosen one. */
+  theme?: Theme
   children?: Children
 }
 
@@ -26,9 +31,9 @@ export type LayoutProps = {
  * are Vue click handlers against its API; these are forms, because the page is
  * server-rendered and a form is what works without shipping a bundle.
  */
-export function Layout({ title, path, current, paused, children }: LayoutProps) {
+export function Layout({ title, path, current, paused, theme, children }: LayoutProps) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme ?? 'system'}>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -84,6 +89,29 @@ export function Layout({ title, path, current, paused, children }: LayoutProps) 
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M9 3h6l1 2h4v2H4V5h4l1-2ZM6 9h12l-1 12H7L6 9Z" />
                   </svg>
+                </button>
+              </form>
+
+              {/*
+               * A theme switch that needs no JavaScript.
+               *
+               * The choice is a cookie the server reads back, so the page comes
+               * out already in the right colours — no flash of the wrong theme
+               * on load, which is the usual cost of doing this in the browser.
+               */}
+              <form method="post" action={`/${path}/theme`}>
+                <input type="hidden" name="_token" value={csrfToken()} safe />
+                <input type="hidden" name="theme" value={theme === 'dark' ? 'light' : 'dark'} />
+                <button type="submit" title={theme === 'dark' ? 'Light theme' : 'Dark theme'}>
+                  {theme === 'dark' ? (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm-1-6h2v3h-2Zm0 19h2v3h-2ZM1 11h3v2H1Zm19 0h3v2h-3ZM3.5 4.9 4.9 3.5l2.1 2.1-1.4 1.4Zm13.1 13.1 1.4-1.4 2.1 2.1-1.4 1.4Zm2.1-14.5 1.4 1.4-2.1 2.1-1.4-1.4ZM3.5 19.1l2.1-2.1 1.4 1.4-2.1 2.1Z" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z" />
+                    </svg>
+                  )}
                 </button>
               </form>
 
@@ -144,8 +172,14 @@ const STYLES = `
   --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   color-scheme: light dark;
 }
+/**
+ * Dark, when the system asks for it and the viewer has not said otherwise.
+ *
+ * The :not() guard is there so an explicit light choice wins on a machine
+ * set to dark — a preference nobody can override is not a preference.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) 
     --bg: #111827; --card: #1f2937; --cap: #263244; --line: #374151;
     --ink: #f3f4f6; --dim: #9ca3af; --faint: #6b7280;
     --brand: #818cf8;
@@ -155,8 +189,21 @@ const STYLES = `
     --danger-fg: #fca5a5;  --danger-bg: #7f1d1d;
     --secondary-fg: #d1d5db; --secondary-bg: #374151;
     --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-  }
 }
+/* And an explicit dark choice wins on a machine set to light. */
+:root[data-theme='dark'] {
+  --bg: #111827; --card: #1f2937; --cap: #263244; --line: #374151;
+  --ink: #f3f4f6; --dim: #9ca3af; --faint: #6b7280;
+  --brand: #818cf8;
+  --success-fg: #6ee7b7; --success-bg: #064e3b;
+  --info-fg: #93c5fd;    --info-bg: #1e3a8a;
+  --warning-fg: #fcd34d; --warning-bg: #78350f;
+  --danger-fg: #fca5a5;  --danger-bg: #7f1d1d;
+  --secondary-fg: #d1d5db; --secondary-bg: #374151;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0; padding-bottom: 40px; background: var(--bg); color: var(--ink);
@@ -276,8 +323,16 @@ td.num { font-variant-numeric: tabular-nums; text-align: right; }
   font-size: 11px; padding: 6px 0 8px;
   border-bottom: 1px solid var(--line); margin-bottom: 6px;
 }
+.fall-warn {
+  margin: 4px 0 10px; padding: 6px 10px; border-radius: 7px;
+  background: var(--warning-bg); color: var(--warning-fg); font-size: 12px;
+}
+.fall-times {
+  font-size: 11px; font-weight: 700; color: var(--warning-fg);
+  text-align: right; min-width: 28px;
+}
 .fall-row {
-  display: grid; grid-template-columns: 92px 1fr 64px minmax(0, 2fr);
+  display: grid; grid-template-columns: 92px 1fr 64px 34px minmax(0, 2fr);
   align-items: center; gap: 12px; padding: 5px 0; border-radius: 6px;
 }
 .fall-row:hover { background: var(--cap); }

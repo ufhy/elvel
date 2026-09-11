@@ -21,6 +21,8 @@ type Bar = {
   left: number
   width: number
   summary: string
+  /** How many identical neighbours were folded into this one. */
+  repeats: number
 }
 
 /**
@@ -70,9 +72,17 @@ export function Waterfall({ path, batch, current }: WaterfallProps) {
   }
 
   const total = Math.max(...bars.map((bar) => bar.offset + bar.duration), 1)
+  const repeated = bars.filter((bar) => bar.repeats > 1)
 
   return (
     <div class="fall">
+      {repeated.length === 0 ? null : (
+        <p class="fall-warn" safe>
+          {`${String(repeated.reduce((sum, bar) => sum + bar.repeats, 0))} of these ran the same ` +
+            `${repeated.length === 1 ? 'statement' : 'statements'} back to back — the shape of an N+1.`}
+        </p>
+      )}
+
       <div class="fall-scale">
         <span>0</span>
         <span safe>{`${String(Math.round(total / 2))}ms`}</span>
@@ -98,6 +108,14 @@ export function Waterfall({ path, batch, current }: WaterfallProps) {
           <span class="fall-ms" safe>
             {bar.duration === 0 ? '' : `${formatMs(bar.duration)}ms`}
           </span>
+
+          {bar.repeats > 1 ? (
+            <span class="fall-times" safe>
+              {`×${String(bar.repeats)}`}
+            </span>
+          ) : (
+            <span class="fall-times" />
+          )}
 
           <span class="fall-what" title={bar.summary} safe>
             {bar.summary}
@@ -133,15 +151,47 @@ function layout(batch: EntryResult[]): Bar[] | undefined {
 
   const total = Math.max(...measured.map((bar) => bar.offset + bar.duration), 1)
 
-  return measured
+  const ordered = measured
     .sort((a, b) => a.offset - b.offset || a.duration - b.duration)
-    .map((bar) => ({
-      ...bar,
-      left: (bar.offset / total) * 100,
-      // A floor, so an instantaneous entry is still something to aim at.
-      width: Math.max((bar.duration / total) * 100, 0.6),
-      summary: summarise(bar.entry)
-    }))
+    .map((bar) => ({ ...bar, summary: summarise(bar.entry), repeats: 1 }))
+
+  return fold(ordered).map((bar) => ({
+    ...bar,
+    left: (bar.offset / total) * 100,
+    // A floor, so an instantaneous entry is still something to aim at.
+    width: Math.max((bar.duration / total) * 100, 0.6)
+  }))
+}
+
+/**
+ * Collapse identical neighbours into one bar with a count.
+ *
+ * This is the N+1 made visible. Twelve rows reading the same statement are
+ * twelve bars nobody counts; one bar reading `×12` is the bug, stated. Only
+ * *adjacent* entries are folded — the timeline has to stay honest about order,
+ * and two identical statements with something between them are not the same
+ * event as two in a row.
+ *
+ * The folded bar spans from the first start to the last end, so the width still
+ * says how long the whole run took.
+ */
+function fold(bars: Array<Omit<Bar, 'left' | 'width'>>): Array<Omit<Bar, 'left' | 'width'>> {
+  const folded: Array<Omit<Bar, 'left' | 'width'>> = []
+
+  for (const bar of bars) {
+    const last = folded.at(-1)
+
+    if (last !== undefined && last.entry.type === bar.entry.type && last.summary === bar.summary) {
+      last.repeats++
+      last.duration = Math.max(last.duration, bar.offset + bar.duration - last.offset)
+
+      continue
+    }
+
+    folded.push({ ...bar })
+  }
+
+  return folded
 }
 
 function durationOf(entry: EntryResult): number {

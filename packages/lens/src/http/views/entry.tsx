@@ -1,6 +1,6 @@
 import type { EntryResult } from '../../entry-result.ts'
 import { headlineFor } from './columns.ts'
-import { Layout } from './layout.tsx'
+import { Layout, type Theme } from './layout.tsx'
 import { Panels } from './panels.tsx'
 import { labelFor, timeAgo } from './ui.ts'
 import { Waterfall } from './waterfall.tsx'
@@ -11,6 +11,7 @@ export type EntryProps = {
   /** Everything else recorded in the same unit of work. */
   batch: EntryResult[]
   paused: boolean
+  theme?: Theme
 }
 
 /**
@@ -21,13 +22,19 @@ export type EntryProps = {
  * them but a shared batch id. Telescope's largest component by a wide margin is
  * the one that renders this, which is a fair signal of where the value is.
  */
-export function Entry({ path, entry, batch, paused }: EntryProps) {
+export function Entry({ path, entry, batch, paused, theme }: EntryProps) {
   const related = batch.filter((candidate) => candidate.uuid !== entry.uuid)
   const label = labelFor(entry.type)
   const headline = headlineFor(entry.type, entry.content)
 
   return (
-    <Layout title={`${label} · Lens`} path={path} current={entry.type} paused={paused}>
+    <Layout
+      title={`${label} · Lens`}
+      path={path}
+      current={entry.type}
+      paused={paused}
+      theme={theme}
+    >
       <a class="back" href={`/${path}/${entry.type}`} safe>
         {`← ${label}`}
       </a>

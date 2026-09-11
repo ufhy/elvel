@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { JsxViewFactory } from '@elvel/view'
+import { EntryResult } from '../src/entry-result.ts'
 import { EntryType, type EntryTypeName } from '../src/entry-type.ts'
+import { Entries } from '../src/http/views/entries.tsx'
+import { Entry } from '../src/http/views/entry.tsx'
+import { Monitoring } from '../src/http/views/monitoring.tsx'
 import { Panels } from '../src/http/views/panels.tsx'
 
 const view = new JsxViewFactory({ doctype: false })
@@ -158,5 +162,75 @@ describe('every recording type has a panel', () => {
       // More than the collapsed raw block on its own.
       expect(`${type} has ${String(cards)} card(s)`).not.toBe(`${type} has 1 card(s)`)
     }
+  })
+})
+
+describe('the theme', () => {
+  /**
+   * A prop declared and never passed is invisible to the compiler.
+   *
+   * Found exactly that way, on a running dashboard: every screen took a `theme`
+   * prop, not one of them handed it to the layout, and the page kept rendering
+   * `data-theme="system"` while the server was reading `dark` off the cookie
+   * perfectly well. TypeScript has nothing to say about a prop nobody uses.
+   */
+  test('every screen hands its choice to the layout', async () => {
+    const screens: Array<[string, () => Promise<string>]> = [
+      [
+        'entries',
+        () =>
+          view.render(Entries, {
+            path: 'lens',
+            type: EntryType.REQUEST,
+            status: 'enabled' as const,
+            paused: false,
+            theme: 'dark' as const,
+            entries: [],
+            limit: 50
+          })
+      ],
+      [
+        'entry',
+        () =>
+          view.render(Entry, {
+            path: 'lens',
+            entry: new EntryResult('u', 1, 'b', EntryType.QUERY, undefined, {}, undefined, []),
+            batch: [],
+            paused: false,
+            theme: 'dark' as const
+          })
+      ],
+      [
+        'monitoring',
+        () =>
+          view.render(Monitoring, { path: 'lens', tags: [], paused: false, theme: 'dark' as const })
+      ]
+    ]
+
+    for (const [name, render] of screens) {
+      expect(`${name}: ${(await render()).includes('data-theme="dark"') ? 'yes' : 'no'}`).toBe(
+        `${name}: yes`
+      )
+    }
+  })
+
+  test('no choice leaves it to the system', async () => {
+    const markup = await view.render(Monitoring, { path: 'lens', tags: [], paused: false })
+
+    expect(markup).toContain('data-theme="system"')
+  })
+
+  /** The toggle offers the opposite of what is showing. */
+  test('the button switches to the other theme', async () => {
+    const dark = await view.render(Monitoring, {
+      path: 'lens',
+      tags: [],
+      paused: false,
+      theme: 'dark' as const
+    })
+    const light = await view.render(Monitoring, { path: 'lens', tags: [], paused: false })
+
+    expect(dark).toContain('value="light"')
+    expect(light).toContain('value="dark"')
   })
 })

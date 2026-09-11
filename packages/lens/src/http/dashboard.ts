@@ -1,14 +1,17 @@
 import type { ApplicationContract } from '@elvel/contracts'
+import { cookie, queueCookie } from '@elvel/http'
 import { render } from '@elvel/view'
 import { Elysia } from 'elysia'
+import { isClearable } from '../contracts.ts'
 import { EntryType, type EntryTypeName, entryTypes } from '../entry-type.ts'
-import { refreshMonitoring } from '../pause.ts'
+import { cacheOf, PAUSE_KEY, PAUSE_TTL, refreshMonitoring } from '../pause.ts'
 import type { Recorder } from '../recorder.ts'
 import { EntryQueryOptions } from '../storage/query-options.ts'
 import type { WatcherConfig } from '../watchers/index.ts'
 import { WATCHER_FOR, watcherStatus } from './status.ts'
 import { Entries } from './views/entries.tsx'
 import { Entry } from './views/entry.tsx'
+import type { Theme } from './views/layout.tsx'
 import { Monitoring } from './views/monitoring.tsx'
 
 export type LensDashboardOptions = {
@@ -57,12 +60,56 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
        * strictly required — but relying on that is the kind of thing that changes
        * under somebody in a minor release.
        */
+      /**
+       * The header's buttons, as forms.
+       *
+       * Telescope's are Vue handlers against its API. A server-rendered page has
+       * no bundle to hang a handler on, so these are ordinary posts that redirect
+       * back — which also means they work with JavaScript off, and are covered by
+       * the application's CSRF like any other form.
+       */
+      .post(`${prefix}/pause`, async ({ redirect }) => {
+        await setPaused(app, true)
+
+        return redirect(`${prefix}/${EntryType.REQUEST}`, 303)
+      })
+      .post(`${prefix}/resume`, async ({ redirect }) => {
+        await setPaused(app, false)
+
+        return redirect(`${prefix}/${EntryType.REQUEST}`, 303)
+      })
+      .post(`${prefix}/clear`, async ({ redirect }) => {
+        const repository = app.make('lens.entries')
+
+        if (isClearable(repository)) await repository.clear()
+
+        return redirect(`${prefix}/${EntryType.REQUEST}`, 303)
+      })
+      /**
+       * Remember a theme, in a cookie the server reads back.
+       *
+       * A cookie rather than `localStorage` because the page is rendered on the
+       * server: the choice has to be known *before* the HTML is written, or the
+       * first paint is the wrong colour and then corrects itself.
+       */
+      .post(`${prefix}/theme`, ({ body, redirect }) => {
+        const wanted = (body as { theme?: unknown } | undefined)?.theme
+
+        queueCookie('lens_theme', wanted === 'dark' ? 'dark' : 'light', {
+          maxAge: 60 * 60 * 24 * 365,
+          sameSite: 'lax',
+          httpOnly: false
+        })
+
+        return redirect(`${prefix}/${EntryType.REQUEST}`, 303)
+      })
       .get(`${prefix}/monitoring`, async ({ set }) => {
         return html(
           set,
           await render(Monitoring, {
             path: options.path,
             paused: app.make('lens').isPaused(),
+            theme: chosenTheme(),
             tags: await app.make('lens.entries').monitoring()
           })
         )
@@ -111,6 +158,7 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
               WATCHER_FOR[type] ?? type
             ),
             paused: app.make('lens').isPaused(),
+            theme: chosenTheme(),
             entries,
             limit: asked.limit,
             tag: asked.tag
@@ -133,7 +181,8 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
             path: options.path,
             entry,
             batch: await repository.get(undefined, EntryQueryOptions.forBatch(entry.batchId)),
-            paused: app.make('lens').isPaused()
+            paused: app.make('lens').isPaused(),
+            theme: chosenTheme()
           })
         )
       })
@@ -156,6 +205,30 @@ function tagFrom(body: unknown): string | undefined {
   const trimmed = tag.trim()
 
   return trimmed === '' ? undefined : trimmed
+}
+
+/**
+ * Pause or resume, in the cache and in the recorder.
+ *
+ * Both: the cache is what survives a restart and reaches other processes, and
+ * the flag on the recorder is what the synchronous record path reads.
+ */
+async function setPaused(app: ApplicationContract, paused: boolean): Promise<void> {
+  const cache = cacheOf(app)
+
+  if (cache !== undefined) {
+    if (paused) await cache.store().put(PAUSE_KEY, true, PAUSE_TTL)
+    else await cache.store().forget(PAUSE_KEY)
+  }
+
+  app.make('lens').setPaused(paused)
+}
+
+/** What the viewer chose, if anything. Anything unrecognised is nothing. */
+function chosenTheme(): Theme {
+  const value = cookie('lens_theme')
+
+  return value === 'dark' || value === 'light' ? value : undefined
 }
 
 function asType(candidate: string): EntryTypeName | undefined {

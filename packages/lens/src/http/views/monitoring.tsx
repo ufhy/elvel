@@ -1,10 +1,11 @@
 import { csrfToken } from '@elvel/http'
-import { Layout } from './layout.tsx'
+import { Layout, type Theme } from './layout.tsx'
 
 export type MonitoringProps = {
   path: string
   tags: string[]
   paused: boolean
+  theme?: Theme
 }
 
 /**
@@ -20,9 +21,15 @@ export type MonitoringProps = {
  * user attached to an entry, a model's `User:41`, a recipient's address on a
  * mail entry, or anything an application adds through `lens().tag()`.
  */
-export function Monitoring({ path, tags, paused }: MonitoringProps) {
+export function Monitoring({ path, tags, paused, theme }: MonitoringProps) {
   return (
-    <Layout title="Monitoring · Lens" path={path} current="monitoring" paused={paused}>
+    <Layout
+      title="Monitoring · Lens"
+      path={path}
+      current="monitoring"
+      paused={paused}
+      theme={theme}
+    >
       <div class="card">
         <div class="card-head">
           <h2>Monitoring</h2>

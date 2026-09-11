@@ -2,7 +2,7 @@ import type { EntryResult } from '../../entry-result.ts'
 import type { EntryTypeName } from '../../entry-type.ts'
 import type { WatcherStatus } from '../status.ts'
 import { type Cell, cellsFor, headingsFor } from './columns.ts'
-import { Layout } from './layout.tsx'
+import { Layout, type Theme } from './layout.tsx'
 import { labelFor, timeAgo } from './ui.ts'
 
 export type EntriesProps = {
@@ -10,6 +10,7 @@ export type EntriesProps = {
   type: EntryTypeName
   status: WatcherStatus
   paused: boolean
+  theme?: Theme
   entries: EntryResult[]
   /** How many were asked for, so "there may be more" can be told from "that's all". */
   limit: number
@@ -26,12 +27,12 @@ export type EntriesProps = {
  * entries instead of numbered pages. Paging by cursor is the only kind that
  * works when rows arrive while somebody is reading.
  */
-export function Entries({ path, type, status, paused, entries, limit, tag }: EntriesProps) {
+export function Entries({ path, type, status, paused, theme, entries, limit, tag }: EntriesProps) {
   const label = labelFor(type)
   const oldest = entries.at(-1)?.sequence
 
   return (
-    <Layout title={`${label} · Lens`} path={path} current={type} paused={paused}>
+    <Layout title={`${label} · Lens`} path={path} current={type} paused={paused} theme={theme}>
       <div class="card">
         <div class="card-head">
           <h2 safe>{label}</h2>

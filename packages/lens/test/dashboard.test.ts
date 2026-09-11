@@ -8,6 +8,7 @@ import { EntryType, type EntryTypeName } from '../src/entry-type.ts'
 import { lensDashboard } from '../src/http/dashboard.ts'
 import { Recorder } from '../src/recorder.ts'
 import { DatabaseEntriesRepository } from '../src/storage/database-repository.ts'
+import { EntryQueryOptions } from '../src/storage/query-options.ts'
 
 async function dashboard(options: { open?: boolean } = {}) {
   const app = new Application(process.cwd())
@@ -209,6 +210,50 @@ describe('the dashboard', () => {
     const { router } = await dashboard()
 
     expect((await router.handle(new Request('http://localhost/lens/nonsense'))).status).toBe(404)
+  })
+
+  /**
+   * Every action the header offers has a route behind it.
+   *
+   * Written after finding that `pause`, `resume` and `clear` had gone missing
+   * from the dashboard while their buttons stayed in the layout — the page
+   * looked right in a screenshot and every button 404'd. A form whose action
+   * nothing serves is invisible until somebody presses it.
+   */
+  test('the header buttons all reach a route', async () => {
+    const { router } = await dashboard()
+
+    const page = await (await router.handle(new Request('http://localhost/lens/request'))).text()
+    const actions = [...page.matchAll(/<form method="post" action="([^"]+)"/g)].map((m) => m[1])
+
+    expect(actions.length).toBeGreaterThan(2)
+
+    for (const action of actions) {
+      const response = await router.handle(
+        new Request(`http://localhost${action}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: 'theme=dark'
+        })
+      )
+
+      expect(`${String(action)} → ${String(response.status)}`).not.toContain('404')
+    }
+  })
+
+  test('pause and resume move the recorder, and clear empties it', async () => {
+    const { router, entries, recorder } = await dashboard()
+
+    await entries.store([entry(EntryType.QUERY, { sql: 'select 1' })])
+
+    await router.handle(new Request('http://localhost/lens/pause', { method: 'POST' }))
+    expect(recorder.isPaused()).toBe(true)
+
+    await router.handle(new Request('http://localhost/lens/resume', { method: 'POST' }))
+    expect(recorder.isPaused()).toBe(false)
+
+    await router.handle(new Request('http://localhost/lens/clear', { method: 'POST' }))
+    expect(await entries.get(EntryType.QUERY, new EntryQueryOptions())).toHaveLength(0)
   })
 
   test('every page is behind the gate', async () => {
