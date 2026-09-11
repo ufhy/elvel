@@ -9,6 +9,12 @@ export type BatchDispatcher = {
     options: { queue?: string; connection?: string; batchId?: string; chain?: AnyJob[] }
   ): Promise<string>
   jobs: { has(name: string): boolean; register(...jobs: JobClass[]): unknown }
+
+  /**
+   * Optional: not every dispatcher has events, and the fake has none at all.
+   * A batch that nobody is watching is still a batch.
+   */
+  notify?(event: string, payload: Record<string, unknown>): void
 }
 
 /**
@@ -130,6 +136,21 @@ export class PendingBatch {
       failedJobIds: [],
       options: this.options,
       createdAt: Math.floor(Date.now() / 1000)
+    })
+
+    /**
+     * Announced once the row exists and before the jobs go out.
+     *
+     * Before, so a recorder files the batch in the same unit of work that
+     * created it and ahead of the jobs that will name it — a batch entry that
+     * arrived after its own jobs would read as though the jobs came first.
+     */
+    this.dispatcher.notify?.('queue.batch.dispatched', {
+      batchId: batch.id,
+      name: batch.name,
+      totalJobs: batch.totalJobs,
+      queue: this.options.queue ?? null,
+      connection: this.options.connection ?? null
     })
 
     // Stored before anything is queued, on purpose: a worker fast enough to

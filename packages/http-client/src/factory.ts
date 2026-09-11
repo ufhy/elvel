@@ -66,12 +66,25 @@ export function fakeResponse(
  * http().preventStrayRequests()
  * ```
  */
+/** The slice of an event dispatcher this needs, described rather than imported. */
+export type ClientEvents = {
+  dispatch(event: string, payload?: unknown): unknown
+  hasListeners?(event: unknown): boolean
+}
+
 export class HttpClient {
   private fakes: Array<{ pattern: Matcher; answers: FakeDefinition[] }> = []
   private faking = false
   private recording = false
   private preventStray = false
   private readonly records: Array<{ attempt: Attempt; response: HttpResponse }> = []
+
+  /**
+   * Optional, and duck-typed for the reason the queue's is: `@elvel/http-client`
+   * does not depend on `@elvel/events`, and a client without a dispatcher is the
+   * ordinary case for a script.
+   */
+  constructor(private readonly events?: ClientEvents) {}
 
   /** A configured starting point; every option returns a new one. */
   private base(): PendingRequest {
@@ -88,6 +101,18 @@ export class HttpClient {
          * the same flag.
          */
         if (this.recording) this.records.push({ attempt, response })
+
+        /**
+         * Announced whether or not anything is recording.
+         *
+         * The array above is a testing tape, kept only while `fake()` or
+         * `record()` is on; this is for whoever is watching the application run.
+         * Guarded by `hasListeners` so a client nobody is watching pays nothing
+         * — the same shape `QueryExecuted` uses.
+         */
+        if (this.events?.hasListeners?.('http.client.response') !== false) {
+          void this.events?.dispatch('http.client.response', { attempt, response })
+        }
       },
       (attempt) => this.guardStray(attempt)
     )

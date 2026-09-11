@@ -333,6 +333,16 @@ export class QueueManager {
   }
 
   /**
+   * Tell whoever is listening, if anybody is.
+   *
+   * Public because `PendingBatch` announces its own dispatch and holds a manager
+   * rather than an application.
+   */
+  notify(event: string, payload: Record<string, unknown>): void {
+    this.events()?.dispatch(event, payload)
+  }
+
+  /**
    * The event dispatcher, when the application has one.
    *
    * Asked for rather than injected, because a queue is allowed to exist without

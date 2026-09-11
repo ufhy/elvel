@@ -15,6 +15,12 @@ export class ViewServiceProvider extends ServiceProvider {
       'view',
       () =>
         new JsxViewFactory({
+          events: this.app.bound('events' as never)
+            ? (this.app.make('events' as never) as {
+                dispatch(event: string, payload?: unknown): unknown
+                hasListeners?(event: unknown): boolean
+              })
+            : undefined,
           doctype: this.config<boolean>('view.doctype', true)
         })
     )

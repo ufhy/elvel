@@ -1,5 +1,5 @@
 import { ServiceProvider } from '@elvel/core'
-import { HttpClient } from './factory.ts'
+import { type ClientEvents, HttpClient } from './factory.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -17,6 +17,16 @@ declare module '@elvel/contracts' {
  */
 export class HttpClientServiceProvider extends ServiceProvider {
   register(): void {
-    this.app.singleton('http.client', () => new HttpClient())
+    this.app.singleton('http.client', (app) => {
+      /**
+       * Resolved here rather than inside the client, so the client stays a plain
+       * object anybody can construct in a test.
+       */
+      const events = app.bound('events' as never)
+        ? (app.make('events' as never) as ClientEvents)
+        : undefined
+
+      return new HttpClient(events)
+    })
   }
 }
