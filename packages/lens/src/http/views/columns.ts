@@ -185,6 +185,84 @@ const DEFINITIONS: Partial<Record<EntryTypeName, Definition>> = {
     ]
   },
 
+  [EntryType.CLIENT_REQUEST]: {
+    headings: [
+      { label: 'Verb' },
+      { label: 'URL' },
+      { label: 'Status', align: 'center' },
+      { label: 'Size', align: 'right' }
+    ],
+    cells: (content) => [
+      { text: str(content.method), tone: methodTone(str(content.method)) },
+      clipped(content.uri, 60),
+      {
+        text: str(content.responseStatus),
+        tone: statusTone(Number(content.responseStatus ?? 0)),
+        align: 'center'
+      },
+      { text: bytes(content.responseSize), align: 'right', muted: true }
+    ]
+  },
+
+  [EntryType.JOB]: {
+    headings: [{ label: 'Job' }, { label: 'Status', align: 'center' }, { label: 'Queue' }],
+    cells: (content) => [
+      clipped(content.name, 55),
+      {
+        text: str(content.status),
+        tone:
+          content.status === 'failed'
+            ? 'danger'
+            : content.status === 'processed'
+              ? 'success'
+              : content.status === 'released'
+                ? 'warning'
+                : 'secondary',
+        align: 'center'
+      },
+      { text: str(content.queue), muted: true }
+    ]
+  },
+
+  [EntryType.COMMAND]: {
+    headings: [
+      { label: 'Command' },
+      { label: 'Exit', align: 'center' },
+      { label: 'Duration', align: 'right' }
+    ],
+    cells: (content) => [
+      clipped(content.command, 55),
+      {
+        text: str(content.exitCode),
+        tone: Number(content.exitCode ?? 0) === 0 ? 'success' : 'danger',
+        align: 'center'
+      },
+      ms(content.duration)
+    ]
+  },
+
+  [EntryType.VIEW]: {
+    headings: [
+      { label: 'View' },
+      { label: 'Size', align: 'right' },
+      { label: 'Duration', align: 'right' }
+    ],
+    cells: (content) => [
+      clipped(content.view, 60),
+      { text: bytes(content.size), align: 'right', muted: true },
+      ms(content.time)
+    ]
+  },
+
+  [EntryType.BATCH]: {
+    headings: [{ label: 'Name' }, { label: 'Jobs', align: 'right' }, { label: 'Queue' }],
+    cells: (content) => [
+      clipped(content.name ?? content.batch, 60),
+      { text: str(content.totalJobs), align: 'right', muted: true },
+      { text: str(content.queue), muted: true }
+    ]
+  },
+
   [EntryType.EVENT]: {
     headings: [{ label: 'Name' }, { label: 'Payload' }],
     cells: (content) => [
@@ -252,6 +330,15 @@ function changedKeys(changes: unknown): string {
   if (changes === null || typeof changes !== 'object') return ''
 
   return shorten(Object.keys(changes as Record<string, unknown>).join(', '), 50)
+}
+
+/** `1.2 kB`, or nothing when there was no body. */
+function bytes(value: unknown): string {
+  const size = Number(value ?? 0)
+
+  if (!Number.isFinite(size) || size <= 0) return ''
+
+  return size < 1000 ? `${String(size)} B` : `${(size / 1000).toFixed(1)} kB`
 }
 
 function joined(value: unknown): string {

@@ -137,7 +137,12 @@ describe('every recording type has a panel', () => {
       EntryType.SCHEDULED_TASK,
       EntryType.MAIL,
       EntryType.NOTIFICATION,
-      EntryType.EVENT
+      EntryType.EVENT,
+      EntryType.CLIENT_REQUEST,
+      EntryType.VIEW,
+      EntryType.BATCH,
+      EntryType.JOB,
+      EntryType.COMMAND
     ]
 
     /** Content shaped like the watcher that records it, or a panel finds nothing. */
@@ -152,7 +157,12 @@ describe('every recording type has a panel', () => {
       schedule: { task: 'prune', outcome: 'ran' },
       mail: { mailable: 'X', subject: 'S' },
       notification: { notification: 'X', channel: 'mail' },
-      event: { name: 'order.placed' }
+      event: { name: 'order.placed' },
+      client_request: { method: 'GET', uri: 'https://x.test/y', host: 'x.test' },
+      view: { view: 'Layout', size: 100 },
+      batch: { batch: 'b1', totalJobs: 3 },
+      job: { name: 'SendInvoice', status: 'pending' },
+      command: { command: 'migrate', exitCode: 0 }
     }
 
     for (const type of typed) {

@@ -4,6 +4,7 @@ import { Dispatcher } from '@elvel/events'
 import type { IncomingEntry } from '../src/entry.ts'
 import { EntryType } from '../src/entry-type.ts'
 import { Recorder } from '../src/recorder.ts'
+import { ClientRequestWatcher } from '../src/watchers/client-request.ts'
 import { EventWatcher } from '../src/watchers/event.ts'
 import { MailWatcher } from '../src/watchers/mail.ts'
 import { NotificationWatcher } from '../src/watchers/notification.ts'
@@ -234,5 +235,76 @@ describe('the event watcher', () => {
       class: 'OrderPlaced',
       properties: { id: 4 }
     })
+  })
+})
+
+describe('the client request watcher', () => {
+  const attempt = {
+    method: 'POST',
+    url: 'https://api.stripe.test/v1/charges',
+    headers: new Headers()
+  }
+
+  test('records the call, its host and its status', () => {
+    const { events, recorded } = bench(new ClientRequestWatcher({}))
+
+    events.dispatch('http.client.response', {
+      attempt,
+      response: { status: 201, body: 'x'.repeat(120) }
+    })
+
+    const fields = content(recorded[0]?.entry as IncomingEntry)
+
+    expect(recorded[0]?.type).toBe(EntryType.CLIENT_REQUEST)
+    expect(fields.method).toBe('POST')
+    expect(fields.host).toBe('api.stripe.test')
+    expect(fields.responseStatus).toBe(201)
+    expect(fields.responseSize).toBe(120)
+    expect(fields.failed).toBe(false)
+    expect(recorded[0]?.entry.tags).toContain('api.stripe.test')
+  })
+
+  /**
+   * Somebody else's data arriving over a network the application does not
+   * control is the wrong thing to keep by default.
+   */
+  test('does not record the response body', () => {
+    const { events, recorded } = bench(new ClientRequestWatcher({}))
+
+    events.dispatch('http.client.response', {
+      attempt,
+      response: { status: 200, body: '{"card":"4242424242424242"}' }
+    })
+
+    expect(JSON.stringify(recorded[0]?.entry.content)).not.toContain('4242')
+  })
+
+  test('a 5xx is marked failed', () => {
+    const { events, recorded } = bench(new ClientRequestWatcher({}))
+
+    events.dispatch('http.client.response', { attempt, response: { status: 503 } })
+
+    expect(content(recorded[0]?.entry as IncomingEntry).failed).toBe(true)
+  })
+
+  test('an ignored host is skipped', () => {
+    const { events, recorded } = bench(
+      new ClientRequestWatcher({ ignoreHosts: ['api.stripe.test'] })
+    )
+
+    events.dispatch('http.client.response', { attempt, response: { status: 200 } })
+
+    expect(recorded).toHaveLength(0)
+  })
+
+  test('a url that is not one does not throw', () => {
+    const { events, recorded } = bench(new ClientRequestWatcher({}))
+
+    events.dispatch('http.client.response', {
+      attempt: { method: 'GET', url: 'not a url' },
+      response: { status: 200 }
+    })
+
+    expect(content(recorded[0]?.entry as IncomingEntry).host).toBe('')
   })
 })

@@ -29,7 +29,12 @@ describe('columnsFor', () => {
       EntryType.SCHEDULED_TASK,
       EntryType.MAIL,
       EntryType.NOTIFICATION,
-      EntryType.EVENT
+      EntryType.EVENT,
+      EntryType.CLIENT_REQUEST,
+      EntryType.VIEW,
+      EntryType.BATCH,
+      EntryType.JOB,
+      EntryType.COMMAND
     ]
 
     for (const type of recording) {

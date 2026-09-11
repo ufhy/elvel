@@ -114,6 +114,20 @@ function TypePanels({ type, content }: { type: EntryTypeName; content: EntryCont
     )
   }
 
+  if (type === EntryType.CLIENT_REQUEST) {
+    return (
+      <Facts
+        rows={[
+          ['Method', str(content.method)],
+          ['URL', str(content.uri)],
+          ['Host', str(content.host)],
+          ['Status', str(content.responseStatus)],
+          ['Response size', content.responseSize === 0 ? '' : `${str(content.responseSize)} bytes`]
+        ]}
+      />
+    )
+  }
+
   if (type === EntryType.CACHE) {
     return (
       <Facts
@@ -193,6 +207,61 @@ function TypePanels({ type, content }: { type: EntryTypeName; content: EntryCont
           ['Outcome', str(content.outcome)],
           ['Reason', str(content.reason)],
           ['Error', str(content.error)]
+        ]}
+      />
+    )
+  }
+
+  if (type === EntryType.VIEW) {
+    return (
+      <Facts
+        rows={[
+          ['View', str(content.view)],
+          ['Markup size', content.size === undefined ? '' : `${str(content.size)} bytes`],
+          ['Duration', content.time === undefined ? '' : `${str(content.time)}ms`]
+        ]}
+      />
+    )
+  }
+
+  if (type === EntryType.BATCH) {
+    return (
+      <Facts
+        rows={[
+          ['Batch', str(content.batch)],
+          ['Name', str(content.name)],
+          ['Jobs', str(content.totalJobs)],
+          ['Queue', str(content.queue)],
+          ['Connection', str(content.connection)]
+        ]}
+      />
+    )
+  }
+
+  if (type === EntryType.JOB) {
+    return (
+      <Facts
+        rows={[
+          ['Job', str(content.name)],
+          ['Status', str(content.status)],
+          ['Queue', str(content.queue)],
+          ['Connection', str(content.connection)],
+          ['Attempts', str(content.attempts)],
+          ['Tries allowed', str(content.tries)],
+          ['Error', str(content.error)]
+        ]}
+      />
+    )
+  }
+
+  if (type === EntryType.COMMAND) {
+    return (
+      <Facts
+        rows={[
+          ['Command', str(content.command)],
+          ['Exit code', str(content.exitCode)],
+          ['Arguments', list(content.arguments)],
+          ['Duration', content.duration === undefined ? '' : `${str(content.duration)}ms`]
         ]}
       />
     )

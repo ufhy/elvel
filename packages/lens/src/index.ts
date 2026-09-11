@@ -58,7 +58,9 @@ export {
 } from './storage/database-repository.ts'
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
+  BatchWatcher,
   CacheWatcher,
+  ClientRequestWatcher,
   CommandWatcher,
   EventWatcher,
   ExceptionWatcher,

@@ -61,6 +61,10 @@ export default {
       hiddenResponseParameters: [] as string[]
     },
 
+    batch: {
+      enabled: env('LENS_BATCH_WATCHER', true)
+    },
+
     cache: {
       enabled: env('LENS_CACHE_WATCHER', true),
       /**
@@ -81,6 +85,12 @@ export default {
      * the most useful screen in the dashboard for some applications and pure
      * noise in others. Turn it on deliberately.
      */
+    client_request: {
+      enabled: env('LENS_CLIENT_REQUEST_WATCHER', true),
+      /** Hosts never recorded — a metrics sink, a health check. */
+      ignoreHosts: [] as string[]
+    },
+
     command: {
       enabled: env('LENS_COMMAND_WATCHER', true),
       /**
@@ -148,6 +158,12 @@ export default {
 
     schedule: {
       enabled: env('LENS_SCHEDULE_WATCHER', true)
+    },
+
+    view: {
+      enabled: env('LENS_VIEW_WATCHER', true),
+      /** Component names never recorded. */
+      ignore: [] as string[]
     },
 
     query: {
