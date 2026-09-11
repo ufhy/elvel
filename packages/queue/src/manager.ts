@@ -217,6 +217,25 @@ export class QueueManager {
     }
 
     const delay = options.delay ?? 0
+
+    /**
+     * Announced before the driver takes it, so a listener sees the payload.
+     *
+     * Before the push rather than after because the interesting listener — a
+     * recorder — wants the job filed against the *dispatching* unit of work, and
+     * after an `await` that context may be gone. Nothing here waits on the
+     * listeners: dispatching a job must not become slower because something is
+     * watching.
+     */
+    this.events()?.dispatch('queue.job.queued', {
+      job: payload.displayName,
+      uuid: payload.uuid,
+      connection,
+      queue,
+      delay,
+      payload
+    })
+
     const push = () =>
       delay > 0 ? driver.later(delay, payload, queue) : driver.push(payload, queue)
 
@@ -311,6 +330,21 @@ export class QueueManager {
         return this.dispatch(instance)
       }
     })
+  }
+
+  /**
+   * The event dispatcher, when the application has one.
+   *
+   * Asked for rather than injected, because a queue is allowed to exist without
+   * events — `@elvel/queue` does not depend on `@elvel/events`, and a dispatcher
+   * that is not there is a listener nobody registered rather than an error.
+   */
+  private events(): { dispatch(event: string, payload?: unknown): unknown } | undefined {
+    if (!this.app.bound('events')) return undefined
+
+    return this.app.make('events' as never) as {
+      dispatch(event: string, payload?: unknown): unknown
+    }
   }
 
   /** A worker for a connection. */

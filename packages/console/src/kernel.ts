@@ -165,6 +165,22 @@ export class Kernel {
     enterWorkContext()
     const deferred = enterDeferredScope()
 
+    /**
+     * Announced after the context is open, so a listener can file work against
+     * this command rather than against whatever ran before it.
+     *
+     * Not awaited: a command must not wait to begin because something is
+     * watching it. The *finish* is a different matter — see below.
+     */
+    const started = performance.now()
+
+    void this.notify('command.starting', {
+      command: command.signature.split(' ')[0],
+      arguments: rest
+    })
+
+    let exit = 1
+
     try {
       const supplied = await this.promptForMissing(command, rest)
 
@@ -183,6 +199,7 @@ export class Kernel {
        * failure a developer most needs to see reported.
        */
       this.holdsProcess = command.holdsProcess === true && code === 0
+      exit = code
 
       return code
     } catch (error) {
@@ -199,6 +216,21 @@ export class Kernel {
       }
       return 1
     } finally {
+      /**
+       * Awaited, unlike the start — and the difference is not symmetry.
+       *
+       * A listener for the finish is a listener with somewhere to put what it
+       * saw, and the process is about to exit. Measured: a recorder subscribing
+       * to this wrote nothing at all, because `elvel.ts` exited while its insert
+       * was still in flight. A few milliseconds at the end of a command that has
+       * already done its work is the cheaper half of that trade.
+       */
+      await this.notify('command.finished', {
+        command: command.signature.split(' ')[0],
+        exitCode: exit,
+        durationMs: Math.round(performance.now() - started)
+      })
+
       /**
        * After the exit code is decided, and whatever it was.
        *
@@ -226,6 +258,28 @@ export class Kernel {
    * nothing to exclude with, and saying so beats running anyway while claiming
    * to be isolated.
    */
+  /**
+   * Tell whoever is listening, if anybody is.
+   *
+   * `@elvel/console` does not depend on `@elvel/events`, and a kernel without a
+   * dispatcher is the ordinary case for a bare application — so this is a duck
+   * test rather than an injection, and a failure inside a listener is reported
+   * rather than allowed to change the command's exit code.
+   */
+  private async notify(event: string, payload: Record<string, unknown>): Promise<void> {
+    if (!this.app.bound('events' as never)) return
+
+    try {
+      const events = this.app.make('events' as never) as {
+        dispatch(name: string, payload?: unknown): unknown
+      }
+
+      await events.dispatch(event, payload)
+    } catch {
+      // A command is not the place to fail over an observer.
+    }
+  }
+
   private async acquireIsolationLock(
     name: string,
     command: CommandConstructor

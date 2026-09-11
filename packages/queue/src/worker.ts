@@ -252,7 +252,11 @@ export class Worker {
     enterWorkContext()
     const deferred = enterDeferredScope()
 
-    this.events?.dispatch('queue.job.processing', { job: name, attempts: job.attempts() })
+    this.events?.dispatch('queue.job.processing', {
+      job: name,
+      uuid: job.payload.uuid,
+      attempts: job.attempts()
+    })
 
     try {
       // Step 1: a job already past its limit is failed before it runs again.
@@ -262,7 +266,11 @@ export class Worker {
 
       await this.runWithTimeout(job, options)
 
-      this.events?.dispatch('queue.job.processed', { job: name, attempts: job.attempts() })
+      this.events?.dispatch('queue.job.processed', {
+        job: name,
+        uuid: job.payload.uuid,
+        attempts: job.attempts()
+      })
 
       if (job.hasFailed()) return 'failed'
       if (job.isReleased()) return 'released'
@@ -333,6 +341,7 @@ export class Worker {
   ): Promise<Outcome> {
     this.events?.dispatch('queue.job.exception', {
       job: job.payload.displayName,
+      uuid: job.payload.uuid,
       attempts: job.attempts(),
       error
     })
@@ -366,6 +375,7 @@ export class Worker {
 
       this.events?.dispatch('queue.job.released', {
         job: job.payload.displayName,
+        uuid: job.payload.uuid,
         attempts: job.attempts()
       })
 
@@ -435,6 +445,7 @@ export class Worker {
 
     this.events?.dispatch('queue.job.failed', {
       job: job.payload.displayName,
+      uuid: job.payload.uuid,
       attempts: job.attempts(),
       error
     })
