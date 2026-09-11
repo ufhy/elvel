@@ -81,6 +81,18 @@ export default {
      * the most useful screen in the dashboard for some applications and pure
      * noise in others. Turn it on deliberately.
      */
+    command: {
+      enabled: env('LENS_COMMAND_WATCHER', true),
+      /**
+       * Commands never recorded.
+       *
+       * A long-running command never finishes, so its batch never flushes and
+       * everything it saw is lost anyway — recording the attempt only fills the
+       * list with rows that say nothing.
+       */
+      ignore: ['queue:work', 'queue:listen', 'schedule:work', 'serve', 'dev', 'lens:*']
+    },
+
     event: {
       enabled: env('LENS_EVENT_WATCHER', false),
       /** Framework events are covered by their own watchers. */
@@ -92,6 +104,12 @@ export default {
       enabled: env('LENS_EXCEPTION_WATCHER', true),
       /** Frames from these paths never answer "where did this fail". */
       ignorePaths: [] as string[]
+    },
+
+    job: {
+      enabled: env('LENS_JOB_WATCHER', true),
+      /** Job class names never recorded. */
+      ignore: [] as string[]
     },
 
     log: {

@@ -4,7 +4,7 @@ import { ConnectionManager, QueryExecuted } from '@elvel/database'
 import { EventServiceProvider } from '@elvel/events'
 import { MessageLogged } from '@elvel/log'
 import { EntryType } from '../src/entry-type.ts'
-import { listenForJobs } from '../src/queue/listener.ts'
+import { flushJobBatches, openJobBatches } from '../src/queue/listener.ts'
 import { flushScheduleBatches, openScheduleBatches } from '../src/queue/schedule.ts'
 import { Recorder } from '../src/recorder.ts'
 import { DatabaseEntriesRepository } from '../src/storage/database-repository.ts'
@@ -55,7 +55,8 @@ async function worker() {
 
   const events = app.make('events')
 
-  listenForJobs(app)
+  openJobBatches(app)
+  flushJobBatches(app)
   new QueryWatcher({}).register(app)
   new ExceptionWatcher({}).register(app)
 

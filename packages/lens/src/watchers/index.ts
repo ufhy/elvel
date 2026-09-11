@@ -1,8 +1,10 @@
 import type { ApplicationContract } from '@elvel/contracts'
 import { CacheWatcher } from './cache.ts'
+import { CommandWatcher } from './command.ts'
 import { EventWatcher } from './event.ts'
 import { ExceptionWatcher } from './exception.ts'
 import { GateWatcher } from './gate.ts'
+import { JobWatcher } from './job.ts'
 import { LogWatcher } from './log.ts'
 import { MailWatcher } from './mail.ts'
 import { ModelWatcher } from './model.ts'
@@ -15,9 +17,11 @@ import type { Watcher, WatcherOptions } from './watcher.ts'
 /** Watcher name as it appears in `lens.watchers` to the class behind it. */
 const WATCHERS: Record<string, new (options: WatcherOptions) => Watcher> = {
   cache: CacheWatcher,
+  command: CommandWatcher,
   event: EventWatcher,
   exception: ExceptionWatcher,
   gate: GateWatcher,
+  job: JobWatcher,
   log: LogWatcher,
   mail: MailWatcher,
   model: ModelWatcher,
@@ -72,9 +76,11 @@ export function registerWatchers(
 }
 
 export { CacheWatcher } from './cache.ts'
+export { CommandWatcher } from './command.ts'
 export { EventWatcher } from './event.ts'
 export { ExceptionWatcher } from './exception.ts'
 export { GateWatcher } from './gate.ts'
+export { JobWatcher } from './job.ts'
 export { LogWatcher } from './log.ts'
 export { MailWatcher } from './mail.ts'
 export { ModelWatcher } from './model.ts'

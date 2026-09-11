@@ -10,7 +10,8 @@ import { lensDashboard } from './http/dashboard.ts'
 import { lensPlugin } from './http/plugin.ts'
 import { lensRoutes } from './http/routes.ts'
 import { refreshMonitoring, refreshPause } from './pause.ts'
-import { listenForJobs } from './queue/listener.ts'
+import { flushCommandBatches, openCommandBatches } from './queue/command.ts'
+import { flushJobBatches, openJobBatches } from './queue/listener.ts'
 import { flushScheduleBatches, openScheduleBatches } from './queue/schedule.ts'
 import { Recorder } from './recorder.ts'
 import { DatabaseEntriesRepository } from './storage/database-repository.ts'
@@ -82,8 +83,9 @@ export class LensServiceProvider extends ServiceProvider {
      * which nothing does today, but nothing prevents — finds the listener in
      * place rather than recording into a batch nobody opened.
      */
-    listenForJobs(this.app)
+    openJobBatches(this.app)
     openScheduleBatches(this.app)
+    openCommandBatches(this.app)
 
     const watchers = registerWatchers(
       this.app,
@@ -108,7 +110,9 @@ export class LensServiceProvider extends ServiceProvider {
      * subscribe to the terminal schedule events, and flushing before the
      * watcher has recorded would store an empty batch.
      */
+    flushJobBatches(this.app)
     flushScheduleBatches(this.app)
+    flushCommandBatches(this.app)
 
     this.use(lensDashboard(this.app, readSide))
 

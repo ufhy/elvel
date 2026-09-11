@@ -42,7 +42,8 @@ export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.t
 export { atLeast, PRIORITIES } from './log-level.ts'
 export { PAUSE_KEY, PAUSE_TTL, refreshMonitoring, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
-export { listenForJobs } from './queue/listener.ts'
+export { flushCommandBatches, openCommandBatches } from './queue/command.ts'
+export { flushJobBatches, openJobBatches } from './queue/listener.ts'
 export { flushScheduleBatches, openScheduleBatches } from './queue/schedule.ts'
 export {
   type AfterStoringHook,
@@ -58,9 +59,11 @@ export {
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
   CacheWatcher,
+  CommandWatcher,
   EventWatcher,
   ExceptionWatcher,
   GateWatcher,
+  JobWatcher,
   LogWatcher,
   MailWatcher,
   ModelWatcher,
