@@ -7,15 +7,20 @@ import { type BarState, barAllows } from '../bar/enabled.ts'
 import type { RequestProfiler } from '../bar/profiler.ts'
 import { type BarSummary, type BatchRing, listed } from '../bar/ring.ts'
 import { knowsBatches, type StoredBatch } from '../contracts.ts'
+import { entryTypes } from '../entry-type.ts'
 import { describe, withoutPreview } from '../panels/describe.ts'
 import type { Recorder } from '../recorder.ts'
+import type { WatcherConfig } from '../watchers/index.ts'
 import { pathMatches } from './plugin.ts'
+import { WATCHER_FOR, watcherStatus } from './status.ts'
 
 export type LensBarOptions = {
   state: BarState
   ring: BatchRing
   baselines: Baselines
   profiler: RequestProfiler
+  /** Which watchers are configured, for the tab list. */
+  watchers: WatcherConfig
   /** The dashboard path, so the bar never injects itself into Lens. */
   path: string
   /**
@@ -162,6 +167,7 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
            * says so.
            */
           build: BUILD,
+          menu: menuOf(app, options),
           cursor: options.ring.cursor(),
           /**
            * Whether anything outside this process can be seen at all. The bar
@@ -375,6 +381,25 @@ function asSummary(batch: StoredBatch): BarSummary {
     problems: 0,
     profiled: false
   }
+}
+
+/**
+ * Every entry type, in a fixed order, with why it is there or not.
+ *
+ * `enabled` — the watcher is on. `off` — switched off in config. `disabled` /
+ * `paused` — Lens itself. The client draws all of them and says which, because
+ * "nothing happened" and "nothing was watching" are different answers and a
+ * blank panel gives neither.
+ */
+function menuOf(app: ApplicationContract, options: LensBarOptions) {
+  const lens: Recorder = app.make('lens')
+
+  return entryTypes()
+    .filter((type) => WATCHER_FOR[type] !== undefined)
+    .map((type) => ({
+      type,
+      status: watcherStatus(lens, true, options.watchers, WATCHER_FOR[type] as string)
+    }))
 }
 
 function isHtml(response: Response): boolean {

@@ -48,25 +48,38 @@ export const BAR_STYLE = String.raw`
 @media (max-width: 1000px) { .pane.detail { flex: 1 1 0; } }
 
 /* Header: tabs on the left, indicators on the right — php-debugbar's shape. */
-.head-bar { display: flex; align-items: stretch; height: 32px; border-top: 1px solid #2d3748; }
+.head-bar { display: flex; align-items: stretch; height: 32px; border-top: 1px solid #2d3748; overflow-x: auto; }
 .bar:not(.open) .head-bar { border-top: 0; }
-.brand { padding: 0 10px; display: flex; align-items: center; background: #FF2D20; color: #fff; font-weight: 700; font-size: 12px; }
+.brand {
+  padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 0;
+  background: #FF2D20; color: #fff; font-weight: 700; font-size: 12px;
+  font-family: inherit; cursor: pointer;
+}
+.brand:hover { background: #e02418; }
 .brand.bad { background: #c53030; }
 
 /* Tabs give way to the indicators rather than being clipped by them. */
-.tabs { display: flex; align-items: stretch; overflow-x: auto; min-width: 0; flex: 0 1 auto; }
-.tabs::-webkit-scrollbar { height: 3px; }
-.tabs::-webkit-scrollbar-thumb { background: #2d3748; }
-.tab {
-  display: flex; align-items: center; gap: 6px; padding: 0 11px; cursor: pointer;
-  border: 0; border-right: 1px solid #22293a; background: transparent; color: #a0aec0;
-  font-family: inherit; font-size: 12px; white-space: nowrap;
+/* The menu, down the side: twenty-one entries do not fit on one row. */
+.menu {
+  flex: 0 0 168px; overflow-y: auto; border-right: 1px solid #22293a;
+  padding: 4px 0; background: #0f131b;
 }
-.tab:hover { background: #1a202c; color: #e2e8f0; }
-.tab[aria-selected="true"] { background: #1a202c; color: #fff; box-shadow: inset 0 -2px 0 #FF2D20; }
-.tab b { color: #e2e8f0; font-weight: 600; }
-.tab b.bad { color: #fc8181; }
-.tab .warn { color: #f6ad55; }
+.item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 10px;
+  border: 0; background: transparent; color: #a0aec0; cursor: pointer;
+  font-family: inherit; font-size: 12px; text-align: left;
+}
+.item:hover { background: #1a202c; color: #e2e8f0; }
+.item[aria-selected="true"] { background: #1a202c; color: #fff; box-shadow: inset 2px 0 0 #FF2D20; }
+.item .label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .n { color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.item .n.bad { color: #fc8181; }
+.item .warn { color: #f6ad55; }
+/* Present but empty, and present but not watching, read differently. */
+.item.none { color: #4a5568; }
+.item.none .n { color: #4a5568; }
+.item.off { color: #4a5568; text-decoration: line-through; text-decoration-color: #2d3748; }
+.rule { height: 1px; margin: 5px 10px; background: #22293a; }
 
 .spacer { flex: 1 1 auto; }
 
@@ -220,6 +233,7 @@ export const BAR_SCRIPT = String.raw`
   let sets = []
   let cursor = 0
   let crossProcess = false
+  let menu = []
   let stale = false
   let view = null
   let picked = null
@@ -228,12 +242,11 @@ export const BAR_SCRIPT = String.raw`
   let find = ''
 
   /**
-   * Per-viewer state, the four keys php-debugbar keeps plus two of our own.
+   * Per-viewer state: height, open, visible, tab — the four php-debugbar keeps
+   * in restoreState() — plus the ajax-follow choice and a one-shot reopen.
    *
-   * restoreState() in debugbar.js reads phpdebugbar-height,
-   * -open, -visible and -tab, and reopens the tab you were on. An earlier
-   * version of this bar remembered nothing and then remembered too much; these
-   * are the ones a bar is expected to keep.
+   * Every read and write is guarded: localStorage throws outright in a private
+   * window with site data blocked, and the bar runs inside somebody else's page.
    */
   const kept = {
     get(key, fallback) {
@@ -264,10 +277,11 @@ export const BAR_SCRIPT = String.raw`
   const bar = node('div', 'bar')
   const grip = node('div', 'grip')
   const panel = node('div', 'panel')
+  const menuPane = node('nav', 'menu')
   const middle = node('div', 'pane')
   const detailPane = node('div', 'pane detail')
   const header = node('div', 'head-bar')
-  panel.append(middle, detailPane)
+  panel.append(menuPane, middle, detailPane)
   // Panel above the header, as a bottom-anchored bar must be.
   bar.append(grip, panel, header)
   shadow.appendChild(bar)
@@ -320,14 +334,13 @@ export const BAR_SCRIPT = String.raw`
   /**
    * Tabs on the left, indicators on the right.
    *
-   * class Tab and class Indicator are separate types in php-debugbar and the
-   * distinction is the whole grammar of the thing: a tab opens a panel, an
-   * indicator is a number you read. An earlier version of this bar made the
-   * timing a button, so two controls opened the same panel and a reader had no
-   * way to tell what was clickable.
+   * class Tab and class Indicator are separate types in php-debugbar, and the
+   * distinction is the grammar of the whole thing: a tab opens a panel, an
+   * indicator is a number you read and cannot click.
    */
   function drawHeader() {
     header.textContent = ''
+    drawMenu()
     if (batch === null) return
 
     if (stale) {
@@ -340,35 +353,29 @@ export const BAR_SCRIPT = String.raw`
     }
 
     /**
-     * The mark is the tool's name, not a second Findings tab.
+     * The mark opens and closes the panel.
      *
-     * It used to read "3 problems" and open the findings, which the tab beside
-     * it already did — two controls, one destination, and no way to tell them
-     * apart. The count belongs on the tab, where every other count is.
+     * It is the largest, leftmost thing on the bar and the first place a hand
+     * goes; leaving the only control a small chevron at the far right made the
+     * panel hard to reach. Red when the request has problems.
      */
     const problems = batch.found.filter((one) => one.level === 'problem').length
-    const brand = node('div', 'brand' + (problems > 0 ? ' bad' : ''))
-    brand.textContent = 'Lens'
-    brand.title = 'Ctrl + backquote'
+    const brand = node('button', 'brand' + (problems > 0 ? ' bad' : ''))
+    brand.type = 'button'
+    brand.textContent = view === null ? 'Lens' : 'Lens \u25be'
+    brand.title = view === null ? 'Open (Ctrl + backquote)' : 'Close (Ctrl + backquote)'
+    brand.onclick = () => show(view === null ? kept.get('tab', 'findings') || 'findings' : null)
     header.appendChild(brand)
 
-    const tabs = node('div', 'tabs')
-    tabs.appendChild(tabFor('findings', 'Findings', batch.found.length || undefined))
-    tabs.appendChild(tabFor('timeline', 'Timeline'))
-    tabs.appendChild(tabFor('request', 'Request'))
-
-    const counts = new Map()
-    for (const held of batch.entries) counts.set(held.type, (counts.get(held.type) || 0) + 1)
-
-    for (const [type, n] of counts) {
-      if (type === 'request') continue
-      tabs.appendChild(tabFor(type, type, n, worstRepeat(type)))
-    }
-
-    tabs.appendChild(tabFor('profile', batch.profile ? 'Profile' : 'Profile • arm'))
-    tabs.appendChild(tabFor('costs', 'Routes'))
-    header.appendChild(tabs)
-
+    /**
+     * The menu is what the tool can show; the request decides the numbers in it.
+     *
+     * These were built from the entries, so the menu rearranged itself as you
+     * moved between pages and a mail tab appeared out of nowhere the first time
+     * something sent one. The server sends the list now, from the watcher
+     * configuration, in a fixed order — php-debugbar builds its tabs once from
+     * its collectors and never hides one.
+     */
     header.appendChild(node('div', 'spacer'))
 
     header.appendChild(indicator([['', batch.method + ' ' + batch.path, 'b'],
@@ -396,17 +403,9 @@ export const BAR_SCRIPT = String.raw`
     /**
      * Three states, as php-debugbar has: open, minimised, closed.
      *
-     * The cross used to close only the panel, leaving the header across the
-     * bottom of somebody else's application — which is not out of the way.
-     * Minimise hides the panel; close takes the bar down to a handle.
+     * The mark minimises; this takes the whole bar down to a corner handle, so
+     * the page gets its edge back.
      */
-    const min = node('button', 'shut')
-    min.type = 'button'
-    min.textContent = view === null ? '\u25b4' : '\u25be'
-    min.title = view === null ? 'Open (Ctrl + backquote)' : 'Minimise (Ctrl + backquote)'
-    min.onclick = () => show(view === null ? kept.get('tab', 'findings') || 'findings' : null)
-    header.appendChild(min)
-
     const shut = node('button', 'shut')
     shut.type = 'button'
     shut.textContent = '\u00d7'
@@ -417,21 +416,55 @@ export const BAR_SCRIPT = String.raw`
     mark()
   }
 
-  function tabFor(name, label, count, warn) {
-    const tab = node('button', 'tab')
-    tab.type = 'button'
-    tab.dataset.view = name
-    if (count !== undefined) {
-      // A problem count is red where a plain tally is not.
-      const problems = name === 'findings' && batch.found.some((one) => one.level === 'problem')
+  /**
+   * The menu, down the side.
+   *
+   * Twenty-one entries do not fit on one row, and a row that scrolls sideways
+   * hides most of itself. A vertical list grows without hiding anything, which
+   * is how the dashboard and Clockwork both do it.
+   */
+  function drawMenu() {
+    menuPane.textContent = ''
+    if (batch === null || view === null) return
 
-      tab.appendChild(node('b', problems ? 'bad' : '', count))
+    const counts = new Map()
+    for (const held of batch.entries) counts.set(held.type, (counts.get(held.type) || 0) + 1)
+
+    menuPane.appendChild(item('findings', 'Findings', batch.found.length, problemsIn(batch)))
+    menuPane.appendChild(item('timeline', 'Timeline'))
+    menuPane.appendChild(item('request', 'Request', counts.get('request') || 0))
+    menuPane.appendChild(item('profile', batch.profile ? 'Profile' : 'Profile \u2022 arm'))
+    menuPane.appendChild(item('costs', 'Routes'))
+    menuPane.appendChild(node('div', 'rule'))
+
+    for (const one of menu) {
+      if (one.type === 'request') continue
+
+      const n = counts.get(one.type) || 0
+      const row = item(one.type, nameOf(one.type), n, false, worstRepeat(one.type))
+
+      if (one.status !== 'enabled') row.classList.add('off')
+      if (n === 0) row.classList.add('none')
+
+      menuPane.appendChild(row)
     }
-    tab.appendChild(node('span', '', label))
-    if (warn > 1) tab.appendChild(node('span', 'warn', 'N+1 ×' + warn))
-    tab.onclick = () => (name === 'profile' && !batch.profile ? armProfiler(tab) : show(name))
-    return tab
   }
+
+  function problemsIn(held) {
+    return held.found.some((one) => one.level === 'problem')
+  }
+
+  function item(name, label, count, bad, warn) {
+    const row = node('button', 'item')
+    row.type = 'button'
+    row.dataset.view = name
+    row.appendChild(node('span', 'label', label))
+    if (warn > 1) row.appendChild(node('span', 'warn', '\u00d7' + warn))
+    if (count !== undefined) row.appendChild(node('span', bad ? 'n bad' : 'n', count))
+    row.onclick = () => (name === 'profile' && !batch.profile ? armProfiler(row) : show(name))
+    return row
+  }
+
 
   function worstRepeat(type) {
     return batch.entries
@@ -515,8 +548,8 @@ export const BAR_SCRIPT = String.raw`
   }
 
   function mark() {
-    for (const tab of header.querySelectorAll('.tab')) {
-      tab.setAttribute('aria-selected', String(view !== null && tab.dataset.view === view))
+    for (const row of menuPane.querySelectorAll('.item')) {
+      row.setAttribute('aria-selected', String(view !== null && row.dataset.view === view))
     }
   }
 
@@ -648,11 +681,7 @@ export const BAR_SCRIPT = String.raw`
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'Timeline'))
 
-    /**
-     * Text, not a button. It used to navigate to the route costs from inside
-     * this header, which is a tab's job — and once there, the way back was to
-     * hunt for the Timeline tab among a dozen.
-     */
+    /** Text, not a button: navigation is a tab's job, not a header's. */
     if (batch.verdict && batch.verdict.samples > 1) {
       head.appendChild(
         node('span', 'who', 'median ' + ms(batch.verdict.medianMs) + ' over ' + batch.verdict.samples)
@@ -684,16 +713,7 @@ export const BAR_SCRIPT = String.raw`
       const from = first.offsetMs
       const to = Math.max(last.offsetMs + Number((last.summary || {}).took || 0), from)
 
-      /**
-       * One value per column, in the same column on every lane: when it began,
-       * what kind of work, how many, where it sat in the request, what it cost.
-       *
-       * A description used to be appended when a kind happened once, so some
-       * lanes carried a sentence and others a count and the column meant two
-       * different things down the page. Removed once, carried back in when this
-       * file was rewritten from an older copy, and removed again — which is why
-       * it is spelled out here and guarded by a test.
-       */
+      /** One value per column, the same column on every lane. */
       const row = node('button', 'lane')
       row.type = 'button'
       row.appendChild(node('span', 'at', ms(from)))
@@ -808,7 +828,7 @@ export const BAR_SCRIPT = String.raw`
     })
 
     if (rows.length === 0) {
-      middle.appendChild(node('div', 'empty', 'Nothing matches.'))
+      middle.appendChild(node('div', 'empty', find === '' ? whyEmpty(type) : 'Nothing matches.'))
       return
     }
 
@@ -831,6 +851,24 @@ export const BAR_SCRIPT = String.raw`
       row.onclick = () => open(held.uuid)
       middle.appendChild(row)
     }
+  }
+
+  /**
+   * Four answers, not one blank panel.
+   *
+   * "Nothing happened" and "nothing was watching" look identical on an empty
+   * screen and send people to read config files. This is watcherStatus from the
+   * dashboard, said in the bar.
+   */
+  function whyEmpty(type) {
+    const item = menu.find((one) => one.type === type)
+    const status = item ? item.status : 'enabled'
+
+    if (status === 'off') return 'The ' + nameOf(type) + ' watcher is off in config/lens.ts.'
+    if (status === 'paused') return 'Lens is paused. Run: elvel lens:resume'
+    if (status === 'disabled') return 'Lens is not enabled.'
+
+    return 'Nothing of this kind happened in this request.'
   }
 
   function drawProfile() {
@@ -1188,6 +1226,7 @@ export const BAR_SCRIPT = String.raw`
       sets = payload.batches || []
       cursor = payload.cursor || 0
       crossProcess = payload.crossProcess === true
+      menu = payload.menu || menu
       const mine = tag.dataset.build || ''
       if (payload.build && mine && payload.build !== mine) stale = true
       drawHeader()

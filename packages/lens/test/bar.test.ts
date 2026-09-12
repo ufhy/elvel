@@ -57,7 +57,8 @@ function harness(options: { debug?: boolean; enabled?: boolean | null; gate?: bo
         root: '/app',
         stored: false,
         baselines: new Baselines(),
-        profiler: new RequestProfiler()
+        profiler: new RequestProfiler(),
+        watchers: {}
       })
     )
     .get('/page', () => '<html><body><h1>hi</h1></body></html>')
@@ -218,7 +219,8 @@ describe('injection', () => {
           root: '',
           stored: false,
           baselines: new Baselines(),
-          profiler: new RequestProfiler()
+          profiler: new RequestProfiler(),
+          watchers: {}
         })
       )
       .get('/lens/requests', () => '<html><body>dashboard</body></html>')
@@ -510,14 +512,17 @@ describe('the asset', () => {
    * and the bar is running inside somebody else's page.
    */
   test('nothing touches storage outside a try', () => {
-    const uses = BAR_SCRIPT.split('localStorage').length - 1
+    // Accesses, not mentions: a comment naming localStorage is not a read.
+    const reads = BAR_SCRIPT.split('localStorage.getItem').length - 1
+    const writes = BAR_SCRIPT.split('localStorage.setItem').length - 1
     const guarded = BAR_SCRIPT.slice(
       BAR_SCRIPT.indexOf('const kept ='),
       BAR_SCRIPT.indexOf('const host =')
     )
 
-    expect(uses).toBe(2)
-    expect(guarded.split('localStorage')).toHaveLength(3)
+    expect(reads).toBe(1)
+    expect(writes).toBe(1)
+    expect(guarded.split('localStorage.')).toHaveLength(3)
     expect(guarded.split('try {')).toHaveLength(3)
   })
 })
@@ -708,7 +713,8 @@ describe('work from other processes', () => {
           root: '',
           stored: true,
           baselines: new Baselines(),
-          profiler: new RequestProfiler()
+          profiler: new RequestProfiler(),
+          watchers: {}
         })
       )
       .get('/page', () => '<html><body>hi</body></html>')
@@ -822,7 +828,8 @@ describe('work from other processes', () => {
         root: '',
         stored: true,
         baselines: new Baselines(),
-        profiler: new RequestProfiler()
+        profiler: new RequestProfiler(),
+        watchers: {}
       })
     )
 
@@ -867,7 +874,8 @@ describe('what counts as work worth listing', () => {
         root: '',
         stored: true,
         baselines: new Baselines(),
-        profiler: new RequestProfiler()
+        profiler: new RequestProfiler(),
+        watchers: {}
       })
     )
 
@@ -948,7 +956,8 @@ describe('a page carrying the bar is never cached', () => {
           root: '',
           stored: false,
           baselines: new Baselines(),
-          profiler: new RequestProfiler()
+          profiler: new RequestProfiler(),
+          watchers: {}
         })
       )
       .get(
