@@ -2,6 +2,8 @@ import type { ApplicationContract } from '@elvel/contracts'
 import { enterRequestContext } from '@elvel/core'
 import { currentScope } from '@elvel/http'
 import { Elysia } from 'elysia'
+import type { BatchRing } from '../bar/ring.ts'
+import { snapshot } from '../bar/ring.ts'
 import type { Batch, Recorder } from '../recorder.ts'
 import type { RequestWatcher } from '../watchers/request.ts'
 
@@ -21,6 +23,8 @@ export type LensPluginOptions = {
   ignorePaths: string[]
   /** Absent when the request watcher is switched off in config. */
   requestWatcher?: RequestWatcher
+  /** Absent when the inspection bar is off. */
+  ring?: BatchRing
 }
 
 /**
@@ -141,6 +145,24 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
 
         started.delete(request)
 
+        const bag = context as {
+          response?: unknown
+          responseValue?: unknown
+          route?: unknown
+          body?: unknown
+          set?: { status?: unknown; headers?: Record<string, string> }
+        }
+
+        /**
+         * A handler that built its own `Response` is the only case where one
+         * exists here, and the only case where `set.status` is stale. Measured
+         * on Elysia 1.4.30: a handler answering 503 with its own `Response` left
+         * `set.status` at 200, while an unmatched path had both agree on 404.
+         */
+        const own = bag.response instanceof Response ? bag.response : undefined
+        const status = own?.status ?? (typeof bag.set?.status === 'number' ? bag.set.status : 200)
+        const duration = begun === undefined ? 0 : performance.now() - begun
+
         /**
          * The request entry is recorded here rather than by a subscription,
          * because this is the only moment the answer is known — see
@@ -148,34 +170,35 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
          * batch as the queries it ran.
          */
         if (options.requestWatcher !== undefined) {
-          const bag = context as {
-            response?: unknown
-            responseValue?: unknown
-            route?: unknown
-            body?: unknown
-            set?: { status?: unknown; headers?: Record<string, string> }
-          }
-
-          /**
-           * A handler that built its own `Response` is the only case where one
-           * exists here, and the only case where `set.status` is stale.
-           * Measured on Elysia 1.4.30: a handler answering 503 with its own
-           * `Response` left `set.status` at 200, while an unmatched path had
-           * both agree on 404.
-           */
-          const own = bag.response instanceof Response ? bag.response : undefined
-
           options.requestWatcher.record(lens, {
             request,
-            status: own?.status ?? (typeof bag.set?.status === 'number' ? bag.set.status : 200),
+            status,
             responseHeaders: own?.headers,
             responseValue: own === undefined ? bag.responseValue : undefined,
             location: bag.set?.headers?.location,
             route: typeof bag.route === 'string' ? bag.route : undefined,
             body: bag.body,
-            duration: begun === undefined ? 0 : performance.now() - begun,
+            duration,
             ip: addresses.get(request),
             session: sessionData()
+          })
+        }
+
+        /**
+         * The ring is filled *before* the write, not from an `afterStoring`
+         * hook, and the difference is the case that matters: storage that throws
+         * — a table nobody migrated — runs no hooks, and that is exactly when
+         * somebody wants to see what the request did.
+         */
+        if (options.ring !== undefined) {
+          options.ring.push({
+            batchId: batch.batchId,
+            at: Date.now(),
+            method: request.method,
+            path: new URL(request.url).pathname,
+            status,
+            durationMs: Math.round(duration),
+            entries: snapshot(batch.entries)
           })
         }
 

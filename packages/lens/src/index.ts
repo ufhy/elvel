@@ -17,6 +17,9 @@ import { app } from '@elvel/core'
 import type { Recorder } from './recorder.ts'
 
 export { LensApplicationServiceProvider } from './application-provider.ts'
+export { BAR_SCRIPT, BAR_STYLE } from './bar/asset.ts'
+export { type BarState, barAllows, barState } from './bar/enabled.ts'
+export { type BarBatch, type BarEntry, BatchRing, snapshot } from './bar/ring.ts'
 export { type CallerFrame, callerFrom } from './caller.ts'
 export { LensClearCommand } from './console/lens-clear.ts'
 export { LensInstallCommand } from './console/lens-install.ts'
@@ -39,6 +42,7 @@ export { type EntryContent, IncomingEntry } from './entry.ts'
 export { EntryResult } from './entry-result.ts'
 export { EntryType, type EntryTypeName, entryTypes } from './entry-type.ts'
 export { EntryUpdate } from './entry-update.ts'
+export { type LensBarOptions, lensBar } from './http/bar.ts'
 export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.ts'
 export { NOT_INSTALLED, notInstalledError, tableIsMissing } from './installed.ts'
 export { atLeast, PRIORITIES } from './log-level.ts'
@@ -59,6 +63,7 @@ export {
   DatabaseEntriesRepository,
   type DatabaseRepositoryOptions
 } from './storage/database-repository.ts'
+export { NullEntriesRepository } from './storage/null-repository.ts'
 export { EntryQueryOptions } from './storage/query-options.ts'
 export {
   BatchWatcher,

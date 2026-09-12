@@ -1,4 +1,5 @@
 import { Command } from '@elvel/console'
+import { barState } from '../bar/enabled.ts'
 import { tableIsMissing } from '../installed.ts'
 import type { WatcherConfig } from '../watchers/index.ts'
 
@@ -26,7 +27,8 @@ export class LensStatusCommand extends Command {
       ['Recording', this.recordingState(enabled, lens.isPaused(), installed)],
       ['Tables', installed === true ? 'ready' : installed === false ? 'MISSING' : 'unknown'],
       ['Driver', this.app.config.get<string>('lens.driver', 'database')],
-      ['Dashboard', `/${this.app.config.get<string>('lens.path', 'lens')}`]
+      ['Dashboard', `/${this.app.config.get<string>('lens.path', 'lens')}`],
+      ['Bar', barState(this.app).reason]
     ])
 
     if (installed === false) {

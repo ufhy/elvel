@@ -14,6 +14,36 @@ export default {
   /** Where the dashboard is served from. */
   path: env('LENS_PATH', 'lens'),
 
+  /**
+   * The inspection bar, drawn into HTML pages the application returns.
+   *
+   * `null` means "follow `APP_DEBUG`", which is Laravel Debugbar's rule and the
+   * right one: a bar showing query results belongs to the same switch as a
+   * stack trace in the browser. Setting it explicitly wins — but forcing it on
+   * while debug is off makes every injection pass `authorise()` first, which is
+   * the lock Debugbar does not have and the reason its leaks happen.
+   *
+   * Unlike the dashboard, the bar needs no tables: it reads a ring of the last
+   * few requests held in memory. `LENS_BAR=true` on its own is a complete
+   * installation.
+   */
+  bar: {
+    enabled: env('LENS_BAR', null),
+
+    /** How many recent requests the bar can switch between. */
+    requests: Number(env('LENS_BAR_REQUESTS', 20)),
+
+    /**
+     * A URL for opening a file, with `{file}` and `{line}` replaced.
+     *
+     * Empty by default rather than guessing `vscode://file/{file}:{line}`,
+     * because a link that does nothing is worse than the path written out. Set
+     * it to your editor's scheme and every query, exception and dump on the bar
+     * becomes one click from the line that caused it.
+     */
+    editor: env('LENS_BAR_EDITOR', '')
+  },
+
   /** Only `database` today. An unknown driver binds nothing and says so. */
   driver: env('LENS_DRIVER', 'database'),
 

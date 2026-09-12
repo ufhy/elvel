@@ -1,4 +1,6 @@
 import { ServiceProvider } from '@elvel/core'
+import { type BarState, barState } from './bar/enabled.ts'
+import { BatchRing } from './bar/ring.ts'
 import { LensClearCommand } from './console/lens-clear.ts'
 import { LensInstallCommand } from './console/lens-install.ts'
 import { LensPauseCommand } from './console/lens-pause.ts'
@@ -7,6 +9,7 @@ import { LensResumeCommand } from './console/lens-resume.ts'
 import { LensStatusCommand } from './console/lens-status.ts'
 import { LensTableCommand } from './console/lens-table.ts'
 import type { EntriesRepository } from './contracts.ts'
+import { lensBar } from './http/bar.ts'
 import { lensDashboard } from './http/dashboard.ts'
 import { lensPlugin } from './http/plugin.ts'
 import { lensRoutes } from './http/routes.ts'
@@ -16,6 +19,7 @@ import { flushJobBatches, openJobBatches } from './queue/listener.ts'
 import { flushScheduleBatches, openScheduleBatches } from './queue/schedule.ts'
 import { Recorder } from './recorder.ts'
 import { DatabaseEntriesRepository } from './storage/database-repository.ts'
+import { NullEntriesRepository } from './storage/null-repository.ts'
 import { registerWatchers, type WatcherConfig } from './watchers/index.ts'
 import { RequestWatcher } from './watchers/request.ts'
 
@@ -23,6 +27,7 @@ declare module '@elvel/contracts' {
   interface ContainerBindings {
     lens: Recorder
     'lens.entries': EntriesRepository
+    'lens.ring': BatchRing
   }
 }
 
@@ -36,14 +41,35 @@ declare module '@elvel/contracts' {
  * not optional under Bun.
  */
 export class LensServiceProvider extends ServiceProvider {
+  /**
+   * Resolved once, in `register`, because `boot` asks three separate questions
+   * of it and a config read between them could disagree.
+   */
+  private bar: BarState = { on: false, gated: false, reason: 'off' }
+
   register(): void {
+    this.bar = barState(this.app)
+
     this.app.singleton('lens', (app) => {
       const recorder = new Recorder((error) => app.make('exception.handler').report(error))
 
-      recorder.enable(this.config<boolean>('lens.enabled', false))
+      /**
+       * The bar switches recording on by itself.
+       *
+       * Without this `LENS_BAR=true` would draw an empty bar on every page and
+       * the person who set it would have no way of knowing that a second flag
+       * was wanted. The bar *is* a reason to record; it just is not a reason to
+       * write anything down, which `registerStorage` handles.
+       */
+      recorder.enable(this.config<boolean>('lens.enabled', false) || this.bar.on)
 
       return recorder
     })
+
+    this.app.singleton(
+      'lens.ring',
+      () => new BatchRing(Math.max(1, this.config<number>('lens.bar.requests', 20)))
+    )
 
     this.registerStorage()
   }
@@ -63,7 +89,7 @@ export class LensServiceProvider extends ServiceProvider {
         )
     }
 
-    if (!this.config<boolean>('lens.enabled', false)) return
+    if (!this.config<boolean>('lens.enabled', false) && !this.bar.on) return
 
     /**
      * Read the pause flag once at boot, and again after each flush.
@@ -116,15 +142,30 @@ export class LensServiceProvider extends ServiceProvider {
     flushScheduleBatches(this.app)
     flushCommandBatches(this.app)
 
-    this.use(lensDashboard(this.app, readSide))
+    /**
+     * The dashboard belongs to Lens proper, not to the bar.
+     *
+     * An application running only the bar has no tables, so every page of the
+     * dashboard would be the "not installed" notice. Serving nothing is the
+     * honest answer, and it keeps `LENS_BAR=true` from quietly publishing a
+     * route somebody did not ask for.
+     */
+    if (this.config<boolean>('lens.enabled', false)) {
+      this.use(lensDashboard(this.app, readSide))
+      this.use(lensRoutes(this.app, readSide))
+    }
 
-    this.use(
-      lensRoutes(this.app, {
-        path: this.config<string>('lens.path', 'lens'),
-        enabled: true,
-        watchers: this.config<WatcherConfig>('lens.watchers', {})
-      })
-    )
+    if (this.bar.on) {
+      this.use(
+        lensBar(this.app, {
+          state: this.bar,
+          ring: this.app.make('lens.ring'),
+          path: this.config<string>('lens.path', 'lens'),
+          editor: this.config<string>('lens.bar.editor', ''),
+          root: this.app.basePath()
+        })
+      )
+    }
 
     this.use(
       lensPlugin(this.app, {
@@ -132,7 +173,8 @@ export class LensServiceProvider extends ServiceProvider {
         ignorePaths: this.config<string[]>('lens.ignorePaths', []),
         requestWatcher: watchers.find(
           (watcher): watcher is RequestWatcher => watcher instanceof RequestWatcher
-        )
+        ),
+        ring: this.bar.on ? this.app.make('lens.ring') : undefined
       })
     )
   }
@@ -154,6 +196,24 @@ export class LensServiceProvider extends ServiceProvider {
    * request. Better to say so at boot.
    */
   private registerStorage(): void {
+    /**
+     * Bar-only: nothing is written, and nothing complains about it.
+     *
+     * See `NullEntriesRepository`. The recorder still ends each unit of work by
+     * handing its batch to storage, and the database driver would answer "no
+     * such table" for an application that was never asked to migrate.
+     *
+     * Only when the bar is what turned recording on. With everything off the
+     * real driver is still bound, because `lens:status` and `lens:prune` run in
+     * a console where `lens.enabled` is read from the same config and would
+     * otherwise be told by a no-op repository that the tables are empty.
+     */
+    if (!this.config<boolean>('lens.enabled', false) && this.bar.on) {
+      this.app.singleton('lens.entries', () => new NullEntriesRepository())
+
+      return
+    }
+
     const driver = this.config<string>('lens.driver', 'database')
 
     if (driver !== 'database') {

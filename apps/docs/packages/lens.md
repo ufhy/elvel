@@ -118,6 +118,83 @@ every entry carrying that tag is kept, whatever the filter says, until you
 remove it. No deploy, no config change — one user reports a bug, you watch that
 user.
 
+## The inspection bar
+
+What the page you are looking at just did, drawn into the page itself.
+
+```bash
+LENS_BAR=true
+```
+
+That is the whole installation. Unset, it follows `APP_DEBUG` — Laravel
+Debugbar's rule, and the right one: a bar showing query results belongs to the
+same switch as a stack trace in the browser.
+
+Unlike the dashboard, **the bar needs no tables**. It reads a ring of the last
+twenty requests held in memory, so there is no migration, no provider, no prune
+and nothing growing on disk. An application that wants only the bar installs
+nothing.
+
+### It is not a second Debugbar
+
+Laravel Debugbar is a separate package with its own collectors sitting beside
+Telescope's. An application running both collects everything twice, configures
+it twice, and can have the two disagree.
+
+Everything on this bar was recorded by the watchers that feed the dashboard,
+judged by the same filters. The bar is a reader. The only thing added to the
+request path is a script tag.
+
+That follows from *when* a batch is finished: after the response has already
+been sent. The data cannot travel inside the page even if it wanted to, so the
+markup carries a batch id and the browser asks for the rest — where a Debugbar
+page carries its whole payload inline and grows tens of kilobytes for it.
+
+### What it shows
+
+The strip names the request, its status and its duration, then one chip per
+entry type. Clicking a chip opens the panel:
+
+- **the last twenty requests** down the left, including the XHR your page made,
+  so the API call that failed is one click away rather than in another tool
+- **every query** with its duration and the application line that ran it
+- **`N+1 ×12`** on the chip when the same statement ran twelve times — counted
+  across the whole request, not over neighbours, because a loop that renders
+  between queries still runs the same statement twelve times
+- **jump to your editor** from any query, exception or dump, once
+  `LENS_BAR_EDITOR` is set:
+
+```bash
+LENS_BAR_EDITOR="vscode://file/{file}:{line}"
+```
+
+It is empty by default rather than guessing, because a link that does nothing is
+worse than the path written out.
+
+### What it deliberately is not
+
+There is no component tree of the React or Vue DevTools kind, and there cannot
+be: `@kitajs/html` compiles JSX to a string on the server, so at runtime there is
+no component instance, no state and no re-render to highlight. The view watcher
+also does not record props, because a view's props are the page's contents.
+
+What you get instead is which components rendered, how large each was and how
+long it took — the answer to "what is making this page half a megabyte", not to
+"why did this component render again".
+
+### Running it outside development
+
+Setting `LENS_BAR=true` while `APP_DEBUG` is off is allowed — staging is a real
+place — and it changes one thing: the bar then appears only for a request that
+passes your `authorise()`. Nothing is injected for anyone else, so an anonymous
+visitor is not even told Lens is installed.
+
+That lock is the difference from Debugbar, where config wins over debug with
+nothing behind it, and where every leak has come from exactly that combination.
+
+A streamed page (`stream()` from `@elvel/view`) never gets a bar. Appending to it
+would mean buffering it, and buffering it is the one thing streaming forbids.
+
 ## Deciding what is kept
 
 The published provider filters, and **`filterBatch` rather than `filter` is the
