@@ -193,9 +193,14 @@ this". The Route cost view lists every route seen this session, slowest first.
 
 ### The evidence is underneath
 
-Findings are the first thing, not the only thing. Every count in the strip opens
-the entries behind it — filterable — and every entry opens the same detail the
-dashboard shows: a request's headers, payload, session and response; an
+Three panes, each with one job and none of them replacing another: **Recent** on
+the left is which request you are looking at, the middle is what about it, and
+the right is the detail of one thing. Choosing another request keeps the view you
+were in.
+
+Findings are the first thing, not the only thing. Selecting one opens the entry
+that proves it. Every count in the strip opens the entries behind it —
+filterable — and every entry opens the same detail the dashboard shows: a request's headers, payload, session and response; an
 exception's stack with the source around the failing line; a query's bindings and
 connection. Objects render as a collapsible tree, with the raw JSON underneath
 and a button that copies it.

@@ -43,6 +43,7 @@ export const BAR_STYLE = String.raw`
 .verdict { display: flex; align-items: stretch; height: 34px; overflow-x: auto; }
 .mark { padding: 0 10px; display: flex; align-items: center; gap: 7px; background: #FF2D20; color: #fff; font-weight: 700; cursor: pointer; border: 0; font-family: inherit; font-size: 12px; }
 .mark.bad { background: #c53030; }
+.mark[aria-selected="true"] { box-shadow: inset 0 -2px 0 #12161f; }
 .cell { display: flex; align-items: center; gap: 7px; padding: 0 12px; border-right: 1px solid #22293a; white-space: nowrap; color: #a0aec0; }
 .cell b { color: #e2e8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cell.pill { cursor: pointer; background: transparent; border-top: 0; border-bottom: 0; border-left: 0; font-family: inherit; font-size: 12px; }
@@ -65,7 +66,10 @@ export const BAR_STYLE = String.raw`
 .bar.open .panel { display: flex; }
 .pane { flex: 1 1 0; overflow-y: auto; min-width: 0; }
 .pane + .pane { border-left: 1px solid #22293a; }
-.pane.narrow { flex: 0 0 220px; }
+/* Navigation, always the same width and never replaced by anything. */
+.pane.narrow { flex: 0 0 210px; }
+.pane.detail { flex: 0 0 44%; }
+@media (max-width: 1000px) { .pane.detail { flex: 1 1 0; } .pane.narrow { flex: 0 0 160px; } }
 
 .head { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid #22293a; position: sticky; top: 0; background: #12161f; }
 .head .who { flex: 1 1 auto; color: #718096; text-transform: uppercase; letter-spacing: .05em; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -198,9 +202,18 @@ export const BAR_SCRIPT = String.raw`
   const grip = node('div', 'grip')
   const verdict = node('div', 'verdict')
   const panel = node('div', 'panel')
-  const left = node('div', 'pane')
-  const right = node('div', 'pane')
-  panel.append(left, right)
+  /**
+   * Three panes with fixed jobs, left to right: which request, what about it,
+   * and the detail of one thing.
+   *
+   * The first arrangement put Recent on the right and let the detail replace it,
+   * so choosing a request meant losing the pane you chose it from. Navigation
+   * does not move and does not get overwritten.
+   */
+  const side = node('div', 'pane side narrow')
+  const middle = node('div', 'pane')
+  const detailPane = node('div', 'pane detail')
+  panel.append(side, middle, detailPane)
   bar.append(grip, verdict, panel)
   shadow.appendChild(bar)
 
@@ -256,6 +269,8 @@ export const BAR_SCRIPT = String.raw`
 
     const brand = node('button', 'mark' + (problems > 0 ? ' bad' : ''))
     brand.type = 'button'
+    brand.dataset.view = 'findings'
+    brand.title = 'Findings'
     brand.append(node('span', '', problems > 0 ? problems + ' problem' + (problems === 1 ? '' : 's') : 'Lens'))
     brand.onclick = () => show('findings')
     verdict.appendChild(brand)
@@ -267,10 +282,13 @@ export const BAR_SCRIPT = String.raw`
     )
     verdict.appendChild(where)
 
+    /**
+     * A statement, not a tab. It was a second button that opened the findings —
+     * the same place the badge already goes — so two things in the strip did one
+     * thing and neither said so.
+     */
     const shape = batch.shape
-    const time = node('button', 'cell pill')
-    time.type = 'button'
-    time.dataset.view = 'findings'
+    const time = node('div', 'cell')
     time.append(node('b', '', ms(shape.totalMs)))
     time.appendChild(meter(shape))
     time.append(
@@ -278,7 +296,6 @@ export const BAR_SCRIPT = String.raw`
       node('span', '', 'view ' + ms(shape.renderMs)),
       node('span', '', 'app ' + ms(shape.otherMs))
     )
-    time.onclick = () => show('findings')
     verdict.appendChild(time)
 
     if (batch.verdict && batch.verdict.times !== undefined && batch.verdict.samples > 3) {
@@ -338,7 +355,7 @@ export const BAR_SCRIPT = String.raw`
   }
 
   function mark() {
-    for (const cell of verdict.querySelectorAll('.cell')) {
+    for (const cell of verdict.querySelectorAll('.cell, .mark')) {
       cell.setAttribute('aria-selected', String(view !== null && cell.dataset.view === view))
     }
   }
@@ -364,16 +381,23 @@ export const BAR_SCRIPT = String.raw`
     bar.classList.toggle('open', view !== null)
     kept.set('view', view === null ? '' : view)
     mark()
-    drawLeft()
-    drawRight()
+    drawRecent()
+    drawView()
+    drawDetail()
     if (view === 'costs') loadCosts()
+  }
+
+  /** Everything below the strip, from whatever state we are in. */
+  function drawPanel() {
+    drawRecent()
+    drawView()
+    drawDetail()
   }
 
   // ------------------------------------------------------------------ left
 
-  function drawLeft() {
-    left.textContent = ''
-    left.className = 'pane'
+  function drawView() {
+    middle.textContent = ''
     if (view === null || batch === null) return
 
     if (view === 'findings') return drawFindings()
@@ -390,7 +414,7 @@ export const BAR_SCRIPT = String.raw`
   function drawFindings() {
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'Findings'))
-    left.appendChild(head)
+    middle.appendChild(head)
 
     if (batch.found.length === 0) {
       const clear = node('div', 'clear')
@@ -398,7 +422,7 @@ export const BAR_SCRIPT = String.raw`
       clear.appendChild(
         node('div', '', 'No repeated queries, no slow ones, no swallowed exceptions, nothing oversized.')
       )
-      left.appendChild(clear)
+      middle.appendChild(clear)
       return
     }
 
@@ -413,14 +437,30 @@ export const BAR_SCRIPT = String.raw`
       }
       box.appendChild(line)
       box.appendChild(node('div', 'd', one.detail))
+      /**
+       * A finding without its evidence is an assertion. Selecting one opens the
+       * entry that proves it, in the detail pane, with both other panes intact.
+       */
       box.onclick = () => {
-        picked = picked === one.id ? null : one.id
-        entry = null
-        drawLeft()
-        drawRight()
-        if (picked !== null && one.evidence.length > 0) open(one.evidence[0])
+        if (picked === one.id) {
+          picked = null
+          entry = null
+          drawView()
+          drawDetail()
+
+          return
+        }
+
+        picked = one.id
+        drawView()
+
+        if (one.evidence.length > 0) open(one.evidence[0])
+        else {
+          entry = null
+          drawDetail()
+        }
       }
-      left.appendChild(box)
+      middle.appendChild(box)
     }
   }
 
@@ -433,17 +473,17 @@ export const BAR_SCRIPT = String.raw`
     box.value = find
     box.oninput = () => {
       find = box.value.toLowerCase()
-      const at = left.scrollTop
-      drawLeft()
-      left.scrollTop = at
-      const again = left.querySelector('input.find')
+      const at = middle.scrollTop
+      drawView()
+      middle.scrollTop = at
+      const again = middle.querySelector('input.find')
       if (again) {
         again.focus()
         again.setSelectionRange(again.value.length, again.value.length)
       }
     }
     head.appendChild(box)
-    left.appendChild(head)
+    middle.appendChild(head)
 
     const rows = batch.entries.filter((held) => {
       if (held.type !== view) return false
@@ -453,7 +493,7 @@ export const BAR_SCRIPT = String.raw`
     })
 
     if (rows.length === 0) {
-      left.appendChild(node('div', 'empty', 'Nothing matches.'))
+      middle.appendChild(node('div', 'empty', 'Nothing matches.'))
       return
     }
 
@@ -479,7 +519,7 @@ export const BAR_SCRIPT = String.raw`
         row.appendChild(node('div', 'took', ms(shown.took)))
       }
       row.onclick = () => open(held.uuid)
-      left.appendChild(row)
+      middle.appendChild(row)
     }
   }
 
@@ -493,10 +533,10 @@ export const BAR_SCRIPT = String.raw`
   function drawProfile() {
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'CPU profile'))
-    left.appendChild(head)
+    middle.appendChild(head)
 
     if (!batch.profile) {
-      left.appendChild(
+      middle.appendChild(
         node('div', 'empty', 'No profile for this request. Press Profile, then reload the page.')
       )
       return
@@ -511,12 +551,12 @@ export const BAR_SCRIPT = String.raw`
       facts.appendChild(node('dt', '', name))
       facts.appendChild(node('dd', '', value))
     }
-    left.appendChild(facts)
+    middle.appendChild(facts)
 
-    left.appendChild(node('h3', '', 'Self time'))
+    middle.appendChild(node('h3', '', 'Self time'))
 
     if (batch.profile.hot.length === 0) {
-      left.appendChild(
+      middle.appendChild(
         node('div', 'empty', 'Every sample landed in the runtime. Nothing of yours was on the stack.')
       )
       return
@@ -540,7 +580,7 @@ export const BAR_SCRIPT = String.raw`
       bar.appendChild(fill)
       grid.appendChild(bar)
     }
-    left.appendChild(grid)
+    middle.appendChild(grid)
   }
 
   /**
@@ -552,10 +592,10 @@ export const BAR_SCRIPT = String.raw`
   function drawCosts() {
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'Route cost, this session'))
-    left.appendChild(head)
+    middle.appendChild(head)
 
     if (costs.length === 0) {
-      left.appendChild(node('div', 'empty', 'Nothing measured yet.'))
+      middle.appendChild(node('div', 'empty', 'Nothing measured yet.'))
       return
     }
 
@@ -573,26 +613,18 @@ export const BAR_SCRIPT = String.raw`
       bar.appendChild(fill)
       grid.appendChild(bar)
     }
-    left.appendChild(grid)
+    middle.appendChild(grid)
   }
 
   // ----------------------------------------------------------------- right
 
-  function drawRight() {
-    right.textContent = ''
-    right.style.display = view === null ? 'none' : ''
+  function drawRecent() {
+    side.textContent = ''
     if (view === null) return
 
-    if (entry !== null) return drawEntry()
-
-    drawRequests()
-  }
-
-  function drawRequests() {
-    right.className = 'pane side'
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'Recent'))
-    right.appendChild(head)
+    side.appendChild(head)
 
     for (const item of recent) {
       const own = item.source !== 'storage'
@@ -611,17 +643,18 @@ export const BAR_SCRIPT = String.raw`
       }
       button.appendChild(meta)
       button.disabled = !own
+      /** Choosing another request keeps the view you were in, and this pane. */
       button.onclick = () => {
         current = item.batchId
         picked = null
         entry = null
         load(0)
       }
-      right.appendChild(button)
+      side.appendChild(button)
     }
 
     if (!crossProcess) {
-      right.appendChild(
+      side.appendChild(
         node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.')
       )
     }
@@ -629,22 +662,26 @@ export const BAR_SCRIPT = String.raw`
 
   async function open(uuid) {
     entry = { uuid: uuid, panels: null }
-    drawLeft()
-    drawRight()
+    drawView()
+    drawDetail()
     try {
       const answer = await ask('/entry/' + uuid)
       if (!answer.ok) return
       const found = await answer.json()
       if (entry === null || entry.uuid !== uuid) return
       entry = found
-      drawRight()
+      drawDetail()
     } catch {
       //
     }
   }
 
-  function drawEntry() {
-    right.className = 'pane'
+  /** The third pane, and only when something is selected. */
+  function drawDetail() {
+    detailPane.textContent = ''
+    detailPane.style.display = view === null || entry === null ? 'none' : ''
+    if (view === null || entry === null) return
+
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', entry.type || 'entry'))
 
@@ -675,19 +712,19 @@ export const BAR_SCRIPT = String.raw`
     back.type = 'button'
     back.onclick = () => {
       entry = null
-      drawLeft()
-      drawRight()
+      drawView()
+      drawDetail()
     }
     head.appendChild(back)
-    right.appendChild(head)
+    detailPane.appendChild(head)
 
     if (entry.panels === null) {
-      right.appendChild(node('div', 'empty', 'Loading…'))
+      detailPane.appendChild(node('div', 'empty', 'Loading…'))
       return
     }
 
-    for (const one of entry.panels) right.appendChild(card(one))
-    right.appendChild(raw(entry.content))
+    for (const one of entry.panels) detailPane.appendChild(card(one))
+    detailPane.appendChild(raw(entry.content))
   }
 
   function card(one) {
@@ -829,8 +866,7 @@ export const BAR_SCRIPT = String.raw`
       if (!answer.ok) return
       batch = (await answer.json()).batch
       drawVerdict()
-      drawLeft()
-      drawRight()
+      drawPanel()
       await refresh()
     } catch {
       // A bar that cannot reach its endpoint says nothing rather than throwing
@@ -846,7 +882,7 @@ export const BAR_SCRIPT = String.raw`
       recent = payload.batches || []
       cursor = payload.cursor || 0
       crossProcess = payload.crossProcess === true
-      if (entry === null) drawRight()
+      drawRecent()
     } catch {
       //
     }
@@ -857,7 +893,7 @@ export const BAR_SCRIPT = String.raw`
       const answer = await ask('/costs')
       if (!answer.ok) return
       costs = (await answer.json()).costs || []
-      if (view === 'costs') drawLeft()
+      if (view === 'costs') drawView()
     } catch {
       //
     }
@@ -877,7 +913,7 @@ export const BAR_SCRIPT = String.raw`
         cursor = payload.cursor || cursor
         if (fresh.length === 0) return
         recent = fresh.concat(recent).slice(0, 40)
-        if (entry === null) drawRight()
+        drawRecent()
       } catch {
         //
       }
