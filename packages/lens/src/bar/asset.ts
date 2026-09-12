@@ -50,7 +50,7 @@ export const BAR_STYLE = String.raw`
 /* Header: tabs on the left, indicators on the right — php-debugbar's shape. */
 .head-bar { display: flex; align-items: stretch; height: 32px; border-top: 1px solid #2d3748; }
 .bar:not(.open) .head-bar { border-top: 0; }
-.brand { padding: 0 10px; display: flex; align-items: center; gap: 7px; background: #FF2D20; color: #fff; font-weight: 700; border: 0; cursor: pointer; font-family: inherit; font-size: 12px; }
+.brand { padding: 0 10px; display: flex; align-items: center; background: #FF2D20; color: #fff; font-weight: 700; font-size: 12px; }
 .brand.bad { background: #c53030; }
 
 /* Tabs give way to the indicators rather than being clipped by them. */
@@ -65,6 +65,7 @@ export const BAR_STYLE = String.raw`
 .tab:hover { background: #1a202c; color: #e2e8f0; }
 .tab[aria-selected="true"] { background: #1a202c; color: #fff; box-shadow: inset 0 -2px 0 #FF2D20; }
 .tab b { color: #e2e8f0; font-weight: 600; }
+.tab b.bad { color: #fc8181; }
 .tab .warn { color: #f6ad55; }
 
 .spacer { flex: 1 1 auto; }
@@ -338,16 +339,21 @@ export const BAR_SCRIPT = String.raw`
       header.appendChild(warn)
     }
 
+    /**
+     * The mark is the tool's name, not a second Findings tab.
+     *
+     * It used to read "3 problems" and open the findings, which the tab beside
+     * it already did — two controls, one destination, and no way to tell them
+     * apart. The count belongs on the tab, where every other count is.
+     */
     const problems = batch.found.filter((one) => one.level === 'problem').length
-    const brand = node('button', 'brand' + (problems > 0 ? ' bad' : ''))
-    brand.type = 'button'
-    brand.title = 'Findings'
-    brand.textContent = problems > 0 ? problems + ' problem' + (problems === 1 ? '' : 's') : 'Lens'
-    brand.onclick = () => show('findings')
+    const brand = node('div', 'brand' + (problems > 0 ? ' bad' : ''))
+    brand.textContent = 'Lens'
+    brand.title = 'Ctrl + backquote'
     header.appendChild(brand)
 
     const tabs = node('div', 'tabs')
-    tabs.appendChild(tabFor('findings', 'Findings'))
+    tabs.appendChild(tabFor('findings', 'Findings', batch.found.length || undefined))
     tabs.appendChild(tabFor('timeline', 'Timeline'))
     tabs.appendChild(tabFor('request', 'Request'))
 
@@ -415,7 +421,12 @@ export const BAR_SCRIPT = String.raw`
     const tab = node('button', 'tab')
     tab.type = 'button'
     tab.dataset.view = name
-    if (count !== undefined) tab.appendChild(node('b', '', count))
+    if (count !== undefined) {
+      // A problem count is red where a plain tally is not.
+      const problems = name === 'findings' && batch.found.some((one) => one.level === 'problem')
+
+      tab.appendChild(node('b', problems ? 'bad' : '', count))
+    }
     tab.appendChild(node('span', '', label))
     if (warn > 1) tab.appendChild(node('span', 'warn', 'N+1 ×' + warn))
     tab.onclick = () => (name === 'profile' && !batch.profile ? armProfiler(tab) : show(name))
