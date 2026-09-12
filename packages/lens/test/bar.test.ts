@@ -988,7 +988,7 @@ describe('a stale bar says so', () => {
     ).json()) as { build: string }
 
     expect(payload.build).toMatch(/^[0-9a-f]{6}$/)
-    expect(payload.build).toBe(inPage)
+    expect(inPage).toBe(payload.build)
   })
 
   test('the client only warns when the two differ', () => {
