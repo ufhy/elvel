@@ -32,7 +32,7 @@ export const BAR_STYLE = String.raw`
 }
 .grip { height: 5px; cursor: ns-resize; }
 .handle {
-  position: fixed; right: 12px; bottom: 12px; z-index: 2147483000;
+  position: fixed; left: 12px; bottom: 12px; z-index: 2147483000;
   background: #FF2D20; color: #fff; border: 0; border-radius: 5px;
   padding: 6px 10px; font-family: inherit; font-size: 11px; font-weight: 700;
   cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.35);
@@ -50,6 +50,8 @@ export const BAR_STYLE = String.raw`
 /* Header: tabs on the left, indicators on the right — php-debugbar's shape. */
 .head-bar { display: flex; align-items: stretch; height: 32px; border-top: 1px solid #2d3748; overflow-x: auto; }
 .bar:not(.open) .head-bar { border-top: 0; }
+.head-bar.shut-strip { cursor: pointer; }
+.head-bar.shut-strip:hover { background: #171c26; }
 .brand {
   padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 0;
   background: #FF2D20; color: #fff; font-weight: 700; font-size: 12px;
@@ -341,6 +343,17 @@ export const BAR_SCRIPT = String.raw`
   function drawHeader() {
     header.textContent = ''
     drawMenu()
+
+    /**
+     * While minimised the whole strip opens the panel.
+     *
+     * A single control means aiming at one corner from wherever the pointer
+     * happens to be; the strip spans the window, so the nearest part of it is
+     * never far. Controls on it stop the click from reaching here.
+     */
+    header.classList.toggle('shut-strip', view === null)
+    header.onclick = view === null ? () => show(kept.get('tab', 'findings') || 'findings') : null
+
     if (batch === null) return
 
     if (stale) {
@@ -364,7 +377,10 @@ export const BAR_SCRIPT = String.raw`
     brand.type = 'button'
     brand.textContent = view === null ? 'Lens' : 'Lens \u25be'
     brand.title = view === null ? 'Open (Ctrl + backquote)' : 'Close (Ctrl + backquote)'
-    brand.onclick = () => show(view === null ? kept.get('tab', 'findings') || 'findings' : null)
+    brand.onclick = (event) => {
+      event.stopPropagation()
+      show(view === null ? kept.get('tab', 'findings') || 'findings' : null)
+    }
     header.appendChild(brand)
 
     /**
@@ -410,7 +426,10 @@ export const BAR_SCRIPT = String.raw`
     shut.type = 'button'
     shut.textContent = '\u00d7'
     shut.title = 'Close'
-    shut.onclick = () => closeBar()
+    shut.onclick = (event) => {
+      event.stopPropagation()
+      closeBar()
+    }
     header.appendChild(shut)
 
     mark()
@@ -517,6 +536,7 @@ export const BAR_SCRIPT = String.raw`
       select.appendChild(option)
     }
 
+    select.onclick = (event) => event.stopPropagation()
     select.onchange = () => {
       current = select.value
       picked = null
@@ -540,6 +560,7 @@ export const BAR_SCRIPT = String.raw`
     const check = document.createElement('input')
     check.type = 'checkbox'
     check.checked = kept.get('follow', '1') === '1'
+    box.onclick = (event) => event.stopPropagation()
     check.onchange = () => kept.set('follow', check.checked ? '1' : '0')
     box.appendChild(check)
     box.appendChild(node('span', '', 'follow ajax'))
