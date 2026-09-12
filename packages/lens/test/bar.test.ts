@@ -1001,3 +1001,21 @@ describe('a stale bar says so', () => {
     expect(BAR_SCRIPT).toContain('Stale')
   })
 })
+
+describe('the timeline says the same thing on every lane', () => {
+  /**
+   * Made twice: a description appended only when a kind happened once, so some
+   * lanes carried a sentence and others a count. Removed, then carried back in
+   * when the client was rewritten from the older copy. A test, because a comment
+   * did not survive a rewrite.
+   */
+  test('no lane carries a description', () => {
+    expect(BAR_SCRIPT).not.toContain("node('span', 'what'")
+  })
+
+  /** Folding is a way of looking, as Clockwork's condensed mode is. */
+  test('condensing is a toggle, and it is remembered', () => {
+    expect(BAR_SCRIPT).toContain('Every entry')
+    expect(BAR_SCRIPT).toContain("kept.set('condensed'")
+  })
+})

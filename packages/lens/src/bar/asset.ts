@@ -619,13 +619,18 @@ export const BAR_SCRIPT = String.raw`
       track.appendChild(fill)
       row.appendChild(track)
 
+      /**
+       * Every lane says the same things in the same places: the kind of work,
+       * how much of it, what it cost.
+       *
+       * A description was appended only when a kind happened once, so some lanes
+       * carried a sentence and others a count and the column meant two different
+       * things down the page. Removed once, then carried back in when this file
+       * was rewritten from the older copy — which is why it is spelled out here.
+       */
       const label = node('span', 'label')
       label.appendChild(node('span', 'kind', first.type))
       if (group.length > 1) label.appendChild(node('span', 'dupe', '×' + group.length))
-      if (group.length === 1) {
-        const shown = first.summary || {}
-        label.appendChild(node('span', 'what', shown.short || shown.title || ''))
-      }
       row.appendChild(label)
       row.appendChild(node('span', 'took', took > 0 ? ms(took) : ''))
       row.onclick = () => (group.length === 1 ? open(first.uuid) : show(first.type))
