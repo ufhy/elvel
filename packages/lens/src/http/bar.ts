@@ -212,6 +212,15 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
           type: entry.type,
           tags: entry.tags,
           panels: withoutPreview(describe(entry.type as never, entry.content)),
+          /**
+           * The raw content travels with the detail and only with the detail.
+           *
+           * The dashboard keeps a `Raw content` block under every entry because
+           * a panel never covers everything, and the bar should not be the
+           * lesser tool. One entry's content is the cost; a whole batch of them
+           * was what the list endpoint stopped sending.
+           */
+          content: entry.content,
           dashboard: options.stored ? `/${options.path}/${entry.type}/${entry.uuid}` : undefined
         }
       })

@@ -462,6 +462,42 @@ describe('the asset', () => {
     expect(BAR_STYLE).toContain(':host')
     expect(BAR_SCRIPT).toContain('attachShadow')
   })
+
+  /**
+   * The script ships inside a template literal. One backtick anywhere in it ends
+   * that literal in the middle of a function, and the error lands on whatever
+   * line happens to follow — which is how an afternoon goes. Hence
+   * `event.code === 'Backquote'` for the shortcut rather than comparing a key.
+   */
+  test('no backtick can close the literal the script ships in', () => {
+    expect(BAR_SCRIPT).not.toContain('`')
+    expect(BAR_SCRIPT).toContain('Backquote')
+  })
+
+  /**
+   * Without wrapping these the bar is a snapshot of page load: every call the
+   * page makes afterwards is recorded on the server and invisible until reload.
+   */
+  test('the client watches the page own requests', () => {
+    expect(BAR_SCRIPT).toContain('window.fetch =')
+    expect(BAR_SCRIPT).toContain('XMLHttpRequest.prototype.send')
+  })
+
+  /**
+   * `localStorage` throws outright in a private window with site data blocked,
+   * and the bar is running inside somebody else's page.
+   */
+  test('nothing touches storage outside a try', () => {
+    const uses = BAR_SCRIPT.split('localStorage').length - 1
+    const guarded = BAR_SCRIPT.slice(
+      BAR_SCRIPT.indexOf('const remembered'),
+      BAR_SCRIPT.indexOf('const host =')
+    )
+
+    expect(uses).toBe(2)
+    expect(guarded.split('localStorage')).toHaveLength(3)
+    expect(guarded.split('try {')).toHaveLength(3)
+  })
 })
 
 describe('the N+1 badge', () => {

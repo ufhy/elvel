@@ -163,7 +163,9 @@ entry type. Clicking a chip opens the panel:
   between queries still runs the same statement twelve times
 - **open any entry** for the same detail the dashboard shows: a request's
   headers, payload, session and response; an exception's stack with the source
-  around the failing line; a query's bindings and connection
+  around the failing line; a query's bindings and connection — objects as a
+  collapsible tree, not a flattened string, plus the raw JSON underneath and a
+  button that copies it
 - **jump to your editor** from any query, exception or dump, once
   `LENS_BAR_EDITOR` is set:
 
@@ -173,6 +175,16 @@ LENS_BAR_EDITOR="vscode://file/{file}:{line}"
 
 It is empty by default rather than guessing, because a link that does nothing is
 worse than the path written out.
+
+### It keeps up
+
+The bar wraps `fetch` and `XMLHttpRequest`, so a call your page makes after it
+loads appears in the list as soon as it settles — with its own queries, its own
+exception, its own everything. No reload, and the wrapper never touches the
+request itself: it waits for it to settle and then asks the server what is new.
+
+`Ctrl` + `` ` `` opens and closes the panel. Drag its top edge to resize it; the
+height and the open tab are remembered per browser.
 
 ### Work in other processes
 
