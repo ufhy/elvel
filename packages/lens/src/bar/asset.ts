@@ -128,6 +128,31 @@ a.frame:hover, a.out:hover { text-decoration: underline; }
 .src .t { white-space: pre-wrap; word-break: break-word; }
 .src .blame { color: #fc8181; }
 
+.lane {
+  display: grid; grid-template-columns: 50px 1fr minmax(0, 44%) auto; gap: 10px; align-items: center;
+  width: 100%; padding: 6px 10px; border: 0; border-bottom: 1px solid #22293a;
+  background: transparent; color: inherit; cursor: pointer; font-family: inherit; font-size: 12px; text-align: left;
+}
+.lane:hover { background: #1a202c; }
+.lane[aria-current="true"] { background: #1a202c; }
+.lane .at { color: #718096; text-align: right; font-variant-numeric: tabular-nums; }
+.lane .track { position: relative; height: 8px; background: #1a202c; border-radius: 2px; overflow: hidden; }
+.lane .track i { position: absolute; top: 0; height: 8px; min-width: 2px; border-radius: 2px; background: #4a5568; }
+.lane .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane .kind { color: #718096; margin-right: 8px; }
+.lane .what { color: #e2e8f0; }
+.lane .took { color: #a0aec0; font-variant-numeric: tabular-nums; }
+/* The .lane .track i rule sets the fallback and outranks a bare class, so these
+   have to be at least as specific or every bar comes out grey. */
+.lane .track i.kind-query { background: #63b3ed; }
+.lane .track i.kind-view { background: #b794f4; }
+.lane .track i.kind-cache { background: #68d391; }
+.lane .track i.kind-model { background: #f6ad55; }
+.lane .track i.kind-exception, .lane .track i.kind-log { background: #fc8181; }
+.lane .track i.kind-job, .lane .track i.kind-batch, .lane .track i.kind-schedule { background: #f6e05e; }
+.lane .track i.kind-mail, .lane .track i.kind-notification { background: #4fd1c5; }
+.lane .track i.kind-client_request { background: #90cdf4; }
+.lane .track i.kind-event, .lane .track i.kind-dump, .lane .track i.kind-gate { background: #718096; }
 .hot { display: grid; grid-template-columns: 44px 1fr auto; gap: 4px 10px; padding: 4px 10px 10px; align-items: center; }
 .hot .ms { color: #e2e8f0; text-align: right; font-variant-numeric: tabular-nums; }
 .hot .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -275,20 +300,30 @@ export const BAR_SCRIPT = String.raw`
     brand.onclick = () => show('findings')
     verdict.appendChild(brand)
 
-    const where = node('div', 'cell')
+    /** The request itself, and one click to everything it carried. */
+    const where = node('button', 'cell pill')
+    where.type = 'button'
+    where.dataset.view = 'request'
     where.append(
       node('b', '', batch.method + ' ' + batch.path),
       node('span', 'status-' + String(batch.status).charAt(0), batch.status)
     )
+    where.onclick = () => show('request')
     verdict.appendChild(where)
 
     /**
-     * A statement, not a tab. It was a second button that opened the findings —
-     * the same place the badge already goes — so two things in the strip did one
-     * thing and neither said so.
+     * The split, and a tab of its own.
+     *
+     * It briefly opened the findings, which the badge beside it already did —
+     * two buttons, one destination. Removing it was worse: the number people
+     * actually reach for stopped being reachable. It now opens the thing it
+     * describes, which is where those milliseconds went, in order.
      */
     const shape = batch.shape
-    const time = node('div', 'cell')
+    const time = node('button', 'cell pill')
+    time.type = 'button'
+    time.dataset.view = 'timeline'
+    time.title = 'Timeline'
     time.append(node('b', '', ms(shape.totalMs)))
     time.appendChild(meter(shape))
     time.append(
@@ -296,6 +331,7 @@ export const BAR_SCRIPT = String.raw`
       node('span', '', 'view ' + ms(shape.renderMs)),
       node('span', '', 'app ' + ms(shape.otherMs))
     )
+    time.onclick = () => show('timeline')
     verdict.appendChild(time)
 
     if (batch.verdict && batch.verdict.times !== undefined && batch.verdict.samples > 3) {
@@ -316,6 +352,8 @@ export const BAR_SCRIPT = String.raw`
     for (const held of batch.entries) counts.set(held.type, (counts.get(held.type) || 0) + 1)
 
     for (const [type, n] of counts) {
+      if (type === 'request') continue
+
       const cell = node('button', 'cell pill')
       cell.type = 'button'
       cell.dataset.view = type
@@ -385,6 +423,16 @@ export const BAR_SCRIPT = String.raw`
     drawView()
     drawDetail()
     if (view === 'costs') loadCosts()
+
+    /**
+     * There is only ever one request entry, so making somebody click a list of
+     * one to reach it is a step for nothing. Its detail opens with the tab.
+     */
+    if (view === 'request' && batch !== null) {
+      const only = batch.entries.find((held) => held.type === 'request')
+
+      if (only !== undefined) open(only.uuid)
+    }
   }
 
   /** Everything below the strip, from whatever state we are in. */
@@ -401,6 +449,7 @@ export const BAR_SCRIPT = String.raw`
     if (view === null || batch === null) return
 
     if (view === 'findings') return drawFindings()
+    if (view === 'timeline') return drawTimeline()
     if (view === 'profile') return drawProfile()
     if (view === 'costs') return drawCosts()
 
@@ -518,6 +567,57 @@ export const BAR_SCRIPT = String.raw`
       if (shown.took !== undefined && shown.took !== null) {
         row.appendChild(node('div', 'took', ms(shown.took)))
       }
+      row.onclick = () => open(held.uuid)
+      middle.appendChild(row)
+    }
+  }
+
+  /**
+   * Where the milliseconds went, in the order they went.
+   *
+   * The split in the strip says how much; this says when, and next to what. An
+   * N+1 is a picket fence, a slow query is one long bar with nothing beside it,
+   * and a request that spent its time in neither is a gap — which is the answer
+   * the three numbers alone cannot give.
+   */
+  function drawTimeline() {
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', 'Timeline'))
+    middle.appendChild(head)
+
+    const total = Math.max(batch.shape.totalMs, 0.01)
+    const timed = batch.entries
+      .filter((held) => held.type !== 'request')
+      .sort((a, b) => a.offsetMs - b.offsetMs)
+
+    if (timed.length === 0) {
+      middle.appendChild(node('div', 'empty', 'Nothing was recorded inside this request.'))
+      return
+    }
+
+    for (const held of timed) {
+      const shown = held.summary || { title: held.type, sub: '' }
+      const took = Number(shown.took ?? 0)
+      const row = node('button', 'lane')
+      row.type = 'button'
+      row.setAttribute('aria-current', String(held.uuid === (entry && entry.uuid)))
+
+      row.appendChild(node('span', 'at', ms(held.offsetMs)))
+
+      const track = node('span', 'track')
+      const fill = node('i', 'kind-' + held.type)
+      // A bar for something that took no measurable time still has to be visible.
+      fill.style.left = Math.min(99, (held.offsetMs / total) * 100) + '%'
+      fill.style.width = Math.max(0.6, (took / total) * 100) + '%'
+      track.appendChild(fill)
+      row.appendChild(track)
+
+      const label = node('span', 'label')
+      label.appendChild(node('span', 'kind', held.type))
+      label.appendChild(node('span', 'what', shown.title))
+      row.appendChild(label)
+
+      row.appendChild(node('span', 'took', took > 0 ? ms(took) : ''))
       row.onclick = () => open(held.uuid)
       middle.appendChild(row)
     }

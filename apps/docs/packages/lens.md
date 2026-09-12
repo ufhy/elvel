@@ -180,6 +180,15 @@ when you press the button, so the profile is clipped to the request's own window
 — the wait in between is dropped rather than charged to whichever function the
 sampler woke up inside.
 
+### The timeline
+
+The split says how much; clicking it says **when**, and next to what. One bar per
+entry, placed where it happened and sized by how long it took.
+
+An N+1 is a picket fence. A slow query is one long bar with nothing beside it. A
+request that spent its time in neither is a gap — which is the answer the three
+numbers alone cannot give. Clicking a bar opens that entry.
+
 ### It knows what is normal
 
 ```

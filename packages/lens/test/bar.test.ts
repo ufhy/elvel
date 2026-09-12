@@ -484,8 +484,11 @@ describe('the asset', () => {
    * line happens to follow — which is how an afternoon goes. Hence
    * `event.code === 'Backquote'` for the shortcut rather than comparing a key.
    */
-  test('no backtick can close the literal the script ships in', () => {
+  test('no backtick can close the literal either string ships in', () => {
     expect(BAR_SCRIPT).not.toContain('`')
+    // The stylesheet too: a backtick in a CSS comment ends the literal just as
+    // surely, and the error lands on the next line of JavaScript.
+    expect(BAR_STYLE).not.toContain('`')
     expect(BAR_SCRIPT).toContain('Backquote')
   })
 
