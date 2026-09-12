@@ -387,7 +387,8 @@ describe('the ring', () => {
         path: `/${n}`,
         status: 200,
         durationMs: 1,
-        entries: []
+        entries: [],
+        marks: []
       })
     }
 
@@ -409,7 +410,8 @@ describe('the ring', () => {
       entries: snapshot([
         IncomingEntry.make({ sql: 'select 1' }).withType(EntryType.QUERY),
         IncomingEntry.make({ sql: 'select 2' }).withType(EntryType.QUERY)
-      ])
+      ]),
+      marks: []
     })
 
     const [first] = ring.recent()
@@ -566,7 +568,8 @@ describe('the ring holds a bounded amount', () => {
     path: `/${id}`,
     status: 200,
     durationMs: 1,
-    entries
+    entries,
+    marks: []
   })
 
   test('a sequence is handed out per push and never reused', () => {
@@ -632,7 +635,8 @@ describe('patches reach entries the ring is still holding', () => {
       path: '',
       status: 0,
       durationMs: 0,
-      entries: snapshot([job])
+      entries: snapshot([job]),
+      marks: []
     })
 
     expect(ring.entry(job.uuid)?.summary.sub).toBe('processing')
@@ -766,7 +770,8 @@ describe('work from other processes', () => {
       path: '/shared',
       status: 200,
       durationMs: 1,
-      entries: []
+      entries: [],
+      marks: []
     })
 
     await router.handle(new Request('http://localhost/page'))
@@ -866,5 +871,47 @@ describe('what counts as work worth listing', () => {
     ).json()) as { batches: Array<{ batchId: string }> }
 
     expect(payload.batches.map((batch) => batch.batchId)).toEqual(['real-work'])
+  })
+})
+
+describe('the request has stages, not just entries', () => {
+  /**
+   * Watchers record what the application did; nothing recorded what the
+   * framework was doing between those moments, so time spent in neither the
+   * database nor rendering was a number with no shape.
+   */
+  test('a served request carries its own boundaries', async () => {
+    const { router, recorder, ring } = harness()
+
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 1)
+
+    const first = ring.recent()[0]
+    const marks = first === undefined ? [] : (ring.get(first.batchId)?.marks ?? [])
+
+    expect(marks.map((at) => at.name)).toEqual(['middleware', 'handler', 'response'])
+
+    for (const at of marks) expect(at.atMs).toBeGreaterThanOrEqual(0)
+
+    // In order, and inside the request.
+    expect(marks.map((at) => at.atMs)).toEqual(
+      [...marks.map((at) => at.atMs)].sort((a, b) => a - b)
+    )
+  })
+
+  /**
+   * Elysia runs neither before- nor after-handle for a path it did not match, so
+   * a 404 has fewer stages — which is itself the answer to why it was fast.
+   */
+  test('an unmatched path has fewer of them, and that is the answer', async () => {
+    const { router, recorder, ring } = harness()
+
+    await router.handle(new Request('http://localhost/nowhere'))
+    await drained(recorder, 1)
+
+    const first = ring.recent()[0]
+    const marks = first === undefined ? [] : (ring.get(first.batchId)?.marks ?? [])
+
+    expect(marks.map((at) => at.name)).not.toContain('handler')
   })
 })

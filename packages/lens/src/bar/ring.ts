@@ -5,6 +5,9 @@ import type { Verdict } from './baseline.ts'
 import { type Finding, findings, type Split, split } from './findings.ts'
 import type { Profile } from './profiler.ts'
 
+/** A boundary in the request's own progress — see `lensPlugin`. */
+export type Mark = { name: string; atMs: number }
+
 /** One finished unit of work, as the bar reads it back. */
 export type BarBatch = {
   /**
@@ -22,6 +25,13 @@ export type BarBatch = {
   durationMs: number
   entries: BarEntry[]
   /**
+   * When each stage of the request finished, from its arrival.
+   *
+   * What the framework was doing between the things a watcher records. Empty for
+   * a unit of work that is not an HTTP request.
+   */
+  marks: Mark[]
+  /**
    * What is wrong with this unit of work, decided when it closed.
    *
    * Computed once, here, rather than in the browser: the analysis is the product
@@ -37,7 +47,7 @@ export type BarBatch = {
 }
 
 /** The list form: everything but the entries. */
-export type BarSummary = Omit<BarBatch, 'entries' | 'found' | 'profile'> & {
+export type BarSummary = Omit<BarBatch, 'entries' | 'found' | 'profile' | 'marks'> & {
   count: number
   /** Which process this came from, so the bar can say what it cannot show. */
   source: 'ring' | 'storage'
@@ -244,7 +254,7 @@ function weigh(batch: BarBatch): number {
 }
 
 function summaryOf(batch: BarBatch): BarSummary {
-  const { entries, found, profile, ...rest } = batch
+  const { entries, found, profile, marks, ...rest } = batch
 
   return {
     ...rest,

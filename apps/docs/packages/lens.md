@@ -182,12 +182,24 @@ sampler woke up inside.
 
 ### The timeline
 
-The split says how much; clicking it says **when**, and next to what. One bar per
-entry, placed where it happened and sized by how long it took.
+The split says how much; clicking it says **when**, and next to what.
 
-An N+1 is a picket fence. A slow query is one long bar with nothing beside it. A
-request that spent its time in neither is a gap — which is the answer the three
-numbers alone cannot give. Clicking a bar opens that entry.
+It opens on the request's own stages — arrival, middleware, handler, response,
+sent — as one band with each segment's cost:
+
+```
+▓▓░░░░░░░░████████████████████████████████░░  middleware 1.5ms · handler 2.0ms · response 0.0ms · sent 0.5ms
+```
+
+That band is what a list of entries cannot tell you. Watchers record what the
+*application* did; this is what the framework was doing around it, so time spent
+in neither the database nor rendering stops being a number with no shape. An
+unmatched path has fewer stages, because Elysia runs neither the before- nor
+after-handle stage for one — which is itself the answer to why a 404 was fast.
+
+Below it, one bar per entry, placed where it happened and sized by how long it
+took. An N+1 is a picket fence. A slow query is one long bar with nothing beside
+it. Clicking a bar opens that entry.
 
 ### It knows what is normal
 
@@ -207,9 +219,13 @@ the left is which request you are looking at, the middle is what about it, and
 the right is the detail of one thing. Choosing another request keeps the view you
 were in.
 
-Findings are the first thing, not the only thing. Selecting one opens the entry
-that proves it. Every count in the strip opens the entries behind it —
-filterable — and every entry opens the same detail the dashboard shows: a request's headers, payload, session and response; an
+Findings are the first thing, not the only thing. Selecting one lists the
+entries behind it in place — eight identical statements under an N+1 — rather
+than throwing a full panel into the detail pane, which is the query tab's job.
+One of those lines opens the whole thing.
+
+Every count in the strip opens the entries behind it — filterable — and every
+entry opens the same detail the dashboard shows: a request's headers, payload, session and response; an
 exception's stack with the source around the failing line; a query's bindings and
 connection. Objects render as a collapsible tree, with the raw JSON underneath
 and a button that copies it.

@@ -88,6 +88,29 @@ input.find:focus { outline: 0; border-color: #FF2D20; }
 .finding .title { flex: 1 1 auto; color: #e2e8f0; line-height: 1.35; }
 .finding .cost { flex: 0 0 auto; color: #a0aec0; font-variant-numeric: tabular-nums; }
 .finding .d { margin: 5px 0 0 14px; color: #718096; line-height: 1.45; word-break: break-word; }
+.stages { padding: 10px 10px 8px; border-bottom: 1px solid #22293a; }
+.phases { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: #1a202c; }
+.phases .phase { display: block; height: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; color: #718096; }
+.legend .key { display: flex; align-items: center; gap: 5px; }
+.legend i { width: 8px; height: 8px; border-radius: 2px; display: block; }
+.phase-middleware, .legend i.phase-middleware { background: #4a5568; }
+.phase-handler, .legend i.phase-handler { background: #63b3ed; }
+.phase-response, .legend i.phase-response { background: #b794f4; }
+.phase-sent, .legend i.phase-sent { background: #2d3748; }
+
+.proof { margin: 8px 0 0 14px; border-left: 1px solid #2d3748; }
+.proof-row {
+  display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: baseline;
+  width: 100%; padding: 4px 8px; border: 0; background: transparent; color: inherit;
+  cursor: pointer; font-family: inherit; font-size: 11px; text-align: left;
+}
+.proof-row:hover { background: #22293a; }
+.proof-row .at { color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
+.proof-row .what { color: #a0aec0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proof-row .took { color: #718096; font-variant-numeric: tabular-nums; }
+.proof .more { padding: 4px 8px; color: #4a5568; }
+
 .clear { padding: 16px 12px; color: #718096; line-height: 1.6; }
 .clear b { color: #68d391; }
 
@@ -487,30 +510,57 @@ export const BAR_SCRIPT = String.raw`
       box.appendChild(line)
       box.appendChild(node('div', 'd', one.detail))
       /**
-       * A finding without its evidence is an assertion. Selecting one opens the
-       * entry that proves it, in the detail pane, with both other panes intact.
+       * A finding summarises its own evidence rather than opening it.
+       *
+       * Selecting one used to throw a full query panel into the detail pane,
+       * which is the query tab's job and made the findings view a detour to
+       * somewhere else. A few lines here answer "which ones?" in place; the row
+       * that needs the whole panel is one more click.
        */
       box.onclick = () => {
-        if (picked === one.id) {
-          picked = null
-          entry = null
-          drawView()
-          drawDetail()
-
-          return
-        }
-
-        picked = one.id
+        picked = picked === one.id ? null : one.id
         drawView()
-
-        if (one.evidence.length > 0) open(one.evidence[0])
-        else {
-          entry = null
-          drawDetail()
-        }
       }
+
+      if (picked === one.id) box.appendChild(evidenceOf(one))
+
       middle.appendChild(box)
     }
+  }
+
+  /** The entries behind a finding, as one line each. */
+  function evidenceOf(one) {
+    const box = node('div', 'proof')
+    const held = new Map()
+
+    for (const found of batch.entries) held.set(found.uuid, found)
+
+    // Ten is enough to see the shape of an N+1; forty is a wall.
+    for (const uuid of one.evidence.slice(0, 10)) {
+      const found = held.get(uuid)
+
+      if (found === undefined) continue
+
+      const shown = found.summary || { title: found.type, sub: '' }
+      const line = node('button', 'proof-row')
+      line.type = 'button'
+      line.appendChild(node('span', 'at', ms(found.offsetMs)))
+      line.appendChild(node('span', 'what', shown.title))
+      line.appendChild(
+        node('span', 'took', shown.took === undefined || shown.took === null ? '' : ms(shown.took))
+      )
+      line.onclick = (event) => {
+        event.stopPropagation()
+        open(uuid)
+      }
+      box.appendChild(line)
+    }
+
+    if (one.evidence.length > 10) {
+      box.appendChild(node('div', 'more', 'and ' + (one.evidence.length - 10) + ' more'))
+    }
+
+    return box
   }
 
   function drawEntries() {
@@ -586,6 +636,9 @@ export const BAR_SCRIPT = String.raw`
     middle.appendChild(head)
 
     const total = Math.max(batch.shape.totalMs, 0.01)
+
+    middle.appendChild(stages(total))
+
     const timed = batch.entries
       .filter((held) => held.type !== 'request')
       .sort((a, b) => a.offsetMs - b.offsetMs)
@@ -621,6 +674,57 @@ export const BAR_SCRIPT = String.raw`
       row.onclick = () => open(held.uuid)
       middle.appendChild(row)
     }
+  }
+
+  /**
+   * The request's own progress, arrival to response.
+   *
+   * The entries below are what the application did; this is what the framework
+   * was doing around them. Without it a request that spent nine milliseconds in
+   * neither the database nor rendering was a number with no shape — this says
+   * whether that time was middleware, the handler, or building the response.
+   *
+   * The stages come from Elysia's own boundaries. An unmatched path has fewer of
+   * them, because Elysia runs neither the before- nor after-handle stage for
+   * one, which is itself the answer to why a 404 was fast.
+   */
+  function stages(total) {
+    const box = node('div', 'stages')
+    const marks = batch.marks || []
+    const named = { middleware: 'middleware', handler: 'handler', response: 'response' }
+    let from = 0
+    const parts = []
+
+    for (const at of marks) {
+      parts.push({ name: named[at.name] || at.name, from: from, to: at.atMs })
+      from = at.atMs
+    }
+
+    parts.push({ name: 'sent', from: from, to: total })
+
+    const track = node('div', 'phases')
+    for (const part of parts) {
+      const width = Math.max(0, ((part.to - part.from) / total) * 100)
+
+      if (width <= 0) continue
+
+      const piece = node('span', 'phase phase-' + part.name)
+      piece.style.width = width + '%'
+      piece.title = part.name + ' ' + ms(part.to - part.from)
+      track.appendChild(piece)
+    }
+    box.appendChild(track)
+
+    const legend = node('div', 'legend')
+    for (const part of parts) {
+      const item = node('span', 'key')
+      item.appendChild(node('i', 'phase-' + part.name))
+      item.appendChild(node('span', '', part.name + ' ' + ms(part.to - part.from)))
+      legend.appendChild(item)
+    }
+    box.appendChild(legend)
+
+    return box
   }
 
   /**

@@ -62,6 +62,26 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
   const started = new WeakMap<Request, number>()
 
   /**
+   * When each stage of the request finished, in milliseconds from its arrival.
+   *
+   * Watchers record what an application *did*; nothing recorded what the
+   * framework was doing between those moments, so a request that spent 9ms
+   * outside the database and outside rendering was a number with no shape. These
+   * are the boundaries Elysia already announces, taken at the only cost of
+   * reading a clock.
+   */
+  const marks = new WeakMap<Request, Array<{ name: string; atMs: number }>>()
+
+  function mark(request: Request, name: string): void {
+    const begun = started.get(request)
+    const held = marks.get(request)
+
+    if (begun === undefined || held === undefined) return
+
+    held.push({ name, atMs: Math.round((performance.now() - begun) * 100) / 100 })
+  }
+
+  /**
    * The client's address, read while the socket is still open.
    *
    * `server.requestIP(request)` answers `null` from `onAfterResponse` —
@@ -115,6 +135,7 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
 
         batches.set(request, batch)
         started.set(request, performance.now())
+        marks.set(request, [])
 
         /**
          * Synchronous by design — see `RequestProfiler.arm`. The sampler is
@@ -126,6 +147,22 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
         const address = clientAddress(context)
 
         if (address !== undefined) addresses.set(request, address)
+      })
+      /**
+       * Elysia runs neither of these for an unmatched path, so a 404 simply has
+       * fewer stages — which is itself the answer to why it was fast.
+       */
+      .onBeforeHandle({ as: 'global' }, ({ request }: { request: Request }) => {
+        mark(request, 'middleware')
+      })
+      .onAfterHandle({ as: 'global' }, ({ request }: { request: Request }) => {
+        mark(request, 'handler')
+      })
+      .mapResponse({ as: 'global' }, ({ request }: { request: Request }) => {
+        mark(request, 'response')
+
+        // Reading a clock, not changing the response.
+        return undefined
       })
       .onAfterResponse({ as: 'global' }, async (context) => {
         const { request } = context
@@ -220,6 +257,7 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
             status,
             durationMs: Math.round(duration),
             entries: snapshot(batch.entries),
+            marks: marks.get(request) ?? [],
             verdict: options.baselines?.record(route, duration),
             profile: await options.profiler?.end(batch.batchId, duration)
           })
