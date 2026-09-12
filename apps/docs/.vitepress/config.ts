@@ -49,7 +49,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Docs', link: '/getting-started/installation' },
-      { text: 'Packages', link: '/architecture/packages' },
+      { text: 'Architecture', link: '/architecture/packages' },
       {
         text: 'alpha',
         items: [
@@ -102,7 +102,6 @@ export default defineConfig({
           { text: 'File storage', link: '/digging-deeper/storage' },
           { text: 'HTTP client', link: '/digging-deeper/http-client' },
           { text: 'Images', link: '/digging-deeper/images' },
-          { text: 'Lens', link: '/digging-deeper/lens' },
           { text: 'Localization', link: '/digging-deeper/localization' },
           { text: 'Mail', link: '/digging-deeper/mail' },
           { text: 'Notifications', link: '/digging-deeper/notifications' },
@@ -122,6 +121,17 @@ export default defineConfig({
       {
         text: 'Testing',
         items: [{ text: 'Getting started', link: '/testing/getting-started' }]
+      },
+      {
+        /**
+         * Optional packages, the way Laravel groups Telescope and Horizon.
+         *
+         * Not "digging deeper": everything in that group is a capability the
+         * framework already has and an application configures. These are tools
+         * an application installs, and none of them is scaffolded.
+         */
+        text: 'Packages',
+        items: [{ text: 'Lens', link: '/packages/lens' }]
       },
       {
         text: 'Security',

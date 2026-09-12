@@ -120,7 +120,7 @@ without needing to know where the file is.
 
 ### Lens
 
-Only when [`@elvel/lens`](/digging-deeper/lens) is installed and registered.
+Only when [`@elvel/lens`](/packages/lens) is installed and registered.
 
 | Command | |
 | --- | --- |
