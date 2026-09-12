@@ -451,8 +451,15 @@ export const BAR_SCRIPT = String.raw`
    */
   async function armProfiler(button) {
     button.disabled = true
-    // The reload is part of the flow, so land on the profile rather than shut.
-    kept.set('view', 'profile')
+    /**
+     * One-shot, consumed by the next load.
+     *
+     * Remembering the tab *always* meant the panel opened itself on every page
+     * of the application, which nobody asked for — an inspector that reopens
+     * over your work each time you navigate is worse than one that stays shut.
+     * Arming the profiler is the one flow whose reload is part of the flow.
+     */
+    kept.set('reopen', 'profile')
     try {
       const answer = await ask('/profile')
       button.textContent = answer.ok ? 'Reload to profile' : 'Profiler refused'
@@ -952,20 +959,23 @@ export const BAR_SCRIPT = String.raw`
     if (view === null) return
 
     /**
-     * This page load and what it asked for, then everything before it.
+     * This page load and what it asked for. Nothing else.
      *
-     * A flat list grew by one on every refresh and printed a navigation and an
-     * XHR identically, so five reloads buried the four calls the page actually
-     * made. The batch this page was served by is the boundary: anything newer
-     * belongs to this page, anything older is a previous visit.
+     * The browser's own Network panel is the settled answer here and it clears
+     * on every navigation: what is listed is this document and what this
+     * document caused. A list that grew by one on every refresh buried the four
+     * calls the page actually made under five identical reloads.
+     *
+     * The page's own batch is the boundary. Anything the ring holds with a
+     * *higher* sequence happened after this page was served, so it is this
+     * page's; everything below is a previous visit and is not listed. A batch id
+     * the ring no longer holds — the page has been open longer than twenty
+     * requests — leaves only what arrived since.
      */
     const here = recent.findIndex((item) => item.batchId === tag.dataset.batch)
-    const mine = here === -1 ? recent : recent.slice(0, here + 1)
-    const before = here === -1 ? [] : recent.slice(here + 1)
+    const mine = here === -1 ? recent.filter((item) => item.source === 'storage') : recent.slice(0, here + 1)
 
     side.appendChild(sectionOf('This page', mine))
-
-    if (before.length > 0) side.appendChild(sectionOf('Earlier', before))
 
     if (!crossProcess) {
       side.appendChild(
@@ -1221,19 +1231,19 @@ export const BAR_SCRIPT = String.raw`
       batch = (await answer.json()).batch
 
       /**
-       * Reopen whatever was open before the reload.
+       * Reopen only what asked to be reopened.
        *
-       * Arming the profiler *requires* a reload, so the one flow that needs the
-       * panel most was also the one that always came back with it shut. The tab
-       * is remembered per browser; this is where it is honoured.
+       * Arming the profiler requires a reload, so the one flow that needs the
+       * panel most was the one that always came back with it shut. Consumed
+       * here, so it happens once and the next navigation is left alone.
        */
       if (view === null) {
-        const before = kept.get('view', '')
+        const asked = kept.get('reopen', '')
 
-        if (before) {
-          view = before
+        if (asked) {
+          kept.set('reopen', '')
+          view = asked
           bar.classList.add('open')
-          if (view === 'costs') loadCosts()
         }
       }
 
