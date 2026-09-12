@@ -96,6 +96,12 @@ export class DatabaseEntriesRepository implements EntriesDriver {
       .filter((entry): entry is EntryResult => entry !== undefined)
   }
 
+  async count(type?: EntryTypeName): Promise<number> {
+    const query = await this.entries()
+
+    return type === undefined ? query.count() : query.where('type', type).count()
+  }
+
   async store(entries: IncomingEntry[]): Promise<void> {
     if (entries.length === 0) return
 

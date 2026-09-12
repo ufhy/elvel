@@ -4,6 +4,7 @@ import { LensInstallCommand } from './console/lens-install.ts'
 import { LensPauseCommand } from './console/lens-pause.ts'
 import { LensPruneCommand } from './console/lens-prune.ts'
 import { LensResumeCommand } from './console/lens-resume.ts'
+import { LensStatusCommand } from './console/lens-status.ts'
 import { LensTableCommand } from './console/lens-table.ts'
 import type { EntriesRepository } from './contracts.ts'
 import { lensDashboard } from './http/dashboard.ts'
@@ -57,6 +58,7 @@ export class LensServiceProvider extends ServiceProvider {
           LensPauseCommand,
           LensPruneCommand,
           LensResumeCommand,
+          LensStatusCommand,
           LensTableCommand
         )
     }

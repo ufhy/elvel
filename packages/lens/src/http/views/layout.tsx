@@ -306,6 +306,12 @@ td.muted { color: var(--dim); }
 .btn.quiet:hover { color: var(--danger-fg); }
 .row { display: flex; gap: 10px; align-items: center; }
 .hint { color: var(--dim); margin: 0 0 16px; font-size: 13px; }
+.steps { margin: 0; padding-left: 20px; color: var(--dim); font-size: 13px; }
+.steps li { margin-bottom: 8px; }
+.steps code {
+  background: var(--cap); border: 1px solid var(--line); border-radius: 6px;
+  padding: 2px 7px; color: var(--ink);
+}
 details > summary { cursor: pointer; list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 details > summary::after { content: '▸'; color: var(--faint); margin-left: auto; }

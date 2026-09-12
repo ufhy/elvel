@@ -4,6 +4,7 @@ import { isTerminable } from './contracts.ts'
 import type { IncomingEntry } from './entry.ts'
 import type { EntryTypeName } from './entry-type.ts'
 import type { EntryUpdate } from './entry-update.ts'
+import { notInstalledError, tableIsMissing } from './installed.ts'
 
 /** A filter answering "should this be kept". Every registered one must agree. */
 export type EntryFilter = (entry: IncomingEntry) => boolean
@@ -78,6 +79,9 @@ export class Recorder {
 
   /** Turned on per unit of work by {@link start}; off means nothing records. */
   private enabled = false
+
+  /** So the missing-tables instruction is given once rather than every request. */
+  private warnedNotInstalled = false
 
   /**
    * Paused by hand, through `lens:pause`.
@@ -372,7 +376,21 @@ export class Recorder {
 
       for (const hook of this.afterStoringHooks) hook(entries, batchId)
     } catch (error) {
-      this.report(error)
+      /**
+       * Said once, not once per request.
+       *
+       * A recorder whose tables are missing reports on every single request,
+       * which buries whatever the log was for. The instruction does not change
+       * between requests, so neither should the line.
+       */
+      if (tableIsMissing(error)) {
+        if (!this.warnedNotInstalled) {
+          this.warnedNotInstalled = true
+          this.report(notInstalledError())
+        }
+      } else {
+        this.report(error)
+      }
     } finally {
       batch.suppressed--
 

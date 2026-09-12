@@ -18,6 +18,15 @@ export type EntriesRepository = {
 
   get(type: EntryTypeName | undefined, options: EntryQueryOptions): Promise<EntryResult[]>
 
+  /**
+   * How many entries of a type there are.
+   *
+   * Its own method because the alternative is counting a page and calling that
+   * a total: `lens:status` did exactly that and reported `200` for two hundred
+   * thousand requests, which is the page size wearing a number's clothes.
+   */
+  count(type?: EntryTypeName): Promise<number>
+
   store(entries: IncomingEntry[]): Promise<void>
 
   /** Returns the patches whose rows were not found, to be retried. */

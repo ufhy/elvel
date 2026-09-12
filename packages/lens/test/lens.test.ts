@@ -396,6 +396,7 @@ describe('recorder', () => {
       update: () => Promise.resolve([]),
       find: () => Promise.resolve(undefined),
       get: () => Promise.resolve([]),
+      count: () => Promise.resolve(0),
       monitoring: () => Promise.resolve([]),
       isMonitoring: () => Promise.resolve(false),
       monitor: () => Promise.resolve(),

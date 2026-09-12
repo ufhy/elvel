@@ -4,6 +4,7 @@ import { render } from '@elvel/view'
 import { Elysia } from 'elysia'
 import { isClearable } from '../contracts.ts'
 import { EntryType, type EntryTypeName, entryTypes } from '../entry-type.ts'
+import { tableIsMissing } from '../installed.ts'
 import { cacheOf, PAUSE_KEY, PAUSE_TTL, refreshMonitoring } from '../pause.ts'
 import type { Recorder } from '../recorder.ts'
 import { EntryQueryOptions } from '../storage/query-options.ts'
@@ -13,6 +14,7 @@ import { Entries } from './views/entries.tsx'
 import { Entry } from './views/entry.tsx'
 import type { Theme } from './views/layout.tsx'
 import { Monitoring } from './views/monitoring.tsx'
+import { Notice } from './views/notice.tsx'
 
 export type LensDashboardOptions = {
   path: string
@@ -50,7 +52,26 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
 
         set.status = 403
 
-        return 'Forbidden'
+        /**
+         * A page rather than the word `Forbidden`.
+         *
+         * The refusal is deliberate — `authorise()` returns false until an
+         * application says otherwise — and a refusal nobody can act on reads as
+         * a bug. This one names the file with the answer in it.
+         */
+        return html(
+          set,
+          await render(Notice, {
+            path: options.path,
+            title: 'Nobody may read this yet',
+            message:
+              'Lens refuses everyone until your application says who may look. ' +
+              'That is the default on purpose: an empty HOST binds every interface, ' +
+              'so being on your own machine is not a statement about who can reach this.',
+            steps: ['Open the provider below', 'Fill in authorise() with your own rule'],
+            file: 'app/Providers/LensServiceProvider.ts'
+          })
+        )
       })
       .get(prefix, ({ redirect }) => redirect(`${prefix}/${EntryType.REQUEST}`, 302))
       /**
@@ -144,7 +165,9 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
         }
 
         const asked = EntryQueryOptions.fromRequest(query)
-        const entries = await app.make('lens.entries').get(type, asked)
+        const entries = await read(() => app.make('lens.entries').get(type, asked), [])
+
+        if (entries === NOT_THERE) return notInstalled(app, options, set)
 
         return html(
           set,
@@ -167,7 +190,9 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
       })
       .get(`${prefix}/:type/:id`, async ({ params, set }) => {
         const repository = app.make('lens.entries')
-        const entry = await repository.find(params.id)
+        const entry = await read(() => repository.find(params.id), undefined)
+
+        if (entry === NOT_THERE) return notInstalled(app, options, set)
 
         if (entry === undefined) {
           set.status = 404
@@ -229,6 +254,44 @@ function chosenTheme(): Theme {
   const value = cookie('lens_theme')
 
   return value === 'dark' || value === 'light' ? value : undefined
+}
+
+/**
+ * A marker, because `undefined` already means "no such entry".
+ *
+ * Reads are guarded one by one rather than through an `onError` hook — that was
+ * the first attempt and it did not catch, so the dashboard went on answering a
+ * SQLite stack trace. Measured by dropping the tables, not assumed.
+ */
+const NOT_THERE = Symbol('lens.not-installed')
+
+async function read<T>(body: () => Promise<T>, _shape: T): Promise<T | typeof NOT_THERE> {
+  try {
+    return await body()
+  } catch (error) {
+    if (tableIsMissing(error)) return NOT_THERE
+
+    throw error
+  }
+}
+
+/** The page somebody who has not run the migration should see. */
+async function notInstalled(
+  app: ApplicationContract,
+  options: LensDashboardOptions,
+  set: { headers: Record<string, string | number>; status?: unknown }
+): Promise<string> {
+  set.status = 503
+
+  return html(
+    set,
+    await render(Notice, {
+      path: options.path,
+      title: 'Lens is not installed yet',
+      message: 'Lens is enabled but its tables are not there.',
+      steps: ['elvel lens:table', 'elvel migrate']
+    })
+  )
 }
 
 function asType(candidate: string): EntryTypeName | undefined {
