@@ -32,6 +32,14 @@ export type BarBatch = {
    */
   marks: Mark[]
   /**
+   * A page the browser navigated to, or something that page asked for.
+   *
+   * The difference between a list and a pile: five reloads and the four calls
+   * a page made are not the same kind of thing, and the bar should not print
+   * them as if they were.
+   */
+  kind: 'page' | 'xhr'
+  /**
    * What is wrong with this unit of work, decided when it closed.
    *
    * Computed once, here, rather than in the browser: the analysis is the product

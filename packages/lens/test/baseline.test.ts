@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { Baselines } from '../src/bar/baseline.ts'
-import { RequestProfiler, reduce } from '../src/bar/profiler.ts'
+import { originOf, RequestProfiler, reduce } from '../src/bar/profiler.ts'
 
 describe('what a route usually costs', () => {
   /**
@@ -266,5 +266,46 @@ describe('the profile is about the request, not about the wait', () => {
     )
 
     expect(profile.hot[0]?.selfMs).toBe(50)
+  })
+})
+
+describe('the profile says whose code it was', () => {
+  /**
+   * Twenty function names is a list to read; four origins is an answer to act
+   * on. Order matters in `originOf`: a monorepo has the framework under
+   * `packages/`, so the application's own root is checked last or every
+   * framework file in this repository counts as the application's.
+   */
+  test('a frame is attributed to its owner', () => {
+    const root = '/app'
+
+    expect(originOf('/app/Http/Controllers/Page.ts', root)).toBe('your code')
+    expect(originOf('/repo/packages/database/src/query/builder.ts', root)).toBe('@elvel/database')
+    expect(originOf('/app/node_modules/@kitajs/html/index.js', root)).toBe('@kitajs/html')
+    expect(originOf('/app/node_modules/picocolors/index.js', root)).toBe('picocolors')
+    expect(originOf('internal:sql/query', root)).toBe('runtime')
+    expect(originOf('', root)).toBe('runtime')
+  })
+
+  test('the profile groups every frame, not only the twenty shown', () => {
+    const profile = reduce(
+      {
+        nodes: [
+          { id: 1, callFrame: { functionName: 'a', url: '/app/one.ts' } },
+          { id: 2, callFrame: { functionName: 'b', url: '/app/two.ts' } },
+          { id: 3, callFrame: { functionName: 'c', url: '/repo/packages/http/src/x.ts' } }
+        ],
+        samples: [1, 2, 3],
+        timeDeltas: [1000, 2000, 4000]
+      },
+      0,
+      undefined,
+      '/app'
+    )
+
+    expect(profile.origins).toEqual([
+      { name: '@elvel/http', selfMs: 4, mine: false },
+      { name: 'your code', selfMs: 3, mine: true }
+    ])
   })
 })

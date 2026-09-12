@@ -80,7 +80,7 @@ export class LensServiceProvider extends ServiceProvider {
     )
 
     this.app.singleton('lens.baselines', () => new Baselines())
-    this.app.singleton('lens.profiler', () => new RequestProfiler())
+    this.app.singleton('lens.profiler', () => new RequestProfiler(this.app.basePath()))
 
     this.registerStorage()
   }

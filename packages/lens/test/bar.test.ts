@@ -388,7 +388,8 @@ describe('the ring', () => {
         status: 200,
         durationMs: 1,
         entries: [],
-        marks: []
+        marks: [],
+        kind: 'page' as const
       })
     }
 
@@ -411,7 +412,8 @@ describe('the ring', () => {
         IncomingEntry.make({ sql: 'select 1' }).withType(EntryType.QUERY),
         IncomingEntry.make({ sql: 'select 2' }).withType(EntryType.QUERY)
       ]),
-      marks: []
+      marks: [],
+      kind: 'page'
     })
 
     const [first] = ring.recent()
@@ -569,7 +571,8 @@ describe('the ring holds a bounded amount', () => {
     status: 200,
     durationMs: 1,
     entries,
-    marks: []
+    marks: [],
+    kind: 'page' as const
   })
 
   test('a sequence is handed out per push and never reused', () => {
@@ -636,7 +639,8 @@ describe('patches reach entries the ring is still holding', () => {
       status: 0,
       durationMs: 0,
       entries: snapshot([job]),
-      marks: []
+      marks: [],
+      kind: 'page'
     })
 
     expect(ring.entry(job.uuid)?.summary.sub).toBe('processing')
@@ -771,7 +775,8 @@ describe('work from other processes', () => {
       status: 200,
       durationMs: 1,
       entries: [],
-      marks: []
+      marks: [],
+      kind: 'page'
     })
 
     await router.handle(new Request('http://localhost/page'))

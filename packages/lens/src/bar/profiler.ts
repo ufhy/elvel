@@ -11,6 +11,23 @@ export type Hot = {
   selfMs: number
   /** Milliseconds it or anything it called was running. */
   totalMs: number
+  /**
+   * Whose code this is — the application, a package, or the runtime.
+   *
+   * A profile is twenty function names, and twenty names is a list to read
+   * rather than an answer to act on. Grouped by origin it becomes one line:
+   * your code took this long, the query builder took that long. The names are
+   * still underneath.
+   */
+  origin: string
+}
+
+/** One origin's share of the profile. */
+export type Origin = {
+  name: string
+  selfMs: number
+  /** Whether it is the application's own code. */
+  mine: boolean
 }
 
 export type Profile = {
@@ -28,6 +45,8 @@ export type Profile = {
    * the parts not add up.
    */
   outsideMs: number
+  /** Where the time went, by whose code it was. Heaviest first. */
+  origins: Origin[]
   hot: Hot[]
 }
 
@@ -49,6 +68,9 @@ export type Profile = {
  * they might not — would be worse than saying so.
  */
 export class RequestProfiler {
+  /** The application's base path, so a frame can be attributed to its owner. */
+  constructor(private readonly root = '') {}
+
   private session: Session | undefined
 
   private running = false
@@ -131,7 +153,7 @@ export class RequestProfiler {
     try {
       const answer = (await this.session.post('Profiler.stop')) as { profile: RawProfile }
 
-      return reduce(answer.profile, performance.now() - this.startedAt, windowMs)
+      return reduce(answer.profile, performance.now() - this.startedAt, windowMs, this.root)
     } catch {
       return undefined
     }
@@ -162,7 +184,36 @@ type RawProfile = {
  * find that number when you have a screen for it, and the dashboard is where
  * that belongs.
  */
-export function reduce(profile: RawProfile, fallbackMs: number, windowMs?: number): Profile {
+/**
+ * Whose code a frame belongs to, from its path alone.
+ *
+ * Order matters: a monorepo has the framework under `packages/`, and an
+ * installed one has it under `node_modules/@elvel/`, so the application's own
+ * root is checked last — otherwise every framework file in this repository
+ * would be counted as the application's.
+ */
+export function originOf(file: string, root: string): string {
+  if (file === '') return 'runtime'
+
+  const scoped = /node_modules\/(@[\w.-]+\/[\w.-]+|[\w.-]+)/.exec(file)
+
+  if (scoped !== null) return scoped[1] as string
+
+  const inside = /\/packages\/([\w.-]+)\//.exec(file)
+
+  if (inside !== null) return `@elvel/${inside[1]}`
+  if (root !== '' && file.startsWith(root)) return 'your code'
+  if (file.startsWith('internal:') || file.startsWith('node:')) return 'runtime'
+
+  return 'your code'
+}
+
+export function reduce(
+  profile: RawProfile,
+  fallbackMs: number,
+  windowMs?: number,
+  root = ''
+): Profile {
   const byId = new Map<number, RawNode>()
 
   for (const node of profile.nodes) byId.set(node.id, node)
@@ -252,9 +303,12 @@ export function reduce(profile: RawProfile, fallbackMs: number, windowMs?: numbe
       continue
     }
 
+    const file = node.callFrame.url ?? ''
+
     hot.push({
       name,
-      file: node.callFrame.url ?? '',
+      file,
+      origin: originOf(file, root),
       // Both engines count lines from zero here; every editor counts from one.
       line: (node.callFrame.lineNumber ?? 0) + 1,
       self: selfHits.get(id) ?? 0,
@@ -269,10 +323,26 @@ export function reduce(profile: RawProfile, fallbackMs: number, windowMs?: numbe
       : fallbackMs
   const measured = windowMs === undefined ? whole : Math.min(whole, windowMs)
 
+  /**
+   * Grouped over *every* frame, not only the twenty shown. A package whose cost
+   * is spread thinly over forty functions is exactly the one a top-twenty list
+   * hides.
+   */
+  const byOrigin = new Map<string, number>()
+
+  for (const one of hot) byOrigin.set(one.origin, (byOrigin.get(one.origin) ?? 0) + one.selfMs)
+
   return {
     durationMs: Math.round(measured * 100) / 100,
     samples: samples.length,
     outsideMs: ms(outsideUs),
+    origins: [...byOrigin.entries()]
+      .map(([name, selfMs]) => ({
+        name,
+        selfMs: Math.round(selfMs * 100) / 100,
+        mine: name === 'your code'
+      }))
+      .sort((a, b) => b.selfMs - a.selfMs),
     hot: hot.sort((a, b) => b.selfMs - a.selfMs).slice(0, 20)
   }
 }

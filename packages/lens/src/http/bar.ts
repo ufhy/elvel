@@ -370,6 +370,8 @@ function asSummary(batch: StoredBatch): BarSummary {
     shape: { totalMs: 0, databaseMs: 0, renderMs: 0, otherMs: 0, queries: batch.types.query ?? 0 },
     count: batch.count,
     source: 'storage',
+    /** Work from a worker or the scheduler is not a page and not a page's call. */
+    kind: 'xhr',
     problems: 0,
     profiled: false
   }

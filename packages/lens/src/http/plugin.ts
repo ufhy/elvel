@@ -258,6 +258,7 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
             durationMs: Math.round(duration),
             entries: snapshot(batch.entries),
             marks: marks.get(request) ?? [],
+            kind: kindOf(request),
             verdict: options.baselines?.record(route, duration),
             profile: await options.profiler?.end(batch.batchId, duration)
           })
@@ -273,6 +274,26 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
         await lens.store(app.make('lens.entries'), batch)
       })
   )
+}
+
+/**
+ * Was this the page itself, or something the page asked for?
+ *
+ * `Sec-Fetch-Dest` is the browser saying what the request is *for*, and every
+ * browser that matters sends it: `document` for a navigation, `empty` for a
+ * `fetch` or `XMLHttpRequest`. Without the distinction a list of recent requests
+ * is a pile — five reloads and the four calls the page made all look alike, and
+ * the one worth opening is buried.
+ *
+ * Falls back to the `accept` header for anything that does not send it (curl,
+ * a test), where asking for HTML is the closest thing to asking for a page.
+ */
+function kindOf(request: Request): 'page' | 'xhr' {
+  const dest = request.headers.get('sec-fetch-dest')
+
+  if (dest !== null) return dest === 'document' || dest === 'iframe' ? 'page' : 'xhr'
+
+  return (request.headers.get('accept') ?? '').includes('text/html') ? 'page' : 'xhr'
 }
 
 /** The client's address, when the server can say who it is. */

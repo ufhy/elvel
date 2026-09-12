@@ -122,6 +122,12 @@ input.find:focus { outline: 0; border-color: #FF2D20; }
 .side button:disabled { cursor: default; opacity: .55; }
 .side button[aria-current="true"] { background: #1a202c; color: #fff; }
 .side .path { display: block; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side .kind {
+  display: inline-block; margin-right: 6px; padding: 1px 4px; border-radius: 3px;
+  font-size: 9px; letter-spacing: .04em; text-transform: uppercase;
+}
+.side .kind.page { background: #2d3748; color: #a0aec0; }
+.side .kind.xhr { background: #22543d; color: #9ae6b4; }
 .side .meta { display: block; margin-top: 3px; opacity: .7; }
 .side .flag { color: #fc8181; }
 .aside { padding: 8px 10px; color: #718096; line-height: 1.45; }
@@ -175,7 +181,9 @@ a.frame:hover, a.out:hover { text-decoration: underline; }
 .hot .name { color: #e2e8f0; }
 .hot .at { color: #718096; }
 .hot .meter { width: 90px; height: 4px; background: #22293a; border-radius: 2px; overflow: hidden; }
-.hot .meter i { display: block; height: 4px; background: #FF2D20; }
+.hot .meter i { display: block; height: 4px; background: #4a5568; }
+.hot .meter i.mine { background: #FF2D20; }
+.hot .name.mine { color: #fc8181; }
 
 .tree { padding: 4px 10px 8px; line-height: 1.6; }
 .tree summary { cursor: pointer; color: #a0aec0; list-style: none; }
@@ -443,6 +451,8 @@ export const BAR_SCRIPT = String.raw`
    */
   async function armProfiler(button) {
     button.disabled = true
+    // The reload is part of the flow, so land on the profile rather than shut.
+    kept.set('view', 'profile')
     try {
       const answer = await ask('/profile')
       button.textContent = answer.ok ? 'Reload to profile' : 'Profiler refused'
@@ -705,14 +715,12 @@ export const BAR_SCRIPT = String.raw`
     for (const group of fold(timed)) {
       const first = group[0]
       const last = group[group.length - 1]
-      const shown = first.summary || { short: first.type, title: first.type }
       const took = group.reduce((sum, held) => sum + Number((held.summary || {}).took || 0), 0)
       const from = first.offsetMs
       const to = Math.max(last.offsetMs + Number((last.summary || {}).took || 0), from)
 
       const row = node('button', 'lane')
       row.type = 'button'
-      row.setAttribute('aria-current', String(first.uuid === (entry && entry.uuid)))
       row.appendChild(node('span', 'at', ms(from)))
 
       const track = node('span', 'track')
@@ -723,40 +731,45 @@ export const BAR_SCRIPT = String.raw`
       track.appendChild(fill)
       row.appendChild(track)
 
+      /**
+       * Every lane says the same three things, in the same places.
+       *
+       * A description was printed only when a type happened once, so some lanes
+       * carried a sentence and others a count — the same view answering two
+       * different questions depending on the data. Here it is always the kind of
+       * work, how much of it, and what it cost; what each one *was* is the job of
+       * that type's tab, which is where a click goes.
+       */
       const label = node('span', 'label')
       label.appendChild(node('span', 'kind', first.type))
-      label.appendChild(node('span', 'what', shown.short || shown.title))
       if (group.length > 1) label.appendChild(node('span', 'dupe', '\u00d7' + group.length))
       row.appendChild(label)
 
       row.appendChild(node('span', 'took', took > 0 ? ms(took) : ''))
-      row.onclick = () => open(first.uuid)
+      row.onclick = () => show(first.type)
       middle.appendChild(row)
     }
   }
 
   /**
-   * Consecutive entries that are the same thing become one lane.
+   * One lane per kind of work, not per entry.
    *
-   * Eight identical statements printed eight times is the query list again, in a
-   * place that is meant to answer *when* and *how often*. Folded, an N+1 is one
-   * lane saying x8 — which is the shape, said once.
+   * Folding by statement still gave three query lanes, and three lanes of query
+   * on a page whose queries live in their own tab is that tab, badly. The
+   * timeline answers what this request was made of and when; which statements
+   * those were is one click away, in the tab that is about statements.
    *
-   * Only *consecutive* ones: two runs of the same query with a render between
-   * them are two things that happened, and merging them would move a bar to a
-   * time it was not at.
+   * Only *consecutive* entries fold: queries, then a render, then more queries
+   * is three things that happened in that order, and merging the two runs would
+   * put a bar at a time nothing was at.
    */
   function fold(entries) {
     const groups = []
 
     for (const held of entries) {
       const last = groups[groups.length - 1]
-      const same =
-        last !== undefined &&
-        last[0].type === held.type &&
-        (last[0].summary || {}).title === (held.summary || {}).title
 
-      if (same) last.push(held)
+      if (last !== undefined && last[0].type === held.type) last.push(held)
       else groups.push([held])
     }
 
@@ -844,14 +857,39 @@ export const BAR_SCRIPT = String.raw`
     }
     middle.appendChild(facts)
 
-    middle.appendChild(node('h3', '', 'Self time'))
-
     if (batch.profile.hot.length === 0) {
       middle.appendChild(
         node('div', 'empty', 'Every sample landed in the runtime. Nothing of yours was on the stack.')
       )
       return
     }
+
+    /**
+     * Whose code it was, before which function it was.
+     *
+     * Twenty function names is a list to read; four origins is an answer to act
+     * on — your code took this long, the query builder took that long. The names
+     * are still underneath.
+     */
+    middle.appendChild(node('h3', '', 'Where the time went'))
+
+    const origins = batch.profile.origins || []
+    const widest = origins[0] ? origins[0].selfMs || 1 : 1
+    const summary = node('div', 'hot')
+    for (const origin of origins) {
+      summary.appendChild(node('span', 'ms', ms(origin.selfMs)))
+      const who = node('span', 'who')
+      who.appendChild(node('span', origin.mine ? 'name mine' : 'name', origin.name))
+      summary.appendChild(who)
+      const meter = node('span', 'meter')
+      const bar = node('i', origin.mine ? 'mine' : '')
+      bar.style.width = Math.round((origin.selfMs / widest) * 100) + '%'
+      meter.appendChild(bar)
+      summary.appendChild(meter)
+    }
+    middle.appendChild(summary)
+
+    middle.appendChild(node('h3', '', 'Slowest functions'))
 
     const top = batch.profile.hot[0].selfMs || 1
     const grid = node('div', 'hot')
@@ -913,16 +951,45 @@ export const BAR_SCRIPT = String.raw`
     side.textContent = ''
     if (view === null) return
 
-    const head = node('div', 'head')
-    head.appendChild(node('span', 'who', 'Recent'))
-    side.appendChild(head)
+    /**
+     * This page load and what it asked for, then everything before it.
+     *
+     * A flat list grew by one on every refresh and printed a navigation and an
+     * XHR identically, so five reloads buried the four calls the page actually
+     * made. The batch this page was served by is the boundary: anything newer
+     * belongs to this page, anything older is a previous visit.
+     */
+    const here = recent.findIndex((item) => item.batchId === tag.dataset.batch)
+    const mine = here === -1 ? recent : recent.slice(0, here + 1)
+    const before = here === -1 ? [] : recent.slice(here + 1)
 
-    for (const item of recent) {
+    side.appendChild(sectionOf('This page', mine))
+
+    if (before.length > 0) side.appendChild(sectionOf('Earlier', before))
+
+    if (!crossProcess) {
+      side.appendChild(
+        node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.')
+      )
+    }
+  }
+
+  function sectionOf(title, items) {
+    const box = node('div', '')
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', title))
+    box.appendChild(head)
+
+    for (const item of items) {
       const own = item.source !== 'storage'
       const button = node('button', '')
       button.type = 'button'
       button.setAttribute('aria-current', String(item.batchId === current))
-      button.appendChild(node('span', 'path', own ? item.method + ' ' + item.path : item.path))
+
+      const where = node('span', 'path')
+      if (own) where.appendChild(node('span', 'kind ' + (item.kind || 'page'), item.kind === 'xhr' ? 'xhr' : 'page'))
+      where.appendChild(node('span', '', own ? item.method + ' ' + item.path : item.path))
+      button.appendChild(where)
       const meta = node('span', 'meta')
       if (own) {
         meta.appendChild(node('span', '', item.status + ' · ' + ms(item.durationMs) + ' · '))
@@ -941,14 +1008,10 @@ export const BAR_SCRIPT = String.raw`
         entry = null
         load(0)
       }
-      side.appendChild(button)
+      box.appendChild(button)
     }
 
-    if (!crossProcess) {
-      side.appendChild(
-        node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.')
-      )
-    }
+    return box
   }
 
   async function open(uuid) {
@@ -1156,6 +1219,24 @@ export const BAR_SCRIPT = String.raw`
       if (answer.status === 404 && attempt < 6) return setTimeout(() => load(attempt + 1), 120)
       if (!answer.ok) return
       batch = (await answer.json()).batch
+
+      /**
+       * Reopen whatever was open before the reload.
+       *
+       * Arming the profiler *requires* a reload, so the one flow that needs the
+       * panel most was also the one that always came back with it shut. The tab
+       * is remembered per browser; this is where it is honoured.
+       */
+      if (view === null) {
+        const before = kept.get('view', '')
+
+        if (before) {
+          view = before
+          bar.classList.add('open')
+          if (view === 'costs') loadCosts()
+        }
+      }
+
       drawVerdict()
       drawPanel()
       await refresh()
