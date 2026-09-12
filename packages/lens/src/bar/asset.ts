@@ -442,12 +442,19 @@ export const BAR_SCRIPT = String.raw`
     return select
   }
 
-  /** php-debugbar's phpdebugbar-ajaxhandler-autoshow: yours to decide. */
+  /**
+   * php-debugbar's phpdebugbar-ajaxhandler-autoshow: yours to decide.
+   *
+   * On by default here, where it is off there. A page that polls will yank the
+   * panel about, which is the argument for off — but a call you just triggered
+   * and cannot see is the more common surprise, and turning it off is one click
+   * that is then remembered.
+   */
   function follow() {
     const box = node('label', 'follow')
     const check = document.createElement('input')
     check.type = 'checkbox'
-    check.checked = kept.get('follow', '0') === '1'
+    check.checked = kept.get('follow', '1') === '1'
     check.onchange = () => kept.set('follow', check.checked ? '1' : '0')
     box.appendChild(check)
     box.appendChild(node('span', '', 'follow ajax'))
@@ -1122,7 +1129,7 @@ export const BAR_SCRIPT = String.raw`
         if (fresh.length === 0) return
         sets = fresh.concat(sets).slice(0, 40)
         // php-debugbar's autoShow, off unless asked for.
-        if (kept.get('follow', '0') === '1') {
+        if (kept.get('follow', '1') === '1') {
           current = fresh[0].batchId
           entry = null
           picked = null
