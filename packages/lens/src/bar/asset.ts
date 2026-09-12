@@ -53,11 +53,12 @@ export const BAR_STYLE = String.raw`
 .head-bar.strip { cursor: pointer; }
 .head-bar.strip:hover { background: #171c26; }
 .brand {
-  padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 0;
+  padding: 0 11px; display: flex; align-items: center; gap: 7px; border: 0;
   background: #FF2D20; color: #fff; font-weight: 700; font-size: 12px;
   font-family: inherit; cursor: pointer;
 }
 .brand:hover { background: #e02418; }
+.brand .caret { font-size: 15px; line-height: 1; }
 .brand.bad { background: #c53030; }
 
 /* Tabs give way to the indicators rather than being clipped by them. */
@@ -97,13 +98,19 @@ export const BAR_STYLE = String.raw`
 .split i { display: block; height: 3px; }
 .split .db { background: #63b3ed; } .split .view { background: #b794f4; } .split .rest { background: #4a5568; }
 
-select.sets, .shut, .follow { flex: 0 0 auto;
+select.sets, .follow { flex: 0 0 auto;
   background: #1a202c; color: #a0aec0; border: 0; border-left: 1px solid #22293a;
   font-family: inherit; font-size: 11px; padding: 0 8px; cursor: pointer; max-width: 260px;
 }
-select.sets:hover, .shut:hover { color: #e2e8f0; }
+select.sets:hover { color: #e2e8f0; }
 .follow { display: flex; align-items: center; gap: 5px; }
 .follow input { accent-color: #FF2D20; }
+.shut {
+  flex: 0 0 auto; width: 34px; display: flex; align-items: center; justify-content: center;
+  background: #1a202c; color: #718096; border: 0; border-left: 1px solid #22293a;
+  font-family: inherit; font-size: 15px; line-height: 1; cursor: pointer;
+}
+.shut:hover { background: #c53030; color: #fff; }
 
 .head { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid #22293a; position: sticky; top: 0; background: #12161f; }
 .head .who { flex: 1 1 auto; color: #718096; text-transform: uppercase; letter-spacing: .05em; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -191,6 +198,8 @@ pre { margin: 0; padding: 8px 10px; white-space: pre-wrap; word-break: break-wor
 a.frame, a.out { color: #63b3ed; text-decoration: none; }
 a.frame:hover, a.out:hover { text-decoration: underline; }
 .empty { padding: 14px; color: #718096; line-height: 1.5; }
+.empty .muted { margin-top: 5px; color: #4a5568; }
+.act.big { margin-top: 12px; padding: 7px 12px; font-size: 12px; }
 
 .src { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; padding: 4px 10px 8px; }
 .src .n { color: #4a5568; text-align: right; }
@@ -375,7 +384,9 @@ export const BAR_SCRIPT = String.raw`
     const problems = batch.found.filter((one) => one.level === 'problem').length
     const brand = node('button', 'brand' + (problems > 0 ? ' bad' : ''))
     brand.type = 'button'
-    brand.textContent = view === null ? 'Lens' : 'Lens \u25be'
+    /** The arrow points where the panel will go, and is always there. */
+    brand.appendChild(node('span', 'name', 'Lens'))
+    brand.appendChild(node('span', 'caret', view === null ? '\u25b4' : '\u25be'))
     brand.title = view === null ? 'Open (Ctrl + backquote)' : 'Close (Ctrl + backquote)'
     brand.onclick = (event) => {
       event.stopPropagation()
@@ -424,7 +435,7 @@ export const BAR_SCRIPT = String.raw`
      */
     const shut = node('button', 'shut')
     shut.type = 'button'
-    shut.textContent = '\u00d7'
+    shut.textContent = '\u2715'
     shut.title = 'Close'
     shut.onclick = (event) => {
       event.stopPropagation()
@@ -452,7 +463,7 @@ export const BAR_SCRIPT = String.raw`
     menuPane.appendChild(item('findings', 'Findings', batch.found.length, problemsIn(batch)))
     menuPane.appendChild(item('timeline', 'Timeline'))
     menuPane.appendChild(item('request', 'Request', counts.get('request') || 0))
-    menuPane.appendChild(item('profile', batch.profile ? 'Profile' : 'Profile \u2022 arm'))
+    menuPane.appendChild(item('profile', 'Profile'))
     menuPane.appendChild(item('costs', 'Routes'))
     menuPane.appendChild(node('div', 'rule'))
 
@@ -480,7 +491,7 @@ export const BAR_SCRIPT = String.raw`
     row.appendChild(node('span', 'label', label))
     if (warn > 1) row.appendChild(node('span', 'warn', '\u00d7' + warn))
     if (count !== undefined) row.appendChild(node('span', bad ? 'n bad' : 'n', count))
-    row.onclick = () => (name === 'profile' && !batch.profile ? armProfiler(row) : show(name))
+    row.onclick = () => show(name)
     return row
   }
 
@@ -898,7 +909,29 @@ export const BAR_SCRIPT = String.raw`
     middle.appendChild(head)
 
     if (!batch.profile) {
-      middle.appendChild(node('div', 'empty', 'No profile for this request. Press Profile, then reload.'))
+      const box = node('div', 'empty')
+      box.appendChild(
+        node(
+          'div',
+          '',
+          'A CPU profile shows where the time went inside the request, function by function.'
+        )
+      )
+      box.appendChild(
+        node(
+          'div',
+          'muted',
+          'The sampler has to be running before the request arrives, so this reloads the page.'
+        )
+      )
+
+      const go = node('button', 'act big')
+      go.type = 'button'
+      go.textContent = 'Record this page'
+      go.onclick = () => armAndReload(go)
+      box.appendChild(go)
+      middle.appendChild(box)
+
       return
     }
 
@@ -1178,14 +1211,23 @@ export const BAR_SCRIPT = String.raw`
     return fetch(endpoint + path, { headers: { accept: 'application/json' }, __elvelBar: true })
   }
 
-  async function armProfiler(tab) {
-    tab.textContent = 'Reload to profile'
+  /** Arm the sampler and reload, so one press is the whole flow. */
+  async function armAndReload(button) {
+    button.disabled = true
+    button.textContent = 'Recording\u2026'
     kept.set('reopen', 'profile')
+
     try {
       const answer = await ask('/profile')
-      if (!answer.ok) tab.textContent = 'Profiler refused'
+
+      if (!answer.ok) {
+        button.textContent = 'The profiler refused'
+        return
+      }
+
+      location.reload()
     } catch {
-      tab.textContent = 'Profiler failed'
+      button.textContent = 'The profiler could not start'
     }
   }
 
