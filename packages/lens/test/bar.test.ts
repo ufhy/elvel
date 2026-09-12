@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { BAR_SCRIPT, BAR_STYLE } from '../src/bar/asset.ts'
+import { Baselines } from '../src/bar/baseline.ts'
 import { barAllows, barState } from '../src/bar/enabled.ts'
+import { RequestProfiler } from '../src/bar/profiler.ts'
 import { type BarEntry, BatchRing, snapshot } from '../src/bar/ring.ts'
 import { IncomingEntry } from '../src/entry.ts'
 import { EntryType } from '../src/entry-type.ts'
@@ -46,7 +48,18 @@ function harness(options: { debug?: boolean; enabled?: boolean | null; gate?: bo
         ring
       })
     )
-    .use(lensBar(app, { state, ring, path: 'lens', editor: '', root: '/app', stored: false }))
+    .use(
+      lensBar(app, {
+        state,
+        ring,
+        path: 'lens',
+        editor: '',
+        root: '/app',
+        stored: false,
+        baselines: new Baselines(),
+        profiler: new RequestProfiler()
+      })
+    )
     .get('/page', () => '<html><body><h1>hi</h1></body></html>')
     .get('/json', () => ({ ok: true }))
     .get('/fragment', () => '<p>no body tag</p>')
@@ -203,7 +216,9 @@ describe('injection', () => {
           path: 'lens',
           editor: '',
           root: '',
-          stored: false
+          stored: false,
+          baselines: new Baselines(),
+          profiler: new RequestProfiler()
         })
       )
       .get('/lens/requests', () => '<html><body>dashboard</body></html>')
@@ -490,7 +505,7 @@ describe('the asset', () => {
   test('nothing touches storage outside a try', () => {
     const uses = BAR_SCRIPT.split('localStorage').length - 1
     const guarded = BAR_SCRIPT.slice(
-      BAR_SCRIPT.indexOf('const remembered'),
+      BAR_SCRIPT.indexOf('const kept ='),
       BAR_SCRIPT.indexOf('const host =')
     )
 
@@ -680,7 +695,9 @@ describe('work from other processes', () => {
           path: 'lens',
           editor: '',
           root: '',
-          stored: true
+          stored: true,
+          baselines: new Baselines(),
+          profiler: new RequestProfiler()
         })
       )
       .get('/page', () => '<html><body>hi</body></html>')
@@ -790,7 +807,9 @@ describe('work from other processes', () => {
         path: 'lens',
         editor: '',
         root: '',
-        stored: true
+        stored: true,
+        baselines: new Baselines(),
+        profiler: new RequestProfiler()
       })
     )
 
@@ -833,7 +852,9 @@ describe('what counts as work worth listing', () => {
         path: 'lens',
         editor: '',
         root: '',
-        stored: true
+        stored: true,
+        baselines: new Baselines(),
+        profiler: new RequestProfiler()
       })
     )
 

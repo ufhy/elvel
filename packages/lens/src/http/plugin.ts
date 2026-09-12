@@ -2,6 +2,8 @@ import type { ApplicationContract } from '@elvel/contracts'
 import { enterRequestContext } from '@elvel/core'
 import { currentScope } from '@elvel/http'
 import { Elysia } from 'elysia'
+import type { Baselines } from '../bar/baseline.ts'
+import type { RequestProfiler } from '../bar/profiler.ts'
 import type { BatchRing } from '../bar/ring.ts'
 import { snapshot } from '../bar/ring.ts'
 import type { Batch, Recorder } from '../recorder.ts'
@@ -25,6 +27,10 @@ export type LensPluginOptions = {
   requestWatcher?: RequestWatcher
   /** Absent when the inspection bar is off. */
   ring?: BatchRing
+  /** What each route usually costs. Absent when the bar is off. */
+  baselines?: Baselines
+  /** Absent when the bar is off. */
+  profiler?: RequestProfiler
 }
 
 /**
@@ -110,6 +116,13 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
         batches.set(request, batch)
         started.set(request, performance.now())
 
+        /**
+         * Synchronous by design — see `RequestProfiler.arm`. The sampler is
+         * already running by the time a request arrives; this only says which
+         * unit of work owns the result.
+         */
+        options.profiler?.claim(batch.batchId)
+
         const address = clientAddress(context)
 
         if (address !== undefined) addresses.set(request, address)
@@ -145,6 +158,7 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
 
         started.delete(request)
 
+        const path = new URL(request.url).pathname
         const bag = context as {
           response?: unknown
           responseValue?: unknown
@@ -191,14 +205,23 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
          * somebody wants to see what the request did.
          */
         if (options.ring !== undefined) {
+          /**
+           * A route pattern where there is one, the path where there is not.
+           * `/articles/:id` is one thing worth knowing the cost of; a thousand
+           * ids would be a thousand samples of one each.
+           */
+          const route = typeof bag.route === 'string' && bag.route !== '' ? bag.route : path
+
           options.ring.push({
             batchId: batch.batchId,
             at: Date.now(),
             method: request.method,
-            path: new URL(request.url).pathname,
+            path,
             status,
             durationMs: Math.round(duration),
-            entries: snapshot(batch.entries)
+            entries: snapshot(batch.entries),
+            verdict: options.baselines?.record(route, duration),
+            profile: await options.profiler?.end(batch.batchId, duration)
           })
 
           /**

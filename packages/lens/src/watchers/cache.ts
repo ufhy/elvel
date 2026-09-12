@@ -5,12 +5,22 @@ import type { Recorder } from '../recorder.ts'
 import { Watcher } from './watcher.ts'
 
 /** Elvel's four cache events, mapped to Telescope's four words. */
-const KINDS: Record<string, string> = {
+export const CACHE_KINDS = {
   'cache.hit': 'hit',
   'cache.missed': 'missed',
   'cache.written': 'set',
   'cache.forgotten': 'forget'
-}
+} as const
+
+/**
+ * What a lookup that found nothing is called.
+ *
+ * Exported because `bar/findings.ts` reasons about it, and the two guessing
+ * separately is how a check silently stops matching: the analyser looked for
+ * `miss` while the watcher had always written `missed`, so the finding never
+ * fired and no test noticed.
+ */
+export const CACHE_MISSED = CACHE_KINDS['cache.missed']
 
 /** A glob with one trailing `*`, or an exact name. Telescope's `Str::is`. */
 function matches(subject: string, patterns: string[]): boolean {
@@ -34,7 +44,7 @@ function matches(subject: string, patterns: string[]): boolean {
  */
 export class CacheWatcher extends Watcher {
   register(app: ApplicationContract): void {
-    for (const [event, kind] of Object.entries(KINDS)) {
+    for (const [event, kind] of Object.entries(CACHE_KINDS)) {
       app.make('events').listen(event, (payload: Record<string, unknown>) => {
         this.record(app.make('lens'), kind, payload)
       })

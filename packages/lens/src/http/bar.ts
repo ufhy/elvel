@@ -2,7 +2,9 @@ import type { ApplicationContract } from '@elvel/contracts'
 import { currentScope } from '@elvel/http'
 import { Elysia } from 'elysia'
 import { BAR_SCRIPT, BAR_STYLE } from '../bar/asset.ts'
+import type { Baselines } from '../bar/baseline.ts'
 import { type BarState, barAllows } from '../bar/enabled.ts'
+import type { RequestProfiler } from '../bar/profiler.ts'
 import { type BarSummary, type BatchRing, listed } from '../bar/ring.ts'
 import { knowsBatches, type StoredBatch } from '../contracts.ts'
 import { describe, withoutPreview } from '../panels/describe.ts'
@@ -12,6 +14,8 @@ import { pathMatches } from './plugin.ts'
 export type LensBarOptions = {
   state: BarState
   ring: BatchRing
+  baselines: Baselines
+  profiler: RequestProfiler
   /** The dashboard path, so the bar never injects itself into Lens. */
   path: string
   /**
@@ -147,6 +151,45 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
           crossProcess: options.stored,
           batches: [...options.ring.since(since), ...(await elsewhere(app, options, since))]
         }
+      })
+      /**
+       * Arm the sampler for the next request.
+       *
+       * A GET, which for something that changes state is normally the wrong
+       * verb, and the reason is worth stating rather than hiding. A POST from
+       * the bar has to satisfy the application's CSRF middleware, and the bar
+       * cannot get a token honestly: `csrfToken()` mints by writing to the
+       * session, and by the time the bar is injected the session has already
+       * been saved — so the markup carried a token no cookie ever matched. The
+       * alternatives were to make every page in development write a session, or
+       * to ask every application to add a path to its CSRF exemptions.
+       *
+       * What this actually changes is the inspector, not the application:
+       * arming twice is arming once, nothing is written anywhere, and in
+       * production it still has to pass `authorise()` like every route here.
+       */
+      .get(`${prefix}/profile`, async ({ request, set }) => {
+        const lens: Recorder = app.make('lens')
+
+        if (!(await barAllows(options.state, lens, request))) {
+          set.status = 403
+
+          return { message: 'Forbidden' }
+        }
+
+        return { armed: await options.profiler.arm() }
+      })
+      /** What every route seen so far usually costs. Only this process knows. */
+      .get(`${prefix}/costs`, async ({ request, set }) => {
+        const lens: Recorder = app.make('lens')
+
+        if (!(await barAllows(options.state, lens, request))) {
+          set.status = 403
+
+          return { message: 'Forbidden' }
+        }
+
+        return { costs: options.baselines.costs() }
       })
       .get(`${prefix}/:id`, async ({ params, request, set }) => {
         const lens: Recorder = app.make('lens')
@@ -304,8 +347,12 @@ function asSummary(batch: StoredBatch): BarSummary {
     path: kinds,
     status: 0,
     durationMs: 0,
+    /** Storage keeps entries, not timings; the shape of one is unknowable here. */
+    shape: { totalMs: 0, databaseMs: 0, renderMs: 0, otherMs: 0, queries: batch.types.query ?? 0 },
     count: batch.count,
-    source: 'storage'
+    source: 'storage',
+    problems: 0,
+    profiled: false
   }
 }
 

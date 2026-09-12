@@ -20,6 +20,16 @@ export { LensApplicationServiceProvider } from './application-provider.ts'
 export { BAR_SCRIPT, BAR_STYLE } from './bar/asset.ts'
 export { type BarState, barAllows, barState } from './bar/enabled.ts'
 export {
+  DEFAULTS,
+  type Finding,
+  findings,
+  type Level,
+  type Split,
+  split,
+  type Thresholds
+} from './bar/findings.ts'
+export { type Hot, type Profile, RequestProfiler, reduce } from './bar/profiler.ts'
+export {
   type BarBatch,
   type BarEntry,
   type BarSummary,

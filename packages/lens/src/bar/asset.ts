@@ -4,19 +4,22 @@
  * Not TSX, and the reason is the shadow root. Everything the bar draws is built
  * in the browser inside a tree of its own so the application's stylesheet cannot
  * reach it and its own cannot reach the application — the single most common
- * complaint about Laravel Debugbar is its CSS landing on the page it is
- * inspecting.
+ * complaint about Laravel Debugbar is its CSS landing on the page it inspects.
  *
  * Every value that comes from an entry reaches the DOM through `textContent`.
  * There is no `innerHTML` in this file, which is what keeps a recorded SQL
- * string, a request path or a cached value from being markup on a page this
+ * string, a request path or a cached value from becoming markup on a page this
  * package does not own. A test enforces it.
  *
- * No backtick appears inside the script below, and that is not a style choice:
- * it ships inside a template literal, and one backtick would end the literal
+ * No backtick appears in either string below, and that is not a style choice:
+ * they ship inside template literals, and one backtick would end the literal
  * somewhere in the middle of a function. The keyboard shortcut is matched on
- * `event.code === 'Backquote'` for the same reason, which also happens to be
+ * `event.code === 'Backquote'` for the same reason — which also happens to be
  * the right way to match a key by position.
+ *
+ * What the client does *not* do is decide anything. Findings, the time split,
+ * the baseline verdict and the profile are all worked out on the server, where
+ * they can be tested. This file draws them.
  */
 
 /**
@@ -24,98 +27,112 @@
  *
  * `content: "\25B8"` is how a stylesheet writes a character, and in an ordinary
  * template literal TypeScript reads it as a JavaScript escape and refuses it as
- * octal. Raw is the right mode for every stylesheet, not a workaround for these
- * two rules.
+ * octal.
  */
 export const BAR_STYLE = String.raw`
 :host { all: initial; }
 * { box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483000;
-  background: #1a202c; color: #e2e8f0; font-size: 12px; line-height: 1;
-  border-top: 1px solid #2d3748; box-shadow: 0 -2px 12px rgba(0,0,0,.35);
+  background: #12161f; color: #e2e8f0; font-size: 12px; line-height: 1;
+  border-top: 1px solid #2d3748; box-shadow: 0 -2px 14px rgba(0,0,0,.4);
 }
-.grip { height: 5px; cursor: ns-resize; background: transparent; }
+.grip { height: 5px; cursor: ns-resize; }
 .bar.open .grip { background: #2d3748; }
-.strip { display: flex; align-items: stretch; height: 30px; overflow-x: auto; }
-.chip {
-  display: flex; align-items: center; gap: 6px; padding: 0 10px; cursor: pointer;
-  border: 0; background: transparent; color: #a0aec0; font-size: 12px; white-space: nowrap;
-  border-right: 1px solid #2d3748; font-family: inherit;
-}
-.chip:hover { background: #2d3748; color: #e2e8f0; }
-.chip[aria-selected="true"] { background: #2d3748; color: #fff; box-shadow: inset 0 -2px 0 #FF2D20; }
-.chip b { color: #e2e8f0; font-weight: 600; }
-.chip .warn { color: #f6ad55; }
-.mark { padding: 0 10px; display: flex; align-items: center; gap: 8px; background: #FF2D20; color: #fff; font-weight: 700; }
-.spacer { flex: 1 1 auto; border-right: 0; cursor: default; }
-.spacer:hover { background: transparent; }
+
+.verdict { display: flex; align-items: stretch; height: 34px; overflow-x: auto; }
+.mark { padding: 0 10px; display: flex; align-items: center; gap: 7px; background: #FF2D20; color: #fff; font-weight: 700; cursor: pointer; border: 0; font-family: inherit; font-size: 12px; }
+.mark.bad { background: #c53030; }
+.cell { display: flex; align-items: center; gap: 7px; padding: 0 12px; border-right: 1px solid #22293a; white-space: nowrap; color: #a0aec0; }
+.cell b { color: #e2e8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell.pill { cursor: pointer; background: transparent; border-top: 0; border-bottom: 0; border-left: 0; font-family: inherit; font-size: 12px; }
+.cell.pill:hover { background: #1a202c; color: #e2e8f0; }
+.cell[aria-selected="true"] { background: #1a202c; color: #fff; box-shadow: inset 0 -2px 0 #FF2D20; }
+.cell .bad { color: #fc8181; }
+.cell .warn { color: #f6ad55; }
+.cell .good { color: #68d391; }
+.spacer { flex: 1 1 auto; border-right: 0; }
 .status-2 { color: #68d391; } .status-3 { color: #63b3ed; }
 .status-4 { color: #f6ad55; } .status-5 { color: #fc8181; }
+
+.split { display: flex; height: 3px; width: 90px; border-radius: 2px; overflow: hidden; background: #22293a; }
+.split i { display: block; height: 3px; }
+.split .db { background: #63b3ed; }
+.split .view { background: #b794f4; }
+.split .rest { background: #4a5568; }
+
 .panel { display: none; border-top: 1px solid #2d3748; min-height: 0; }
 .bar.open .panel { display: flex; }
-.side { width: 210px; flex: 0 0 210px; overflow-y: auto; border-right: 1px solid #2d3748; }
-.side button {
-  display: block; width: 100%; text-align: left; padding: 6px 10px; cursor: pointer;
-  background: transparent; border: 0; border-bottom: 1px solid #22293a; color: #a0aec0;
-  font-size: 11px; font-family: inherit;
-}
-.side button:hover:not(:disabled) { background: #2d3748; }
-.side button:disabled { cursor: default; opacity: .55; }
-.side button[aria-current="true"] { background: #2d3748; color: #fff; }
-.side .path { display: block; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side .meta { display: block; margin-top: 3px; opacity: .7; }
-.aside { padding: 8px 10px; color: #718096; line-height: 1.4; }
-.middle { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
-.tools { display: flex; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #22293a; align-items: center; }
-.tools input {
-  flex: 1 1 auto; min-width: 0; background: #12161f; color: #e2e8f0; font-size: 11px;
-  border: 1px solid #2d3748; border-radius: 5px; padding: 4px 7px; font-family: inherit;
-}
-.tools input:focus { outline: 0; border-color: #FF2D20; }
-.tools .count { color: #718096; white-space: nowrap; }
-.list { flex: 1 1 auto; overflow-y: auto; }
-.row {
-  display: flex; gap: 10px; padding: 7px 10px; border-bottom: 1px solid #22293a;
-  align-items: baseline; width: 100%; text-align: left; background: transparent;
-  border-left: 0; border-right: 0; border-top: 0; color: inherit; cursor: pointer; font-family: inherit; font-size: 12px;
-}
-.row:hover { background: #22293a; }
-.row[aria-current="true"] { background: #2d3748; }
-.row .at { flex: 0 0 52px; text-align: right; color: #718096; font-variant-numeric: tabular-nums; }
+.pane { flex: 1 1 0; overflow-y: auto; min-width: 0; }
+.pane + .pane { border-left: 1px solid #22293a; }
+.pane.narrow { flex: 0 0 220px; }
+
+.head { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid #22293a; position: sticky; top: 0; background: #12161f; }
+.head .who { flex: 1 1 auto; color: #718096; text-transform: uppercase; letter-spacing: .05em; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.act { background: #1a202c; color: #a0aec0; border: 1px solid #2d3748; border-radius: 5px; padding: 3px 8px; cursor: pointer; font-family: inherit; font-size: 11px; }
+button.act:hover { color: #e2e8f0; border-color: #4a5568; }
+button.act:disabled { opacity: .5; cursor: default; }
+input.find { flex: 1 1 auto; min-width: 0; background: #0d1017; color: #e2e8f0; font-size: 11px; border: 1px solid #2d3748; border-radius: 5px; padding: 4px 7px; font-family: inherit; }
+input.find:focus { outline: 0; border-color: #FF2D20; }
+
+.finding { border-bottom: 1px solid #22293a; padding: 9px 10px; cursor: pointer; }
+.finding:hover { background: #1a202c; }
+.finding[aria-current="true"] { background: #1a202c; box-shadow: inset 2px 0 0 #FF2D20; }
+.finding .t { display: flex; gap: 8px; align-items: baseline; }
+.finding .dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; margin-top: 3px; background: #f6ad55; }
+.finding.problem .dot { background: #fc8181; }
+.finding .title { flex: 1 1 auto; color: #e2e8f0; line-height: 1.35; }
+.finding .cost { flex: 0 0 auto; color: #a0aec0; font-variant-numeric: tabular-nums; }
+.finding .d { margin: 5px 0 0 14px; color: #718096; line-height: 1.45; word-break: break-word; }
+.clear { padding: 16px 12px; color: #718096; line-height: 1.6; }
+.clear b { color: #68d391; }
+
+.row { display: flex; gap: 10px; padding: 7px 10px; border-bottom: 1px solid #22293a; align-items: baseline; width: 100%; text-align: left; background: transparent; border-left: 0; border-right: 0; border-top: 0; color: inherit; cursor: pointer; font-family: inherit; font-size: 12px; }
+.row:hover { background: #1a202c; }
+.row[aria-current="true"] { background: #1a202c; }
+.row .at { flex: 0 0 50px; text-align: right; color: #718096; font-variant-numeric: tabular-nums; }
 .row .body { flex: 1 1 auto; min-width: 0; }
 .row .title { color: #e2e8f0; word-break: break-word; white-space: pre-wrap; }
 .row .sub { margin-top: 4px; color: #718096; }
 .row .took { flex: 0 0 auto; color: #a0aec0; font-variant-numeric: tabular-nums; }
 .row.is-slow .took { color: #fc8181; }
 .dupe { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 8px; background: #744210; color: #fbd38d; }
-a.frame, a.out { color: #63b3ed; text-decoration: none; }
-a.frame:hover, a.out:hover { text-decoration: underline; }
-.empty { padding: 14px; color: #718096; line-height: 1.5; }
-.detail { width: 46%; flex: 0 0 46%; overflow-y: auto; border-left: 1px solid #2d3748; }
-.detail .head { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid #22293a; }
-.detail .head .who { flex: 1 1 auto; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.detail button.act {
-  background: #12161f; color: #a0aec0; border: 1px solid #2d3748; border-radius: 5px;
-  padding: 3px 7px; cursor: pointer; font-family: inherit; font-size: 11px;
-}
-.detail button.act:hover { color: #e2e8f0; border-color: #4a5568; }
+
+.side button { display: block; width: 100%; text-align: left; padding: 6px 10px; cursor: pointer; background: transparent; border: 0; border-bottom: 1px solid #22293a; color: #a0aec0; font-size: 11px; font-family: inherit; }
+.side button:hover:not(:disabled) { background: #1a202c; }
+.side button:disabled { cursor: default; opacity: .55; }
+.side button[aria-current="true"] { background: #1a202c; color: #fff; }
+.side .path { display: block; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side .meta { display: block; margin-top: 3px; opacity: .7; }
+.side .flag { color: #fc8181; }
+.aside { padding: 8px 10px; color: #718096; line-height: 1.45; }
+
 .card { border-bottom: 1px solid #22293a; }
-.card h3 { margin: 0; padding: 6px 10px; font-size: 11px; color: #718096; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-/* A block heading inside a summary puts the disclosure marker on its own line. */
+.card h3 { margin: 0; padding: 6px 10px; font-size: 10px; color: #718096; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 .card summary { cursor: pointer; }
 .card summary h3 { display: inline-block; }
-.kv { margin: 0; padding: 2px 10px 8px; display: grid; grid-template-columns: minmax(80px, auto) 1fr; gap: 5px 12px; }
+.kv { margin: 0; padding: 2px 10px 8px; display: grid; grid-template-columns: minmax(78px, auto) 1fr; gap: 5px 12px; }
 .kv dt { color: #718096; }
 .kv dd { margin: 0; color: #e2e8f0; word-break: break-word; }
 pre { margin: 0; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; color: #e2e8f0; line-height: 1.5; }
+a.frame, a.out { color: #63b3ed; text-decoration: none; }
+a.frame:hover, a.out:hover { text-decoration: underline; }
+.empty { padding: 14px; color: #718096; line-height: 1.5; }
+
 .src { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; padding: 4px 10px 8px; }
 .src .n { color: #4a5568; text-align: right; }
 .src .t { white-space: pre-wrap; word-break: break-word; }
 .src .blame { color: #fc8181; }
-.src .blame.n { color: #fc8181; }
+
+.hot { display: grid; grid-template-columns: 44px 1fr auto; gap: 4px 10px; padding: 4px 10px 10px; align-items: center; }
+.hot .ms { color: #e2e8f0; text-align: right; font-variant-numeric: tabular-nums; }
+.hot .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hot .name { color: #e2e8f0; }
+.hot .at { color: #718096; }
+.hot .meter { width: 90px; height: 4px; background: #22293a; border-radius: 2px; overflow: hidden; }
+.hot .meter i { display: block; height: 4px; background: #FF2D20; }
+
 .tree { padding: 4px 10px 8px; line-height: 1.6; }
-.tree details { margin-left: 0; }
 .tree summary { cursor: pointer; color: #a0aec0; list-style: none; }
 .tree summary::-webkit-details-marker { display: none; }
 .tree summary:before { content: "\25B8"; display: inline-block; width: 12px; color: #4a5568; }
@@ -126,16 +143,8 @@ pre { margin: 0; padding: 8px 10px; white-space: pre-wrap; word-break: break-wor
 .tree .n { color: #f6ad55; }
 .tree .b { color: #d6bcfa; }
 .tree .z { color: #718096; }
-.live { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #68d391; }
 `
 
-/**
- * The client.
- *
- * Deliberately one file with no build step and no dependency: the bar is
- * injected into somebody else's page, and a page that already runs React must
- * not have to agree with it about anything.
- */
 export const BAR_SCRIPT = String.raw`
 (() => {
   const tag = document.currentScript
@@ -151,13 +160,15 @@ export const BAR_SCRIPT = String.raw`
   let recent = []
   let cursor = 0
   let crossProcess = false
-  let open = null
-  let selected = null
-  let detail = null
-  let filter = ''
+  /** 'findings' | 'profile' | 'costs' | an entry type. Null means closed. */
+  let view = null
+  let picked = null
+  let entry = null
+  let costs = []
+  let find = ''
 
   /** Per-viewer conveniences only. Any of these may throw in a private window. */
-  const remembered = {
+  const kept = {
     get(key, fallback) {
       try {
         const held = localStorage.getItem('elvel.bar.' + key)
@@ -178,37 +189,22 @@ export const BAR_SCRIPT = String.raw`
   const host = document.createElement('div')
   host.id = 'elvel-bar-host'
   const shadow = host.attachShadow({ mode: 'open' })
-  const style = document.createElement('style')
-  style.textContent = window.__elvelBarCss || ''
-  shadow.appendChild(style)
+  const sheet = document.createElement('style')
+  sheet.textContent = window.__elvelBarCss || ''
+  shadow.appendChild(sheet)
   document.body.appendChild(host)
 
   const bar = node('div', 'bar')
   const grip = node('div', 'grip')
-  const strip = node('div', 'strip')
+  const verdict = node('div', 'verdict')
   const panel = node('div', 'panel')
-  const side = node('div', 'side')
-  const middle = node('div', 'middle')
-  const tools = node('div', 'tools')
-  const search = document.createElement('input')
-  const counter = node('span', 'count')
-  const list = node('div', 'list')
-  const details = node('div', 'detail')
-
-  search.type = 'search'
-  search.placeholder = 'Filter'
-  search.oninput = () => {
-    filter = search.value.toLowerCase()
-    drawList()
-  }
-
-  tools.append(search, counter)
-  middle.append(tools, list)
-  panel.append(side, middle, details)
-  bar.append(grip, strip, panel)
+  const left = node('div', 'pane')
+  const right = node('div', 'pane')
+  panel.append(left, right)
+  bar.append(grip, verdict, panel)
   shadow.appendChild(bar)
 
-  let height = Number(remembered.get('height', 300)) || 300
+  let height = Number(kept.get('height', 320)) || 320
   applyHeight()
 
   function node(name, className, text) {
@@ -225,13 +221,9 @@ export const BAR_SCRIPT = String.raw`
   }
 
   function applyHeight() {
-    panel.style.height = Math.max(120, Math.min(height, window.innerHeight - 80)) + 'px'
+    panel.style.height = Math.max(140, Math.min(height, window.innerHeight - 80)) + 'px'
   }
 
-  /**
-   * A frame becomes a link only when an editor scheme is configured, because a
-   * dead vscode:// link on a machine without VS Code is worse than plain text.
-   */
   function place(file, line) {
     const inside = root && String(file).indexOf(root) === 0
     const shown = inside ? String(file).slice(root.length).replace(/^\//, '') : String(file)
@@ -247,164 +239,238 @@ export const BAR_SCRIPT = String.raw`
     return link
   }
 
-  function describe(entry) {
-    return entry.summary || { title: entry.type, sub: '', slow: false }
-  }
+  // --------------------------------------------------------------- verdict
 
-  // ------------------------------------------------------------------ strip
-
-  function draw() {
-    strip.textContent = ''
+  /**
+   * The line that makes this an inspector rather than a log.
+   *
+   * A Debugbar strip counts things: 12 queries, 3 views. Counting is not an
+   * answer. This says where the time went and how many problems were found, so
+   * a bad page is obvious without opening anything.
+   */
+  function drawVerdict() {
+    verdict.textContent = ''
     if (batch === null) return
 
-    const brand = node('div', 'mark')
-    brand.append(node('span', '', 'Lens'), node('i', 'live'))
-    strip.appendChild(brand)
+    const problems = batch.found.filter((one) => one.level === 'problem').length
 
-    const head = node('button', 'chip')
-    head.type = 'button'
-    head.dataset.type = 'request'
-    head.append(node('b', '', batch.method + ' ' + batch.path))
-    head.append(
-      node('span', 'status-' + String(batch.status).charAt(0), batch.status),
-      node('span', '', ms(batch.durationMs))
+    const brand = node('button', 'mark' + (problems > 0 ? ' bad' : ''))
+    brand.type = 'button'
+    brand.append(node('span', '', problems > 0 ? problems + ' problem' + (problems === 1 ? '' : 's') : 'Lens'))
+    brand.onclick = () => show('findings')
+    verdict.appendChild(brand)
+
+    const where = node('div', 'cell')
+    where.append(
+      node('b', '', batch.method + ' ' + batch.path),
+      node('span', 'status-' + String(batch.status).charAt(0), batch.status)
     )
-    head.onclick = () => show('request')
-    strip.appendChild(head)
+    verdict.appendChild(where)
 
-    const byType = new Map()
-    for (const entry of batch.entries) {
-      if (!byType.has(entry.type)) byType.set(entry.type, [])
-      byType.get(entry.type).push(entry)
+    const shape = batch.shape
+    const time = node('button', 'cell pill')
+    time.type = 'button'
+    time.dataset.view = 'findings'
+    time.append(node('b', '', ms(shape.totalMs)))
+    time.appendChild(meter(shape))
+    time.append(
+      node('span', '', 'db ' + ms(shape.databaseMs)),
+      node('span', '', 'view ' + ms(shape.renderMs)),
+      node('span', '', 'app ' + ms(shape.otherMs))
+    )
+    time.onclick = () => show('findings')
+    verdict.appendChild(time)
+
+    if (batch.verdict && batch.verdict.times !== undefined && batch.verdict.samples > 3) {
+      const how = batch.verdict.times
+      const cell = node('button', 'cell pill')
+      cell.type = 'button'
+      cell.dataset.view = 'costs'
+      const tone = how >= 2 ? 'bad' : how <= 0.6 ? 'good' : 'warn'
+      cell.append(
+        node('b', tone, how.toFixed(1) + '×'),
+        node('span', '', 'median ' + ms(batch.verdict.medianMs) + ' of ' + batch.verdict.samples)
+      )
+      cell.onclick = () => show('costs')
+      verdict.appendChild(cell)
     }
 
-    for (const [type, entries] of byType) {
-      if (type === 'request') continue
-      const chip = node('button', 'chip')
-      chip.type = 'button'
-      chip.dataset.type = type
-      chip.append(node('b', '', entries.length), node('span', '', type))
+    const counts = new Map()
+    for (const held of batch.entries) counts.set(held.type, (counts.get(held.type) || 0) + 1)
 
-      // Counted on the server, in snapshot(); the badge only reads it.
-      const worst = entries.reduce((most, entry) => Math.max(most, entry.repeats || 1), 1)
-      if (worst > 1) chip.append(node('span', 'warn', 'N+1 ×' + worst))
-
-      chip.onclick = () => show(type)
-      strip.appendChild(chip)
+    for (const [type, n] of counts) {
+      const cell = node('button', 'cell pill')
+      cell.type = 'button'
+      cell.dataset.view = type
+      cell.append(node('b', '', n), node('span', '', type))
+      cell.onclick = () => show(type)
+      verdict.appendChild(cell)
     }
 
-    strip.appendChild(node('div', 'chip spacer'))
+    verdict.appendChild(node('div', 'cell spacer'))
 
-    const close = node('button', 'chip')
+    const profile = node('button', 'cell pill')
+    profile.type = 'button'
+    profile.dataset.view = 'profile'
+    profile.textContent = batch.profile ? 'Profile · ' + batch.profile.samples : 'Profile'
+    profile.onclick = () => (batch.profile ? show('profile') : armProfiler(profile))
+    verdict.appendChild(profile)
+
+    const close = node('button', 'cell pill')
     close.type = 'button'
     close.textContent = '×'
     close.title = 'Close (Ctrl + backquote)'
     close.onclick = () => show(null)
-    strip.appendChild(close)
-    highlight()
+    verdict.appendChild(close)
+
+    mark()
   }
 
-  function highlight() {
-    for (const chip of strip.querySelectorAll('.chip')) {
-      chip.setAttribute('aria-selected', String(open !== null && chip.dataset.type === open))
+  function meter(shape) {
+    const box = node('span', 'split')
+    const total = Math.max(shape.totalMs, 0.01)
+    for (const [name, value] of [['db', shape.databaseMs], ['view', shape.renderMs], ['rest', shape.otherMs]]) {
+      const part = node('i', name)
+      part.style.width = Math.max(0, (value / total) * 100) + '%'
+      box.appendChild(part)
+    }
+    return box
+  }
+
+  function mark() {
+    for (const cell of verdict.querySelectorAll('.cell')) {
+      cell.setAttribute('aria-selected', String(view !== null && cell.dataset.view === view))
     }
   }
 
-  function show(type) {
-    open = type === null || open === type ? null : type
-    selected = null
-    detail = null
-    bar.classList.toggle('open', open !== null)
-    remembered.set('open', open === null ? '' : open)
-    highlight()
-    drawSide()
-    drawList()
-    drawDetail()
+  /**
+   * Arming samples from now until the next request ends, so the page has to be
+   * reloaded for the profile to be about anything.
+   */
+  async function armProfiler(button) {
+    button.disabled = true
+    try {
+      const answer = await ask('/profile')
+      button.textContent = answer.ok ? 'Reload to profile' : 'Profiler refused'
+    } catch {
+      button.textContent = 'Profiler failed'
+    }
   }
 
-  // ------------------------------------------------------------------- side
+  function show(next) {
+    view = next === null || view === next ? null : next
+    picked = null
+    entry = null
+    bar.classList.toggle('open', view !== null)
+    kept.set('view', view === null ? '' : view)
+    mark()
+    drawLeft()
+    drawRight()
+    if (view === 'costs') loadCosts()
+  }
 
-  function drawSide() {
-    side.textContent = ''
+  // ------------------------------------------------------------------ left
 
-    for (const item of recent) {
-      const own = item.source !== 'storage'
-      const button = node('button', '')
-      button.type = 'button'
-      button.setAttribute('aria-current', String(item.batchId === current))
-      button.appendChild(node('span', 'path', own ? item.method + ' ' + item.path : item.path))
-      button.appendChild(
-        node(
-          'span',
-          'meta',
-          own ? item.status + ' · ' + ms(item.durationMs) + ' · ' + item.count : 'elsewhere'
-        )
+  function drawLeft() {
+    left.textContent = ''
+    left.className = 'pane'
+    if (view === null || batch === null) return
+
+    if (view === 'findings') return drawFindings()
+    if (view === 'profile') return drawProfile()
+    if (view === 'costs') return drawCosts()
+
+    drawEntries()
+  }
+
+  /**
+   * Findings first, and by default. The whole redesign is this list existing
+   * before the data does.
+   */
+  function drawFindings() {
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', 'Findings'))
+    left.appendChild(head)
+
+    if (batch.found.length === 0) {
+      const clear = node('div', 'clear')
+      clear.append(node('b', '', 'Nothing to report.'), node('div', '', ''))
+      clear.appendChild(
+        node('div', '', 'No repeated queries, no slow ones, no swallowed exceptions, nothing oversized.')
       )
-      // A batch from another process has no entries here to switch to; it is
-      // shown so the list does not pretend the worker did nothing.
-      button.disabled = !own
-      button.onclick = () => {
-        current = item.batchId
-        selected = null
-        detail = null
-        load(0)
-      }
-      side.appendChild(button)
-    }
-
-    if (!crossProcess) {
-      side.appendChild(
-        node(
-          'div',
-          'aside',
-          'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.'
-        )
-      )
-    }
-  }
-
-  // ------------------------------------------------------------------- list
-
-  function visible() {
-    if (batch === null || open === null) return []
-    return batch.entries.filter((entry) => {
-      if (entry.type !== open) return false
-      if (filter === '') return true
-      const shown = describe(entry)
-      return (shown.title + ' ' + shown.sub).toLowerCase().indexOf(filter) !== -1
-    })
-  }
-
-  function drawList() {
-    list.textContent = ''
-    if (open === null) return
-
-    const entries = visible()
-    const all = batch === null ? [] : batch.entries.filter((entry) => entry.type === open)
-    counter.textContent = entries.length + ' of ' + all.length
-
-    if (entries.length === 0) {
-      list.appendChild(node('div', 'empty', 'Nothing matches.'))
+      left.appendChild(clear)
       return
     }
 
-    for (const entry of entries) {
-      const shown = describe(entry)
+    for (const one of batch.found) {
+      const box = node('div', 'finding ' + one.level)
+      box.setAttribute('aria-current', String(picked === one.id))
+      const line = node('div', 't')
+      line.appendChild(node('span', 'dot'))
+      line.appendChild(node('span', 'title', one.title))
+      if (one.cost !== undefined && one.cost !== null) {
+        line.appendChild(node('span', 'cost', ms(one.cost)))
+      }
+      box.appendChild(line)
+      box.appendChild(node('div', 'd', one.detail))
+      box.onclick = () => {
+        picked = picked === one.id ? null : one.id
+        entry = null
+        drawLeft()
+        drawRight()
+        if (picked !== null && one.evidence.length > 0) open(one.evidence[0])
+      }
+      left.appendChild(box)
+    }
+  }
+
+  function drawEntries() {
+    const head = node('div', 'head')
+    const box = document.createElement('input')
+    box.className = 'find'
+    box.type = 'search'
+    box.placeholder = 'Filter ' + view
+    box.value = find
+    box.oninput = () => {
+      find = box.value.toLowerCase()
+      const at = left.scrollTop
+      drawLeft()
+      left.scrollTop = at
+      const again = left.querySelector('input.find')
+      if (again) {
+        again.focus()
+        again.setSelectionRange(again.value.length, again.value.length)
+      }
+    }
+    head.appendChild(box)
+    left.appendChild(head)
+
+    const rows = batch.entries.filter((held) => {
+      if (held.type !== view) return false
+      if (find === '') return true
+      const shown = held.summary || {}
+      return ((shown.title || '') + ' ' + (shown.sub || '')).toLowerCase().indexOf(find) !== -1
+    })
+
+    if (rows.length === 0) {
+      left.appendChild(node('div', 'empty', 'Nothing matches.'))
+      return
+    }
+
+    for (const held of rows) {
+      const shown = held.summary || { title: held.type, sub: '' }
       const row = node('button', 'row' + (shown.slow ? ' is-slow' : ''))
       row.type = 'button'
-      row.setAttribute('aria-current', String(entry.uuid === selected))
-      row.appendChild(node('div', 'at', ms(entry.offsetMs)))
+      row.setAttribute('aria-current', String(held.uuid === (entry && entry.uuid)))
+      row.appendChild(node('div', 'at', ms(held.offsetMs)))
 
       const body = node('div', 'body')
       const title = node('div', 'title', shown.title)
-      if ((entry.repeats || 1) > 1) title.appendChild(node('span', 'dupe', '×' + entry.repeats))
+      if ((held.repeats || 1) > 1) title.appendChild(node('span', 'dupe', '×' + held.repeats))
       body.appendChild(title)
 
       const sub = node('div', 'sub')
       if (shown.sub) sub.appendChild(node('span', '', shown.sub + '  '))
-      // Text, not a link: an anchor inside a button is interactive content
-      // nested in interactive content, and clicking it would open the row too.
-      // The editor link lives in the detail this row opens.
       if (shown.file) sub.appendChild(node('span', '', place(shown.file, shown.line)))
       if (sub.childNodes.length > 0) body.appendChild(sub)
 
@@ -412,90 +478,229 @@ export const BAR_SCRIPT = String.raw`
       if (shown.took !== undefined && shown.took !== null) {
         row.appendChild(node('div', 'took', ms(shown.took)))
       }
-      row.onclick = () => select(entry.uuid)
-      list.appendChild(row)
+      row.onclick = () => open(held.uuid)
+      left.appendChild(row)
     }
   }
 
-  // ----------------------------------------------------------------- detail
+  /**
+   * Where the time actually went, from a real CPU profile.
+   *
+   * Self time sorted, not a flamegraph: a flamegraph is the famous shape and
+   * unreadable at thirty pixels tall. The number that answers "why was this
+   * slow" is self time, and it fits on a line.
+   */
+  function drawProfile() {
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', 'CPU profile'))
+    left.appendChild(head)
 
-  async function select(uuid) {
-    selected = selected === uuid ? null : uuid
-    detail = null
-    drawList()
-    drawDetail()
-    if (selected === null) return
+    if (!batch.profile) {
+      left.appendChild(
+        node('div', 'empty', 'No profile for this request. Press Profile, then reload the page.')
+      )
+      return
+    }
 
+    const facts = node('dl', 'kv')
+    for (const [name, value] of [
+      ['Sampled', ms(batch.profile.durationMs)],
+      ['Samples', String(batch.profile.samples)],
+      ['Idle and engine', ms(batch.profile.outsideMs)]
+    ]) {
+      facts.appendChild(node('dt', '', name))
+      facts.appendChild(node('dd', '', value))
+    }
+    left.appendChild(facts)
+
+    left.appendChild(node('h3', '', 'Self time'))
+
+    if (batch.profile.hot.length === 0) {
+      left.appendChild(
+        node('div', 'empty', 'Every sample landed in the runtime. Nothing of yours was on the stack.')
+      )
+      return
+    }
+
+    const top = batch.profile.hot[0].selfMs || 1
+    const grid = node('div', 'hot')
+    for (const hot of batch.profile.hot) {
+      grid.appendChild(node('span', 'ms', ms(hot.selfMs)))
+      const who = node('span', 'who')
+      who.appendChild(node('span', 'name', hot.name))
+      if (hot.file) {
+        who.appendChild(node('span', 'at', '  '))
+        const link = frame(hot.file, hot.line)
+        if (link !== null) who.appendChild(link)
+      }
+      grid.appendChild(who)
+      const bar = node('span', 'meter')
+      const fill = node('i')
+      fill.style.width = Math.round((hot.selfMs / top) * 100) + '%'
+      bar.appendChild(fill)
+      grid.appendChild(bar)
+    }
+    left.appendChild(grid)
+  }
+
+  /**
+   * What every route costs, learned while the server ran.
+   *
+   * Only possible because the process lives: PHP forgets between requests, so no
+   * debug bar in that world can tell you what "usually" means.
+   */
+  function drawCosts() {
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', 'Route cost, this session'))
+    left.appendChild(head)
+
+    if (costs.length === 0) {
+      left.appendChild(node('div', 'empty', 'Nothing measured yet.'))
+      return
+    }
+
+    const grid = node('div', 'hot')
+    const top = costs[0].medianMs || 1
+    for (const cost of costs) {
+      grid.appendChild(node('span', 'ms', ms(cost.medianMs)))
+      const who = node('span', 'who')
+      who.appendChild(node('span', 'name', cost.route))
+      who.appendChild(node('span', 'at', '  ' + cost.samples + ' seen, worst ' + ms(cost.slowestMs)))
+      grid.appendChild(who)
+      const bar = node('span', 'meter')
+      const fill = node('i')
+      fill.style.width = Math.round((cost.medianMs / top) * 100) + '%'
+      bar.appendChild(fill)
+      grid.appendChild(bar)
+    }
+    left.appendChild(grid)
+  }
+
+  // ----------------------------------------------------------------- right
+
+  function drawRight() {
+    right.textContent = ''
+    right.style.display = view === null ? 'none' : ''
+    if (view === null) return
+
+    if (entry !== null) return drawEntry()
+
+    drawRequests()
+  }
+
+  function drawRequests() {
+    right.className = 'pane side'
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', 'Recent'))
+    right.appendChild(head)
+
+    for (const item of recent) {
+      const own = item.source !== 'storage'
+      const button = node('button', '')
+      button.type = 'button'
+      button.setAttribute('aria-current', String(item.batchId === current))
+      button.appendChild(node('span', 'path', own ? item.method + ' ' + item.path : item.path))
+      const meta = node('span', 'meta')
+      if (own) {
+        meta.appendChild(node('span', '', item.status + ' · ' + ms(item.durationMs) + ' · '))
+        meta.appendChild(
+          node('span', item.problems > 0 ? 'flag' : '', item.problems > 0 ? item.problems + ' problem' : 'clean')
+        )
+      } else {
+        meta.appendChild(node('span', '', 'elsewhere'))
+      }
+      button.appendChild(meta)
+      button.disabled = !own
+      button.onclick = () => {
+        current = item.batchId
+        picked = null
+        entry = null
+        load(0)
+      }
+      right.appendChild(button)
+    }
+
+    if (!crossProcess) {
+      right.appendChild(
+        node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.')
+      )
+    }
+  }
+
+  async function open(uuid) {
+    entry = { uuid: uuid, panels: null }
+    drawLeft()
+    drawRight()
     try {
-      const answer = await ask('/entry/' + selected)
+      const answer = await ask('/entry/' + uuid)
       if (!answer.ok) return
       const found = await answer.json()
-      if (found.uuid !== selected) return
-      detail = found
-      drawDetail()
+      if (entry === null || entry.uuid !== uuid) return
+      entry = found
+      drawRight()
     } catch {
       //
     }
   }
 
-  function drawDetail() {
-    details.textContent = ''
-    details.style.display = selected === null ? 'none' : ''
-    if (selected === null) return
-
-    if (detail === null) {
-      details.appendChild(node('div', 'empty', 'Loading…'))
-      return
-    }
-
+  function drawEntry() {
+    right.className = 'pane'
     const head = node('div', 'head')
-    head.appendChild(node('span', 'who', detail.type))
+    head.appendChild(node('span', 'who', entry.type || 'entry'))
 
-    const copy = node('button', 'act', 'Copy JSON')
-    copy.type = 'button'
-    copy.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(JSON.stringify(detail.content, null, 2))
-        copy.textContent = 'Copied'
-        setTimeout(() => { copy.textContent = 'Copy JSON' }, 1200)
-      } catch {
-        copy.textContent = 'Blocked'
+    if (entry.content) {
+      const copy = node('button', 'act', 'Copy JSON')
+      copy.type = 'button'
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(entry.content, null, 2))
+          copy.textContent = 'Copied'
+          setTimeout(() => { copy.textContent = 'Copy JSON' }, 1200)
+        } catch {
+          copy.textContent = 'Blocked'
+        }
       }
+      head.appendChild(copy)
     }
-    head.appendChild(copy)
 
-    if (detail.dashboard) {
+    if (entry.dashboard) {
       const link = node('a', 'out', 'Open in Lens')
-      link.href = detail.dashboard
+      link.href = entry.dashboard
       link.target = '_blank'
       link.rel = 'noreferrer'
       head.appendChild(link)
     }
 
-    const close = node('button', 'act', '×')
-    close.type = 'button'
-    close.onclick = () => select(selected)
-    head.appendChild(close)
+    const back = node('button', 'act', '×')
+    back.type = 'button'
+    back.onclick = () => {
+      entry = null
+      drawLeft()
+      drawRight()
+    }
+    head.appendChild(back)
+    right.appendChild(head)
 
-    details.appendChild(head)
+    if (entry.panels === null) {
+      right.appendChild(node('div', 'empty', 'Loading…'))
+      return
+    }
 
-    for (const one of detail.panels) details.appendChild(card(one))
-
-    details.appendChild(raw(detail.content))
+    for (const one of entry.panels) right.appendChild(card(one))
+    right.appendChild(raw(entry.content))
   }
 
   function card(one) {
+    const box = node('div', 'card')
+
     if (one.kind === 'facts') {
-      const box = node('div', 'card')
       const kv = node('dl', 'kv')
       for (const [name, value] of one.rows) {
         kv.appendChild(node('dt', '', name))
         const dd = node('dd', '')
-        const link = name === 'Called from' || name === 'Where' || name === 'Checked at'
-          ? linkify(value)
-          : null
+        const link = /^(.*):(\d+)$/.exec(String(value))
         if (link === null) dd.textContent = value
-        else dd.appendChild(link)
+        else dd.appendChild(frame(link[1], link[2]))
         kv.appendChild(dd)
       }
       box.appendChild(kv)
@@ -503,14 +708,12 @@ export const BAR_SCRIPT = String.raw`
     }
 
     if (one.kind === 'mapping') {
-      const box = node('div', 'card')
       box.appendChild(node('h3', '', one.title))
       box.appendChild(treeOf(one.value))
       return box
     }
 
     if (one.kind === 'block') {
-      const box = node('div', 'card')
       box.appendChild(node('h3', '', one.title))
       if (typeof one.value === 'string') box.appendChild(node('pre', '', one.value))
       else box.appendChild(treeOf(one.value))
@@ -518,14 +721,12 @@ export const BAR_SCRIPT = String.raw`
     }
 
     if (one.kind === 'code') {
-      const box = node('div', 'card')
       box.appendChild(node('h3', '', one.title))
       box.appendChild(node('pre', '', one.value))
       return box
     }
 
     if (one.kind === 'source') {
-      const box = node('div', 'card')
       box.appendChild(node('h3', '', 'Source'))
       const grid = node('div', 'src')
       for (const [number, text] of one.lines) {
@@ -538,7 +739,6 @@ export const BAR_SCRIPT = String.raw`
     }
 
     if (one.kind === 'trace') {
-      const box = node('div', 'card')
       box.appendChild(node('h3', '', 'Stack · ' + one.frames.length))
       const grid = node('div', 'src')
       for (const at of one.frames) {
@@ -553,14 +753,7 @@ export const BAR_SCRIPT = String.raw`
       return box
     }
 
-    return node('div', 'card')
-  }
-
-  /** A file:line facts row becomes the same editor link a stack frame gets. */
-  function linkify(value) {
-    const match = /^(.*):(\d+)$/.exec(String(value))
-    if (match === null) return null
-    return frame(match[1], match[2])
+    return box
   }
 
   function raw(content) {
@@ -574,16 +767,6 @@ export const BAR_SCRIPT = String.raw`
     return box
   }
 
-  // ------------------------------------------------------------------- tree
-
-  /**
-   * A collapsible view of a value.
-   *
-   * The thing a bar of one-line rows cannot do, and the reason this is an
-   * inspector rather than a log: a request's payload, a job's arguments and a
-   * cached value are all objects, and reading one as a flattened string is
-   * reading it by eye.
-   */
   function treeOf(value) {
     const box = node('div', 'tree')
     box.appendChild(branch(null, value, 0))
@@ -599,9 +782,7 @@ export const BAR_SCRIPT = String.raw`
       ? value.map((item, index) => [String(index), item])
       : Object.entries(value)
 
-    if (entries.length === 0) {
-      return leaf(key, kind === 'array' ? '[]' : '{}', 'empty')
-    }
+    if (entries.length === 0) return leaf(key, kind === 'array' ? '[]' : '{}', 'empty')
 
     const holder = document.createElement('details')
     // Two levels open, then folded. Deeper than that is somebody's own business.
@@ -635,7 +816,7 @@ export const BAR_SCRIPT = String.raw`
     return 'z'
   }
 
-  // ------------------------------------------------------------------- wire
+  // ------------------------------------------------------------------ wire
 
   function ask(path) {
     return fetch(endpoint + path, { headers: { accept: 'application/json' }, __elvelBar: true })
@@ -647,8 +828,9 @@ export const BAR_SCRIPT = String.raw`
       if (answer.status === 404 && attempt < 6) return setTimeout(() => load(attempt + 1), 120)
       if (!answer.ok) return
       batch = (await answer.json()).batch
-      draw()
-      drawList()
+      drawVerdict()
+      drawLeft()
+      drawRight()
       await refresh()
     } catch {
       // A bar that cannot reach its endpoint says nothing rather than throwing
@@ -656,7 +838,6 @@ export const BAR_SCRIPT = String.raw`
     }
   }
 
-  /** The list is its own request, so a batch of entries is not fetched to draw it. */
   async function refresh() {
     try {
       const answer = await ask('?since=0')
@@ -665,20 +846,23 @@ export const BAR_SCRIPT = String.raw`
       recent = payload.batches || []
       cursor = payload.cursor || 0
       crossProcess = payload.crossProcess === true
-      drawSide()
+      if (entry === null) drawRight()
     } catch {
       //
     }
   }
 
-  /**
-   * What the page does after it has loaded.
-   *
-   * Without this the bar is a snapshot: every fetch the page makes is recorded
-   * on the server and invisible until a reload. The wrapper does not touch the
-   * request — it waits for it to settle and then asks what is new, which keeps a
-   * failing call the bar's business rather than the wrapper's.
-   */
+  async function loadCosts() {
+    try {
+      const answer = await ask('/costs')
+      if (!answer.ok) return
+      costs = (await answer.json()).costs || []
+      if (view === 'costs') drawLeft()
+    } catch {
+      //
+    }
+  }
+
   let pending = null
 
   function later() {
@@ -692,16 +876,21 @@ export const BAR_SCRIPT = String.raw`
         const fresh = payload.batches || []
         cursor = payload.cursor || cursor
         if (fresh.length === 0) return
-        // Newest first, and the bar's own endpoint is on the ignore list, so
-        // nothing here can be the request that asked.
         recent = fresh.concat(recent).slice(0, 40)
-        drawSide()
+        if (entry === null) drawRight()
       } catch {
         //
       }
     }, 250)
   }
 
+  /**
+   * What the page does after it has loaded.
+   *
+   * Without this the bar is a snapshot: every fetch the page makes is recorded
+   * on the server and invisible until a reload. The wrapper does not touch the
+   * request — it waits for it to settle and then asks what is new.
+   */
   function watchTheirRequests() {
     const original = window.fetch
     window.fetch = function (input, init) {
@@ -718,8 +907,6 @@ export const BAR_SCRIPT = String.raw`
     }
   }
 
-  // ------------------------------------------------------------------ input
-
   grip.addEventListener('pointerdown', (event) => {
     const from = event.clientY
     const was = height
@@ -731,7 +918,7 @@ export const BAR_SCRIPT = String.raw`
     const stop = () => {
       grip.removeEventListener('pointermove', move)
       grip.removeEventListener('pointerup', stop)
-      remembered.set('height', Math.round(height))
+      kept.set('height', Math.round(height))
     }
     grip.addEventListener('pointermove', move)
     grip.addEventListener('pointerup', stop)
@@ -740,7 +927,7 @@ export const BAR_SCRIPT = String.raw`
   window.addEventListener('keydown', (event) => {
     if (!event.ctrlKey || event.code !== 'Backquote') return
     event.preventDefault()
-    show(open === null ? remembered.get('open', 'request') || 'request' : null)
+    show(view === null ? kept.get('view', 'findings') || 'findings' : null)
   })
 
   window.addEventListener('resize', applyHeight)

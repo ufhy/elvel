@@ -1,6 +1,9 @@
 import type { IncomingEntry } from '../entry.ts'
 import type { EntryUpdate } from '../entry-update.ts'
 import { type Summary, summarise } from '../panels/describe.ts'
+import type { Verdict } from './baseline.ts'
+import { type Finding, findings, type Split, split } from './findings.ts'
+import type { Profile } from './profiler.ts'
 
 /** One finished unit of work, as the bar reads it back. */
 export type BarBatch = {
@@ -18,13 +21,29 @@ export type BarBatch = {
   status: number
   durationMs: number
   entries: BarEntry[]
+  /**
+   * What is wrong with this unit of work, decided when it closed.
+   *
+   * Computed once, here, rather than in the browser: the analysis is the product
+   * and it belongs where it can be tested. The client draws what it is told.
+   */
+  found: Finding[]
+  /** Where the time went — three numbers, not one. */
+  shape: Split
+  /** How this compares to the same route's recent history. */
+  verdict?: Verdict
+  /** A CPU profile, when one was armed for this request. */
+  profile?: Profile
 }
 
 /** The list form: everything but the entries. */
-export type BarSummary = Omit<BarBatch, 'entries'> & {
+export type BarSummary = Omit<BarBatch, 'entries' | 'found' | 'profile'> & {
   count: number
   /** Which process this came from, so the bar can say what it cannot show. */
   source: 'ring' | 'storage'
+  /** How many problems, so a list can mark a bad request without its detail. */
+  problems: number
+  profiled: boolean
 }
 
 /** An entry, flattened to what a list draws. Detail is fetched separately. */
@@ -87,9 +106,17 @@ export class BatchRing {
   ) {}
 
   /** Adds the batch and returns the sequence it was given. */
-  push(batch: Omit<BarBatch, 'seq'>): number {
+  /**
+   * Adds the batch, working out what it means on the way in.
+   *
+   * The caller hands over what it observed; what it *amounts to* is decided
+   * here, so nothing downstream — endpoint, client, test — has to agree
+   * separately about what counts as an N+1.
+   */
+  push(batch: Omit<BarBatch, 'seq' | 'found' | 'shape'>): number {
     const seq = this.next++
-    const stored: BarBatch = { ...batch, seq }
+    const shape = split(batch.entries, batch.durationMs)
+    const stored: BarBatch = { ...batch, seq, shape, found: findings(batch.entries, shape) }
 
     this.batches.unshift(stored)
     this.sizes.set(stored.batchId, weigh(stored))
@@ -143,6 +170,8 @@ export class BatchRing {
    * reaches the bar through storage instead.
    */
   apply(updates: EntryUpdate[]): void {
+    const touched = new Set<string>()
+
     for (const update of updates) {
       const found = this.entry(update.uuid)
 
@@ -153,6 +182,17 @@ export class BatchRing {
       found.tags = [...new Set([...found.tags, ...update.tagsAdded])].filter(
         (tag) => !update.tagsRemoved.includes(tag)
       )
+      touched.add(found.uuid)
+    }
+
+    /**
+     * A patch can change the answer, not only a field: a job that failed a
+     * moment ago is a problem the batch did not have when it closed.
+     */
+    for (const batch of this.batches) {
+      if (!batch.entries.some((entry) => touched.has(entry.uuid))) continue
+
+      batch.found = findings(batch.entries, batch.shape)
     }
   }
 
@@ -204,9 +244,15 @@ function weigh(batch: BarBatch): number {
 }
 
 function summaryOf(batch: BarBatch): BarSummary {
-  const { entries, ...rest } = batch
+  const { entries, found, profile, ...rest } = batch
 
-  return { ...rest, count: entries.length, source: 'ring' }
+  return {
+    ...rest,
+    count: entries.length,
+    source: 'ring',
+    problems: found.filter((one) => one.level === 'problem').length,
+    profiled: profile !== undefined
+  }
 }
 
 /**

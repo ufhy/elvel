@@ -1,5 +1,7 @@
 import { ServiceProvider } from '@elvel/core'
+import { Baselines } from './bar/baseline.ts'
 import { type BarState, barState } from './bar/enabled.ts'
+import { RequestProfiler } from './bar/profiler.ts'
 import { BatchRing } from './bar/ring.ts'
 import { LensClearCommand } from './console/lens-clear.ts'
 import { LensInstallCommand } from './console/lens-install.ts'
@@ -28,6 +30,8 @@ declare module '@elvel/contracts' {
     lens: Recorder
     'lens.entries': EntriesRepository
     'lens.ring': BatchRing
+    'lens.baselines': Baselines
+    'lens.profiler': RequestProfiler
   }
 }
 
@@ -74,6 +78,9 @@ export class LensServiceProvider extends ServiceProvider {
           Math.max(1, this.config<number>('lens.bar.budget', 8 * 1024 * 1024))
         )
     )
+
+    this.app.singleton('lens.baselines', () => new Baselines())
+    this.app.singleton('lens.profiler', () => new RequestProfiler())
 
     this.registerStorage()
   }
@@ -164,6 +171,8 @@ export class LensServiceProvider extends ServiceProvider {
         lensBar(this.app, {
           state: this.bar,
           ring: this.app.make('lens.ring'),
+          baselines: this.app.make('lens.baselines'),
+          profiler: this.app.make('lens.profiler'),
           path: this.config<string>('lens.path', 'lens'),
           editor: this.config<string>('lens.bar.editor', ''),
           root: this.app.basePath(),
@@ -179,7 +188,9 @@ export class LensServiceProvider extends ServiceProvider {
         requestWatcher: watchers.find(
           (watcher): watcher is RequestWatcher => watcher instanceof RequestWatcher
         ),
-        ring: this.bar.on ? this.app.make('lens.ring') : undefined
+        ring: this.bar.on ? this.app.make('lens.ring') : undefined,
+        baselines: this.bar.on ? this.app.make('lens.baselines') : undefined,
+        profiler: this.bar.on ? this.app.make('lens.profiler') : undefined
       })
     )
   }

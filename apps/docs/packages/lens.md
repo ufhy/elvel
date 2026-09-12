@@ -120,7 +120,12 @@ user.
 
 ## The inspection bar
 
-What the page you are looking at just did, drawn into the page itself.
+Not a debug bar. A debug bar counts things — twelve queries, three views — and
+leaves the reading to you. This one reads first:
+
+```
+3 problems   GET /slow 200   14ms ▓▓▒░  db 4.4ms  view 0.3ms  app 9.3ms   10 query …
+```
 
 ```bash
 LENS_BAR=true
@@ -128,63 +133,87 @@ LENS_BAR=true
 
 That is the whole installation. Unset, it follows `APP_DEBUG` — Laravel
 Debugbar's rule, and the right one: a bar showing query results belongs to the
-same switch as a stack trace in the browser.
+same switch as a stack trace in the browser. **No tables are needed**: the bar
+reads a ring of the last twenty requests held in memory.
 
-Unlike the dashboard, **the bar needs no tables**. It reads a ring of the last
-twenty requests held in memory, so there is no migration, no provider, no prune
-and nothing growing on disk. An application that wants only the bar installs
-nothing.
+### It tells you what is wrong
 
-### It is not a second Debugbar
+Every unit of work is analysed on the server as it closes, and the panel opens
+on the findings:
 
-Laravel Debugbar is a separate package with its own collectors sitting beside
-Telescope's. An application running both collects everything twice, configures
-it twice, and can have the two disagree.
+| | |
+| --- | --- |
+| **The same query ran 8 times** | The statement, and the line that ran it. An N+1 named, not badged |
+| **A query took 240ms** | With its caller |
+| **80% of this request was the database** | Said only when no single query is to blame |
+| **1 exception thrown, and the page still answered 200** | Something threw, something caught it, and the browser never knew |
+| **Cache key `user:1` missed 2 times** | A cache that is not caching |
+| **1 error-level log message** | Logged and forgotten |
+| **The response was 293 KB** | Large enough that the browser feels it first |
 
-Everything on this bar was recorded by the watchers that feed the dashboard,
-judged by the same filters. The bar is a reader. The only thing added to the
-request path is a script tag.
+A request with nothing wrong says so, in one line. That matters as much as the
+rest: a bar that always has something to complain about is a bar nobody reads.
 
-That follows from *when* a batch is finished: after the response has already
-been sent. The data cannot travel inside the page even if it wanted to, so the
-markup carries a batch id and the browser asks for the rest — where a Debugbar
-page carries its whole payload inline and grows tens of kilobytes for it.
+### It profiles
 
-### What it shows
+Press **Profile**, reload, and the bar shows a real CPU profile of that request:
+self time per function, sorted, each one a link into your editor.
 
-The strip names the request, its status and its duration, then one chip per
-entry type. Clicking a chip opens the panel:
+```
+Sampled 14ms · Samples 9 · Idle and engine 3.0ms
 
-- **the last twenty requests** down the left, whatever they answered with — the
-  JSON your page fetched is in the list beside the page itself
-- **every query** with its duration and the application line that ran it
-- **`N+1 ×12`** on the chip when the same statement ran twelve times — counted
-  across the whole request, not over neighbours, because a loop that renders
-  between queries still runs the same statement twelve times
-- **open any entry** for the same detail the dashboard shows: a request's
-  headers, payload, session and response; an exception's stack with the source
-  around the failing line; a query's bindings and connection — objects as a
-  collapsible tree, not a flattened string, plus the raw JSON underneath and a
-  button that copies it
-- **jump to your editor** from any query, exception or dump, once
-  `LENS_BAR_EDITOR` is set:
+2.5ms  jsx                     @kitajs/html/index.js
+1.5ms  getOwnPropertyDescriptor  packages/database/src/…
+1.3ms  cloneWheres             packages/database/src/query/types.ts
+```
+
+This has no equivalent in the tools Lens is shaped after. Telescope, Debugbar
+and Clockwork can all say a request took 900ms and that 40ms of it was the
+database; none can say where the other 860ms went, because PHP cannot profile
+itself without Xdebug and a separate UI. Bun's `node:inspector` Profiler runs
+in-process, so the answer is one button away.
+
+Two honest limits. The profiler is **process-wide**: a request served
+concurrently with the profiled one lands in the same samples, which is why it is
+armed by hand for a single request rather than left running. And sampling starts
+when you press the button, so the profile is clipped to the request's own window
+— the wait in between is dropped rather than charged to whichever function the
+sampler woke up inside.
+
+### It knows what is normal
+
+```
+1.8×  median 7.6ms of 42
+```
+
+The process is long-lived, so it remembers what each **route** usually costs and
+says how this request compares. PHP-FPM forgets everything between requests, so
+no debug bar in that world can answer "is this slow, or is this page always like
+this". The Route cost view lists every route seen this session, slowest first.
+
+### The evidence is underneath
+
+Findings are the first thing, not the only thing. Every count in the strip opens
+the entries behind it — filterable — and every entry opens the same detail the
+dashboard shows: a request's headers, payload, session and response; an
+exception's stack with the source around the failing line; a query's bindings and
+connection. Objects render as a collapsible tree, with the raw JSON underneath
+and a button that copies it.
+
+Set an editor and every file reference becomes a link:
 
 ```bash
 LENS_BAR_EDITOR="vscode://file/{file}:{line}"
 ```
 
-It is empty by default rather than guessing, because a link that does nothing is
-worse than the path written out.
-
 ### It keeps up
 
 The bar wraps `fetch` and `XMLHttpRequest`, so a call your page makes after it
-loads appears in the list as soon as it settles — with its own queries, its own
-exception, its own everything. No reload, and the wrapper never touches the
-request itself: it waits for it to settle and then asks the server what is new.
+loads appears in the list as soon as it settles — with its own findings. No
+reload.
 
 `Ctrl` + `` ` `` opens and closes the panel. Drag its top edge to resize it; the
-height and the open tab are remembered per browser.
+height and the open view are remembered per browser.
 
 ### Work in other processes
 
@@ -201,6 +230,18 @@ because only the ring holds their detail; the dashboard has the rest.
 Without storage the bar is this process only, and says so at the foot of the
 list rather than showing an empty screen that reads as "nothing ran".
 
+### It is not a second Debugbar
+
+Laravel Debugbar is a separate package with its own collectors sitting beside
+Telescope's. An application running both collects everything twice, configures
+it twice, and can have the two disagree.
+
+Everything the bar reasons about was recorded by the watchers that feed the
+dashboard, judged by the same filters. The only thing added to the request path
+is a script tag — the data cannot even travel inside the page, because a batch is
+flushed after the response has gone, so the markup carries a batch id and the
+browser asks for the rest.
+
 ### What it deliberately is not
 
 There is no component tree of the React or Vue DevTools kind, and there cannot
@@ -209,8 +250,7 @@ no component instance, no state and no re-render to highlight. The view watcher
 also does not record props, because a view's props are the page's contents.
 
 What you get instead is which components rendered, how large each was and how
-long it took — the answer to "what is making this page half a megabyte", not to
-"why did this component render again".
+long it took.
 
 ### Running it outside development
 
