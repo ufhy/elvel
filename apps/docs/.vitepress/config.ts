@@ -123,17 +123,6 @@ export default defineConfig({
         items: [{ text: 'Getting started', link: '/testing/getting-started' }]
       },
       {
-        /**
-         * Optional packages, the way Laravel groups Telescope and Horizon.
-         *
-         * Not "digging deeper": everything in that group is a capability the
-         * framework already has and an application configures. These are tools
-         * an application installs, and none of them is scaffolded.
-         */
-        text: 'Packages',
-        items: [{ text: 'Lens', link: '/packages/lens' }]
-      },
-      {
         text: 'Security',
         items: [
           { text: 'Authentication', link: '/security/authentication' },
@@ -143,6 +132,17 @@ export default defineConfig({
           { text: 'Hashing', link: '/digging-deeper/hashing' },
           { text: 'Reporting a vulnerability', link: '/security/reporting' }
         ]
+      },
+      {
+        /**
+         * Optional packages, the way Laravel groups Telescope and Horizon.
+         *
+         * Not "digging deeper": everything in that group is a capability the
+         * framework already has and an application configures. These are tools
+         * an application installs, and none of them is scaffolded.
+         */
+        text: 'Packages',
+        items: [{ text: 'Lens', link: '/packages/lens' }]
       },
       {
         text: 'Reference',
