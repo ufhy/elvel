@@ -74,7 +74,7 @@ export default defineConfig({
       {
         text: 'Architecture',
         items: [
-          { text: 'The 27 packages', link: '/architecture/packages' },
+          { text: 'The 30 packages', link: '/architecture/packages' },
           { text: 'Request lifecycle and the container', link: '/architecture/lifecycle' }
         ]
       },
@@ -102,6 +102,7 @@ export default defineConfig({
           { text: 'File storage', link: '/digging-deeper/storage' },
           { text: 'HTTP client', link: '/digging-deeper/http-client' },
           { text: 'Images', link: '/digging-deeper/images' },
+          { text: 'Lens', link: '/digging-deeper/lens' },
           { text: 'Localization', link: '/digging-deeper/localization' },
           { text: 'Mail', link: '/digging-deeper/mail' },
           { text: 'Notifications', link: '/digging-deeper/notifications' },

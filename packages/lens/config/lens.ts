@@ -78,13 +78,7 @@ export default {
       ignore: [] as string[]
     },
 
-    /**
-     * Off by default, and the only watcher that is.
-     *
-     * A wildcard listener sees every event the application dispatches, which is
-     * the most useful screen in the dashboard for some applications and pure
-     * noise in others. Turn it on deliberately.
-     */
+    /** Every outgoing call made through `@elvel/http-client`. */
     client_request: {
       enabled: env('LENS_CLIENT_REQUEST_WATCHER', true),
       /** Hosts never recorded — a metrics sink, a health check. */
@@ -104,7 +98,7 @@ export default {
     },
 
     /**
-     * Off by default, like the event watcher and for a related reason.
+     * Off by default, like the event watcher.
      *
      * A dump is written to be read now, in the terminal — Telescope goes
      * further and only registers its watcher while the Dumps screen is open.
@@ -114,6 +108,13 @@ export default {
       enabled: env('LENS_DUMP_WATCHER', false)
     },
 
+    /**
+     * Off by default, like the dump watcher and for a related reason.
+     *
+     * A wildcard listener sees every event the application dispatches, which is
+     * the most useful screen in the dashboard for some applications and pure
+     * noise in others. Turn it on deliberately.
+     */
     event: {
       enabled: env('LENS_EVENT_WATCHER', false),
       /** Framework events are covered by their own watchers. */

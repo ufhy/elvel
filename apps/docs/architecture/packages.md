@@ -1,6 +1,6 @@
-# The 29 packages
+# The 30 packages
 
-Laravel is one package. Elvel is twenty-nine, and this page is why.
+Laravel is one package. Elvel is thirty, and this page is why.
 
 | Package | Contents |
 | --- | --- |
@@ -24,9 +24,10 @@ Laravel is one package. Elvel is twenty-nine, and this page is why.
 | `@elvel/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |
 | `@elvel/notifications` | Channels (mail, database, log), per-recipient ids, on-demand recipients. |
 | `@elvel/encryption` | AES-256-GCM, HKDF-derived keys, context binding, key rotation, `key:generate`. |
+| `@elvel/lens` | Optional. Records what a request did, and a dashboard to read it back. |
 | `create-elvel` | Application skeleton scaffolder. |
 
-## Why twenty-nine
+## Why thirty
 
 Laravel is one Composer package: `illuminate/*` arrives whole whether or not you
 touch it, and registering all of Eloquent, Queue and Mail in an application that

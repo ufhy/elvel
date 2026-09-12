@@ -118,6 +118,22 @@ dead or a guard somebody forgot to apply.
 `log:tail` takes `--level`, `--filter` and `--lines`, so it is `tail -f | grep`
 without needing to know where the file is.
 
+### Lens
+
+Only when [`@elvel/lens`](/digging-deeper/lens) is installed and registered.
+
+| Command | |
+| --- | --- |
+| `lens:install` | Publish the config and your own provider |
+| `lens:table` | Migration for the three tables |
+| `lens:status` | Is it recording, what does it hold, which watchers are awake |
+| `lens:pause` / `lens:resume` | Stop and start recording without a deploy |
+| `lens:prune --hours=48` | Delete entries past the retention window — **schedule this** |
+| `lens:clear` | Everything |
+
+`lens:prune` takes `--keep-exceptions`. Nothing prunes on its own, so an
+application that never schedules it grows a table without a ceiling.
+
 ## Keys and secrets
 
 | Command | |
