@@ -969,3 +969,30 @@ describe('a page carrying the bar is never cached', () => {
     expect(build).toMatch(/^[0-9a-f]{6}$/)
   })
 })
+
+describe('a stale bar says so', () => {
+  /**
+   * The failure this closes: a page from the browser's cache carries an older
+   * copy of the bar, everything looks fine, and nothing you change appears. The
+   * client compares the build it was served with the one the server has.
+   */
+  test('the list endpoint reports the server build', async () => {
+    const { router, recorder } = harness()
+    const page = await (await router.handle(new Request('http://localhost/page'))).text()
+
+    await drained(recorder, 1)
+
+    const inPage = /data-build="([^"]+)"/.exec(page)?.[1]
+    const payload = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as { build: string }
+
+    expect(payload.build).toMatch(/^[0-9a-f]{6}$/)
+    expect(payload.build).toBe(inPage)
+  })
+
+  test('the client only warns when the two differ', () => {
+    expect(BAR_SCRIPT).toContain('payload.build !== mine')
+    expect(BAR_SCRIPT).toContain('Stale')
+  })
+})

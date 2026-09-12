@@ -153,6 +153,15 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
         const since = Number.isSafeInteger(asked) && asked > 0 ? asked : 0
 
         return {
+          /**
+           * What the server's bar is built from.
+           *
+           * The page carries its own in `data-build`; a page from the browser's
+           * cache carries an older one, and until this existed the only symptom
+           * was a tool that quietly did not change. The client compares them and
+           * says so.
+           */
+          build: BUILD,
           cursor: options.ring.cursor(),
           /**
            * Whether anything outside this process can be seen at all. The bar

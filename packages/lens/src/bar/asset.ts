@@ -204,6 +204,7 @@ export const BAR_SCRIPT = String.raw`
   let recent = []
   let cursor = 0
   let crossProcess = false
+  let stale = false
   /** 'findings' | 'profile' | 'costs' | an entry type. Null means closed. */
   let view = null
   let picked = null
@@ -306,6 +307,15 @@ export const BAR_SCRIPT = String.raw`
     if (batch === null) return
 
     const problems = batch.found.filter((one) => one.level === 'problem').length
+
+    if (stale) {
+      const warn = node('button', 'mark bad')
+      warn.type = 'button'
+      warn.textContent = 'Stale \u2014 reload'
+      warn.title = 'This page was served before the bar changed. Reload to get the current one.'
+      warn.onclick = () => location.reload()
+      verdict.appendChild(warn)
+    }
 
     const brand = node('button', 'mark' + (problems > 0 ? ' bad' : ''))
     brand.type = 'button'
@@ -1129,6 +1139,21 @@ export const BAR_SCRIPT = String.raw`
       recent = payload.batches || []
       cursor = payload.cursor || 0
       crossProcess = payload.crossProcess === true
+
+      /**
+       * The page's bar against the server's bar.
+       *
+       * A tool inlined into a page is invisibly cacheable, and the symptom is
+       * the worst kind: everything looks fine and nothing you change appears.
+       * Now it says so, in the one place you are already looking.
+       */
+      const mine = tag.dataset.build || ''
+
+      if (payload.build && mine && payload.build !== mine) {
+        stale = true
+        drawVerdict()
+      }
+
       drawRecent()
     } catch {
       //
