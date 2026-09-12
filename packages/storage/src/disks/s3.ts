@@ -1,6 +1,12 @@
 import { signRequest } from '@elvel/support'
 import { S3Client } from 'bun'
-import { type CloudDisk, MissingFileError, type Visibility, type Writable, type WriteOptions } from '../contracts.ts'
+import {
+  type CloudDisk,
+  MissingFileError,
+  type Visibility,
+  type Writable,
+  type WriteOptions
+} from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename } from '../paths.ts'
 
 export type S3DiskOptions = {
@@ -460,7 +466,9 @@ export class S3Disk implements CloudDisk {
         if (!recursive && within.includes('/')) {
           // A key deeper than this level contributes its first segment as a
           // directory instead.
-          directories.add(base === '' ? (within.split('/')[0] as string) : `${base}/${within.split('/')[0]}`)
+          directories.add(
+            base === '' ? (within.split('/')[0] as string) : `${base}/${within.split('/')[0]}`
+          )
           continue
         }
 

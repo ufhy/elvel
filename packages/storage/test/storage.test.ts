@@ -114,7 +114,7 @@ for (const candidate of candidates) {
       const modified = await disk.lastModified('sized.txt')
       expect(modified).toBeInstanceOf(Date)
       // Allow a second either side: a filesystem may store whole seconds.
-      expect(modified!.getTime()).toBeGreaterThanOrEqual(before - 1000)
+      expect((modified as Date).getTime()).toBeGreaterThanOrEqual(before - 1000)
     })
 
     test('prepend and append keep what was there', async () => {
@@ -511,7 +511,10 @@ describe('responses', () => {
 
     // And the quoted string is closed exactly once, by us: everything the
     // attacker wrote stays inside those quotes, where a `;` is just a character.
-    const quoted = header.slice(header.indexOf('"') + 1, header.indexOf('"', header.indexOf('"') + 1))
+    const quoted = header.slice(
+      header.indexOf('"') + 1,
+      header.indexOf('"', header.indexOf('"') + 1)
+    )
     expect(quoted).toBe('a; x=1X-Evil: yes.txt')
     expect(header.split('"').length - 1).toBe(2)
   })

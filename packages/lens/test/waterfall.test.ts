@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { Application, enterWorkContext } from '@elvel/core'
+import { enterWorkContext } from '@elvel/core'
 import { JsxViewFactory } from '@elvel/view'
 import { IncomingEntry } from '../src/entry.ts'
 import { EntryResult } from '../src/entry-result.ts'

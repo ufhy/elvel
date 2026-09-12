@@ -123,6 +123,8 @@ export function Layout({ title, path, current, paused, theme, children }: Layout
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 5c-5 0-9 4.5-9 7s4 7 9 7 9-4.5 9-7-4-7-9-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
                 </svg>
+                {/* An icon-only link is silent to a screen reader; `title` is not read. */}
+                <span class="offscreen">Monitoring</span>
               </a>
             </div>
           </header>
@@ -229,6 +231,10 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   background: var(--card); color: var(--dim);
 }
 .actions button:hover, .actions .button:hover { color: var(--brand); border-color: var(--brand); }
+.offscreen {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
 .actions .button.on { color: var(--brand); border-color: var(--brand); }
 .body { display: flex; gap: 24px; align-items: flex-start; padding-top: 26px; }
 .sidebar { flex: 0 0 200px; width: 200px; position: sticky; top: 20px; }

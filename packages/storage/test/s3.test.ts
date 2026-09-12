@@ -102,11 +102,7 @@ describe.skipIf(!reachable)('S3, against a real bucket', () => {
       await s3.put('nested/deeper/deep.txt', '3')
 
       expect(await s3.files()).toEqual(['top.txt'])
-      expect(await s3.allFiles()).toEqual([
-        'nested/deeper/deep.txt',
-        'nested/inner.txt',
-        'top.txt'
-      ])
+      expect(await s3.allFiles()).toEqual(['nested/deeper/deep.txt', 'nested/inner.txt', 'top.txt'])
       expect(await s3.directories()).toEqual(['nested'])
       expect(await s3.allDirectories()).toEqual(['nested', 'nested/deeper'])
     } finally {
@@ -217,7 +213,9 @@ const objectAcls = await (async () => {
     const supported = (await probe.getVisibility('probe.txt')) === 'public'
 
     if (!supported) {
-      console.log('  skipping per-object ACLs: this backend does not implement them (MinIO does not)')
+      console.log(
+        '  skipping per-object ACLs: this backend does not implement them (MinIO does not)'
+      )
     }
 
     return supported

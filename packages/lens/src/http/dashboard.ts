@@ -167,7 +167,7 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
         const asked = EntryQueryOptions.fromRequest(query)
         const entries = await read(() => app.make('lens.entries').get(type, asked), [])
 
-        if (entries === NOT_THERE) return notInstalled(app, options, set)
+        if (entries === NOT_THERE) return notInstalled(options, set)
 
         return html(
           set,
@@ -192,7 +192,7 @@ export function lensDashboard(app: ApplicationContract, options: LensDashboardOp
         const repository = app.make('lens.entries')
         const entry = await read(() => repository.find(params.id), undefined)
 
-        if (entry === NOT_THERE) return notInstalled(app, options, set)
+        if (entry === NOT_THERE) return notInstalled(options, set)
 
         if (entry === undefined) {
           set.status = 404
@@ -277,7 +277,6 @@ async function read<T>(body: () => Promise<T>, _shape: T): Promise<T | typeof NO
 
 /** The page somebody who has not run the migration should see. */
 async function notInstalled(
-  app: ApplicationContract,
   options: LensDashboardOptions,
   set: { headers: Record<string, string | number>; status?: unknown }
 ): Promise<string> {

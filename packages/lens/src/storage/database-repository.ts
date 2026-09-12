@@ -1,10 +1,10 @@
 import type { ConnectionManager, QueryBuilder } from '@elvel/database'
 import type { EntriesDriver } from '../contracts.ts'
-import { EntryResult } from '../entry-result.ts'
-import type { EntryUpdate } from '../entry-update.ts'
 import type { IncomingEntry } from '../entry.ts'
+import { EntryResult } from '../entry-result.ts'
 import { EntryType, type EntryTypeName } from '../entry-type.ts'
-import { EntryQueryOptions } from './query-options.ts'
+import type { EntryUpdate } from '../entry-update.ts'
+import type { EntryQueryOptions } from './query-options.ts'
 
 export type DatabaseRepositoryOptions = {
   connection?: string
@@ -57,10 +57,7 @@ export class DatabaseEntriesRepository implements EntriesDriver {
     return this.hydrate(row as Record<string, unknown>, tags.all())
   }
 
-  async get(
-    type: EntryTypeName | undefined,
-    options: EntryQueryOptions
-  ): Promise<EntryResult[]> {
+  async get(type: EntryTypeName | undefined, options: EntryQueryOptions): Promise<EntryResult[]> {
     let query = await this.entries()
 
     if (type !== undefined) query = query.where('type', type)
@@ -172,7 +169,9 @@ export class DatabaseEntriesRepository implements EntriesDriver {
     const pending: EntryUpdate[] = []
 
     for (const update of updates) {
-      const row = (await (await this.entries())
+      const row = (await (
+        await this.entries()
+      )
         .where('uuid', update.uuid)
         .where('type', update.type)
         .first()) as Record<string, unknown> | undefined
@@ -310,9 +309,7 @@ export class DatabaseEntriesRepository implements EntriesDriver {
         ? undefined
         : String(row.family_hash),
       this.decode(row.content),
-      row.created_at === null || row.created_at === undefined
-        ? undefined
-        : String(row.created_at),
+      row.created_at === null || row.created_at === undefined ? undefined : String(row.created_at),
       tags
     )
   }

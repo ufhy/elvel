@@ -48,7 +48,7 @@ describe('detail panels', () => {
 
     expect(markup).toContain('Source')
     expect(markup).toContain('blame')
-    expect(markup).toMatch(/blame[^]*throw new TypeError/)
+    expect(markup).toMatch(/blame[\s\S]*throw new TypeError/)
   })
 
   test('the raw content is always there, and always collapsed', async () => {

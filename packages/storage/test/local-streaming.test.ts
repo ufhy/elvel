@@ -103,9 +103,7 @@ describe('append', () => {
       await chmod(join(root, 'append-only.log'), 0o644)
     }
 
-    expect<string>(await readFile(join(root, 'append-only.log'), 'utf8')).toBe(
-      'important\nnew\n'
-    )
+    expect<string>(await readFile(join(root, 'append-only.log'), 'utf8')).toBe('important\nnew\n')
   })
 
   test('while prepend still puts things at the front', async () => {

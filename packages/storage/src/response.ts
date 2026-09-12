@@ -9,10 +9,7 @@ import { guessContentType } from './paths.ts'
  * escaped: a filename that closes the quoted string early can inject a header
  * parameter of its own.
  */
-export function contentDisposition(
-  disposition: 'inline' | 'attachment',
-  filename: string
-): string {
+export function contentDisposition(disposition: 'inline' | 'attachment', filename: string): string {
   const safe = filename.replaceAll(/["\\\r\n]/g, '').replace(/[^\x20-\x7e]/g, '_')
   const encoded = encodeURIComponent(filename)
 

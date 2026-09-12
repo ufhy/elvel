@@ -1,7 +1,13 @@
 import { appendFile, chmod, mkdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname, join, posix, sep } from 'node:path'
 import { Glob } from 'bun'
-import { type Disk, MissingFileError, type Visibility, type Writable, type WriteOptions } from '../contracts.ts'
+import {
+  type Disk,
+  MissingFileError,
+  type Visibility,
+  type Writable,
+  type WriteOptions
+} from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename, withinRoot } from '../paths.ts'
 
 export type LocalDiskOptions = {

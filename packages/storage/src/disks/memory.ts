@@ -1,4 +1,10 @@
-import { type Disk, MissingFileError, type Visibility, type Writable, type WriteOptions } from '../contracts.ts'
+import {
+  type Disk,
+  MissingFileError,
+  type Visibility,
+  type Writable,
+  type WriteOptions
+} from '../contracts.ts'
 import { guessContentType, normalisePath, randomFilename } from '../paths.ts'
 
 type Entry = { bytes: Uint8Array; visibility: Visibility; contentType?: string; modifiedAt: Date }
@@ -339,7 +345,9 @@ export class MemoryDisk implements Disk {
     const wanted = typeof expected === 'string' ? expected : new TextDecoder().decode(expected)
 
     if (actual !== wanted) {
-      throw new Error(`Expected [${path}] to contain ${JSON.stringify(wanted)}, saw ${JSON.stringify(actual)}`)
+      throw new Error(
+        `Expected [${path}] to contain ${JSON.stringify(wanted)}, saw ${JSON.stringify(actual)}`
+      )
     }
 
     return this
@@ -370,5 +378,4 @@ export class MemoryDisk implements Disk {
 
     return keys.length === 0 ? '(nothing)' : keys.join(', ')
   }
-
 }

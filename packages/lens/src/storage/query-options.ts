@@ -58,9 +58,8 @@ export class EntryQueryOptions {
     options.beforeSequence = Number.isSafeInteger(before) && before > 0 ? before : undefined
 
     const limit = Number(query.limit)
-    options.limit = Number.isSafeInteger(limit) && limit > 0
-      ? Math.min(limit, EntryQueryOptions.maxLimit)
-      : 50
+    options.limit =
+      Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, EntryQueryOptions.maxLimit) : 50
 
     return options
   }

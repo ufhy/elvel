@@ -181,13 +181,13 @@ function page(record: DumpRecord): string {
   const where =
     record.origin === undefined
       ? ''
-      : `<p class="at">${escape(`${record.origin.file}:${String(record.origin.line)}`)}</p>`
+      : `<p class="at">${escapeHtml(`${record.origin.file}:${String(record.origin.line)}`)}</p>`
 
   const blocks = record.values
     .map((value) => {
-      const label = value.label === undefined ? '' : `<h2>${escape(value.label)}</h2>`
+      const label = value.label === undefined ? '' : `<h2>${escapeHtml(value.label)}</h2>`
 
-      return `${label}<pre>${escape(value.text)}</pre>`
+      return `${label}<pre>${escapeHtml(value.text)}</pre>`
     })
     .join('')
 
@@ -204,7 +204,7 @@ function page(record: DumpRecord): string {
   </style></head><body><h1>Execution stopped by <code>dd()</code></h1>${where}${blocks}</body></html>`
 }
 
-function escape(value: string): string {
+function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

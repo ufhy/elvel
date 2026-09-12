@@ -110,10 +110,8 @@ describe('the exception watcher', () => {
 
     drive(new ExceptionWatcher({}), lens, reported('it broke'))
 
-    const preview = (recorded[0]?.entry.content as Record<string, unknown>).linePreview as Record<
-      string,
-      string
-    >
+    const content = recorded[0]?.entry.content as Record<string, unknown> | undefined
+    const preview = content?.linePreview as Record<string, string>
 
     expect(Object.keys(preview).length).toBeGreaterThan(0)
     // The first application frame is where the `Error` was constructed.
