@@ -50,8 +50,8 @@ export const BAR_STYLE = String.raw`
 /* Header: tabs on the left, indicators on the right — php-debugbar's shape. */
 .head-bar { display: flex; align-items: stretch; height: 32px; border-top: 1px solid #2d3748; overflow-x: auto; }
 .bar:not(.open) .head-bar { border-top: 0; }
-.head-bar.shut-strip { cursor: pointer; }
-.head-bar.shut-strip:hover { background: #171c26; }
+.head-bar.strip { cursor: pointer; }
+.head-bar.strip:hover { background: #171c26; }
 .brand {
   padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 0;
   background: #FF2D20; color: #fff; font-weight: 700; font-size: 12px;
@@ -86,7 +86,7 @@ export const BAR_STYLE = String.raw`
 .spacer { flex: 1 1 auto; }
 
 /* Indicators are read, never clicked. */
-.ind { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; padding: 0 11px; color: #718096; white-space: nowrap; border-left: 1px solid #22293a; }
+.ind { cursor: pointer; flex: 0 0 auto; display: flex; align-items: center; gap: 7px; padding: 0 11px; color: #718096; white-space: nowrap; border-left: 1px solid #22293a; }
 .ind b { color: #e2e8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .ind .bad { color: #fc8181; } .ind .warn { color: #f6ad55; } .ind .good { color: #68d391; }
 .ind.build { color: #4a5568; font-size: 10px; letter-spacing: .04em; }
@@ -345,14 +345,14 @@ export const BAR_SCRIPT = String.raw`
     drawMenu()
 
     /**
-     * While minimised the whole strip opens the panel.
+     * The strip toggles the panel, both directions.
      *
-     * A single control means aiming at one corner from wherever the pointer
-     * happens to be; the strip spans the window, so the nearest part of it is
-     * never far. Controls on it stop the click from reaching here.
+     * It spans the window, so the nearest part of it is never far from the
+     * pointer — and the way in is the way out. Controls on it stop the click
+     * from reaching here.
      */
-    header.classList.toggle('shut-strip', view === null)
-    header.onclick = view === null ? () => show(kept.get('tab', 'findings') || 'findings') : null
+    header.classList.add('strip')
+    header.onclick = () => show(view === null ? kept.get('tab', 'findings') || 'findings' : null)
 
     if (batch === null) return
 
