@@ -31,6 +31,13 @@ export const BAR_STYLE = String.raw`
   display: flex; flex-direction: column;
 }
 .grip { height: 5px; cursor: ns-resize; }
+.handle {
+  position: fixed; right: 12px; bottom: 12px; z-index: 2147483000;
+  background: #FF2D20; color: #fff; border: 0; border-radius: 5px;
+  padding: 6px 10px; font-family: inherit; font-size: 11px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.35);
+}
+[hidden] { display: none !important; }
 .bar.open .grip { background: #2d3748; }
 
 .panel { display: none; min-height: 0; flex: 1 1 auto; }
@@ -126,15 +133,28 @@ input.find:focus { outline: 0; border-color: #FF2D20; }
 .phase-response, .legend i.phase-response { background: #b794f4; }
 .phase-sent, .legend i.phase-sent { background: #2d3748; }
 
-.lane { display: grid; grid-template-columns: 50px 1fr minmax(0, 44%) auto; gap: 10px; align-items: center; width: 100%; padding: 6px 10px; border: 0; border-bottom: 1px solid #22293a; background: transparent; color: inherit; cursor: pointer; font-family: inherit; font-size: 12px; text-align: left; }
+/* Five columns, each with one job, so every number sits under its own kind. */
+.lane {
+  display: grid; grid-template-columns: 56px 132px 40px 1fr 62px; gap: 12px;
+  align-items: center; width: 100%; padding: 7px 12px; border: 0;
+  border-bottom: 1px solid #22293a; background: transparent; color: inherit;
+  cursor: pointer; font-family: inherit; font-size: 12px; text-align: left;
+}
 .lane:hover { background: #1a202c; }
-.lane .at { color: #718096; text-align: right; font-variant-numeric: tabular-nums; }
+.lane .at, .lane .took, .lane .count { font-variant-numeric: tabular-nums; text-align: right; }
+.lane .at { color: #4a5568; }
+.lane .kind { color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane .count { color: #718096; }
+.lane .count.many { color: #fbd38d; }
 .lane .track { position: relative; height: 8px; background: #1a202c; border-radius: 2px; overflow: hidden; }
 .lane .track i { position: absolute; top: 0; height: 8px; min-width: 2px; border-radius: 2px; background: #4a5568; }
-.lane .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lane .kind { color: #718096; margin-right: 8px; }
-.lane .what { color: #e2e8f0; }
-.lane .took { color: #a0aec0; font-variant-numeric: tabular-nums; }
+.lane .took { color: #a0aec0; }
+.lane-head {
+  display: grid; grid-template-columns: 56px 132px 40px 1fr 62px; gap: 12px;
+  padding: 6px 12px; border-bottom: 1px solid #22293a; color: #4a5568;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+}
+.lane-head span:first-child, .lane-head span:nth-child(3), .lane-head span:last-child { text-align: right; }
 .lane .track i.kind-query { background: #63b3ed; }
 .lane .track i.kind-view { background: #b794f4; }
 .lane .track i.kind-cache { background: #68d391; }
@@ -251,6 +271,14 @@ export const BAR_SCRIPT = String.raw`
   bar.append(grip, panel, header)
   shadow.appendChild(bar)
 
+  /** What is left when the bar is closed: a corner to bring it back. */
+  const handle = node('button', 'handle', 'Lens')
+  handle.type = 'button'
+  handle.title = 'Open Lens'
+  handle.hidden = true
+  handle.onclick = () => openBar()
+  shadow.appendChild(handle)
+
   let height = Number(kept.get('height', 320)) || 320
   applyHeight()
 
@@ -359,11 +387,25 @@ export const BAR_SCRIPT = String.raw`
     header.appendChild(follow())
     header.appendChild(node('div', 'ind build', tag.dataset.build || ''))
 
+    /**
+     * Three states, as php-debugbar has: open, minimised, closed.
+     *
+     * The cross used to close only the panel, leaving the header across the
+     * bottom of somebody else's application — which is not out of the way.
+     * Minimise hides the panel; close takes the bar down to a handle.
+     */
+    const min = node('button', 'shut')
+    min.type = 'button'
+    min.textContent = view === null ? '\u25b4' : '\u25be'
+    min.title = view === null ? 'Open (Ctrl + backquote)' : 'Minimise (Ctrl + backquote)'
+    min.onclick = () => show(view === null ? kept.get('tab', 'findings') || 'findings' : null)
+    header.appendChild(min)
+
     const shut = node('button', 'shut')
     shut.type = 'button'
-    shut.textContent = '×'
-    shut.title = 'Close (Ctrl + backquote)'
-    shut.onclick = () => show(null)
+    shut.textContent = '\u00d7'
+    shut.title = 'Close'
+    shut.onclick = () => closeBar()
     header.appendChild(shut)
 
     mark()
@@ -467,6 +509,19 @@ export const BAR_SCRIPT = String.raw`
     }
   }
 
+  /** Down to a handle, and remembered — php-debugbar's phpdebugbar-open. */
+  function closeBar() {
+    kept.set('open', '0')
+    bar.hidden = true
+    handle.hidden = false
+  }
+
+  function openBar() {
+    kept.set('open', '1')
+    handle.hidden = true
+    bar.hidden = false
+  }
+
   function show(next) {
     view = next === null || view === next ? null : next
     picked = null
@@ -475,6 +530,7 @@ export const BAR_SCRIPT = String.raw`
     kept.set('visible', view === null ? '0' : '1')
     if (view !== null) kept.set('tab', view)
     mark()
+    drawHeader()
     drawView()
     drawDetail()
     if (view === 'costs') loadCosts()
@@ -606,6 +662,10 @@ export const BAR_SCRIPT = String.raw`
       return
     }
 
+    const columns = node('div', 'lane-head')
+    for (const name of ['at', 'kind', 'n', '', 'took']) columns.appendChild(node('span', '', name))
+    middle.appendChild(columns)
+
     for (const group of byKind(timed)) {
       const first = group[0]
       const last = group[group.length - 1]
@@ -613,9 +673,27 @@ export const BAR_SCRIPT = String.raw`
       const from = first.offsetMs
       const to = Math.max(last.offsetMs + Number((last.summary || {}).took || 0), from)
 
+      /**
+       * One value per column, in the same column on every lane: when it began,
+       * what kind of work, how many, where it sat in the request, what it cost.
+       *
+       * A description used to be appended when a kind happened once, so some
+       * lanes carried a sentence and others a count and the column meant two
+       * different things down the page. Removed once, carried back in when this
+       * file was rewritten from an older copy, and removed again — which is why
+       * it is spelled out here and guarded by a test.
+       */
       const row = node('button', 'lane')
       row.type = 'button'
       row.appendChild(node('span', 'at', ms(from)))
+      row.appendChild(node('span', 'kind', nameOf(first.type)))
+      row.appendChild(
+        node(
+          'span',
+          group.length > 1 ? 'count many' : 'count',
+          group.length > 1 ? '\u00d7' + group.length : ''
+        )
+      )
 
       const track = node('span', 'track')
       const fill = node('i', 'kind-' + first.type)
@@ -624,23 +702,26 @@ export const BAR_SCRIPT = String.raw`
       track.appendChild(fill)
       row.appendChild(track)
 
-      /**
-       * Every lane says the same things in the same places: the kind of work,
-       * how much of it, what it cost.
-       *
-       * A description was appended only when a kind happened once, so some lanes
-       * carried a sentence and others a count and the column meant two different
-       * things down the page. Removed once, then carried back in when this file
-       * was rewritten from the older copy — which is why it is spelled out here.
-       */
-      const label = node('span', 'label')
-      label.appendChild(node('span', 'kind', first.type))
-      if (group.length > 1) label.appendChild(node('span', 'dupe', '×' + group.length))
-      row.appendChild(label)
       row.appendChild(node('span', 'took', took > 0 ? ms(took) : ''))
       row.onclick = () => (group.length === 1 ? open(first.uuid) : show(first.type))
       middle.appendChild(row)
     }
+  }
+
+  /**
+   * The recorder's type names, as a person would say them.
+   *
+   * client_request and schedule are values in a varchar(20) column; an underscore
+   * on a label is the storage layer showing through.
+   */
+  const NAMES = {
+    client_request: 'http client',
+    schedule: 'scheduled task',
+    batch: 'job batch'
+  }
+
+  function nameOf(type) {
+    return NAMES[type] || type
   }
 
   /** Consecutive entries of one kind, so a run of queries is one lane. */
@@ -1074,6 +1155,11 @@ export const BAR_SCRIPT = String.raw`
       view = asked
     } else if (kept.get('visible', '0') === '1') {
       view = kept.get('tab', 'findings') || 'findings'
+    }
+
+    if (kept.get('open', '1') === '0') {
+      bar.hidden = true
+      handle.hidden = false
     }
 
     if (view !== null) {

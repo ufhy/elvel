@@ -1037,3 +1037,22 @@ describe('the timeline says the same thing on every lane', () => {
     expect(header).toContain('median ')
   })
 })
+
+describe('the bar can get out of the way', () => {
+  /**
+   * php-debugbar has three states — open, minimised, closed — and the third is
+   * the one that matters: closing only the panel leaves a strip of somebody
+   * else's application occupied by a dev tool.
+   */
+  test('minimise and close are different controls', () => {
+    expect(BAR_SCRIPT).toContain('function closeBar')
+    expect(BAR_SCRIPT).toContain('function openBar')
+    expect(BAR_SCRIPT).toContain("kept.set('open', '0')")
+    // Closed leaves a handle rather than nothing to click.
+    expect(BAR_SCRIPT).toContain("node('button', 'handle'")
+  })
+
+  test('closed survives a reload', () => {
+    expect(BAR_SCRIPT).toContain("kept.get('open', '1') === '0'")
+  })
+})
