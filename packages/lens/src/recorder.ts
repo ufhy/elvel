@@ -9,6 +9,16 @@ import { notInstalledError, tableIsMissing } from './installed.ts'
 /** A filter answering "should this be kept". Every registered one must agree. */
 export type EntryFilter = (entry: IncomingEntry) => boolean
 
+/**
+ * Answers "is this whole unit of work worth keeping".
+ *
+ * Different from {@link EntryFilter} in the way that matters most in
+ * production: a filter that judges entries one at a time keeps an exception and
+ * throws away the queries that caused it, which is the entry without the reason
+ * for it. This one sees the batch and decides for all of it.
+ */
+export type BatchFilter = (entries: IncomingEntry[]) => boolean
+
 /** Adds tags to every entry, whatever its type. */
 export type TagCallback = (entry: IncomingEntry) => string[]
 
@@ -72,6 +82,8 @@ const batchSlot = requestSlot<Batch>('lens')
  */
 export class Recorder {
   private readonly filters: EntryFilter[] = []
+
+  private readonly batchFilters: BatchFilter[] = []
 
   private readonly tagCallbacks: TagCallback[] = []
 
@@ -347,7 +359,13 @@ export class Recorder {
 
     if (batch === undefined || batch.flushed) return
 
-    const { entries, updates, batchId } = batch
+    const { updates, batchId } = batch
+
+    /**
+     * The batch is judged before anything is written, and suppressed, because a
+     * filter belongs to the application and may query anything.
+     */
+    const entries = this.keeps(batch.entries) ? batch.entries : []
 
     batch.flushed = true
 
@@ -466,6 +484,29 @@ export class Recorder {
     }
   }
 
+  /**
+   * Do the batch filters all agree this is worth keeping?
+   *
+   * A filter that throws refuses nothing: the alternative is that a broken
+   * predicate silently empties the recorder, which is the failure nobody would
+   * think to look for.
+   */
+  private keeps(entries: IncomingEntry[]): boolean {
+    if (this.batchFilters.length === 0 || entries.length === 0) return true
+
+    return this.withoutRecording(() => {
+      for (const filter of this.batchFilters) {
+        try {
+          if (!filter(entries)) return false
+        } catch (error) {
+          this.report(error)
+        }
+      }
+
+      return true
+    })
+  }
+
   /** How many patches are waiting for their row. */
   pendingUpdates(): number {
     return this.waiting.length
@@ -474,6 +515,20 @@ export class Recorder {
   /** Registered filters must all agree before an entry is kept. */
   filter(filter: EntryFilter): this {
     this.filters.push(filter)
+
+    return this
+  }
+
+  /**
+   * Judge the whole unit of work at once, when it is about to be stored.
+   *
+   * Telescope's `filterBatch`, and the shape its documentation reaches for in
+   * production. Every registered one must agree; if any refuses, the entries go
+   * and the patches still apply — a patch is about a row somebody else already
+   * decided to keep.
+   */
+  filterBatch(filter: BatchFilter): this {
+    this.batchFilters.push(filter)
 
     return this
   }

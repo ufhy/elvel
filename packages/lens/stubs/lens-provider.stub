@@ -14,15 +14,21 @@ export class LensServiceProvider extends LensApplicationServiceProvider {
     const local = this.app.environment() === 'local'
 
     /**
-     * Outside development, keep only what somebody would go looking for.
+     * Outside development, keep only the units of work worth going back to.
      *
-     * Recording everything in production is how a recorder becomes the largest
-     * table in the database. These five are Telescope's list, and the
-     * predicates on `IncomingEntry` exist so this line can be written.
+     * `filterBatch` rather than `filter`, and the difference decides whether
+     * this tool is any use in production. Judging entries one at a time keeps
+     * the exception and throws away the queries that caused it — the failure
+     * with the reason for it removed, and an empty timeline on the one page you
+     * opened it for. This keeps the whole request when anything in it qualifies.
+     *
+     * The five conditions are Telescope's list. The predicates on
+     * `IncomingEntry` exist so this can be written as a sentence.
      */
-    lens().filter((entry: IncomingEntry) => {
-      return (
-        local ||
+    lens().filterBatch((entries: IncomingEntry[]) => {
+      if (local) return true
+
+      return entries.some((entry) => (
         entry.isException() ||
         entry.isFailedRequest() ||
         entry.isFailedJob() ||
@@ -36,7 +42,7 @@ export class LensServiceProvider extends LensApplicationServiceProvider {
          * to that account is kept until you remove it again, with no deploy.
          */
         entry.hasMonitoredTag()
-      )
+      ))
     })
   }
 

@@ -50,6 +50,7 @@ export { flushScheduleBatches, openScheduleBatches } from './queue/schedule.ts'
 export {
   type AfterStoringHook,
   type Batch,
+  type BatchFilter,
   type EntryFilter,
   Recorder,
   type TagCallback

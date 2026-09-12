@@ -550,3 +550,112 @@ describe('query watcher', () => {
     expect(QueryWatcher.familyHash('select 1')).not.toBe(QueryWatcher.familyHash('select 2'))
   })
 })
+
+describe('filterBatch', () => {
+  /**
+   * The difference that decides whether the tool is any use in production.
+   *
+   * Per-entry filtering keeps the exception and drops the queries that caused
+   * it — a failure with the reason removed, and an empty timeline on the one
+   * page somebody opened it for. Telescope's documentation reaches for this
+   * shape for exactly that reason.
+   */
+  test('keeps everything in a unit of work when anything in it qualifies', async () => {
+    const repository = await open()
+    const lens = new Recorder()
+
+    lens.enable(true)
+    lens.filterBatch((entries) => entries.some((candidate) => candidate.isException()))
+
+    enterWorkContext()
+    lens.start()
+
+    lens.record(EntryType.QUERY, IncomingEntry.make({ sql: 'the cause' }))
+    lens.record(EntryType.CACHE, IncomingEntry.make({ key: 'also kept' }))
+    lens.record(EntryType.EXCEPTION, IncomingEntry.make({ message: 'boom' }))
+
+    await lens.store(repository)
+
+    expect(await repository.get(undefined, new EntryQueryOptions())).toHaveLength(3)
+  })
+
+  test('and drops all of it when nothing does', async () => {
+    const repository = await open()
+    const lens = new Recorder()
+
+    lens.enable(true)
+    lens.filterBatch((entries) => entries.some((candidate) => candidate.isException()))
+
+    enterWorkContext()
+    lens.start()
+
+    lens.record(EntryType.QUERY, IncomingEntry.make({ sql: 'ordinary' }))
+    lens.record(EntryType.CACHE, IncomingEntry.make({ key: 'ordinary' }))
+
+    await lens.store(repository)
+
+    expect(await repository.get(undefined, new EntryQueryOptions())).toHaveLength(0)
+  })
+
+  test('every registered filter has to agree', async () => {
+    const repository = await open()
+    const lens = new Recorder()
+
+    lens.enable(true)
+    lens.filterBatch(() => true)
+    lens.filterBatch(() => false)
+
+    enterWorkContext()
+    lens.start()
+    lens.record(EntryType.QUERY, IncomingEntry.make({ sql: 'x' }))
+    await lens.store(repository)
+
+    expect(await repository.get(undefined, new EntryQueryOptions())).toHaveLength(0)
+  })
+
+  /**
+   * A broken predicate must not silently empty the recorder — that is the
+   * failure nobody would think to look for.
+   */
+  test('a filter that throws refuses nothing', async () => {
+    const repository = await open()
+    const failures: unknown[] = []
+    const lens = new Recorder((error) => failures.push(error))
+
+    lens.enable(true)
+    lens.filterBatch(() => {
+      throw new Error('broken batch filter')
+    })
+
+    enterWorkContext()
+    lens.start()
+    lens.record(EntryType.QUERY, IncomingEntry.make({ sql: 'x' }))
+    await lens.store(repository)
+
+    expect(await repository.get(undefined, new EntryQueryOptions())).toHaveLength(1)
+    expect(failures).toHaveLength(1)
+  })
+
+  /** A patch is about a row somebody else already decided to keep. */
+  test('a refused batch still applies its patches', async () => {
+    const repository = await open()
+    const stored = entry(EntryType.JOB, { status: 'pending' })
+
+    await repository.store([stored])
+
+    const lens = new Recorder()
+
+    lens.enable(true)
+    lens.filterBatch(() => false)
+
+    enterWorkContext()
+    lens.start()
+    lens.record(EntryType.QUERY, IncomingEntry.make({ sql: 'dropped' }))
+    lens.recordUpdate(new EntryUpdate(stored.uuid, EntryType.JOB).change({ status: 'processed' }))
+
+    await lens.store(repository)
+
+    expect((await repository.find(stored.uuid))?.content.status).toBe('processed')
+    expect(await repository.get(EntryType.QUERY, new EntryQueryOptions())).toHaveLength(0)
+  })
+})
