@@ -204,11 +204,13 @@ it. Clicking a bar opens that entry.
 ### It knows what is normal
 
 ```
-1.8×  median 7.6ms of 42
+5.0ms ▓▒░  db 1.0ms  view 0.1ms  app 3.9ms   3.2× median
 ```
 
 The process is long-lived, so it remembers what each **route** usually costs and
-says how this request compares. PHP-FPM forgets everything between requests, so
+says how this request compares — beside the timing rather than as a tab of its
+own, because a multiple is only known once a route has been seen a few times and
+a tab that comes and goes reads as the bar rearranging itself. PHP-FPM forgets everything between requests, so
 no debug bar in that world can answer "is this slow, or is this page always like
 this". The Route cost view lists every route seen this session, slowest first.
 
@@ -219,10 +221,16 @@ the left is which request you are looking at, the middle is what about it, and
 the right is the detail of one thing. Choosing another request keeps the view you
 were in.
 
-Findings are the first thing, not the only thing. Selecting one lists the
-entries behind it in place — eight identical statements under an N+1 — rather
-than throwing a full panel into the detail pane, which is the query tab's job.
-One of those lines opens the whole thing.
+Findings are the first thing, not the only thing. Selecting one summarises its
+evidence in place —
+
+```
+8 × query · total 0.3ms · slowest 0.1ms · first at 2.0ms · last at 3.0ms   [Show in query]
+```
+
+— rather than repeating eight identical statements, which is a list of the same
+thing eight times. **Show in query** hands off to the tab that owns those rows,
+filtered to them.
 
 Every count in the strip opens the entries behind it — filterable — and every
 entry opens the same detail the dashboard shows: a request's headers, payload, session and response; an

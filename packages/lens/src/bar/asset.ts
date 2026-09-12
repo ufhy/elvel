@@ -99,17 +99,8 @@ input.find:focus { outline: 0; border-color: #FF2D20; }
 .phase-response, .legend i.phase-response { background: #b794f4; }
 .phase-sent, .legend i.phase-sent { background: #2d3748; }
 
-.proof { margin: 8px 0 0 14px; border-left: 1px solid #2d3748; }
-.proof-row {
-  display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: baseline;
-  width: 100%; padding: 4px 8px; border: 0; background: transparent; color: inherit;
-  cursor: pointer; font-family: inherit; font-size: 11px; text-align: left;
-}
-.proof-row:hover { background: #22293a; }
-.proof-row .at { color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-.proof-row .what { color: #a0aec0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.proof-row .took { color: #718096; font-variant-numeric: tabular-nums; }
-.proof .more { padding: 4px 8px; color: #4a5568; }
+.proof { display: flex; align-items: center; gap: 12px; margin: 8px 0 0 14px; flex-wrap: wrap; }
+.proof .facts { color: #a0aec0; font-variant-numeric: tabular-nums; }
 
 .clear { padding: 16px 12px; color: #718096; line-height: 1.6; }
 .clear b { color: #68d391; }
@@ -354,22 +345,24 @@ export const BAR_SCRIPT = String.raw`
       node('span', '', 'view ' + ms(shape.renderMs)),
       node('span', '', 'app ' + ms(shape.otherMs))
     )
-    time.onclick = () => show('timeline')
-    verdict.appendChild(time)
-
+    /**
+     * The baseline joins the timing rather than standing as a tab of its own.
+     *
+     * It is only known once a route has been seen a few times — a multiple
+     * against two samples is noise — so as a tab it appeared and disappeared
+     * while you worked, which reads as the bar rearranging itself. It is a fact
+     * about this number, so it lives beside this number, and the route costs are
+     * reached from the timeline that shows them.
+     */
     if (batch.verdict && batch.verdict.times !== undefined && batch.verdict.samples > 3) {
       const how = batch.verdict.times
-      const cell = node('button', 'cell pill')
-      cell.type = 'button'
-      cell.dataset.view = 'costs'
       const tone = how >= 2 ? 'bad' : how <= 0.6 ? 'good' : 'warn'
-      cell.append(
-        node('b', tone, how.toFixed(1) + '×'),
-        node('span', '', 'median ' + ms(batch.verdict.medianMs) + ' of ' + batch.verdict.samples)
-      )
-      cell.onclick = () => show('costs')
-      verdict.appendChild(cell)
+
+      time.append(node('span', tone, how.toFixed(1) + '\u00d7 median'))
     }
+
+    time.onclick = () => show('timeline')
+    verdict.appendChild(time)
 
     const counts = new Map()
     for (const held of batch.entries) counts.set(held.type, (counts.get(held.type) || 0) + 1)
@@ -528,37 +521,64 @@ export const BAR_SCRIPT = String.raw`
     }
   }
 
-  /** The entries behind a finding, as one line each. */
+  /**
+   * The evidence behind a finding, summarised — not listed.
+   *
+   * Listing it printed eight identical statements under an N+1, which is a list
+   * of the same thing eight times and tells nobody anything the count did not.
+   * A finding says how many, how long and when; the tab that owns those entries
+   * is one button away and already knows how to show them.
+   */
   function evidenceOf(one) {
     const box = node('div', 'proof')
     const held = new Map()
 
     for (const found of batch.entries) held.set(found.uuid, found)
 
-    // Ten is enough to see the shape of an N+1; forty is a wall.
-    for (const uuid of one.evidence.slice(0, 10)) {
-      const found = held.get(uuid)
+    const proof = one.evidence.map((uuid) => held.get(uuid)).filter((found) => found !== undefined)
 
-      if (found === undefined) continue
+    if (proof.length === 0) return box
 
-      const shown = found.summary || { title: found.type, sub: '' }
-      const line = node('button', 'proof-row')
-      line.type = 'button'
-      line.appendChild(node('span', 'at', ms(found.offsetMs)))
-      line.appendChild(node('span', 'what', shown.title))
-      line.appendChild(
-        node('span', 'took', shown.took === undefined || shown.took === null ? '' : ms(shown.took))
-      )
-      line.onclick = (event) => {
-        event.stopPropagation()
-        open(uuid)
-      }
-      box.appendChild(line)
+    const type = proof[0].type
+    const times = proof
+      .map((found) => Number((found.summary || {}).took || 0))
+      .filter((took) => took > 0)
+    const facts = []
+
+    if (proof.length > 1) facts.push(proof.length + ' \u00d7 ' + type)
+    if (times.length > 0) {
+      facts.push('total ' + ms(times.reduce((sum, took) => sum + took, 0)))
+      if (proof.length > 1) facts.push('slowest ' + ms(Math.max.apply(null, times)))
     }
 
-    if (one.evidence.length > 10) {
-      box.appendChild(node('div', 'more', 'and ' + (one.evidence.length - 10) + ' more'))
+    facts.push('first at ' + ms(proof[0].offsetMs))
+
+    if (proof.length > 1) {
+      facts.push('last at ' + ms(proof[proof.length - 1].offsetMs))
     }
+
+    box.appendChild(node('span', 'facts', facts.join('  \u00b7  ')))
+
+    const go = node('button', 'act')
+    go.type = 'button'
+    go.textContent = proof.length > 1 ? 'Show in ' + type : 'Open'
+    go.onclick = (event) => {
+      event.stopPropagation()
+
+      if (proof.length === 1) return open(proof[0].uuid)
+
+      /**
+       * Hand off to the tab that owns these, filtered to them. A finding names
+       * a problem; the tab is where the rows live, and duplicating the rows here
+       * would be two places to keep agreeing.
+       */
+      view = type
+      picked = null
+      find = String((proof[0].summary || {}).title || '').toLowerCase()
+      mark()
+      drawView()
+    }
+    box.appendChild(go)
 
     return box
   }
@@ -633,6 +653,17 @@ export const BAR_SCRIPT = String.raw`
   function drawTimeline() {
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'Timeline'))
+
+    if (batch.verdict && batch.verdict.samples > 1) {
+      const compare = node('button', 'act')
+      compare.type = 'button'
+      compare.textContent =
+        'Median ' + ms(batch.verdict.medianMs) + ' over ' + batch.verdict.samples
+      compare.title = 'What every route costs this session'
+      compare.onclick = () => show('costs')
+      head.appendChild(compare)
+    }
+
     middle.appendChild(head)
 
     const total = Math.max(batch.shape.totalMs, 0.01)
