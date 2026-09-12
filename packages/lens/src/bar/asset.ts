@@ -156,6 +156,7 @@ a.frame:hover, a.out:hover { text-decoration: underline; }
 .lane .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lane .kind { color: #718096; margin-right: 8px; }
 .lane .what { color: #e2e8f0; }
+.lane .dupe { margin-left: 8px; }
 .lane .took { color: #a0aec0; font-variant-numeric: tabular-nums; }
 /* The .lane .track i rule sets the fallback and outranks a bare class, so these
    have to be at least as specific or every bar comes out grey. */
@@ -701,32 +702,65 @@ export const BAR_SCRIPT = String.raw`
       return
     }
 
-    for (const held of timed) {
-      const shown = held.summary || { title: held.type, sub: '' }
-      const took = Number(shown.took ?? 0)
+    for (const group of fold(timed)) {
+      const first = group[0]
+      const last = group[group.length - 1]
+      const shown = first.summary || { short: first.type, title: first.type }
+      const took = group.reduce((sum, held) => sum + Number((held.summary || {}).took || 0), 0)
+      const from = first.offsetMs
+      const to = Math.max(last.offsetMs + Number((last.summary || {}).took || 0), from)
+
       const row = node('button', 'lane')
       row.type = 'button'
-      row.setAttribute('aria-current', String(held.uuid === (entry && entry.uuid)))
-
-      row.appendChild(node('span', 'at', ms(held.offsetMs)))
+      row.setAttribute('aria-current', String(first.uuid === (entry && entry.uuid)))
+      row.appendChild(node('span', 'at', ms(from)))
 
       const track = node('span', 'track')
-      const fill = node('i', 'kind-' + held.type)
+      const fill = node('i', 'kind-' + first.type)
       // A bar for something that took no measurable time still has to be visible.
-      fill.style.left = Math.min(99, (held.offsetMs / total) * 100) + '%'
-      fill.style.width = Math.max(0.6, (took / total) * 100) + '%'
+      fill.style.left = Math.min(99, (from / total) * 100) + '%'
+      fill.style.width = Math.max(0.6, ((to - from) / total) * 100) + '%'
       track.appendChild(fill)
       row.appendChild(track)
 
       const label = node('span', 'label')
-      label.appendChild(node('span', 'kind', held.type))
-      label.appendChild(node('span', 'what', shown.title))
+      label.appendChild(node('span', 'kind', first.type))
+      label.appendChild(node('span', 'what', shown.short || shown.title))
+      if (group.length > 1) label.appendChild(node('span', 'dupe', '\u00d7' + group.length))
       row.appendChild(label)
 
       row.appendChild(node('span', 'took', took > 0 ? ms(took) : ''))
-      row.onclick = () => open(held.uuid)
+      row.onclick = () => open(first.uuid)
       middle.appendChild(row)
     }
+  }
+
+  /**
+   * Consecutive entries that are the same thing become one lane.
+   *
+   * Eight identical statements printed eight times is the query list again, in a
+   * place that is meant to answer *when* and *how often*. Folded, an N+1 is one
+   * lane saying x8 — which is the shape, said once.
+   *
+   * Only *consecutive* ones: two runs of the same query with a render between
+   * them are two things that happened, and merging them would move a bar to a
+   * time it was not at.
+   */
+  function fold(entries) {
+    const groups = []
+
+    for (const held of entries) {
+      const last = groups[groups.length - 1]
+      const same =
+        last !== undefined &&
+        last[0].type === held.type &&
+        (last[0].summary || {}).title === (held.summary || {}).title
+
+      if (same) last.push(held)
+      else groups.push([held])
+    }
+
+    return groups
   }
 
   /**

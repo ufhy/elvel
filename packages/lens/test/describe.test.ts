@@ -109,6 +109,7 @@ group('the one-line summary', () => {
 
     expect(summary).toEqual({
       title: 'select * from users',
+      short: 'select users',
       sub: '',
       took: 12,
       slow: true,
@@ -119,6 +120,32 @@ group('the one-line summary', () => {
 
   test('an entry with nothing to say falls back to its type', () => {
     expect(summarise(EntryType.VIEW, {}).title).toBe('view')
+  })
+
+  /**
+   * The timeline is about when and how often, so it needs the statement in a few
+   * words rather than a hundred characters of SQL. The table, not the first word
+   * after the verb — an earlier attempt answered `select count`, which names the
+   * aggregate and not the thing being read.
+   */
+  test('a statement shortens to its verb and its table', () => {
+    const short = (sql: string) => summarise(EntryType.QUERY, { sql }).short
+
+    expect(short('select count(*) as n from comments where article_id = ?')).toBe('select comments')
+    expect(short('select * from "articles" where "deleted_at" is null')).toBe('select articles')
+    expect(short('insert into "sessions" ("id") values (?)')).toBe('insert into sessions')
+    expect(short('update "jobs" set "reserved_at" = ?')).toBe('update jobs')
+    expect(short('delete from "jobs" where "id" = ?')).toBe('delete from jobs')
+  })
+
+  test('a statement it cannot parse keeps its own words', () => {
+    expect(summarise(EntryType.QUERY, { sql: 'pragma foreign_keys = on' }).short).toBe(
+      'pragma foreign_keys = on'
+    )
+  })
+
+  test('anything already short is its own summary', () => {
+    expect(summarise(EntryType.VIEW, { view: 'Landing' }).short).toBe('Landing')
   })
 
   test('a dump reads as its first value', () => {

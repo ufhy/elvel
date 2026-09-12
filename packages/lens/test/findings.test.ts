@@ -13,7 +13,7 @@ function entry(
     type,
     offsetMs: 0,
     tags: [],
-    summary: { title: '', sub: '', slow: false },
+    summary: { title: '', short: '', sub: '', slow: false },
     repeats: 1,
     content
   }

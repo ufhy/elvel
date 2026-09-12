@@ -60,6 +60,15 @@ export function withoutPreview(panels: Panel[]): Panel[] {
  */
 export type Summary = {
   title: string
+  /**
+   * The same thing in a few words, for a place that is not about reading it.
+   *
+   * The timeline is about *when* and *how often*; printing a hundred characters
+   * of SQL on every lane turned it back into the query list it sits beside. A
+   * statement becomes its verb and its table; everything else is already short
+   * enough to be its own summary.
+   */
+  short: string
   sub: string
   /** Milliseconds, when the entry is something that took time. */
   took?: number
@@ -71,8 +80,11 @@ export type Summary = {
 export function summarise(type: EntryTypeName, content: EntryContent): Summary {
   const made = summaryFor(type, content)
 
+  const title = made.title === undefined || made.title === '' ? type : made.title
+
   return {
-    title: made.title === undefined || made.title === '' ? type : made.title,
+    title,
+    short: shorten(type, title),
     sub: made.sub ?? '',
     took: typeof made.took === 'number' ? made.took : undefined,
     slow: made.slow === true,
@@ -165,6 +177,35 @@ function summaryFor(type: EntryTypeName, content: EntryContent): Draft {
 }
 
 /** The first dumped value's text, which is what a one-line summary can hold. */
+/**
+ * `select count(*) as n from "comments" where …` becomes `select comments`.
+ *
+ * The table, not the first word after the verb — the first attempt returned
+ * `select count`, which names the aggregate and not the thing being read. For
+ * `select` and `delete` the table follows `from`; for the others it follows the
+ * verb directly.
+ */
+const VERB = /^\s*(select|insert\s+into|update|delete\s+from|replace\s+into)\b/i
+const AFTER_FROM = /\bfrom\s+[`"'[]?([\w.]+)/i
+
+function shorten(type: EntryTypeName, title: string): string {
+  if (type === EntryType.QUERY) {
+    const found = VERB.exec(title)
+    const verb = found?.[1]?.toLowerCase().replace(/\s+/g, ' ')
+
+    if (verb !== undefined) {
+      const table =
+        verb === 'select' || verb === 'delete from'
+          ? AFTER_FROM.exec(title)?.[1]
+          : new RegExp(`${verb.replace(/ /g, '\\s+')}\\s+[\`"'[]?([\\w.]+)`, 'i').exec(title)?.[1]
+
+      if (table !== undefined) return `${verb} ${table}`
+    }
+  }
+
+  return title.length <= 60 ? title : `${title.slice(0, 59)}\u2026`
+}
+
 function firstDump(content: EntryContent): string {
   const values = Array.isArray(content.values) ? content.values : []
   const first = values[0] as { text?: unknown } | undefined
