@@ -19,7 +19,14 @@ import type { Recorder } from './recorder.ts'
 export { LensApplicationServiceProvider } from './application-provider.ts'
 export { BAR_SCRIPT, BAR_STYLE } from './bar/asset.ts'
 export { type BarState, barAllows, barState } from './bar/enabled.ts'
-export { type BarBatch, type BarEntry, BatchRing, snapshot } from './bar/ring.ts'
+export {
+  type BarBatch,
+  type BarEntry,
+  type BarSummary,
+  BatchRing,
+  listed,
+  snapshot
+} from './bar/ring.ts'
 export { type CallerFrame, callerFrom } from './caller.ts'
 export { LensClearCommand } from './console/lens-clear.ts'
 export { LensInstallCommand } from './console/lens-install.ts'
@@ -35,7 +42,10 @@ export {
   isClearable,
   isPrunable,
   isTerminable,
+  knowsBatches,
   type PrunableRepository,
+  type RecentBatchesRepository,
+  type StoredBatch,
   type TerminableRepository
 } from './contracts.ts'
 export { type EntryContent, IncomingEntry } from './entry.ts'
@@ -46,6 +56,13 @@ export { type LensBarOptions, lensBar } from './http/bar.ts'
 export { type LensPluginOptions, lensPlugin, pathMatches } from './http/plugin.ts'
 export { NOT_INSTALLED, notInstalledError, tableIsMissing } from './installed.ts'
 export { atLeast, PRIORITIES } from './log-level.ts'
+export {
+  describe,
+  type Panel,
+  type Summary,
+  summarise,
+  withoutPreview
+} from './panels/describe.ts'
 export { PAUSE_KEY, PAUSE_TTL, refreshMonitoring, refreshPause } from './pause.ts'
 export { LensServiceProvider } from './provider.ts'
 export { flushCommandBatches, openCommandBatches } from './queue/command.ts'

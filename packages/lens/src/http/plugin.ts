@@ -200,6 +200,13 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
             durationMs: Math.round(duration),
             entries: snapshot(batch.entries)
           })
+
+          /**
+           * A patch usually belongs to an *earlier* batch — an exception seen
+           * again, a synchronous job that finished. Applied after the push so a
+           * patch against this batch's own entries lands too.
+           */
+          options.ring.apply(batch.updates)
         }
 
         await lens.store(app.make('lens.entries'), batch)

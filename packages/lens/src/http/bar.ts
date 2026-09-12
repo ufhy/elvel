@@ -3,7 +3,9 @@ import { currentScope } from '@elvel/http'
 import { Elysia } from 'elysia'
 import { BAR_SCRIPT, BAR_STYLE } from '../bar/asset.ts'
 import { type BarState, barAllows } from '../bar/enabled.ts'
-import type { BatchRing } from '../bar/ring.ts'
+import { type BarSummary, type BatchRing, listed } from '../bar/ring.ts'
+import { knowsBatches, type StoredBatch } from '../contracts.ts'
+import { describe, withoutPreview } from '../panels/describe.ts'
 import type { Recorder } from '../recorder.ts'
 import { pathMatches } from './plugin.ts'
 
@@ -22,6 +24,14 @@ export type LensBarOptions = {
   editor: string
   /** Stripped from the front of a path before it is shown. */
   root: string
+  /**
+   * Whether storage is real, and so whether other processes can be seen.
+   *
+   * False when the bar is running on its own with no tables, in which case the
+   * list is this process only — and says so, rather than showing an empty `job`
+   * screen that reads as "no jobs ran".
+   */
+  stored: boolean
 }
 
 /**
@@ -108,6 +118,36 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
           headers
         })
       })
+      /**
+       * The list, as a cursor.
+       *
+       * `since` is what makes a live bar possible: the page asks with the
+       * highest sequence it has seen and is told only what is newer. Sequences
+       * are per-process, which is fine — they are a cursor into this ring, not
+       * an identity, and anything from another process arrives without one.
+       */
+      .get(`${prefix}`, async ({ query, request, set }) => {
+        const lens: Recorder = app.make('lens')
+
+        if (!(await barAllows(options.state, lens, request))) {
+          set.status = 403
+
+          return { message: 'Forbidden' }
+        }
+
+        const asked = Number(query.since)
+        const since = Number.isSafeInteger(asked) && asked > 0 ? asked : 0
+
+        return {
+          cursor: options.ring.cursor(),
+          /**
+           * Whether anything outside this process can be seen at all. The bar
+           * says so on an empty job list rather than implying nothing ran.
+           */
+          crossProcess: options.stored,
+          batches: [...options.ring.since(since), ...(await elsewhere(app, options, since))]
+        }
+      })
       .get(`${prefix}/:id`, async ({ params, request, set }) => {
         const lens: Recorder = app.make('lens')
 
@@ -130,9 +170,134 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
           return { message: 'Not recorded yet.' }
         }
 
-        return { batch, recent: options.ring.recent() }
+        /**
+         * Summaries, never content.
+         *
+         * The first version sent whole entries, so a page with a 64 KB response
+         * body cost the bar 64 KB before anybody had clicked anything. Detail is
+         * one more request, and only for the entry somebody opened.
+         */
+        return {
+          batch: { ...batch, entries: batch.entries.map(listed) },
+          cursor: options.ring.cursor()
+        }
+      })
+      .get(`${prefix}/entry/:uuid`, async ({ params, request, set }) => {
+        const lens: Recorder = app.make('lens')
+
+        if (!(await barAllows(options.state, lens, request))) {
+          set.status = 403
+
+          return { message: 'Forbidden' }
+        }
+
+        const entry = options.ring.entry(params.uuid)
+
+        if (entry === undefined) {
+          set.status = 404
+
+          return { message: 'Not held any more.' }
+        }
+
+        /**
+         * The same panels the dashboard draws, minus the mail preview.
+         *
+         * A preview is HTML the application composed; the dashboard renders it
+         * in a sandboxed iframe on its own origin, which it can afford. Here the
+         * origin is the application's own page, so it is dropped and the
+         * dashboard link takes its place.
+         */
+        return {
+          uuid: entry.uuid,
+          type: entry.type,
+          tags: entry.tags,
+          panels: withoutPreview(describe(entry.type as never, entry.content)),
+          dashboard: options.stored ? `/${options.path}/${entry.type}/${entry.uuid}` : undefined
+        }
       })
   )
+}
+
+/**
+ * Units of work from other processes.
+ *
+ * `bun elvel dev` runs the queue worker and the scheduler beside the server, and
+ * a job's batch is flushed from the worker's own process into its own ring — a
+ * ring nothing serves. The database is the only thing both can see, so when Lens
+ * storage is real the list is the union of the two, this process winning on a
+ * batch both know about because it has the detail.
+ *
+ * Never throws: a bar that takes the page down because a table is missing would
+ * be worse than a bar that shows only what it has.
+ */
+async function elsewhere(
+  app: ApplicationContract,
+  options: LensBarOptions,
+  since: number
+): Promise<BarSummary[]> {
+  // A cursor is per-process, so a later page-load asking for "what is new" gets
+  // nothing from storage rather than the same rows again.
+  if (!options.stored || since > 0) return []
+
+  try {
+    const repository = app.make('lens.entries')
+
+    if (!knowsBatches(repository)) return []
+
+    const mine = new Set(options.ring.recent().map((batch) => batch.batchId))
+
+    return (
+      (await repository.recentBatches(40))
+        .filter((batch) => !mine.has(batch.batchId))
+        /**
+         * A stored batch containing a `request` came from an HTTP process, and
+         * if the ring does not have it, it is simply older than the ring — not
+         * work from somewhere else. Listing those made the bar's own history
+         * reappear under "elsewhere", which is both noise and a lie. What has no
+         * request entry is a job, a scheduled task or a console command, and
+         * those are exactly what this exists to surface.
+         */
+        .filter((batch) => batch.types.request === undefined)
+        /**
+         * A batch of nothing but events is bookkeeping, not work.
+         *
+         * Every `bun elvel <anything>` opens a console batch, and for a command
+         * the watcher ignores — `queue:work`, `lens:*` — all that lands in it is
+         * `command.starting`. Ten of those crowded out the one job batch that
+         * mattered, which is how this was found.
+         */
+        .filter((batch) => Object.keys(batch.types).some((type) => type !== 'event'))
+        .slice(0, 20)
+        .map(asSummary)
+    )
+  } catch {
+    return []
+  }
+}
+
+/**
+ * A stored batch, shaped like a ring one.
+ *
+ * Storage does not know a batch's method, path or duration — those live on the
+ * request entry, and a job batch has no request at all. The list says what it
+ * knows: the kinds of entry and how many.
+ */
+function asSummary(batch: StoredBatch): BarSummary {
+  const kinds = Object.entries(batch.types)
+    .map(([type, count]) => `${count} ${type}`)
+    .join(' · ')
+
+  return {
+    seq: 0,
+    batchId: batch.batchId,
+    at: batch.at,
+    method: '',
+    path: kinds,
+    status: 0,
+    durationMs: 0,
+    count: batch.count,
+    source: 'storage'
+  }
 }
 
 function isHtml(response: Response): boolean {

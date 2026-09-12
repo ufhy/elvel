@@ -52,10 +52,35 @@ export type EntriesRepository = {
 export type EntriesDriver = EntriesRepository &
   ClearableRepository &
   PrunableRepository &
+  RecentBatchesRepository &
   TerminableRepository
 
 export type ClearableRepository = {
   clear(): Promise<void>
+}
+
+/** A batch as storage remembers it, which is less than the ring remembers. */
+export type StoredBatch = {
+  batchId: string
+  at: number
+  /** The kinds of entry in it, with counts — enough for a list row. */
+  types: Record<string, number>
+  count: number
+}
+
+/**
+ * Recent units of work, whoever recorded them.
+ *
+ * The inspection bar's window onto other processes, and the reason it is a
+ * contract of its own rather than a method on {@link EntriesRepository}: the
+ * bar's own ring lives in memory and answers for this process only. `bun elvel
+ * dev` runs the queue worker and the scheduler beside the server, and a job's
+ * batch is stored from the worker's process — so the database is the only place
+ * both can see. A driver that cannot group by batch simply does not implement
+ * this, and the bar shows what it has.
+ */
+export type RecentBatchesRepository = {
+  recentBatches(limit: number): Promise<StoredBatch[]>
 }
 
 export type PrunableRepository = {
@@ -92,4 +117,8 @@ export function isPrunable<T>(driver: T): driver is T & PrunableRepository {
 
 export function isTerminable<T>(driver: T): driver is T & TerminableRepository {
   return typeof (driver as TerminableRepository)?.terminate === 'function'
+}
+
+export function knowsBatches<T>(driver: T): driver is T & RecentBatchesRepository {
+  return typeof (driver as RecentBatchesRepository)?.recentBatches === 'function'
 }

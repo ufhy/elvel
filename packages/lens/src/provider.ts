@@ -68,7 +68,11 @@ export class LensServiceProvider extends ServiceProvider {
 
     this.app.singleton(
       'lens.ring',
-      () => new BatchRing(Math.max(1, this.config<number>('lens.bar.requests', 20)))
+      () =>
+        new BatchRing(
+          Math.max(1, this.config<number>('lens.bar.requests', 20)),
+          Math.max(1, this.config<number>('lens.bar.budget', 8 * 1024 * 1024))
+        )
     )
 
     this.registerStorage()
@@ -162,7 +166,8 @@ export class LensServiceProvider extends ServiceProvider {
           ring: this.app.make('lens.ring'),
           path: this.config<string>('lens.path', 'lens'),
           editor: this.config<string>('lens.bar.editor', ''),
-          root: this.app.basePath()
+          root: this.app.basePath(),
+          stored: this.config<boolean>('lens.enabled', false)
         })
       )
     }

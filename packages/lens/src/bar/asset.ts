@@ -42,7 +42,9 @@ export const BAR_STYLE = `
   display: block; width: 100%; text-align: left; padding: 6px 10px; cursor: pointer;
   background: transparent; border: 0; border-bottom: 1px solid #22293a; color: #a0aec0; font-size: 11px;
 }
-.side button:hover { background: #2d3748; }
+.side button:hover:not(:disabled) { background: #2d3748; }
+.side button:disabled { cursor: default; opacity: .55; }
+.aside { padding: 8px 10px; color: #718096; line-height: 1.4; }
 .side button[aria-current="true"] { background: #2d3748; color: #fff; }
 .side .path { display: block; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side .meta { display: block; margin-top: 3px; opacity: .7; }
@@ -134,44 +136,16 @@ export const BAR_SCRIPT = String.raw`
   }
 
   /**
-   * How each entry type reads as one line.
+   * The one-line form comes from the server.
    *
-   * Returning plain values and letting the caller put them in the DOM is what
-   * keeps every recorded string out of markup.
+   * It used to be a map of eighteen shapes here, which meant the browser knew
+   * the field names of every kind of entry and could disagree with the
+   * dashboard about them. It is now decided once in panels/describe.ts and
+   * arrives on the wire; this is a renderer.
    */
-  const SHAPE = {
-    query: (c) => ({ title: c.sql, sub: '', took: c.time, slow: c.slow, file: c.file, line: c.line }),
-    model: (c) => ({ title: c.model, sub: c.action }),
-    cache: (c) => ({ title: c.key, sub: c.type }),
-    event: (c) => ({ title: c.name, sub: (c.listeners || []).join(', ') }),
-    job: (c) => ({ title: c.name, sub: c.status, took: c.time }),
-    mail: (c) => ({ title: c.subject, sub: (c.to || []).join(', ') }),
-    notification: (c) => ({ title: c.notification, sub: c.channel }),
-    log: (c) => ({ title: c.message, sub: c.level }),
-    exception: (c) => ({ title: c.message, sub: c.class, file: c.file, line: c.line }),
-    view: (c) => ({ title: c.view, sub: c.size ? c.size + ' bytes' : '', took: c.time }),
-    gate: (c) => ({ title: c.ability, sub: c.result }),
-    client_request: (c) => ({ title: c.method + ' ' + c.uri, sub: String(c.status || ''), took: c.duration }),
-    command: (c) => ({ title: c.command, sub: 'exit ' + c.exit_code }),
-    dump: (c) => ({ title: typeof c.dump === 'string' ? c.dump : JSON.stringify(c.dump), sub: '', file: c.file, line: c.line }),
-    schedule: (c) => ({ title: c.command, sub: c.expression }),
-    batch: (c) => ({ title: c.name, sub: c.total_jobs + ' jobs' }),
-    request: (c) => ({ title: c.method + ' ' + c.uri, sub: String(c.response_status || ''), took: c.duration })
-  }
-
   function describe(entry) {
-    const shape = SHAPE[entry.type]
-    const made = shape ? shape(entry.content || {}) : {}
-    return {
-      title: made.title === undefined || made.title === null || made.title === '' ? entry.type : made.title,
-      sub: made.sub || '',
-      took: made.took,
-      slow: made.slow === true,
-      file: made.file,
-      line: made.line
-    }
+    return entry.summary || { title: entry.type, sub: '', slow: false }
   }
-
 
   function draw() {
     strip.textContent = ''
@@ -275,34 +249,68 @@ export const BAR_SCRIPT = String.raw`
       const button = node('button', '')
       button.type = 'button'
       button.setAttribute('aria-current', String(item.batchId === current))
-      button.appendChild(node('span', 'path', item.method + ' ' + item.path))
-      button.appendChild(node('span', 'meta', item.status + ' · ' + ms(item.durationMs) + ' · ' + item.count))
+      const own = item.source !== 'storage'
+      button.appendChild(node('span', 'path', own ? item.method + ' ' + item.path : item.path))
+      button.appendChild(
+        node('span', 'meta', own ? item.status + ' · ' + ms(item.durationMs) + ' · ' + item.count : 'elsewhere')
+      )
+      // A batch from another process has no entries here to switch to; it is
+      // shown so the list does not pretend the worker did nothing.
+      button.disabled = !own
       button.onclick = () => { current = item.batchId; load(0) }
       side.appendChild(button)
+    }
+
+    /**
+     * Said once, at the foot of the list.
+     *
+     * Without storage the worker and the scheduler are invisible to this
+     * process, and an inspector that silently shows nothing is worse than one
+     * that names its blind spot.
+     */
+    if (!crossProcess) {
+      side.appendChild(node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.'))
     }
   }
 
   let recent = []
+  let crossProcess = false
 
   /**
    * The batch is written to the ring after the response has been sent, so the
    * first ask can legitimately be too early. Retried rather than waited for on
    * the server, which would hold a connection open on every page load.
    */
+  async function ask(path) {
+    return fetch(endpoint + path, { headers: { accept: 'application/json' } })
+  }
+
   async function load(attempt) {
     try {
-      const answer = await fetch(endpoint + '/' + current, { headers: { accept: 'application/json' } })
+      const answer = await ask('/' + current)
       if (answer.status === 404 && attempt < 6) return setTimeout(() => load(attempt + 1), 120)
       if (!answer.ok) return
-      const payload = await answer.json()
-      batch = payload.batch
-      recent = payload.recent || []
+      batch = (await answer.json()).batch
       draw()
-      drawSide()
       drawList()
+      await refresh()
     } catch {
       // A bar that cannot reach its endpoint says nothing rather than throwing
       // inside somebody else's page.
+    }
+  }
+
+  /** The list is its own request, so a batch of entries is not fetched to draw it. */
+  async function refresh() {
+    try {
+      const answer = await ask('?since=0')
+      if (!answer.ok) return
+      const payload = await answer.json()
+      recent = payload.batches || []
+      crossProcess = payload.crossProcess === true
+      drawSide()
+    } catch {
+      //
     }
   }
 

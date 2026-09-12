@@ -28,7 +28,8 @@ export class LensStatusCommand extends Command {
       ['Tables', installed === true ? 'ready' : installed === false ? 'MISSING' : 'unknown'],
       ['Driver', this.app.config.get<string>('lens.driver', 'database')],
       ['Dashboard', `/${this.app.config.get<string>('lens.path', 'lens')}`],
-      ['Bar', barState(this.app).reason]
+      ['Bar', barState(this.app).reason],
+      ['Bar ring', this.ring()]
     ])
 
     if (installed === false) {
@@ -43,6 +44,21 @@ export class LensStatusCommand extends Command {
     this.line()
 
     return 0
+  }
+
+  /**
+   * What the bar is holding, which is a different question from whether it runs.
+   *
+   * Read from the container rather than recomputed: the ring is a singleton, and
+   * in a console process it is a fresh empty one — so this says `0 batches` and
+   * is right to. The ring belongs to the process serving requests.
+   */
+  private ring(): string {
+    if (!this.app.bound('lens.ring')) return 'not bound'
+
+    const ring = this.app.make('lens.ring')
+
+    return `${ring.size} batch${ring.size === 1 ? '' : 'es'}, ${Math.round(ring.bytes / 1024)} KB (this process)`
   }
 
   /** The four states, in the order a person would rule them out. */

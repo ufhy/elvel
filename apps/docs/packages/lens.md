@@ -155,12 +155,15 @@ page carries its whole payload inline and grows tens of kilobytes for it.
 The strip names the request, its status and its duration, then one chip per
 entry type. Clicking a chip opens the panel:
 
-- **the last twenty requests** down the left, including the XHR your page made,
-  so the API call that failed is one click away rather than in another tool
+- **the last twenty requests** down the left, whatever they answered with — the
+  JSON your page fetched is in the list beside the page itself
 - **every query** with its duration and the application line that ran it
 - **`N+1 ×12`** on the chip when the same statement ran twelve times — counted
   across the whole request, not over neighbours, because a loop that renders
   between queries still runs the same statement twelve times
+- **open any entry** for the same detail the dashboard shows: a request's
+  headers, payload, session and response; an exception's stack with the source
+  around the failing line; a query's bindings and connection
 - **jump to your editor** from any query, exception or dump, once
   `LENS_BAR_EDITOR` is set:
 
@@ -170,6 +173,21 @@ LENS_BAR_EDITOR="vscode://file/{file}:{line}"
 
 It is empty by default rather than guessing, because a link that does nothing is
 worse than the path written out.
+
+### Work in other processes
+
+`bun elvel dev` runs the queue worker and the scheduler beside the server, each
+in its own process, and the bar's ring lives in memory. A job's batch is
+therefore invisible to the server that draws the bar.
+
+When `LENS_ENABLED=true` the bar closes that gap through the one place both
+processes can see: the tables. Its list becomes the union of this process's ring
+and the batches storage knows about that have no request of their own — jobs,
+scheduled tasks, console commands. They appear as rows you can see but not open,
+because only the ring holds their detail; the dashboard has the rest.
+
+Without storage the bar is this process only, and says so at the foot of the
+list rather than showing an empty screen that reads as "nothing ran".
 
 ### What it deliberately is not
 

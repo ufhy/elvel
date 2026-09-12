@@ -34,6 +34,14 @@ export default {
     requests: Number(env('LENS_BAR_REQUESTS', 20)),
 
     /**
+     * Bytes the ring may hold, whichever limit is reached first.
+     *
+     * A count is not a bound when one batch can carry a 64 KB response body and
+     * a page renders a hundred components — and `bun elvel dev` runs for days.
+     */
+    budget: Number(env('LENS_BAR_BUDGET', 8 * 1024 * 1024)),
+
+    /**
      * A URL for opening a file, with `{file}` and `{line}` replaced.
      *
      * Empty by default rather than guessing `vscode://file/{file}:{line}`,

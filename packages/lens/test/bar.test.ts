@@ -3,9 +3,10 @@ import { Application } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { BAR_SCRIPT, BAR_STYLE } from '../src/bar/asset.ts'
 import { barAllows, barState } from '../src/bar/enabled.ts'
-import { BatchRing, snapshot } from '../src/bar/ring.ts'
+import { type BarEntry, BatchRing, snapshot } from '../src/bar/ring.ts'
 import { IncomingEntry } from '../src/entry.ts'
 import { EntryType } from '../src/entry-type.ts'
+import { EntryUpdate } from '../src/entry-update.ts'
 import { lensBar } from '../src/http/bar.ts'
 import { lensPlugin } from '../src/http/plugin.ts'
 import { Recorder } from '../src/recorder.ts'
@@ -45,7 +46,7 @@ function harness(options: { debug?: boolean; enabled?: boolean | null; gate?: bo
         ring
       })
     )
-    .use(lensBar(app, { state, ring, path: 'lens', editor: '', root: '/app' }))
+    .use(lensBar(app, { state, ring, path: 'lens', editor: '', root: '/app', stored: false }))
     .get('/page', () => '<html><body><h1>hi</h1></body></html>')
     .get('/json', () => ({ ok: true }))
     .get('/fragment', () => '<p>no body tag</p>')
@@ -195,7 +196,16 @@ describe('injection', () => {
   test('the bar never injects into the dashboard or its own endpoint', async () => {
     const { app, ring } = harness()
     const router = new Elysia()
-      .use(lensBar(app, { state: barState(app), ring, path: 'lens', editor: '', root: '' }))
+      .use(
+        lensBar(app, {
+          state: barState(app),
+          ring,
+          path: 'lens',
+          editor: '',
+          root: '',
+          stored: false
+        })
+      )
       .get('/lens/requests', () => '<html><body>dashboard</body></html>')
 
     const body = await (await router.handle(new Request('http://localhost/lens/requests'))).text()
@@ -243,21 +253,110 @@ describe('the endpoint', () => {
     expect(answer.status).toBe(403)
   })
 
-  test('the bar reads its own requests back out of the ring, newest first', async () => {
+  test('the list is its own endpoint, newest first', async () => {
     const { router, recorder } = harness()
 
     await router.handle(new Request('http://localhost/page'))
     await router.handle(new Request('http://localhost/json'))
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 3)
 
+    const answer = await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    const payload = (await answer.json()) as {
+      cursor: number
+      crossProcess: boolean
+      batches: Array<{ path: string; seq: number }>
+    }
+
+    expect(payload.batches.map((item) => item.path)).toEqual(['/page', '/json', '/page'])
+    expect(payload.cursor).toBe(3)
+    expect(payload.crossProcess).toBe(false)
+  })
+
+  /**
+   * The whole point of the cursor: a live bar asks repeatedly and must be told
+   * only what it has not seen, or it redraws the world every second.
+   */
+  test('since returns only what is newer', async () => {
+    const { router, recorder } = harness()
+
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 1)
+
+    const first = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as { cursor: number }
+
+    await router.handle(new Request('http://localhost/json'))
+    await drained(recorder, 2)
+
+    const next = (await (
+      await router.handle(new Request(`http://localhost/lens-api/bar?since=${first.cursor}`))
+    ).json()) as { batches: Array<{ path: string }> }
+
+    expect(next.batches.map((item) => item.path)).toEqual(['/json'])
+  })
+
+  /**
+   * A page with a 64 KB response used to cost the bar 64 KB before anybody had
+   * clicked anything. The list carries the one-line form and nothing else.
+   */
+  test('a batch carries summaries, never content', async () => {
+    const { router, recorder } = harness()
     const page = await (await router.handle(new Request('http://localhost/page'))).text()
     const id = /data-batch="([^"]+)"/.exec(page)?.[1]
 
-    await drained(recorder, 3)
+    await drained(recorder, 1)
 
-    const answer = await router.handle(new Request(`http://localhost/lens-api/bar/${id}`))
-    const payload = (await answer.json()) as { recent: Array<{ path: string }> }
+    const payload = (await (
+      await router.handle(new Request(`http://localhost/lens-api/bar/${id}`))
+    ).json()) as { batch: { entries: Array<Record<string, unknown>> } }
 
-    expect(payload.recent.map((item) => item.path)).toEqual(['/page', '/json', '/page'])
+    for (const entry of payload.batch.entries) {
+      expect(entry).not.toHaveProperty('content')
+      expect(entry.summary).toBeDefined()
+    }
+  })
+
+  test('one entry answers with the panels the dashboard would draw', async () => {
+    const { router, recorder } = harness()
+    const page = await (await router.handle(new Request('http://localhost/page'))).text()
+    const id = /data-batch="([^"]+)"/.exec(page)?.[1]
+
+    await drained(recorder, 1)
+
+    const batch = (await (
+      await router.handle(new Request(`http://localhost/lens-api/bar/${id}`))
+    ).json()) as { batch: { entries: Array<{ uuid: string; type: string }> } }
+
+    const request = batch.batch.entries.find((entry) => entry.type === 'request')
+
+    expect(request).toBeDefined()
+
+    const answer = await router.handle(
+      new Request(`http://localhost/lens-api/bar/entry/${request?.uuid}`)
+    )
+    const detail = (await answer.json()) as { panels: Array<{ kind: string }> }
+
+    expect(answer.status).toBe(200)
+    expect(detail.panels.some((panel) => panel.kind === 'facts')).toBe(true)
+  })
+
+  test('an entry the ring no longer holds is a 404', async () => {
+    const { router } = harness()
+    const answer = await router.handle(
+      new Request('http://localhost/lens-api/bar/entry/00000000-0000-0000-0000-000000000000')
+    )
+
+    expect(answer.status).toBe(404)
+  })
+
+  test('the gate refuses all three endpoints', async () => {
+    const { router } = harness({ debug: false, enabled: true, gate: false })
+
+    for (const path of ['/lens-api/bar?since=0', '/lens-api/bar/x', '/lens-api/bar/entry/x']) {
+      expect((await router.handle(new Request(`http://localhost${path}`))).status).toBe(403)
+    }
   })
 })
 
@@ -402,5 +501,310 @@ describe('the N+1 badge', () => {
     ])
 
     expect(counted.map((entry) => entry.repeats)).toEqual([1, 1])
+  })
+})
+
+describe('the ring holds a bounded amount', () => {
+  const batch = (id: string, entries: BarEntry[] = []) => ({
+    batchId: id,
+    at: 1,
+    method: 'GET',
+    path: `/${id}`,
+    status: 200,
+    durationMs: 1,
+    entries
+  })
+
+  test('a sequence is handed out per push and never reused', () => {
+    const ring = new BatchRing(3)
+
+    expect(ring.push(batch('a'))).toBe(1)
+    expect(ring.push(batch('b'))).toBe(2)
+    expect(ring.cursor()).toBe(2)
+    expect(ring.since(1).map((held) => held.batchId)).toEqual(['b'])
+    expect(ring.since(2)).toEqual([])
+  })
+
+  /**
+   * A count is no bound when one batch can be a megabyte, which is what a
+   * recorded response body plus a hundred rendered components comes to.
+   */
+  test('the byte budget evicts before the count does', () => {
+    const fat = () =>
+      snapshot([IncomingEntry.make({ response: 'x'.repeat(20_000) }).withType(EntryType.REQUEST)])
+
+    const ring = new BatchRing(50, 30_000)
+
+    ring.push(batch('a', fat()))
+    ring.push(batch('b', fat()))
+    ring.push(batch('c', fat()))
+
+    expect(ring.size).toBe(1)
+    expect(ring.get('c')).toBeDefined()
+    expect(ring.get('a')).toBeUndefined()
+  })
+
+  /**
+   * The last batch is never evicted for size. A page that records more than the
+   * whole budget should still be inspectable — it is the most interesting page
+   * there is.
+   */
+  test('one oversized batch is kept anyway', () => {
+    const ring = new BatchRing(50, 100)
+
+    ring.push(
+      batch(
+        'huge',
+        snapshot([IncomingEntry.make({ response: 'x'.repeat(5_000) }).withType(EntryType.REQUEST)])
+      )
+    )
+
+    expect(ring.size).toBe(1)
+    expect(ring.bytes).toBeGreaterThan(100)
+  })
+})
+
+describe('patches reach entries the ring is still holding', () => {
+  test('a job that finishes after its batch was flushed stops reading pending', () => {
+    const ring = new BatchRing(3)
+    const job = IncomingEntry.make({ name: 'SendInvoice', status: 'processing' }).withType(
+      EntryType.JOB
+    )
+
+    ring.push({
+      batchId: 'a',
+      at: 1,
+      method: '',
+      path: '',
+      status: 0,
+      durationMs: 0,
+      entries: snapshot([job])
+    })
+
+    expect(ring.entry(job.uuid)?.summary.sub).toBe('processing')
+
+    ring.apply([new EntryUpdate(job.uuid, EntryType.JOB).change({ status: 'failed' })])
+
+    expect(ring.entry(job.uuid)?.content.status).toBe('failed')
+    expect(ring.entry(job.uuid)?.summary.sub).toBe('failed')
+  })
+
+  test('a patch for an entry the ring never saw is ignored, not an error', () => {
+    const ring = new BatchRing(3)
+
+    expect(() =>
+      ring.apply([new EntryUpdate('nobody', EntryType.JOB).change({ status: 'failed' })])
+    ).not.toThrow()
+  })
+})
+
+describe('work from other processes', () => {
+  /**
+   * A queue worker is a separate process with a ring of its own that nothing
+   * serves. The database is the only thing both can see, so the list is the
+   * union — and the ring wins where both know a batch, because only the ring has
+   * the entries.
+   */
+  function withStorage(batches: Array<{ batchId: string; types: Record<string, number> }>) {
+    const app = new Application(process.cwd())
+
+    app.config.set('app.debug', true)
+
+    const recorder = new Recorder()
+
+    recorder.enable(true)
+
+    app.instance('lens', recorder)
+    app.instance('exception.handler', { report() {} } as never)
+    app.instance('lens.entries', {
+      async recentBatches() {
+        return batches.map((batch) => ({
+          ...batch,
+          at: 1,
+          count: Object.values(batch.types).reduce((sum, n) => sum + n, 0)
+        }))
+      }
+    } as never)
+
+    const ring = new BatchRing(5)
+
+    const router = new Elysia()
+      .use(
+        lensPlugin(app, {
+          onlyPaths: [],
+          ignorePaths: ['lens-api*'],
+          requestWatcher: new RequestWatcher({ sizeLimit: 64 }),
+          ring
+        })
+      )
+      .use(
+        lensBar(app, {
+          state: barState(app),
+          ring,
+          path: 'lens',
+          editor: '',
+          root: '',
+          stored: true
+        })
+      )
+      .get('/page', () => '<html><body>hi</body></html>')
+
+    return { router, ring, recorder }
+  }
+
+  test('a batch only storage knows about appears in the list', async () => {
+    const { router, recorder } = withStorage([{ batchId: 'worker', types: { job: 1, query: 4 } }])
+
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 1)
+
+    const payload = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as {
+      crossProcess: boolean
+      batches: Array<{ batchId: string; source: string; path: string; count: number }>
+    }
+
+    expect(payload.crossProcess).toBe(true)
+
+    const worker = payload.batches.find((batch) => batch.batchId === 'worker')
+
+    expect(worker).toMatchObject({ source: 'storage', count: 5 })
+    expect(worker?.path).toContain('job')
+  })
+
+  /**
+   * Found by running it, not by a test. A stored batch that has a request entry
+   * came from an HTTP process; when the ring no longer holds it, it is this
+   * process's own history, and listing it under "elsewhere" was both noise and
+   * untrue. Only work with no request of its own — a job, a scheduled task, a
+   * command — is worth surfacing here.
+   */
+  test('an old request of our own is not passed off as another process', async () => {
+    const { router, recorder } = withStorage([
+      { batchId: 'old-page', types: { request: 1, query: 2 } },
+      { batchId: 'worker', types: { job: 1 } }
+    ])
+
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 1)
+
+    const payload = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as { batches: Array<{ batchId: string }> }
+
+    const ids = payload.batches.map((batch) => batch.batchId)
+
+    expect(ids).toContain('worker')
+    expect(ids).not.toContain('old-page')
+  })
+
+  test('a batch both know about is listed once, from the ring', async () => {
+    const seen: string[] = []
+    const { router, ring, recorder } = withStorage([])
+
+    ring.push({
+      batchId: 'shared',
+      at: 1,
+      method: 'GET',
+      path: '/shared',
+      status: 200,
+      durationMs: 1,
+      entries: []
+    })
+
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 1)
+
+    const payload = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as { batches: Array<{ batchId: string; source: string }> }
+
+    for (const batch of payload.batches) seen.push(batch.batchId)
+
+    expect(seen.filter((id) => id === 'shared')).toHaveLength(1)
+    expect(payload.batches.find((batch) => batch.batchId === 'shared')?.source).toBe('ring')
+  })
+
+  /**
+   * A bar that took the page down because a table was missing would be worse
+   * than a bar showing only what it has.
+   */
+  test('storage that throws costs the list nothing', async () => {
+    const app = new Application(process.cwd())
+
+    app.config.set('app.debug', true)
+
+    const recorder = new Recorder()
+
+    recorder.enable(true)
+    app.instance('lens', recorder)
+    app.instance('exception.handler', { report() {} } as never)
+    app.instance('lens.entries', {
+      async recentBatches() {
+        throw new Error('no such table: lens_entries')
+      }
+    } as never)
+
+    const ring = new BatchRing(5)
+    const router = new Elysia().use(
+      lensBar(app, {
+        state: barState(app),
+        ring,
+        path: 'lens',
+        editor: '',
+        root: '',
+        stored: true
+      })
+    )
+
+    const answer = await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+
+    expect(answer.status).toBe(200)
+    expect(((await answer.json()) as { batches: unknown[] }).batches).toEqual([])
+  })
+})
+
+describe('what counts as work worth listing', () => {
+  /**
+   * Every console command opens a batch, and for one the command watcher ignores
+   * the only thing in it is `command.starting`. Found by running a worker and
+   * watching ten of those crowd out the job batch.
+   */
+  test('a batch of nothing but events is not listed', async () => {
+    const app = new Application(process.cwd())
+
+    app.config.set('app.debug', true)
+
+    const recorder = new Recorder()
+
+    recorder.enable(true)
+    app.instance('lens', recorder)
+    app.instance('exception.handler', { report() {} } as never)
+    app.instance('lens.entries', {
+      async recentBatches() {
+        return [
+          { batchId: 'bookkeeping', at: 1, types: { event: 1 }, count: 1 },
+          { batchId: 'real-work', at: 2, types: { event: 1, query: 4 }, count: 5 }
+        ]
+      }
+    } as never)
+
+    const router = new Elysia().use(
+      lensBar(app, {
+        state: barState(app),
+        ring: new BatchRing(5),
+        path: 'lens',
+        editor: '',
+        root: '',
+        stored: true
+      })
+    )
+
+    const payload = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as { batches: Array<{ batchId: string }> }
+
+    expect(payload.batches.map((batch) => batch.batchId)).toEqual(['real-work'])
   })
 })

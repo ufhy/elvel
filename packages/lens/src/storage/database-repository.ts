@@ -1,5 +1,5 @@
 import type { ConnectionManager, QueryBuilder } from '@elvel/database'
-import type { EntriesDriver } from '../contracts.ts'
+import type { EntriesDriver, StoredBatch } from '../contracts.ts'
 import type { IncomingEntry } from '../entry.ts'
 import { EntryResult } from '../entry-result.ts'
 import { EntryType, type EntryTypeName } from '../entry-type.ts'
@@ -18,9 +18,25 @@ function formatDateTime(value: Date): string {
 }
 
 /**
+ * `created_at` back to a number, whatever the driver handed us.
+ *
+ * Postgres answers with a `Date`, SQLite with the string that was written. An
+ * unparseable value becomes 0 rather than `NaN`, so a batch with a broken
+ * timestamp sorts last instead of poisoning every comparison it takes part in.
+ */
+function at(value: unknown): number {
+  if (value instanceof Date) return value.getTime()
+  if (value === null || value === undefined) return 0
+
+  const parsed = Date.parse(`${String(value).replace(' ', 'T')}Z`)
+
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+/**
  * Entries in our own tables.
  *
- * Implements all four contracts, which is the ordinary case — the point of
+ * Implements all five contracts, which is the ordinary case — the point of
  * splitting them is that a driver *need not*, not that this one does not.
  */
 export class DatabaseEntriesRepository implements EntriesDriver {
@@ -91,6 +107,46 @@ export class DatabaseEntriesRepository implements EntriesDriver {
       .all()
       .map((row) => this.hydrate(row as Record<string, unknown>, []))
       .filter((entry): entry is EntryResult => entry !== undefined)
+  }
+
+  /**
+   * The most recent units of work, grouped from the rows themselves.
+   *
+   * Deliberately not `group by batch_id` with aggregate columns: that needs raw
+   * SQL to be useful, and the shape of `max(...) as ...` differs enough between
+   * dialects to be worth avoiding for a development-time feature. Instead this
+   * reads a window of the newest rows on the `sequence` index and groups them
+   * here.
+   *
+   * The window is why the answer is honest about being recent rather than
+   * complete: forty rows per batch asked for is generous for a request and
+   * ungenerous for one that ran five hundred queries, and such a batch simply
+   * crowds the window. The bar wants the last handful of units of work, not a
+   * history — that is what the dashboard is.
+   */
+  async recentBatches(limit: number): Promise<StoredBatch[]> {
+    const window = Math.min(Math.max(limit, 1) * 40, 2000)
+    const rows = await (await this.entries())
+      .select('batch_id', 'type', 'created_at')
+      .orderByDesc('sequence')
+      .take(window)
+      .get()
+
+    const batches = new Map<string, StoredBatch>()
+
+    for (const row of rows.all() as Array<Record<string, unknown>>) {
+      const batchId = String(row.batch_id)
+      const held = batches.get(batchId) ?? { batchId, at: 0, types: {}, count: 0 }
+      const type = String(row.type)
+
+      held.types[type] = (held.types[type] ?? 0) + 1
+      held.count++
+      held.at = Math.max(held.at, at(row.created_at))
+
+      batches.set(batchId, held)
+    }
+
+    return [...batches.values()].slice(0, limit)
   }
 
   async count(type?: EntryTypeName): Promise<number> {
