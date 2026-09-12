@@ -915,3 +915,57 @@ describe('the request has stages, not just entries', () => {
     expect(marks.map((at) => at.name)).not.toContain('handler')
   })
 })
+
+describe('a page carrying the bar is never cached', () => {
+  /**
+   * The bar is inlined in the markup, so a cached page is a cached tool: you
+   * change the inspector, reload, and see the old build with nothing saying so.
+   * Costly in production and free here — the bar only injects in development or
+   * for one authorised person.
+   */
+  test('the response says no-store', async () => {
+    const { app, ring } = harness()
+    const router = new Elysia()
+      .use(
+        lensPlugin(app, {
+          onlyPaths: [],
+          ignorePaths: ['lens-api*'],
+          requestWatcher: new RequestWatcher({ sizeLimit: 64 }),
+          ring
+        })
+      )
+      .use(
+        lensBar(app, {
+          state: barState(app),
+          ring,
+          path: 'lens',
+          editor: '',
+          root: '',
+          stored: false,
+          baselines: new Baselines(),
+          profiler: new RequestProfiler()
+        })
+      )
+      .get(
+        '/page',
+        () =>
+          new Response('<html><body>hi</body></html>', {
+            headers: { 'content-type': 'text/html', 'cache-control': 'max-age=600' }
+          })
+      )
+
+    const answer = await router.handle(new Request('http://localhost/page'))
+
+    expect(await answer.text()).toContain('data-build=')
+    expect(answer.headers.get('cache-control')).toBe('no-store')
+  })
+
+  /** The glance that settles which build a page is running. */
+  test('the tag carries a build fingerprint', async () => {
+    const { router } = harness()
+    const body = await (await router.handle(new Request('http://localhost/page'))).text()
+    const build = /data-build="([^"]+)"/.exec(body)?.[1]
+
+    expect(build).toMatch(/^[0-9a-f]{6}$/)
+  })
+})

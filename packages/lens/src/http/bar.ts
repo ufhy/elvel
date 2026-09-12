@@ -116,6 +116,16 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
         // The body grew; a stale length would truncate the page.
         headers.delete('content-length')
 
+        /**
+         * A page carrying the bar must never come from the browser's cache.
+         *
+         * The bar is inlined in the markup, so a cached page is a cached *tool*:
+         * you change the inspector, reload, and see yesterday's build with
+         * nothing saying so. Costly in production and free here — the bar only
+         * injects in development, or for one authorised person.
+         */
+        headers.set('cache-control', 'no-store')
+
         return new Response(inject(html, batchId, options), {
           status: response.status,
           statusText: response.statusText,
@@ -377,9 +387,21 @@ function inject(html: string, batchId: string, options: LensBarOptions): string 
  * still go through {@link escapeAttribute} — a config file is not user input,
  * but it is also not a promise.
  */
+/**
+ * A short fingerprint of the bar's own code.
+ *
+ * Shown in the strip so "am I looking at the current build" is a glance rather
+ * than an argument. Computed once: both strings are module constants.
+ */
+const BUILD = new Bun.CryptoHasher('md5')
+  .update(BAR_SCRIPT + BAR_STYLE)
+  .digest('hex')
+  .slice(0, 6)
+
 function tag(batchId: string, options: LensBarOptions): string {
   const attributes = [
     ['data-batch', batchId],
+    ['data-build', BUILD],
     ['data-endpoint', `/${options.path.replace(/^\/+|\/+$/g, '')}-api/bar`],
     ['data-editor', options.editor],
     ['data-root', options.root]

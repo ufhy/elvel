@@ -53,6 +53,7 @@ export const BAR_STYLE = String.raw`
 .cell .warn { color: #f6ad55; }
 .cell .good { color: #68d391; }
 .spacer { flex: 1 1 auto; border-right: 0; }
+.build { color: #4a5568; font-size: 10px; letter-spacing: .04em; }
 .status-2 { color: #68d391; } .status-3 { color: #63b3ed; }
 .status-4 { color: #f6ad55; } .status-5 { color: #fc8181; }
 
@@ -386,6 +387,17 @@ export const BAR_SCRIPT = String.raw`
     profile.textContent = batch.profile ? 'Profile · ' + batch.profile.samples : 'Profile'
     profile.onclick = () => (batch.profile ? show('profile') : armProfiler(profile))
     verdict.appendChild(profile)
+
+    /**
+     * Which build of the bar this page is running.
+     *
+     * A dev tool inlined into a page is invisibly cacheable: you change it,
+     * reload, and see the old one with nothing saying so. This is the glance
+     * that settles it.
+     */
+    const build = node('div', 'cell build', tag.dataset.build || '')
+    build.title = 'Lens bar build'
+    verdict.appendChild(build)
 
     const close = node('button', 'cell pill')
     close.type = 'button'
