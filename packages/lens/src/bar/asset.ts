@@ -205,7 +205,6 @@ export const BAR_SCRIPT = String.raw`
   let entry = null
   let costs = []
   let find = ''
-  let condensed = true
 
   /**
    * Per-viewer state, the four keys php-debugbar keeps plus two of our own.
@@ -571,29 +570,28 @@ export const BAR_SCRIPT = String.raw`
   }
 
   /**
-   * Condensed by default, expandable — Clockwork's timeline has the same switch.
-   * Folding is a way of looking, not the only way.
+   * One lane per kind of work, always.
+   *
+   * There was a switch between this and a lane per entry, and it earned nothing:
+   * the per-entry view is the type's own tab, reached by clicking the lane. A
+   * toggle that swaps a summary for a list already available elsewhere is a
+   * second way to see the same thing and a thing to get wrong.
    */
   function drawTimeline() {
     const head = node('div', 'head')
     head.appendChild(node('span', 'who', 'Timeline'))
 
-    const fold = node('button', 'act', condensed ? 'Condensed' : 'Every entry')
-    fold.type = 'button'
-    fold.setAttribute('aria-pressed', String(condensed))
-    fold.onclick = () => {
-      condensed = !condensed
-      kept.set('condensed', condensed ? '1' : '0')
-      drawView()
-    }
-    head.appendChild(fold)
-
+    /**
+     * Text, not a button. It used to navigate to the route costs from inside
+     * this header, which is a tab's job — and once there, the way back was to
+     * hunt for the Timeline tab among a dozen.
+     */
     if (batch.verdict && batch.verdict.samples > 1) {
-      const compare = node('button', 'act', 'Median ' + ms(batch.verdict.medianMs) + ' over ' + batch.verdict.samples)
-      compare.type = 'button'
-      compare.onclick = () => show('costs')
-      head.appendChild(compare)
+      head.appendChild(
+        node('span', 'who', 'median ' + ms(batch.verdict.medianMs) + ' over ' + batch.verdict.samples)
+      )
     }
+
     middle.appendChild(head)
 
     const total = Math.max(batch.shape.totalMs, 0.01)
@@ -608,7 +606,7 @@ export const BAR_SCRIPT = String.raw`
       return
     }
 
-    for (const group of condensed ? byKind(timed) : timed.map((held) => [held])) {
+    for (const group of byKind(timed)) {
       const first = group[0]
       const last = group[group.length - 1]
       const took = group.reduce((sum, held) => sum + Number((held.summary || {}).took || 0), 0)
@@ -1069,8 +1067,6 @@ export const BAR_SCRIPT = String.raw`
   function restoreState() {
     if (restored) return
     restored = true
-
-    condensed = kept.get('condensed', '1') === '1'
 
     const asked = kept.get('reopen', '')
     if (asked) {

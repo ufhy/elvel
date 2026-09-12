@@ -1013,9 +1013,27 @@ describe('the timeline says the same thing on every lane', () => {
     expect(BAR_SCRIPT).not.toContain("node('span', 'what'")
   })
 
-  /** Folding is a way of looking, as Clockwork's condensed mode is. */
-  test('condensing is a toggle, and it is remembered', () => {
-    expect(BAR_SCRIPT).toContain('Every entry')
-    expect(BAR_SCRIPT).toContain("kept.set('condensed'")
+  /**
+   * The per-entry view is the type's own tab, reached by clicking a lane. A
+   * toggle between a summary and a list already available elsewhere was a second
+   * way to see one thing.
+   */
+  test('there is no toggle between folded and unfolded', () => {
+    expect(BAR_SCRIPT).not.toContain('condensed')
+    expect(BAR_SCRIPT).not.toContain('Every entry')
+  })
+
+  /**
+   * The timeline header used to navigate to the route costs, and once there the
+   * way back was to hunt for the Timeline tab. Headers describe; tabs navigate.
+   */
+  test('the timeline header navigates nowhere', () => {
+    const start = BAR_SCRIPT.indexOf('function drawTimeline')
+    // The header only. A lane below it does navigate, to that kind's own tab.
+    const header = BAR_SCRIPT.slice(start, BAR_SCRIPT.indexOf('middle.appendChild(head)', start))
+
+    expect(header).not.toContain('show(')
+    expect(header).not.toContain("node('button'")
+    expect(header).toContain('median ')
   })
 })
