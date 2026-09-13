@@ -27,6 +27,20 @@ export {
   show
 } from './assert.ts'
 export { PendingCommand, type Runnable } from './console.ts'
+export {
+  type Attributes,
+  assertDatabaseCount,
+  assertDatabaseHas,
+  assertDatabaseMissing,
+  assertNotSoftDeleted,
+  assertSoftDeleted,
+  forgetMigrations,
+  type Hooks,
+  type RefreshOptions,
+  refreshDatabase,
+  type TestConnection,
+  type TestConnectionManager
+} from './database.ts'
 export { AssertableJson, matchesStructure } from './json.ts'
 export { type Method, type Pressable, TestRequest, test } from './request.ts'
 export { type ResponseCookie, TestResponse } from './response.ts'

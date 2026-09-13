@@ -248,6 +248,34 @@ export class ConnectionManager {
     return new Map(this.connections)
   }
 
+  /**
+   * Answer `name` with `connection` until the returned callback is called.
+   *
+   * For `refreshDatabase()`, and shaped for it: a test runs inside
+   * `connection.transaction()`, which hands the callback a **different** object
+   * carrying the open transaction — `transactions` is a property of the object,
+   * never of the pool. Without this, the handler under test resolves the pooled
+   * connection instead, writes outside the test's transaction, and the rollback
+   * leaves the row behind.
+   *
+   * Returns the undo rather than taking a callback so the caller can hold the
+   * swap across a whole test rather than around one expression.
+   *
+   * Not a general-purpose setter: it neither opens nor closes anything, and
+   * `disconnect()` on a swapped name would close the transaction's connection
+   * out from under the test.
+   */
+  swap(name: string, connection: Connection): () => void {
+    const previous = this.connections.get(name)
+
+    this.connections.set(name, connection)
+
+    return () => {
+      if (previous === undefined) this.connections.delete(name)
+      else this.connections.set(name, previous)
+    }
+  }
+
   private dispatcher(): EventDispatcher | undefined {
     // Optional: the database must work even without the events package.
     return this.app.bound('events')

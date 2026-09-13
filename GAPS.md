@@ -8,7 +8,7 @@ shrink measures nothing. Behaviour that exists and merely surprises belongs in
 Measured against **`laravel/framework` v13.31.0** (released 2026-09-08), read as
 source, one component at a time. Not against the documentation.
 
-**Open: 105** — all 37 components measured against laravel/framework v13.31.0.
+**Open: 104** — all 37 components measured against laravel/framework v13.31.0.
 Concurrency, Contracts, Encryption, Hashing, JsonSchema, Notifications,
 Reflection and Scheduling added none.
 Concurrency, Contracts, Encryption, Hashing, JsonSchema and Notifications added
@@ -1845,27 +1845,6 @@ an `AssertableJson` with the fluent `has`/`each`/`etc`, and console testing with
 application through the same `handle()` a server would, so the session, the
 middleware and the exception handler all take part, and nothing depends on a
 test runner.
-
-### Nothing helps a test touch the database
-
-Missing: `RefreshDatabase`, `DatabaseTransactions`, `DatabaseTruncation`,
-`LazilyRefreshDatabase`, and the assertions `assertDatabaseHas`,
-`assertDatabaseMissing`, `assertDatabaseCount`, `assertSoftDeleted`,
-`assertNotSoftDeleted`, `assertModelExists`, `assertModelMissing`.
-
-The consequence is visible in the framework's own scaffolding.
-`packages/create-elvel/kits/auth/tests/database.ts` exists because there is
-nothing to inherit: it repoints the connection at `database/testing.sqlite`,
-runs the migrations at import if the schema is missing, and explains at length
-why a shared file breaks. Every test in that kit then shares one database with
-no rollback between them, so state leaks from test to test and order matters —
-and the same file has to clear the rate limiter by hand for exactly that reason.
-
-`RefreshDatabase` is the piece that makes a suite independent: each test in a
-transaction, rolled back at the end, nothing shared.
-
-**Done when** a test can wrap itself in a transaction that is rolled back, and
-a row can be asserted present or absent without writing the query.
 
 ### The commonest web flow cannot be asserted
 
