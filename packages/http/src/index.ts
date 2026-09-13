@@ -8,6 +8,7 @@ export {
   resolveBindings
 } from './bindings.ts'
 export { type BodySizeOptions, bodySizePlugin, PayloadTooLargeError } from './body-size.ts'
+export { conditionalPlugin, etag, etagFor, isStale } from './conditional.ts'
 export { MakeRequestCommand } from './console/make-request.ts'
 export { MakeResourceCommand } from './console/make-resource.ts'
 export { MiddlewareListCommand } from './console/middleware-list.ts'
@@ -86,6 +87,7 @@ export {
   trustHostsPlugin,
   UntrustedHostError
 } from './hosts.ts'
+export { InputBag, type InputData, type InputSource, inputs } from './input.ts'
 export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
 export {
   METHOD_FIELD,
@@ -104,7 +106,16 @@ export {
   middlewareNamesOf,
   middlewares
 } from './middleware.ts'
-export { expectsJson, type Negotiable } from './negotiation.ts'
+export {
+  accepts,
+  acceptsAnyContentType,
+  acceptsHtml,
+  acceptsJson,
+  expectsJson,
+  getAcceptableContentTypes,
+  type Negotiable,
+  prefers
+} from './negotiation.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
   AWS_ELB_HEADERS,
@@ -195,4 +206,5 @@ export {
   TooManyRequestsError,
   throttle
 } from './throttle.ts'
+export { UploadedFile } from './uploaded-file.ts'
 export { asset, secureAsset, secureUrl, Url, url } from './url.ts'

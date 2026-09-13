@@ -9,6 +9,7 @@ import {
   ValidationError,
   Validator
 } from '@elvel/validation'
+import { InputBag } from './input.ts'
 import { expectsJson } from './negotiation.ts'
 import { redirect } from './redirect.ts'
 import { RedirectException } from './redirect-exception.ts'
@@ -244,6 +245,17 @@ export abstract class FormRequest {
   merge(values: Data): this {
     Object.assign(this.data, values)
     return this
+  }
+
+  /**
+   * The same readers a handler gets, over this request's payload.
+   *
+   * A bag rather than the methods copied onto this class: one place decides what
+   * `boolean('subscribed')` means, and a form request and a bare handler cannot
+   * come to different answers about an unchecked checkbox.
+   */
+  get inputs(): InputBag {
+    return new InputBag(this.data)
   }
 }
 

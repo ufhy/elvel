@@ -883,73 +883,27 @@ anything that is not a model. So are API resources (`JsonResource`,
 error bag and old input, CSRF, CORS, method override, the security headers, the
 session with four drivers, and named rate limiters.
 
-### An uploaded file cannot be stored
+`InputBag` is the reading half: dot access, `only`/`except`/`filled`/`missing`,
+`whenFilled`, `mergeIfMissing`, `collect`, and the typed readers. `boolean()` is
+the one every form needs — an unchecked checkbox is absent, a checked one is
+`"on"`, and `"0"` is false — and a form request exposes the same bag, so the two
+cannot come to different answers about a checkbox.
 
-Validation handles uploads well — `file`, `image`, `mimes`, `mimetypes`,
-`dimensions`, `extensions` all work against the Web `File` object, which is the
-right thing to validate.
+`UploadedFile` stores an upload under a generated name. `hashName()` is random
+rather than a content hash: hashing means reading the whole file to name it, and
+two users uploading the same image would share a path, so deleting one account's
+avatar would remove the other's. `storeAs` refuses a name carrying a path rather
+than flattening it, because flattening hides the attempt. Streaming it to the
+disk waits on `writeStream`, which is recorded under Filesystem.
 
-What is missing is everything after: `store('avatars')`, `storeAs`,
-`storePublicly`, `hashName()`, and the original name and extension helpers.
-Today an upload is put on a disk by reading the whole `File` into memory and
-calling `put()` with a name the application invents — and because there is no
-`writeStream` either (recorded under Filesystem), the memory cost is the file
-size, per concurrent upload.
+`conditionalPlugin` answers `304` to a matching `If-None-Match` or
+`If-Modified-Since`, on safe methods and successful responses only — a `304` to
+a POST means something else entirely. A weak tag matches a strong one of the
+same value, because the weak marker only rules out byte ranges.
 
-Getting the name right is not incidental: a file stored under its client-supplied
-name is a path-traversal and an overwrite waiting to happen, which is why
-`hashName()` exists.
-
-**Done when** an uploaded file can be streamed to a disk in one call with a
-generated name, and the original name and extension are read from it safely.
-
-### There is no request input API
-
-Inside a `FormRequest` there is `input`, `has`, `merge`, `safe` and `validated`.
-Outside one, a handler holds the Web `Request` and whatever Elysia parsed.
-
-Absent everywhere: `input('a.b')` with dot access and a default, `only`,
-`except`, `filled`, `missing`, `whenFilled`, `whenHas`, `hasAny`,
-`mergeIfMissing`, `collect`, and the typed readers `boolean`, `integer`,
-`float`, `string`, `date`, `enum`.
-
-`boolean()` is the one every form needs — an unchecked checkbox is absent, a
-checked one is `"on"`, and `"0"` is false — and every application writes that
-coercion again. `date()` and `enum()` are the same story with worse failure
-modes.
-
-This is the same absence as `Config`'s typed readers and `Arr`'s, in the place
-where the data is least trustworthy.
-
-**Done when** the readers exist against the parsed body and query, dot access
-works, and a form request exposes the same set.
-
-### Nothing supports a conditional GET
-
-No `ETag`, no `Last-Modified`, no `If-None-Match`, no `304` — the strings do not
-appear in `packages/http`. Upstream's `CheckResponseForModifications` is in the
-default stack.
-
-Every response is therefore sent in full every time, including the ones that
-have not changed since the browser last asked. For an API served to a mobile
-client, or a page behind a CDN, that is the cheapest saving there is and it is
-not available.
-
-**Done when** a response can carry an `ETag`, a matching `If-None-Match` answers
-`304` with no body, and `Last-Modified`/`If-Modified-Since` do the same.
-
-### Content negotiation stops at "does this want JSON"
-
-`expectsJson()` is all of `negotiation.ts`. Missing: `accepts(types)`,
-`prefers(types)`, `acceptsHtml`, `acceptsAnyContentType`,
-`getAcceptableContentTypes`.
-
-One endpoint that answers HTML to a browser, JSON to `fetch`, and CSV to
-`Accept: text/csv` is ordinary, and today it means parsing the `Accept` header
-by hand — including the `q=` weights, which is where hand-parsing goes wrong.
-
-**Done when** `accepts` and `prefers` exist and honour quality values.
-
+`accepts`, `prefers`, `acceptsHtml` and `getAcceptableContentTypes` honour the
+quality values, and rank by specificity within a quality — which is what makes
+`Accept: */*;q=0.8, text/csv` mean "CSV, or anything".
 ---
 
 ## Image
