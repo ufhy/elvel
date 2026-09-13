@@ -154,7 +154,12 @@ describe('ordering and grouping', () => {
   test('groupBy buckets by the returned key', () => {
     const words = collect(['apple', 'avocado', 'banana'])
 
-    expect(words.groupBy((word) => word[0] as string)).toEqual({
+    expect(
+      words
+        .groupBy((word) => word[0] as string)
+        .map((group) => group.all())
+        .toObject()
+    ).toEqual({
       a: ['apple', 'avocado'],
       b: ['banana']
     })

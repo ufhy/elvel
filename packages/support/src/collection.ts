@@ -1,3 +1,4 @@
+import { type Key, KeyedCollection } from './keyed.ts'
 import { Macroable } from './macroable.ts'
 /** Thrown by `sole()` when nothing matched, or more than one thing did. */
 export class ItemNotFoundError extends Error {
@@ -276,15 +277,42 @@ export class Collection<T> extends Macroable implements Iterable<T> {
     )
   }
 
-  groupBy(key: (item: T) => string): Record<string, T[]> {
-    const result: Record<string, T[]> = {}
+  groupBy<K extends Key>(key: (item: T) => K): KeyedCollection<K, Collection<T>> {
+    const buckets = new Map<K, T[]>()
+
     for (const item of this.items) {
       const group = key(item)
-      const bucket = result[group] ?? []
-      bucket.push(item)
-      result[group] = bucket
+      const bucket = buckets.get(group)
+
+      if (bucket) bucket.push(item)
+      else buckets.set(group, [item])
     }
-    return result
+
+    return new KeyedCollection([...buckets].map(([group, items]) => [group, new Collection(items)]))
+  }
+
+  /** Like `groupBy`, but the callback decides the key and the value at once. */
+  mapToGroups<K extends Key, V>(
+    callback: (item: T, index: number) => [K, V]
+  ): KeyedCollection<K, Collection<V>> {
+    const buckets = new Map<K, V[]>()
+
+    this.items.forEach((item, index) => {
+      const [key, value] = callback(item, index)
+      const bucket = buckets.get(key)
+
+      if (bucket) bucket.push(value)
+      else buckets.set(key, [value])
+    })
+
+    return new KeyedCollection([...buckets].map(([key, values]) => [key, new Collection(values)]))
+  }
+
+  /** The same shape, kept as arrays — what upstream calls a dictionary. */
+  mapToDictionary<K extends Key, V>(
+    callback: (item: T, index: number) => [K, V]
+  ): KeyedCollection<K, V[]> {
+    return this.mapToGroups(callback).map((values) => values.all())
   }
 
   unique(): Collection<T> {
@@ -523,38 +551,30 @@ export class Collection<T> extends Macroable implements Iterable<T> {
   }
 
   /** Keyed by whatever the callback returns; a later duplicate wins. */
-  keyBy<K extends string | number>(key: (item: T) => K): Record<K, T> {
-    const out = {} as Record<K, T>
-
-    for (const item of this.items) out[key(item)] = item
-
-    return out
+  keyBy<K extends Key>(key: (item: T) => K): KeyedCollection<K, T> {
+    return new KeyedCollection(this.items.map((item) => [key(item), item]))
   }
 
   /** Each item becomes one entry: `[key, value]`. */
-  mapWithKeys<K extends string | number, V>(
+  mapWithKeys<K extends Key, V>(
     callback: (item: T, index: number) => [K, V]
-  ): Record<K, V> {
-    const out = {} as Record<K, V>
-
-    this.items.forEach((item, index) => {
-      const [key, value] = callback(item, index)
-      out[key] = value
-    })
-
-    return out
+  ): KeyedCollection<K, V> {
+    return new KeyedCollection(this.items.map((item, index) => callback(item, index)))
   }
 
   /** How many of each — `countBy(u => u.role)`. */
-  countBy(key: (item: T) => string | number = (item) => String(item)): Record<string, number> {
-    const out: Record<string, number> = {}
+  countBy<K extends Key>(
+    key: (item: T) => K = (item) => String(item) as K
+  ): KeyedCollection<K, number> {
+    const counts = new KeyedCollection<K, number>()
 
     for (const item of this.items) {
-      const bucket = String(key(item))
-      out[bucket] = (out[bucket] ?? 0) + 1
+      const bucket = key(item)
+
+      counts.put(bucket, (counts.get(bucket) ?? 0) + 1)
     }
 
-    return out
+    return counts
   }
 
   /** Values that appear more than once, in the order they first repeat. */

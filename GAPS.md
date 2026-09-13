@@ -381,49 +381,21 @@ the read.
 
 ## Collections
 
-`Collection` and `Arr` carry the operators and the typed readers now, and
-`LazyCollection` carries them over a stream — `take(5)` on a million-row table
-reads five, `remember()` holds only what was walked, and `ModelBuilder.lazy()`
-returns one instead of a bare generator. What is left is structural.
+`Collection` and `Arr` carry the operators and the typed readers, `LazyCollection`
+carries them over a stream — `take(5)` on a million-row table reads five,
+`remember()` holds only what was walked, and `ModelBuilder.lazy()` returns one
+instead of a bare generator — and `KeyedCollection` is the keyed half, so
+`keyBy`, `mapWithKeys`, `groupBy`, `countBy`, `mapToGroups` and `mapToDictionary`
+answer with something that can still be mapped rather than a plain object that
+ends the chain. A `Map` underneath, not an object, so a numeric key stays a
+number and insertion order is the order.
 
 Some names stay out, with reasons. The strict `where` variants are what this
 `where` already does — upstream needs the pair only because PHP's `==` does not
-compare types. `reduceWithKeys` and `collapseWithKeys` belong to the keyed row
-below. And `Arr.map`, `some`, `every`, `push`, `join`, `take`, `exists`, `from`,
-`accessible` and `arrayable` are each a native array method or `Object.hasOwn`,
-which upstream cannot say because a PHP array is not an object.
-
-### The collection is a list, not an ordered map
-
-```ts
-export class Collection<T> implements Iterable<T> {
-  constructor(private readonly items: T[] = []) {}
-```
-
-A `Illuminate\Support\Collection` is an ordered map, and about a third of its
-API is about the keys. Here there are no keys, and the consequence is not that
-some methods are missing — it is that **the chain breaks**:
-
-```ts
-keyBy<K extends string | number>(key: (item: T) => K): Record<K, T>
-mapWithKeys<K, V>(callback: (item: T, index: number) => [K, V]): Record<K, V>
-```
-
-Both return a plain object. `collect(users).keyBy(u => u.id)` ends the
-collection there and hands back something with no `map`, no `filter`, no
-`each` — so the caller drops to bare objects for the rest of the pipeline,
-which is the exact thing the class's own comment says it exists to prevent.
-
-Absent with the keys: `keys`, `get`, `put`, `has`, `hasAny`, `getOrPut`,
-`forget`, `pull`, `flip`, `union`, `combine`, `replace`, `replaceRecursive`,
-`mergeRecursive`, `diffKeys`, `diffAssoc`, `intersectByKeys`, `intersectAssoc`,
-`sortKeys`, `sortKeysDesc`, `sortKeysUsing`, `mapToGroups`, `mapToDictionary`,
-`dot`, `undot`, `prependKeysWith`.
-
-**Done when** a collection can hold keys — either by holding a `Map` or by a
-second keyed type that the keyed operations return — so that `keyBy` answers
-with something that can still be mapped.
-
+compare types. And `Arr.map`, `some`, `every`, `push`, `join`, `take`, `exists`,
+`from`, `accessible` and `arrayable` are each a native array method or
+`Object.hasOwn`, which upstream cannot lean on because a PHP array is not an
+object.
 ---
 
 ## Console

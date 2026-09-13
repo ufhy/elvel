@@ -43,10 +43,24 @@ error to recognise.
 Also worth knowing before writing an assertion:
 
 ```ts
-rows.groupBy((r) => r.team)   // a plain object: { a: [...], b: [...] }
-rows.keyBy((r) => r.id)       // a plain object, keys stringified: '1', '2', '3'
+rows.groupBy((r) => r.team)   // KeyedCollection<string, Collection<T>>
+rows.keyBy((r) => r.id)       // KeyedCollection<number, T> — the key stays a number
 rows.chunk(2)                 // Collection<Collection<T>>
 rows.partition((r) => r.score > 15)   // a tuple: [Collection, Collection]
+```
+
+A `KeyedCollection` is the keyed half: a `Map` underneath, so a numeric key stays
+a number and insertion order is the order. It chains the way the list does —
+`get`, `put`, `has`, `only`, `except`, `map`, `filter`, `each`, `sortKeys`,
+`diffKeys`, `dot`, `undot` — and `values()` goes back to a `Collection`,
+`toObject()` to a plain object for a JSON response.
+
+```ts
+rows
+  .groupBy((r) => r.team)
+  .map((team) => team.sum((r) => r.score))
+  .sortKeys()
+  .toObject()                 // { a: 40, b: 20 }
 ```
 
 ```ts

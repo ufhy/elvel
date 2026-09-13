@@ -162,12 +162,24 @@ describe('reshaping', () => {
   })
 
   test('keyBy and mapWithKeys', () => {
-    expect(collect(people).keyBy((one) => one.name).Ada?.age).toBe(36)
-    expect(collect(people).mapWithKeys((one) => [one.name, one.age]).Grace).toBe(45)
+    expect(
+      collect(people)
+        .keyBy((one) => one.name)
+        .get('Ada')?.age
+    ).toBe(36)
+    expect(
+      collect(people)
+        .mapWithKeys((one) => [one.name, one.age])
+        .get('Grace')
+    ).toBe(45)
   })
 
   test('countBy and duplicates', () => {
-    expect(collect(people).countBy((one) => one.role)).toEqual({ admin: 2, user: 2 })
+    expect(
+      collect(people)
+        .countBy((one) => one.role)
+        .toObject()
+    ).toEqual({ admin: 2, user: 2 })
     expect<number[]>(collect([1, 2, 2, 3, 3, 3]).duplicates().all()).toEqual([2, 3, 3])
   })
 

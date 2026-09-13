@@ -28,6 +28,7 @@ export {
   transform,
   value
 } from './helpers.ts'
+export { type Key, KeyedCollection, keyed } from './keyed.ts'
 export { LazyCollection, lazy, type Source } from './lazy.ts'
 export { type Macro, Macroable, type Macroed, macroable } from './macroable.ts'
 export {
