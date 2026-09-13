@@ -2,12 +2,12 @@ import type { BindingKey, Resolved } from '@elvel/contracts'
 import { Application } from './application.ts'
 
 /**
- * Global helpers, deliberately mirroring Laravel's.
+ * The global helpers.
  *
  * These resolve from the running application rather than being injected into
  * the request context. That keeps the Elysia context clean — every decorator we
  * add to it is a type every route has to carry — while giving handlers the
- * short, familiar call sites Laravel developers expect.
+ * short call sites a handler wants.
  */
 
 /** The running application, or a binding from its container. */

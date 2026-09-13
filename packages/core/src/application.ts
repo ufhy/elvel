@@ -38,7 +38,7 @@ export type RouteModule =
 /**
  * A routes file: `() => import('../routes/web.ts')`.
  *
- * `default` is optional because a file written the Laravel way exports nothing —
+ * `default` is optional because a routes file usually exports nothing —
  * `Route.get(…)` declares as the module evaluates, and the framework compiles the
  * collection afterwards. A module that does export a plugin is mounted directly,
  * so a package shipping one needs no rewriting.
@@ -441,8 +441,8 @@ export class Application implements ApplicationContract {
 }
 
 /**
- * Fluent bootstrapper, mirroring Laravel 11+'s
- * `Application::configure(...)->withProviders(...)->create()`.
+ * Fluent bootstrapper:
+ * `Application.configure(...).withProviders(...).create()`.
  */
 export class ApplicationBuilder {
   private readonly providers: ServiceProviderConstructor[] = []
@@ -501,8 +501,7 @@ export class ApplicationBuilder {
   /**
    * Load a module for its registrations rather than for its routes.
    *
-   * `routes/console.ts` is the case this exists for — Laravel's
-   * `routes/console.php`, reached there through `withRouting(console: …)`. Such
+   * `routes/console.ts` is the case this exists for. Such
    * a file has no default export and mounts nothing: it calls `schedule()` and
    * registers commands, and what it needs is to be imported once, after the
    * providers have booted and before anything runs.
@@ -526,7 +525,7 @@ export class ApplicationBuilder {
      * 2. config — from the cache when there is one.
      *
      * A cached config skips reading and importing every file in `config/`. It
-     * matters less here than in Laravel, since Bun's module cache already
+     * matters less than it might, since Bun's module cache already
      * absorbs most of that cost, but it is also what lets a container image
      * ship a config it cannot accidentally re-evaluate.
      */

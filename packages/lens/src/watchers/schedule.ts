@@ -16,8 +16,8 @@ const OUTCOMES: Record<string, string> = {
  * Records each scheduled task once it has finished, however it finished.
  *
  * Telescope hangs a `then()` callback on every event in the schedule when
- * `schedule:run` starts, because Laravel's scheduler has no per-task event to
- * listen for. Elvel's runner dispatches four — finished, failed, skipped and
+ * `schedule:run` starts, because a scheduler with no per-task event gives nothing
+ * else to listen for. Elvel's runner dispatches four — finished, failed, skipped and
  * overlapping — so this listens instead of reaching into the schedule, and gets
  * the two outcomes Telescope's approach cannot see: a task that was skipped, and
  * one that was refused because the last run had not finished.

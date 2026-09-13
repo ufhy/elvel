@@ -109,7 +109,7 @@ function parseOption(expression: string, description: string): OptionDefinition 
     /**
      * `{--id=*}` is a **repeatable** option, not a default of `"*"`.
      *
-     * That is Laravel's spelling — `mail:send {--id=*}`, invoked as
+     * The spelling is `mail:send {--id=*}`, invoked as
      * `--id=1 --id=2` — and reading the star as a default broke the one command
      * that used it. `model:prune` filtered its models against `only = ['*']`,
      * matched none, and reported `No model defines prunable()` against an
@@ -280,7 +280,7 @@ export function formatUsage(definition: CommandDefinition): string {
  * Parsing leniently rather than catching the error `parseInput` throws: the
  * kernel needs the *list* to ask about, and "which one" is not recoverable from
  * a message. Options are not included — an option that is required is a
- * contradiction, and Laravel's prompting covers arguments only.
+ * contradiction; prompting covers arguments only.
  */
 export function missingArguments(
   definition: CommandDefinition,

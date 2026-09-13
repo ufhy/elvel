@@ -15,7 +15,7 @@ const OUTCOMES: Record<string, string> = {
  * Records each notification, per channel, however it turned out.
  *
  * Telescope records only `NotificationSent`, because that is the only event
- * Laravel fires. Elvel's sender reports three, and the two extra are the
+ * are usually fired. Elvel's sender reports three, and the two extra are the
  * interesting ones: a notification that was **skipped** — by `shouldSend`, or
  * because the notifiable had no route for the channel — looks exactly like one
  * that was never dispatched, and that is a support question nobody can answer

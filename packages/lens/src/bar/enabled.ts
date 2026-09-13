@@ -23,8 +23,8 @@ export type BarState = {
  * has a real reason and refusing them would only teach them to ship
  * `APP_DEBUG=true`, which is worse.
  *
- * The lock is what happens then. In Laravel, `DEBUGBAR_ENABLED=true` on a
- * production box hands the bar to everyone who loads a page, and that is how
+ * The lock is what happens then. An `ENABLED=true` on a production box that hands
+ * the bar to everyone who loads a page is how
  * every Debugbar leak has ever happened. Here that combination — forced on,
  * debug off — makes the bar answer only to a request that passes the
  * application's own `authorise()`. The config is honoured; the page is not

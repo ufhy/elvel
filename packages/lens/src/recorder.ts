@@ -59,7 +59,7 @@ export type Batch = {
 /**
  * The batch lives in the request context, not in a static.
  *
- * This is the one structural departure from Laravel Telescope, and it is forced.
+ * This is the one structural departure from Telescope, and it is forced.
  * Telescope keeps `$entriesQueue` in a static property, which is safe under
  * PHP-FPM because a process serves exactly one request at a time. Bun serves
  * many at once in one process: a static queue would collect entries from every

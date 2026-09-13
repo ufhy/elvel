@@ -36,8 +36,8 @@ export type LensPluginOptions = {
 /**
  * Opens a batch when a request arrives and flushes it after the response.
  *
- * Telescope gets these two moments from Laravel: `Telescope::start()` runs while
- * the framework boots a request, and `$app->terminating()` stores the batch. In
+ * Telescope gets these two moments from its framework: one runs while a request
+ * boots, the other stores the batch as it terminates. In
  * Elvel neither exists in a usable form — `RequestLifecycle.finish()` is called
  * only from the error path, its own docstring saying it exists for "a response
  * with no handler" — so the moments come from a plugin on `app.router`, which is

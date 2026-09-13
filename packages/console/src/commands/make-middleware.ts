@@ -23,7 +23,7 @@ export class MakeMiddlewareCommand extends GeneratorCommand {
    * The alias suggested in the file, derived from the name.
    *
    * `EnsureSubscribed` becomes `subscribed` rather than `ensure-subscribed`:
-   * Laravel's own aliases read as the condition (`auth`, `verified`, `signed`),
+   * The built-in aliases read as the condition (`auth`, `verified`, `signed`),
    * and the `Ensure` prefix is a class-naming habit, not part of what it checks.
    */
   protected override replacements(name: string): Record<string, string> {

@@ -2,10 +2,10 @@ import { Application } from './application.ts'
 import { CARRIES_RESPONSE } from './exceptions.ts'
 
 /**
- * `dump()` and `dd()` — Symfony's helpers, not Laravel's.
+ * `dump()` and `dd()`.
  *
- * Worth saying plainly, because it is easy to assume otherwise: Laravel ships
- * neither. Its `composer.json` lists *"symfony/var-dumper: Required to use the
+ * Worth saying plainly, because it is easy to assume otherwise: these come from
+ * `symfony/var-dumper`, which is listed as *"Required to use the
  * dd function"* and adds a `Dumpable` trait so an object can dump itself. The
  * behaviour below follows `symfony/var-dumper`'s `Resources/functions/dump.php`
  * wherever the runtime allows.

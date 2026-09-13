@@ -4,8 +4,8 @@ import { Command } from '../command.ts'
 /**
  * Which package each config file belongs to.
  *
- * Laravel needs no such map: its defaults sit in one directory inside
- * `laravel/framework`, and the command lists that directory. Here the framework
+ * Defaults that sit in one directory need no such map — the command lists the
+ * directory. Here the framework
  * is twenty-six packages, so a config file lives with the code that reads it —
  * `config/mail.ts` beside the mailer, `config/session.ts` beside the HTTP layer
  * that starts sessions.
@@ -39,13 +39,13 @@ const OWNERS: Record<string, string> = {
 /**
  * `config:publish` — copy a framework config file into the application.
  *
- * Laravel's command, and Laravel's reason for it: the skeleton ships ten config
- * files rather than every one, and this is how the rest are fetched when they
+ * The skeleton ships a few config files rather than every one, and this is how
+ * the rest are fetched when they
  * are wanted. Here the reason is sharper. A config file's package may not even
  * be installed — `--kit=none` has no mailer — so publishing `mail` without
  * `@elvel/mail` is a question with a real answer rather than a missing file.
  *
- * One step Laravel does not need: the copy is not enough on its own. An
+ * One step beyond the copy, which is not enough on its own. An
  * application names its config files in `bootstrap/app.ts` so a bundler can
  * follow them, so a published file that nobody named would be a file the
  * framework never reads — configured, present, and silently ignored. The

@@ -24,8 +24,7 @@ export type MaintenancePayload = {
 /**
  * Maintenance mode, kept in a **file**.
  *
- * A file rather than the cache, deliberately. Laravel offers both and defaults to
- * a file for the same reason: the cache store may be the database or Redis, and the
+ * A file rather than the cache, deliberately: the cache store may be the database or Redis, and the
  * most likely moment to need maintenance mode is when one of those is the thing
  * that is broken. A mode that cannot be switched on while the database is down is
  * not a maintenance mode.
@@ -117,7 +116,7 @@ export class MaintenanceMode implements MaintenanceDriver {
   }
 }
 
-/** How long a bypass cookie is trusted. Laravel's twelve hours. */
+/** How long a bypass cookie is trusted. */
 const BYPASS_LIFETIME_SECONDS = 12 * 3600
 
 export const BYPASS_COOKIE = 'elvel_maintenance'
@@ -187,8 +186,7 @@ export type MaintenanceStore = {
  *
  * It is not the default, and should not be: the likeliest moment to need
  * maintenance mode is when the database or Redis is the thing being repaired,
- * and a switch that needs the broken component is no switch at all. Laravel
- * makes the same call. Use this when the cluster matters more than that risk,
+ * and a switch that needs the broken component is no switch at all. Use this when the cluster matters more than that risk,
  * and keep the file driver in mind for the day the store is down.
  */
 export class CachedMaintenanceMode {

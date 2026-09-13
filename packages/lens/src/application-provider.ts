@@ -30,7 +30,7 @@ export abstract class LensApplicationServiceProvider extends ServiceProvider {
    * Who may read the dashboard. **Refuses by default.**
    *
    * Telescope's default is `app()->environment('local') || Gate::check(...)`,
-   * and the `local` half is not copied. In Laravel `local` means an application
+   * and the `local` half is not copied. `local` usually means an application
    * somebody is developing on their own machine; here a server with an empty
    * `HOST` binds every interface, so "local" is not a statement about who can
    * reach it. Say yes deliberately.

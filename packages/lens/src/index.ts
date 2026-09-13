@@ -1,7 +1,7 @@
 /**
  * Lens — a recorder and a dashboard for what an Elvel application did.
  *
- * The shape follows Laravel Telescope, whose design was read closely before any
+ * The shape follows Telescope, whose design was read closely before any
  * of this was written, with one structural departure: the entry queue lives in a
  * request slot rather than a static, because Bun serves many requests at once in
  * one process and a static queue would attribute one request's queries to

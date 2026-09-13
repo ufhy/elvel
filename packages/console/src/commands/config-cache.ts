@@ -12,8 +12,7 @@ import { Command } from '../command.ts'
  * JSON, not a module. A config file may export a function, a class or a
  * `Date`, and JSON cannot carry any of them — so the command **says which key**
  * rather than writing a cache that silently drops it and leaving somebody to
- * discover at runtime that their callback became `null`. Laravel hits the same
- * wall with `var_export` and reports it the same way.
+ * discover at runtime that their callback became `null`.
  */
 export class ConfigCacheCommand extends Command {
   static override signature = 'config:cache'
@@ -31,7 +30,7 @@ export class ConfigCacheCommand extends Command {
      * A file that carries code is recorded, not cached.
      *
      * `config/app.ts` lists provider *classes* — functions, which JSON cannot
-     * carry and which Laravel sidesteps by listing class names as strings.
+     * carry, and which listing class names as strings would sidestep.
      * Dropping them silently would produce an application that boots with no
      * providers, so those files are named in the cache and re-imported at boot.
      * The saving is every other file, which is most of them.

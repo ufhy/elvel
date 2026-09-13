@@ -105,7 +105,7 @@ describe('the mail watcher', () => {
 
 describe('the notification watcher', () => {
   /**
-   * The two outcomes Telescope cannot see, because Laravel fires one event.
+   * The two outcomes Telescope cannot see, because only one event is fired there.
    *
    * A notification that was skipped looks exactly like one never dispatched,
    * and that is the support question a table of successes cannot answer.

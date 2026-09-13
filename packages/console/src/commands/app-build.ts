@@ -4,8 +4,8 @@ import { Command } from '../command.ts'
 /**
  * `app:build` — bundle the application into one file.
  *
- * Laravel has nothing like this and does not need it: PHP compiles a file once
- * and keeps the opcodes, so a second request pays nothing for the first
+ * A runtime that compiles a file once and keeps the opcodes needs nothing like
+ * this: a second request pays nothing for the first
  * request's parsing. Bun re-transpiles every module on every process, and there
  * is no cache between runs — `BUN_RUNTIME_TRANSPILER_CACHE_PATH` only holds
  * files above 50 KB, of which a framework of small modules has almost none.
@@ -18,8 +18,7 @@ import { Command } from '../command.ts'
  *
  * Nearly all of it is transpiling, not work the application asked for. Six per
  * cent of that boot was registering and booting every provider — which is why
- * this exists and Laravel's `DeferrableProvider`, the obvious answer, is not
- * what was built.
+ * this exists, and why deferring a provider is not what was built.
  *
  * The entry is `elvel.ts` rather than `bootstrap/app.ts`, because `elvel.ts`
  * reaches everything the application can do — `serve` included — and a bundle

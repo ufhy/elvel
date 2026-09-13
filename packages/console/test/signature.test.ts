@@ -160,7 +160,7 @@ describe('what an invocation left out', () => {
 })
 
 /**
- * `{--id=*}` is Laravel's spelling for a repeatable option, and it was being read
+ * `{--id=*}` is the spelling for a repeatable option, and it was being read
  * as a default value of `"*"`.
  *
  * One command used it, and it was broken outright: `model:prune` filtered its

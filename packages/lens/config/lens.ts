@@ -4,7 +4,7 @@ export default {
   /**
    * The master switch. Off unless asked for.
    *
-   * Laravel Telescope defaults this on and relies on the published provider's
+   * Telescope defaults this on and relies on the published provider's
    * filter to keep production quiet. That inverts badly here: an application
    * that installs the package and forgets the provider would record everything.
    * So the default is off and turning it on is a deliberate act.
@@ -17,7 +17,7 @@ export default {
   /**
    * The inspection bar, drawn into HTML pages the application returns.
    *
-   * `null` means "follow `APP_DEBUG`", which is Laravel Debugbar's rule and the
+   * `null` means "follow `APP_DEBUG`", which is the rule a debug bar wants and the
    * right one: a bar showing query results belongs to the same switch as a
    * stack trace in the browser. Setting it explicitly wins — but forcing it on
    * while debug is off makes every injection pass `authorise()` first, which is

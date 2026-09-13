@@ -2,7 +2,7 @@ import type { ApplicationContract, ExceptionHandlerContract } from '@elvel/contr
 
 /**
  * Base class for exceptions that carry their own HTTP response, mirroring
- * Laravel's `HttpException` family.
+ * The `HttpException` family.
  */
 /**
  * Marks an exception that carries its own finished `Response`.
@@ -63,8 +63,8 @@ export class UnauthorizedException extends HttpException {
 /**
  * ExceptionHandler — the `HandleExceptions` bootstrapper.
  *
- * Renders a JSON problem response. The HTML/redirect branch (Laravel's
- * `Whoops`-style debug page and the `back()->withErrors()` flow) belongs to
+ * Renders a JSON problem response. The HTML/redirect branch — a debug page and
+ * the `back().withErrors()` flow — belongs to
  * the http/session packages and lands with them, not here.
  */
 export class ExceptionHandler implements ExceptionHandlerContract {
@@ -76,9 +76,8 @@ export class ExceptionHandler implements ExceptionHandlerContract {
    * Everything used to be reported, so a browser asking for a `/favicon.ico` an
    * application does not have produced `ERROR [stack] NOT_FOUND` and a stack
    * trace through `@elysiajs/static` — an application error, in the log, for a
-   * request that was answered correctly. Laravel has the same rule and the same
-   * reason: `NotFoundHttpException`, `HttpException`, `ValidationException` and
-   * friends are all in its `internalDontReport`.
+   * request that was answered correctly. A 404, a validation failure and the
+   * rest of the four-hundreds are not reportable errors.
    *
    * 4xx says the caller got it wrong and the answer already told them. 5xx says
    * this application got it wrong, and that is what a log is for. Override this
@@ -141,7 +140,7 @@ export class ExceptionHandler implements ExceptionHandlerContract {
     if (carriesResponse(error)) return error[CARRIES_RESPONSE]()
 
     /**
-     * A browser that failed a route schema goes back to its form — Laravel's rule.
+     * A browser that failed a route schema goes back to its form.
      *
      * `FormRequest` has answered this way since it existed: an API client gets the
      * 422 with the bag, a browser is sent back with the messages and what it typed.

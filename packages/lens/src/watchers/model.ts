@@ -13,7 +13,7 @@ const ACTIONS = ['created', 'updated', 'deleted', 'restored']
  *
  * Elvel names a model event `<model>.<action>` — `user.created`,
  * `article.updated` — which is what makes a wildcard per action the equivalent
- * of Laravel's `eloquent.*`. Listening per action rather than to `*` matters:
+ * of an `eloquent.*` wildcard. Listening per action rather than to `*` matters:
  * `*` would also catch `cache.hit`, `db.query` and every application event, and
  * a recorder that catches its own writes does not stop.
  *
@@ -29,7 +29,7 @@ export class ModelWatcher extends Watcher {
     for (const action of ACTIONS) {
       /**
        * A wildcard listener is handed the resolved name first and the payload
-       * second — `listener(eventKey, payload)`, the way Laravel does it. Getting
+       * second — `listener(eventKey, payload)`. Getting
        * that backwards recorded nothing at all and looked like a matching
        * problem.
        */

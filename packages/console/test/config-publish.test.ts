@@ -39,8 +39,8 @@ async function mapped(): Promise<Record<string, string>> {
  * `config:publish` is the framework's catalogue: a name, the package that owns
  * the default, and a copy into `config/`. That fits a capability an application
  * configures and then uses. It does not fit a tool that has to be installed —
- * Laravel draws the same line, and `config:publish` there has never known about
- * Telescope: the package registers `publishes([...], 'telescope-config')` and
+ * The line is drawn where a catalogue command never knows about a tool: the
+ * package registers its own publish group and
  * `telescope:install` fetches it, along with the migration and the provider
  * stub, because a config file alone leaves the tool inert.
  *
@@ -100,8 +100,8 @@ describe('the config files a package can publish', () => {
    * Two config files belong to the application rather than to a package, and
    * neither can be published: `app.ts` imports `bootstrap/providers.ts`, which
    * exists only in an application, and `services.ts` is a place for the
-   * application's own credentials. Laravel can publish its `app.php`; this is a
-   * departure, and it is here so it stays a deliberate one.
+   * application's own credentials. Asserted here so that stays a deliberate
+   * choice.
    */
   test('app and services are not publishable', async () => {
     const owners = await mapped()

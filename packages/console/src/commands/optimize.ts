@@ -4,8 +4,8 @@ import { Command } from '../command.ts'
 /**
  * `optimize` — everything a deploy should cache, in one command.
  *
- * Laravel caches routes, views, events and config here. Three of those four have
- * no counterpart and are not oversights:
+ * Routes, views, events and config are the usual four. Three have no counterpart
+ * here, and are not oversights:
  *
  * - **Routes** are Elysia instances holding closures. There is no serialisable
  *   form of a route table whose handlers are functions, and pretending otherwise
@@ -13,13 +13,13 @@ import { Command } from '../command.ts'
  * - **Views** are TypeScript modules. Bun's own module cache is the compile
  *   cache, and there is no template language to compile ahead of time.
  * - **Events** are registered by running providers. There is no reflection to
- *   avoid, which is what Laravel's event cache exists to skip.
+ *   avoid, which is what an event cache exists to skip.
  *
  * So this runs `config:cache` and reports what it did rather than printing four
  * lines of which three are theatre.
  *
- * It also runs `app:build`, which has no Laravel counterpart at all. PHP keeps
- * its compiled opcodes between requests; Bun re-transpiles every module in every
+ * It also runs `app:build`, which a runtime keeping compiled opcodes between
+ * requests would not need; Bun re-transpiles every module in every
  * process, and on the auth kit that is 3761 ms of a 4005 ms boot. Bundling is
  * the cache PHP gets for free, and a deploy is exactly where to build it.
  */

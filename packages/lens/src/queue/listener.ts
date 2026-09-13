@@ -17,8 +17,8 @@ const ENDS = ['queue.job.processed', 'queue.job.released', 'queue.job.failed']
  * no open batch. A worker is where a great deal of what anybody wants to see
  * actually happens.
  *
- * Telescope tracks a stack of in-flight jobs because a Laravel worker can be
- * processing a job that dispatches another synchronously. There is no stack
+ * Telescope tracks a stack of in-flight jobs because a worker can be processing a
+ * job that dispatches another synchronously. There is no stack
  * here: `Worker.process()` calls `enterWorkContext()` before it dispatches
  * `queue.job.processing`, so each job already has a context of its own and the
  * batch goes in that context's slot.

@@ -75,8 +75,8 @@ export type RequestFacts = {
 /**
  * Records one entry per request — Telescope's `RequestWatcher`.
  *
- * Telescope listens for `RequestHandled`, which Laravel fires with request and
- * response in hand. Elvel dispatches nothing of the kind and a `Response` is
+ * Telescope listens for `RequestHandled`, fired with request and response in
+ * hand. Elvel dispatches nothing of the kind and a `Response` is
  * only reachable from `onAfterResponse`, so this is driven by `lensPlugin`
  * rather than by a subscription. The fields, the hiding and the response
  * treatment follow Telescope.
@@ -135,7 +135,7 @@ export class RequestWatcher extends Watcher {
   /**
    * Query string merged with the parsed body, the way `$request->input()` is.
    *
-   * The body wins on a collision, which is Laravel's precedence.
+   * The body wins on a collision.
    */
   private payload(url: URL, body: unknown, hidden: string[]): unknown {
     const query: Record<string, unknown> = {}

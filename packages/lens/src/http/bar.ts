@@ -46,7 +46,7 @@ export type LensBarOptions = {
 /**
  * The inspection bar: an injector and one endpoint.
  *
- * Laravel Debugbar is a second set of collectors sitting beside Telescope's,
+ * Debugbar is a second set of collectors sitting beside Telescope's,
  * which is why an application running both pays twice and can have the two
  * disagree. This is not that. Everything on the bar was recorded by the same
  * watchers that feed the dashboard, judged by the same filters, and the bar is

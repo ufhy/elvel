@@ -5,9 +5,9 @@ import { Command } from '@elvel/console'
  * `lens:install` — put the config in the application and say what is left.
  *
  * Lens publishes its own config rather than appearing in `config:publish`, and
- * the reason is the same one Laravel has: `config:publish` is a catalogue of
+ * and for one reason: `config:publish` is a catalogue of
  * capabilities an application configures and then calls, while a tool has to be
- * installed. Telescope is not in Laravel's catalogue either — it registers its
+ * installed. Telescope is not in that catalogue either — it registers its
  * own publish group and `telescope:install` fetches the config, the migration
  * and the provider stub together, because any one of the three alone leaves the
  * tool inert.

@@ -47,7 +47,7 @@ export function parseEnvFile(contents: string): Record<string, string> {
 
 /**
  * biome-ignore lint/complexity/noStaticOnlyClass: `Env.get('APP_KEY')` is the name
- * this reads under in Laravel, and the class is the namespace that gives it. Loose
+ * this reads under, and the class is the namespace that gives it. Loose
  * functions would put `get` and `bool` into every importing module's scope, where
  * they say nothing about what they read.
  */
@@ -71,7 +71,7 @@ export class Env {
     }
   }
 
-  /** Read an env var, casting the string forms Laravel casts. */
+  /** Read an env var, casting the usual string forms. */
   static get<T = string | boolean | number | null>(key: string, fallback?: T): T {
     const raw = process.env[key]
     if (raw === undefined) return fallback as T
@@ -102,7 +102,7 @@ export class Env {
   }
 }
 
-/** Laravel's `env()` helper. Use it in `config/*` files only. */
+/** Read an env var. Use it in `config/*` files only. */
 export function env<T = string | boolean | number | null>(key: string, fallback?: T): T {
   return Env.get<T>(key, fallback)
 }

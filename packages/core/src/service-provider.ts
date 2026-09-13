@@ -4,7 +4,7 @@ import type { Elysia } from 'elysia'
 /**
  * ServiceProvider — the framework's only extension point.
  *
- * Two phases, same contract as Laravel:
+ * Two phases:
  *   register() — bind into the container. Never resolve anything here; other
  *                providers may not have registered yet.
  *   boot()     — everything is bound. Resolve services, mount Elysia plugins.

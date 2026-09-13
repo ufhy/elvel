@@ -4,7 +4,7 @@ import { GeneratorCommand } from '../generator.ts'
 /**
  * Tests land in `test/`, mirroring the name given.
  *
- * There is no unit/feature split the way Laravel has one: `bun test` takes a
+ * There is no unit/feature split: `bun test` takes a
  * path, so the directories a project wants are the directories it makes. What
  * matters is that the file ends in `.test.ts`, which is what the runner looks
  * for — a generator that produced `ArticleTest.ts` would write a file nothing

@@ -158,8 +158,8 @@ describe('reporting', () => {
  * Every error used to be reported, so a browser asking for a `/favicon.ico` the
  * application does not ship wrote `ERROR [stack] NOT_FOUND` with a stack trace
  * through `@elysiajs/static` — an application error, in the log, for a request
- * that was answered correctly. Laravel keeps the same four-hundreds out of its
- * log for the same reason.
+ * that was answered correctly, which is why these four-hundreds stay out of the
+ * log.
  */
 describe('what is worth reporting', () => {
   /** Counts what `report()` would have written, whatever it reaches for. */
