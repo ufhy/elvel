@@ -11,7 +11,7 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 103** — all 37 components measured.
+**Open: 102** — all 37 components measured.
 
 Eight added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
 Notifications, Reflection and Scheduling. Four of those eight are ahead of
@@ -1755,19 +1755,6 @@ none of which the static form can express.
 **Done when** `Str.of()` returns a chainable string with the same methods, and
 it is macroable.
 
-### There is no `Number`
-
-`Number::currency`, `fileSize`, `percentage`, `forHumans`, `abbreviate`,
-`ordinal`, `spell`, `clamp`, `pairs`. None exist.
-
-Bun ships the full `Intl` API, so this is a pure omission rather than a missing
-dependency: every application formats money, file sizes and percentages by hand,
-and gets the locale wrong the first time. A framework that has a translator and
-a locale and cannot print `Rp 1.250.000` is missing the last step.
-
-**Done when** `Number` exists on `Intl`, honours the application locale, and the
-locale can be overridden per call.
-
 ### `Sleep`, `Lottery` and `Timebox` are absent
 
 Three small utilities, each earning its place:
@@ -2200,3 +2187,7 @@ reader, computed lazily so a page that does not read it does not pay for it.
   `packages/database/test/reconnect.test.ts` pins all three behaviours against
   real servers, because the queue depends on them completely and nothing else in
   the suite would notice if a Bun release changed them.
+- **`Number.spell()` cannot be written.** ECMA-402 has no rule-based number
+  formatting, so ICU's spellout is unreachable from JavaScript, and a
+  hand-written English speller in a framework that ships a translator would be
+  the wrong file for it. Every other `Number` method is there.

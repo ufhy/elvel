@@ -6,6 +6,16 @@ export {
   MultipleItemsFoundError
 } from './collection.ts'
 export {
+  defaultCurrency,
+  defaultLocale,
+  type FormatOptions,
+  Number,
+  useCurrency,
+  useLocale,
+  withCurrency,
+  withLocale
+} from './number.ts'
+export {
   type Next,
   type Pipe,
   type PipeFunction,

@@ -9,6 +9,7 @@ import type {
   ServiceProviderConstructor,
   ServiceProviderContract
 } from '@elvel/contracts'
+import { useLocale } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { Config } from './config.ts'
 import { Env } from './env.ts'
@@ -226,6 +227,10 @@ export class Application implements ApplicationContract {
 
   async boot(): Promise<this> {
     if (this.isBooted) return this
+
+    // Before the providers, so anything formatting a number at boot already has
+    // the application's locale rather than `en`.
+    useLocale(this.config.get<string>('app.locale', 'en'))
 
     for (const provider of this.providers) {
       await provider.boot?.()
