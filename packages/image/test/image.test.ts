@@ -401,3 +401,97 @@ describe('the provider', () => {
     if (detected) expect(app.make('image').driver().name).toBe(detected.name)
   })
 })
+
+describe('optimising', () => {
+  /** A phone camera writes JPEG at 95 and it looks identical at 82. */
+  test('optimize picks the best quality the format allows', async () => {
+    const optimised = new Image(await bytesOf('sample.jpeg')).optimize()
+
+    expect(optimised.encodingOptions()).toEqual({ quality: 82 })
+  })
+
+  test('and does not overrule a quality the caller chose', async () => {
+    const optimised = new Image(await bytesOf('sample.jpeg')).toJpeg(60).optimize()
+
+    expect(optimised.encodingOptions().quality).toBe(60)
+  })
+
+  /** A re-encode that changes nothing still costs a decode. */
+  test('a format with no quality dial is left alone', async () => {
+    const optimised = new Image(await bytesOf('sample.png')).optimize()
+
+    expect(optimised.encodingOptions()).toEqual({})
+  })
+})
+
+describe('dominantColor', () => {
+  /**
+   * Against a driver that answers with a known 1x1 PNG, so the reading is what
+   * is under test rather than whichever backend this machine happens to have.
+   */
+  test('reads the single pixel out of a 1x1 re-encode', async () => {
+    const red = new Uint8Array(
+      await new Response(
+        // A 1x1 PNG whose only pixel is #ff0000, built once and inlined.
+        Uint8Array.from(atob(RED_PIXEL_PNG), (character) => character.charCodeAt(0))
+      ).arrayBuffer()
+    )
+
+    const driver = {
+      name: 'stub',
+      supports: () => true,
+      available: async () => true,
+      apply: async () => red
+    }
+
+    expect(await new Image(await bytesOf('sample.png'), driver).dominantColor()).toBe('#ff0000')
+  })
+
+  test('and a driver that answered with something else says so', async () => {
+    const driver = {
+      name: 'stub',
+      supports: () => true,
+      available: async () => true,
+      apply: async () => new Uint8Array([1, 2, 3])
+    }
+
+    await expect(new Image(await bytesOf('sample.png'), driver).dominantColor()).rejects.toThrow(
+      'did not answer with a PNG'
+    )
+  })
+})
+
+describe('names', () => {
+  /** An image converted to webp and stored as .png is one every CDN mislabels. */
+  test('hashName follows the encoding, not the source', async () => {
+    const png = await bytesOf('sample.png')
+
+    expect(new Image(png).hashName()).toMatch(/^[0-9a-f]{32}\.png$/)
+    expect(new Image(png).toWebp().hashName()).toMatch(/^[0-9a-f]{32}\.webp$/)
+    expect(new Image(await bytesOf('sample.jpeg')).hashName()).toMatch(/^[0-9a-f]{32}\.jpg$/)
+  })
+
+  test('and carries nothing the source decided', async () => {
+    const png = await bytesOf('sample.png')
+
+    expect(new Image(png).hashName()).not.toBe(new Image(png).hashName())
+  })
+})
+
+describe('storing on a disk', () => {
+  test('a name carrying a path is refused rather than flattened', async () => {
+    const image = new Image(await bytesOf('sample.png'))
+
+    await expect(image.storeOnAs('avatars', '../x.png')).rejects.toThrow('is not a filename')
+  })
+
+  test('and storage that is not registered says what to register', async () => {
+    const image = new Image(await bytesOf('sample.png'))
+
+    await expect(image.storeOn('avatars')).rejects.toThrow('needs storage')
+  })
+})
+
+/** 1x1 PNG, one #ff0000 pixel. Base64 so the bytes cannot drift in an editor. */
+const RED_PIXEL_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='

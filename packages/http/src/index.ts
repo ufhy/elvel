@@ -162,6 +162,7 @@ export {
   ResourceCollection
 } from './resource.ts'
 export { route, routes } from './route-helpers.ts'
+export { RouteBusyError, type RouteLockOptions, releaseRouteLock, routeLock } from './route-lock.ts'
 export { compileRoutes } from './router/compile.ts'
 export {
   current,

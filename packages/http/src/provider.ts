@@ -38,6 +38,7 @@ import { MiddlewareRegistry } from './middleware.ts'
 import { expectsJson } from './negotiation.ts'
 import { type NormaliseOptions, normaliseInputPlugin } from './normalise-input.ts'
 import { PREVIOUS_URL_KEY, redirect } from './redirect.ts'
+import { releaseRouteLock, routeLock } from './route-lock.ts'
 import { compileRoutes } from './router/compile.ts'
 import { RouteRegistry } from './routes.ts'
 import { currentScope, enterRequestScope } from './scope.ts'
@@ -133,6 +134,20 @@ export class HttpServiceProvider extends ServiceProvider {
                   }
             )
         })
+        /**
+         * `block:10,5` — one request at a time, per route and per caller.
+         *
+         * The hold and the wait are separate: the hold is how long the lock
+         * survives a handler that died without releasing it, the wait is how long
+         * the second caller queues. One number for both makes a slow handler
+         * either unprotected or a hang.
+         */
+        .alias('block', (hold?: string, wait?: string) =>
+          routeLock({
+            hold: hold === undefined ? undefined : Number(hold),
+            wait: wait === undefined ? undefined : Number(wait)
+          })
+        )
         .alias('signed', (relative?: string) => (context) => {
           const { request } = context as unknown as { request: Request }
 
@@ -418,6 +433,19 @@ export class HttpServiceProvider extends ServiceProvider {
     const normalise = this.config<NormaliseOptions & { enabled?: boolean }>('http.normalise', {})
 
     if (normalise.enabled !== false) this.use(normaliseInputPlugin(normalise))
+
+    /**
+     * Whatever a route lock took, released after the response.
+     *
+     * `onAfterResponse` and not `onAfterHandle`: a handler that threw still holds
+     * the lock, and a lock a failed request kept would block the retry that
+     * failure invites.
+     */
+    this.use(
+      new Elysia({ name: 'elvel/route-lock' }).onAfterResponse({ as: 'global' }, () =>
+        releaseRouteLock()
+      )
+    )
 
     this.use(maintenancePlugin(this.app.make('maintenance'), this.config('session.path', '/')))
 

@@ -838,39 +838,20 @@ header is the file. Transforming looks for a backend — `sharp`, ImageMagick,
 step says so instead of skipping it. the upstream component is new in 13 and
 Elvel matches most of it.
 
-### An image cannot be read from or written to a disk
+An image reads from an upload, a disk or a URL and writes back to a disk under a
+generated name. `hashName()` follows the *encoding* rather than the source: one
+converted to webp and stored as `.png` is one every CDN and every browser will
+mislabel.
 
-```ts
-async store(path: string): Promise<Uint8Array> {
-  const bytes = await this.toBytes()
-  await Bun.write(path, bytes)
-  return bytes
-}
-```
+`optimize()` re-encodes at the quality where the difference stops being visible
+and changes nothing else — a phone camera writes JPEG at 95 and it looks
+identical at 82. A format with no quality dial is left alone rather than
+round-tripped, because a re-encode that changes nothing still costs a decode and
+on a lossy format costs quality too.
 
-`Bun.write` — the local filesystem, and only that. Upstream's `Image` has
-`store`, `storeAs`, `storePublicly`, `storePubliclyAs` and `hashName` against a
-configured disk, and reads with `fromStorage`, `fromUpload` and `fromUrl`.
-
-So the ordinary path — accept an upload, resize it, put it on S3 — is manual at
-both ends: read the `File` yourself, and `toBytes()` then `put()` yourself,
-buffering the image twice and naming it by hand.
-
-**Done when** an image can be built from an upload or a disk and written back to
-one, with a generated name.
-
-### `optimize()` and `dominantColor()` are absent
-
-`optimize()` re-encodes at the best quality the format allows without changing
-the pixels — the one call that makes an upload pipeline pay for itself.
-`dominantColor()` is what a placeholder background is drawn from while the image
-loads.
-
-Both are one delegation to a driver that already exists.
-
-**Done when** both exist and a driver that cannot do either says so rather than
-returning the original.
-
+`dominantColor()` resizes to a single pixel and reads it out of the 1×1 PNG. An
+average rather than a histogram's mode, which is what a placeholder wants: the
+mode of a photograph of a sunset is whichever band happens to be widest.
 ---
 
 ## Log
@@ -1085,21 +1066,16 @@ named routes — `url`, `asset`, `secureUrl` and URL defaults; middleware aliase
 groups **and priority**, with the priority sort deliberately stable so two
 middleware of your own keep the order you wrote them in.
 
-### There are no atomic route locks
+`block:10,5` is the atomic route lock — one request at a time, per route and per
+caller. The hold and the wait are separate because one number for both makes a
+slow handler either unprotected or a hang, and a timed-out wait is a `429`.
 
-`Route::block($lockSeconds, $waitSeconds)` holds a lock keyed on the route and
-the authenticated user, so a second concurrent request to the same route waits
-rather than running beside the first.
-
-It is the one-line answer to a double-submitted form, a double-clicked "Pay"
-button, and a mobile client retrying a request whose response it never received.
-The cache package already has the locks it would be built on — `Lock` with an
-owner token, `block()` measured against the clock — and nothing in the router
-reaches for them.
-
-**Done when** a route can declare a lock, the wait and the hold are separate,
-and a timed-out wait is a `429` rather than a hang.
-
+Taken in a middleware and released in an `onAfterResponse` hook rather than
+around a callback: Elysia cannot wrap a handler, so releasing before it ran would
+be a check and not a lock — the second request would get in while the first was
+still writing. `onAfterResponse` and not `onAfterHandle`, because a handler that
+threw still holds it, and a lock a failed request kept would block the retry that
+failure invites.
 ---
 
 ## Testing

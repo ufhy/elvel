@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { CARRIES_RESPONSE } from '@elvel/core'
+import { Application, CARRIES_RESPONSE, enterWorkContext, withoutRequestContext } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { FormRequest, validateRequest } from '../src/form-request.ts'
 import { normalise, normaliseInputPlugin } from '../src/normalise-input.ts'
 import { isPrecognitive, narrowRules, validateOnly } from '../src/precognition.ts'
+import { RouteBusyError, releaseRouteLock, routeLock } from '../src/route-lock.ts'
 
 const trimAll = (value: unknown, except: string[] = []) =>
   normalise(value, new Set(except), true, true)
@@ -143,5 +144,74 @@ describe('precognition', () => {
     } as never)
 
     expect(data).toEqual({ email: 'ada@example.com', quantity: 2 })
+  })
+})
+
+describe('a route lock', () => {
+  /** The one-line answer to a double-clicked "Pay" button. */
+  test('the second caller waits, and gives up as a 429', async () => {
+    const taken = new Set<string>()
+
+    const cache = {
+      lock: (name: string) => ({
+        block: async (wait: number) => {
+          if (taken.has(name)) throw new Error(`timed out after ${wait}s`)
+
+          taken.add(name)
+
+          return true
+        },
+        release: async () => taken.delete(name)
+      })
+    }
+
+    const app = new Application(process.cwd())
+    app.instance('cache' as never, cache as never)
+
+    const guard = routeLock({ wait: 3 })
+    const press = () => guard({ request: new Request('http://example.com/pay') })
+
+    expect(await press()).toBeUndefined()
+
+    await expect(press()).rejects.toThrow(RouteBusyError)
+  })
+
+  /** A lock a failed request kept would block the retry that failure invites. */
+  test('and it is released afterwards', async () => {
+    const taken = new Set<string>()
+
+    const cache = {
+      lock: (name: string) => ({
+        block: async () => {
+          if (taken.has(name)) throw new Error('taken')
+
+          taken.add(name)
+
+          return true
+        },
+        release: async () => taken.delete(name)
+      })
+    }
+
+    const app = new Application(process.cwd())
+    app.instance('cache' as never, cache as never)
+
+    await withoutRequestContext(async () => {
+      enterWorkContext()
+
+      await routeLock()({ request: new Request('http://example.com/pay') })
+      await releaseRouteLock()
+    })
+
+    expect(taken.size).toBe(0)
+  })
+
+  test('without the cache it says what to register', async () => {
+    const app = new Application(process.cwd())
+    app.forgetInstance('cache' as never)
+
+    await expect(routeLock()({ request: new Request('http://example.com/pay') })).rejects.toThrow(
+      'needs the cache'
+    )
   })
 })

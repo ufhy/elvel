@@ -16,6 +16,12 @@ export type ImageDriverFactory = () => ImageDriver
  * ImageMagick if the machine has it, `sips` if this is a Mac — and to say
  * clearly when the answer is none.
  */
+/** Enough of a disk for an image; `@elvel/storage` satisfies it. */
+export type ImageDisk = {
+  bytes(path: string): Promise<Uint8Array | null>
+  put(path: string, contents: Uint8Array, options?: { visibility?: string }): Promise<boolean>
+}
+
 export class ImageManager {
   private readonly drivers = new Map<string, ImageDriver>()
   private readonly custom = new Map<string, ImageDriverFactory>()
@@ -41,6 +47,60 @@ export class ImageManager {
 
   async fromResponse(response: Response): Promise<Image> {
     return this.fromBytes(await response.arrayBuffer())
+  }
+
+  /** A multipart upload, straight from the `File` a form posted. */
+  async fromUpload(file: Blob | File): Promise<Image> {
+    return this.fromBytes(await file.arrayBuffer())
+  }
+
+  /**
+   * A file on a configured disk.
+   *
+   * The ordinary path — accept an upload, resize it, put it back on S3 — was
+   * manual at both ends: read the `File`, then `toBytes()` and `put()`, naming
+   * the result by hand.
+   */
+  async fromStorage(path: string, disk?: string): Promise<Image> {
+    const bytes = await this.disk(disk).bytes(path)
+
+    if (bytes === null)
+      throw new ImageError(`No image at [${path}] on the ${disk ?? 'default'} disk.`)
+
+    return this.fromBytes(bytes)
+  }
+
+  /**
+   * Fetched over HTTP.
+   *
+   * A failed fetch names the URL and the status: an image pipeline that answered
+   * "not an image" for a 404 would send everybody looking in the wrong place.
+   */
+  async fromUrl(url: string, init?: RequestInit): Promise<Image> {
+    const response = await fetch(url, init)
+
+    if (!response.ok) {
+      throw new ImageError(`Fetching [${url}] answered ${response.status}.`)
+    }
+
+    return this.fromResponse(response)
+  }
+
+  /**
+   * The storage manager, asked for rather than imported.
+   *
+   * `@elvel/image` does not depend on `@elvel/storage`, and its absence is an
+   * error naming what to register — an image that silently went nowhere is
+   * worse than one that failed.
+   */
+  disk(name?: string): ImageDisk {
+    if (this.app === undefined || !this.app.bound('storage' as never)) {
+      throw new Error(
+        'Reading or writing an image on a disk needs storage. Register StorageServiceProvider, or use fromBytes()/toBytes().'
+      )
+    }
+
+    return (this.app.make('storage' as never) as { disk(name?: string): ImageDisk }).disk(name)
   }
 
   /**

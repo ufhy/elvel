@@ -1,3 +1,5 @@
+import { inflateSync } from 'node:zlib'
+import { app } from '@elvel/core'
 import {
   type Encoding,
   type Fit,
@@ -5,6 +7,7 @@ import {
   ImageError,
   type Transformation
 } from './contracts.ts'
+import type { ImageDisk } from './manager.ts'
 import { type ImageInfo, probe } from './probe.ts'
 
 /**
@@ -60,6 +63,11 @@ export class Image {
   /** The queued steps, for a caller inspecting what would happen. */
   pending(): Transformation[] {
     return [...this.steps]
+  }
+
+  /** The format and quality it would be written with. Beside `pending()`. */
+  encodingOptions(): Encoding {
+    return { ...this.encoding }
   }
 
   // ---------------------------------------------------------- transformations
@@ -245,11 +253,184 @@ export class Image {
     })
   }
 
-  /** Write it, and hand back what was written. */
+  /** Write it to the local filesystem, and hand back what was written. */
   async store(path: string): Promise<Uint8Array> {
     const bytes = await this.toBytes()
     await Bun.write(path, bytes)
 
     return bytes
   }
+
+  /**
+   * Write it to a configured disk, under a generated name.
+   *
+   * Answers the path it went to, so the caller has something to store. The name
+   * carries nothing the client chose — see `hashName`.
+   */
+  async storeOn(
+    directory = '',
+    options: { disk?: string; visibility?: string; extension?: string } = {}
+  ): Promise<string> {
+    return this.storeOnAs(directory, this.hashName(options.extension), options)
+  }
+
+  async storeOnAs(
+    directory: string,
+    name: string,
+    options: { disk?: string; visibility?: string } = {}
+  ): Promise<string> {
+    if (name.includes('/') || name.includes('\\') || name.includes('..')) {
+      throw new ImageError(`[${name}] is not a filename. Pass the directory separately.`)
+    }
+
+    const folder = directory.replace(/^\/+|\/+$/g, '')
+    const path = folder === '' ? name : `${folder}/${name}`
+
+    await this.disks()
+      .disk(options.disk)
+      .put(path, await this.toBytes(), {
+        ...(options.visibility === undefined ? {} : { visibility: options.visibility })
+      })
+
+    return path
+  }
+
+  storePublicly(
+    directory = '',
+    options: { disk?: string; extension?: string } = {}
+  ): Promise<string> {
+    return this.storeOn(directory, { ...options, visibility: 'public' })
+  }
+
+  storePubliclyAs(
+    directory: string,
+    name: string,
+    options: { disk?: string } = {}
+  ): Promise<string> {
+    return this.storeOnAs(directory, name, { ...options, visibility: 'public' })
+  }
+
+  /**
+   * A name nothing about the source decides, with the format's extension.
+   *
+   * The extension follows the *encoding* rather than the source: an image
+   * converted to webp and stored as `.png` is one every CDN and every browser
+   * will mislabel.
+   */
+  hashName(extension?: string): string {
+    const format = extension ?? this.encoding.format ?? this.format
+    const suffix = format === 'jpeg' ? 'jpg' : format
+
+    return `${crypto.randomUUID().replaceAll('-', '')}.${suffix}`
+  }
+
+  // ------------------------------------------------------------- optimising
+
+  /**
+   * Re-encode at the best quality the format allows, and nothing else.
+   *
+   * The one call that makes an upload pipeline pay for itself: a phone camera's
+   * JPEG is written at quality 95 or higher and looks identical at 82, which is
+   * routinely half the bytes. No resize, no format change — the pixels are the
+   * caller's business.
+   *
+   * A format with no quality dial is left alone rather than round-tripped: a
+   * re-encode that changes nothing still costs a decode, and on a lossy format
+   * it costs quality too.
+   */
+  optimize(): this {
+    const format = this.encoding.format ?? this.format
+    const best = BEST_QUALITY[format]
+
+    if (best !== undefined) this.encoding.quality = this.encoding.quality ?? best
+
+    return this
+  }
+
+  /**
+   * The average colour, as `#rrggbb`.
+   *
+   * What a placeholder background is drawn from while the image loads. Read by
+   * resizing to a single pixel and looking at it — an average rather than a
+   * histogram's mode, which is what a placeholder wants: the mode of a photo of
+   * a sunset is whichever band happens to be widest.
+   */
+  async dominantColor(): Promise<string> {
+    const single = new Image(this.bytes, this.driver)
+
+    single.steps.push(...this.steps, { op: 'resize', width: 1, height: 1 })
+    single.encoding = { format: 'png' }
+
+    return pixelOf(await single.toBytes())
+  }
+
+  private disks(): { disk(name?: string): ImageDisk } {
+    const container = app()
+
+    if (!container.bound('storage' as never)) {
+      throw new Error(
+        'Storing an image on a disk needs storage. Register StorageServiceProvider, or use store() for the local filesystem.'
+      )
+    }
+
+    return container.make('storage' as never) as { disk(name?: string): ImageDisk }
+  }
+}
+
+/**
+ * The quality each lossy format is re-encoded at.
+ *
+ * Chosen where the difference stops being visible at ordinary viewing size, not
+ * at the lowest number that still decodes. A format missing from this table has
+ * no quality dial and is left alone.
+ */
+const BEST_QUALITY: Partial<Record<string, number>> = {
+  jpeg: 82,
+  webp: 80,
+  avif: 63,
+  heic: 80
+}
+
+/**
+ * The one pixel of a 1×1 PNG.
+ *
+ * A PNG rather than a raw buffer because every driver can write one, and a
+ * 1×1 image's IDAT is a handful of bytes: the zlib stream inflates to a filter
+ * byte followed by the channels.
+ */
+function pixelOf(png: Uint8Array): string {
+  const idat = chunkOf(png, 'IDAT')
+
+  if (idat === undefined) throw new ImageError('The driver did not answer with a PNG.')
+
+  // `node:zlib`, not `Bun.inflateSync`: IDAT is a zlib stream and that one wants
+  // a raw deflate one — measured, it answers "invalid stored block lengths".
+  const raw = inflateSync(idat)
+
+  // Byte 0 is the row's filter type; a 1×1 image has nothing to filter against,
+  // so every encoder writes 0 there and the channels follow.
+  const [, red, green, blue] = raw
+
+  if (red === undefined || green === undefined || blue === undefined) {
+    throw new ImageError('The 1x1 re-encode did not carry three channels.')
+  }
+
+  return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
+/** One chunk's data out of a PNG, by its four-letter type. */
+function chunkOf(png: Uint8Array, type: string): Uint8Array | undefined {
+  const view = new DataView(png.buffer, png.byteOffset, png.byteLength)
+  let at = 8
+
+  while (at + 8 <= png.length) {
+    const length = view.getUint32(at)
+    const name = String.fromCharCode(...png.slice(at + 4, at + 8))
+
+    if (name === type) return png.slice(at + 8, at + 8 + length)
+
+    at += 12 + length
+  }
+
+  return undefined
 }
