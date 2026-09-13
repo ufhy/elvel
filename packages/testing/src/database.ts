@@ -1,20 +1,9 @@
 import { fail, show } from './assert.ts'
 
-/**
- * The database, as this package is allowed to see it.
- *
- * Duck-typed rather than imported. `@elvel/testing` has no dependencies on
- * purpose — the same reason `elvel()` takes `Output.prototype` from its caller —
- * so the manager arrives as an argument and this file never names
- * `@elvel/database`.
- */
+/** Duck-typed: `@elvel/testing` has no dependencies, so the manager is passed in. */
 export type TestConnection = {
   readonly name: string
-  /**
-   * Optional, and the only reliable way to know the dialect: `name` is the
-   * config key, so a Postgres connection an application called `main` says
-   * nothing about its placeholders.
-   */
+  /** `name` is the config key, so only this tells us the placeholder style. */
   readonly grammar?: { readonly dialect?: string }
   select<T = Record<string, unknown>>(sql: string, bindings?: unknown[]): Promise<T[]>
   transaction<T>(callback: (tx: TestConnection) => Promise<T>): Promise<T>
@@ -36,10 +25,7 @@ export type Hooks = {
 export type RefreshOptions = {
   /** The connection to wrap. The default one when this is absent. */
   connection?: string
-  /**
-   * Build the schema. Runs **once per process**, before the first test, outside
-   * the transaction — a rolled-back `create table` would leave nothing behind.
-   */
+  /** Build the schema. Runs once per process, outside the transaction. */
   migrate?: () => Promise<unknown>
 }
 
@@ -51,27 +37,14 @@ const migrated = new Map<string, Promise<unknown>>()
  * `RefreshDatabase`.
  *
  * ```ts
- * import { beforeEach, afterEach } from 'bun:test'
- * import { refreshDatabase } from '@elvel/testing'
- *
  * refreshDatabase(app.make('db'), { beforeEach, afterEach }, {
  *   migrate: () => migrator.run()
  * })
  * ```
  *
- * The transaction is what makes a suite independent: nothing a test writes
- * survives it, so tests stop depending on the order they happen to run in and
- * on what the one before them left behind.
- *
- * **The swap is the part that makes it work.** `transaction()` hands its
- * callback a *different* connection object — carrying the open transaction is a
- * property of the object, never of the pool — so a handler resolving the
- * connection by name would get the pooled one, write outside the test's
- * transaction, and survive the rollback. `swap()` points the name at the
- * transaction's object for the duration.
- *
- * Reads need no special handling: a connection inside a transaction already
- * sends them to the primary, because a replica cannot see uncommitted rows.
+ * `transaction()` hands its callback a *different* connection object, so the
+ * name is swapped to point at it — otherwise a handler resolving by name writes
+ * outside the test's transaction and survives the rollback.
  */
 export function refreshDatabase(
   manager: TestConnectionManager,
@@ -80,20 +53,16 @@ export function refreshDatabase(
 ): void {
   const name = options.connection ?? manager.getDefaultConnection()
 
-  /**
-   * `transaction()` owns the whole test, so the test body has to run inside its
-   * callback — and the body is not known until `beforeEach` has returned. The
-   * transaction is therefore opened here and held with these two, and released
-   * by `afterEach`.
-   */
+  // `transaction()` owns its callback, but the test body is not known until
+  // `beforeEach` returns — so it is opened here and held until `afterEach`.
   let release: (() => void) | undefined
   let rollback: (() => void) | undefined
   let finished: Promise<unknown> | undefined
 
   hooks.beforeEach(async () => {
     if (options.migrate) {
-      // Once per process, and awaited by every test rather than only the first:
-      // two test files importing this must not race the same `create table`.
+      // Awaited by every test, not only the first: two files must not race the
+      // same `create table`.
       let build = migrated.get(name)
 
       if (!build) {
@@ -111,15 +80,8 @@ export function refreshDatabase(
       opened = resolve
     })
 
-    /**
-     * Rejected on purpose at the end of the test: throwing out of the callback
-     * is what tells the connection to roll back, and there is no other way in —
-     * the contract has `transaction(callback)` and no `rollBack()`.
-     *
-     * The rejection is swallowed by the `catch` below rather than becoming an
-     * unhandled rejection, and it is a private symbol so a real failure inside
-     * the test is never mistaken for it.
-     */
+    // Throwing out of the callback is the only way to roll back: the contract
+    // has `transaction(callback)` and no `rollBack()`.
     finished = connection
       .transaction(async (tx) => {
         opened(tx)
@@ -149,12 +111,10 @@ export function refreshDatabase(
   })
 }
 
-/** Not an `Error`: nothing should ever report it, and nothing should catch it. */
+/** Private, so a real failure in the test is never mistaken for the signal. */
 const ROLLBACK = Symbol('elvel:testing:rollback')
 
-/**
- * Forget that the schema was built. For a suite that changes it deliberately.
- */
+/** Forget that the schema was built, for a suite that changes it. */
 export function forgetMigrations(): void {
   migrated.clear()
 }
@@ -162,13 +122,7 @@ export function forgetMigrations(): void {
 /** `where` as a plain object — the shape every assertion below takes. */
 export type Attributes = Record<string, unknown>
 
-/**
- * Assert a row exists — Laravel's `assertDatabaseHas`.
- *
- * The failure message carries the rows that *are* in the table, capped, because
- * "no matching row" on its own sends you to a database client to find out
- * whether the table is empty or the value merely differs.
- */
+/** Assert a row exists. The failure lists what the table does hold. */
 export async function assertDatabaseHas(
   manager: TestConnectionManager,
   table: string,
@@ -222,12 +176,7 @@ export async function assertDatabaseCount(
   fail(`Expected ${expected} row(s) in [${table}]${narrowed}, and found ${found}.`, expected, found)
 }
 
-/**
- * Assert a row is soft-deleted: present, with its delete column set.
- *
- * The column is a parameter because a model may rename it, and this package
- * cannot ask the model — it has no access to one.
- */
+/** Assert a row is present with its delete column set. */
 export async function assertSoftDeleted(
   manager: TestConnectionManager,
   table: string,
@@ -305,13 +254,7 @@ async function countMatching(
   return (await matching(manager, table, attributes, connection)).length
 }
 
-/**
- * What the table does hold, for a failure message. Capped at five rows.
- *
- * A failed assertion that also says the table is empty has told you the answer;
- * one that lists three rows with a different `status` has told you the answer
- * too.
- */
+/** What the table does hold, for a failure message. Five rows at most. */
 async function nearby(
   manager: TestConnectionManager,
   table: string,
@@ -355,10 +298,7 @@ function placeholder(connection: TestConnection, position: number): string {
   return isPostgres(connection) ? `$${position}` : '?'
 }
 
-/**
- * Quote an identifier, so a column called `order` or `to` is not a syntax
- * error. MySQL uses backticks; everything else uses double quotes.
- */
+/** Quote an identifier — MySQL uses backticks, everything else double quotes. */
 function quote(identifier: string, connection: TestConnection): string {
   if (identifier.includes('"') || identifier.includes('`')) {
     throw new Error(`Refusing to quote the identifier [${identifier}]: it contains a quote.`)
@@ -367,14 +307,7 @@ function quote(identifier: string, connection: TestConnection): string {
   return isMysql(connection) ? `\`${identifier}\`` : `"${identifier}"`
 }
 
-/**
- * The dialect, from the grammar when there is one and from the connection name
- * otherwise.
- *
- * The fallback is a guess and is only reached by a hand-written double: a real
- * connection carries its grammar, and an application is free to name a Postgres
- * connection `main`.
- */
+/** The grammar's dialect. The name is a fallback only a hand-written double hits. */
 function dialectOf(connection: TestConnection): string {
   return connection.grammar?.dialect ?? connection.name
 }
