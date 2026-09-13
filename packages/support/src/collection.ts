@@ -809,6 +809,207 @@ export class Collection<T> extends Macroable implements Iterable<T> {
 
     return `${all.join(separator)}${lastSeparator}${last}`
   }
+
+  /** Inclusive at both ends, which is what a range read out of a form means. */
+  whereBetween<K extends keyof T>(key: K, [low, high]: [T[K], T[K]]): Collection<T> {
+    return this.filter((item) => item[key] >= low && item[key] <= high)
+  }
+
+  whereNotBetween<K extends keyof T>(key: K, [low, high]: [T[K], T[K]]): Collection<T> {
+    return this.filter((item) => item[key] < low || item[key] > high)
+  }
+
+  /** Narrows the type as it filters, so the rest of the chain knows what it holds. */
+  whereInstanceOf<U extends T>(type: abstract new (...args: any[]) => U): Collection<U> {
+    return new Collection(this.items.filter((item): item is U => item instanceof type))
+  }
+
+  /** One page of it, counting from page 1. */
+  forPage(page: number, perPage: number): Collection<T> {
+    const from = Math.max(0, (page - 1) * perPage)
+
+    return new Collection(this.items.slice(from, from + perPage))
+  }
+
+  /** Build one of these out of every item — rows into models, arrays into DTOs. */
+  mapInto<U>(type: new (item: T, index: number) => U): Collection<U> {
+    return new Collection(this.items.map((item, index) => new type(item, index)))
+  }
+
+  /** Each item is an argument list, not one argument — what `zip` leaves behind. */
+  mapSpread<A extends unknown[], U>(
+    this: Collection<A>,
+    callback: (...args: [...A, number]) => U
+  ): Collection<U> {
+    return new Collection(this.items.map((item, index) => callback(...item, index)))
+  }
+
+  eachSpread<A extends unknown[]>(
+    this: Collection<A>,
+    callback: (...args: [...A, number]) => unknown
+  ): Collection<A> {
+    for (const [index, item] of this.items.entries()) {
+      if (callback(...item, index) === false) break
+    }
+
+    return this
+  }
+
+  reduceSpread<A extends unknown[], U>(
+    this: Collection<A>,
+    callback: (carry: U, ...args: A) => U,
+    initial: U
+  ): U {
+    return this.items.reduce<U>((carry, item) => callback(carry, ...item), initial)
+  }
+
+  /** Hand the whole collection to a constructor — `pipeInto(ReportSummary)`. */
+  pipeInto<U>(type: new (collection: this) => U): U {
+    return new type(this)
+  }
+
+  /** Through each callback in turn, each one seeing what the last returned. */
+  pipeThrough<U>(callbacks: Array<(collection: any) => any>): U {
+    return callbacks.reduce<unknown>((carry, callback) => callback(carry), this) as U
+  }
+
+  /** Mutates. Cuts a run out, optionally putting something in its place. */
+  splice(start: number, count?: number, replacement: T[] = []): Collection<T> {
+    const removed =
+      count === undefined
+        ? this.items.splice(start)
+        : this.items.splice(start, count, ...replacement)
+
+    return new Collection(removed)
+  }
+
+  /** Mutates. `map` in place, for when the collection is the thing being built. */
+  transform(callback: (item: T, index: number) => T): this {
+    for (const [index, item] of this.items.entries()) this.items[index] = callback(item, index)
+
+    return this
+  }
+
+  /** Mutates. Adds to the front — `prepend` under the name an array uses. */
+  unshift(...items: T[]): this {
+    this.items.unshift(...items)
+
+    return this
+  }
+
+  /**
+   * Insist every item is what it should be, and say which one is not.
+   *
+   * A collection built from JSON is `Collection<Whatever>` at compile time and
+   * whatever arrived at runtime; this is where that gap is closed, once, instead
+   * of at each later method that assumed.
+   */
+  ensure(type: (abstract new (...args: any[]) => unknown) | 'string' | 'number' | 'boolean'): this {
+    for (const [index, item] of this.items.entries()) {
+      const ok = typeof type === 'string' ? typeof item === type : item instanceof type
+
+      if (ok) continue
+
+      const wanted = typeof type === 'string' ? type : type.name
+
+      throw new TypeError(`Item at ${index} should be ${wanted}, and it is ${typeof item}.`)
+    }
+
+    return this
+  }
+
+  /** What share of the items match, as a percentage. */
+  percentage(predicate: (item: T, index: number) => boolean, precision = 2): number | undefined {
+    if (this.items.length === 0) return undefined
+
+    const share = (this.items.filter(predicate).length / this.items.length) * 100
+
+    return Number(share.toFixed(precision))
+  }
+
+  /** The commonest value or values. A tie returns all of them, sorted. */
+  mode(key?: (item: T) => unknown): unknown[] | undefined {
+    if (this.items.length === 0) return undefined
+
+    const counts = new Map<unknown, number>()
+
+    for (const item of this.items) {
+      const value = key ? key(item) : item
+
+      counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+
+    const highest = Math.max(...counts.values())
+
+    return [...counts]
+      .filter(([, count]) => count === highest)
+      .map(([value]) => value)
+      .sort((left, right) => String(left).localeCompare(String(right)))
+  }
+
+  /** Break into runs of items the callback gives the same value to. */
+  chunkBy(callback: (item: T, index: number) => unknown): Collection<Collection<T>> {
+    if (this.items.length === 0) return new Collection([])
+
+    const out: Array<Collection<T>> = []
+    let chunk: T[] = []
+    let previous: unknown = Symbol('none')
+
+    for (const [index, item] of this.items.entries()) {
+      const value = callback(item, index)
+
+      if (index > 0 && value !== previous) {
+        out.push(new Collection(chunk))
+        chunk = []
+      }
+
+      chunk.push(item)
+      previous = value
+    }
+
+    out.push(new Collection(chunk))
+
+    return new Collection(out)
+  }
+
+  /** Hand the collection over and take back whatever the callback answers. */
+  value<U>(callback: (collection: this) => U): U {
+    return callback(this)
+  }
+
+  toJson(): string {
+    return JSON.stringify(this.items)
+  }
+
+  /** For a fixture or a log, where a diff of one long line is unreadable. */
+  toPrettyJson(): string {
+    return JSON.stringify(this.items, null, 2)
+  }
+
+  static fromJson<T>(json: string): Collection<T> {
+    const parsed: unknown = JSON.parse(json)
+
+    if (!Array.isArray(parsed)) {
+      throw new TypeError('A collection is built from a JSON array.')
+    }
+
+    return new Collection(parsed as T[])
+  }
+
+  /** Print it and keep going. */
+  dump(label?: string): this {
+    if (label === undefined) console.log(this.items)
+    else console.log(label, this.items)
+
+    return this
+  }
+
+  /** Print it and stop, so the next line never runs. */
+  dd(label?: string): never {
+    this.dump(label)
+
+    throw new Error('dd()')
+  }
 }
 
 export function collect<T>(items: Iterable<T> = []): Collection<T> {

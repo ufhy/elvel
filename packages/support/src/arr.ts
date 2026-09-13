@@ -343,7 +343,165 @@ const methods = {
     if (matched.length > 1) throw new Error(`Expected one matching item, found ${matched.length}.`)
 
     return matched[0] as T
+  },
+
+  /** Set a dotted key only when nothing is there — a default, not an overwrite. */
+  add(target: Dict, key: string, value: unknown): Dict {
+    const existing = Arr.get(target, key)
+
+    if (existing === undefined || existing === null) Arr.set(target, key, value)
+
+    return target
+  },
+
+  /** The complement of `hasAny`: every path, not any of them. */
+  hasAll(target: unknown, paths: string[]): boolean {
+    return paths.every((path) => Arr.has(target as Dict, path))
+  },
+
+  /** `prependKeysWith({ a: 1 }, 'meta.')` — how a payload is namespaced. */
+  prependKeysWith(target: Dict, prefix: string): Dict {
+    return Object.fromEntries(
+      Object.entries(target).map(([key, value]) => [`${prefix}${key}`, value])
+    )
+  },
+
+  /** The same keys out of every row — a projection over a list of records. */
+  select<T extends Dict, K extends keyof T & string>(rows: T[], keys: K[]): Array<Pick<T, K>> {
+    return rows.map((row) => Arr.only(row, keys))
+  },
+
+  /** Drop the nulls, which `filter(Boolean)` cannot do without dropping `0` too. */
+  whereNotNull<T>(items: Array<T | null | undefined>): T[] {
+    return items.filter((item): item is T => item !== null && item !== undefined)
+  },
+
+  /** The values behind those keys, in the order asked for. */
+  onlyValues<T extends Dict, K extends keyof T & string>(target: T, keys: K[]): Array<T[K]> {
+    return keys.filter((key) => key in target).map((key) => target[key])
+  },
+
+  /** Everything else's values. */
+  exceptValues<T extends Dict, K extends keyof T & string>(target: T, keys: K[]): unknown[] {
+    return Object.values(Arr.except(target, keys))
+  },
+
+  /** Sort every level, so two structures can be compared or hashed. */
+  sortRecursive<T>(value: T, descending = false): T {
+    if (Array.isArray(value)) {
+      const sorted = value.map((entry) => Arr.sortRecursive(entry, descending))
+
+      // A list of objects has no order to give it, so only scalars are sorted.
+      if (sorted.every((entry) => entry === null || typeof entry !== 'object')) {
+        sorted.sort((left, right) => String(left).localeCompare(String(right)))
+
+        if (descending) sorted.reverse()
+      }
+
+      return sorted as T
+    }
+
+    if (value === null || typeof value !== 'object') return value
+
+    const keys = Object.keys(value as Dict).sort()
+
+    if (descending) keys.reverse()
+
+    return Object.fromEntries(
+      keys.map((key) => [key, Arr.sortRecursive((value as Dict)[key], descending)])
+    ) as T
+  },
+
+  sortRecursiveDesc<T>(value: T): T {
+    return Arr.sortRecursive(value, true)
+  },
+
+  /**
+   * Read a dotted key and insist on its type.
+   *
+   * A JSON body is `unknown` however it was typed at the call site, so this is
+   * the difference between a checked read and a cast that lies about what
+   * arrived. Named for the type rather than the check, so the call site reads as
+   * the thing it wants: `Arr.integer(body, 'page')`.
+   */
+  string(target: Dict, key: string, fallback?: string): string {
+    const value = Arr.get<unknown>(target, key, fallback)
+
+    if (typeof value === 'string') return value
+
+    throw new ArrTypeError(key, 'a string', value)
+  },
+
+  integer(target: Dict, key: string, fallback?: number): number {
+    const value = numberAt(target, key, fallback)
+
+    if (Number.isInteger(value)) return value
+
+    throw new ArrTypeError(key, 'an integer', Arr.get<unknown>(target, key, fallback))
+  },
+
+  float(target: Dict, key: string, fallback?: number): number {
+    return numberAt(target, key, fallback)
+  },
+
+  /** `'true'`, `'1'`, `'on'` and `'yes'` are true, because `Boolean('false')` is not. */
+  boolean(target: Dict, key: string, fallback?: boolean): boolean {
+    const value = Arr.get<unknown>(target, key, fallback)
+
+    if (typeof value === 'boolean') return value
+
+    if (typeof value === 'string') {
+      const lowered = value.trim().toLowerCase()
+
+      if (['true', '1', 'on', 'yes'].includes(lowered)) return true
+      if (['false', '0', 'off', 'no', ''].includes(lowered)) return false
+    }
+
+    throw new ArrTypeError(key, 'a boolean', value)
+  },
+
+  array<T = unknown>(target: Dict, key: string, fallback?: T[]): T[] {
+    const value = Arr.get<unknown>(target, key, fallback)
+
+    if (Array.isArray(value)) return value as T[]
+
+    throw new ArrTypeError(key, 'an array', value)
   }
+}
+
+/** A numeric string counts, because a query parameter has no other way to say it. */
+function numberAt(target: Dict, key: string, fallback?: number): number {
+  const value = Arr.get<unknown>(target, key, fallback)
+
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+
+    if (Number.isFinite(parsed)) return parsed
+  }
+
+  throw new ArrTypeError(key, 'a number', value)
+}
+
+/** Names the key and what was actually there, because a stack says neither. */
+export class ArrTypeError extends Error {
+  constructor(
+    readonly key: string,
+    expected: string,
+    readonly actual: unknown
+  ) {
+    super(`[${key}] should be ${expected}, and it is ${describeValue(actual)}.`)
+    this.name = 'ArrTypeError'
+  }
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'missing'
+  if (Array.isArray(value)) return 'an array'
+
+  return `${typeof value} (${JSON.stringify(value)})`
 }
 
 export const Arr: typeof methods & Macroed & ArrMacros = macroable(methods)

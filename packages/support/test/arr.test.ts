@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { Arr } from '../src/arr.ts'
+import { Arr, ArrTypeError } from '../src/arr.ts'
 
 describe('Arr dot access', () => {
   const source = { app: { name: 'Elvel', nested: { debug: false } }, list: [1, 2] }
@@ -151,5 +151,107 @@ describe('Arr.set with numeric segments', () => {
 
     // And an ordinary nested write still works.
     expect(Arr.get<string>(Arr.set(target, 'user.name', 'Ada'), 'user.name')).toBe('Ada')
+  })
+})
+
+describe('the additions', () => {
+  test('add sets only what is missing', () => {
+    expect(Arr.add({ name: 'kept' }, 'name', 'new')).toEqual({ name: 'kept' })
+    expect(Arr.add({}, 'meta.page', 1)).toEqual({ meta: { page: 1 } })
+  })
+
+  /** Null counts as missing: a default is what a null column wants too. */
+  test('and treats null as missing', () => {
+    expect(Arr.add({ name: null }, 'name', 'new')).toEqual({ name: 'new' })
+  })
+
+  test('hasAll wants every path', () => {
+    const target = { a: 1, b: { c: 2 } }
+
+    expect(Arr.hasAll(target, ['a', 'b.c'])).toBe(true)
+    expect(Arr.hasAll(target, ['a', 'b.d'])).toBe(false)
+  })
+
+  test('prependKeysWith namespaces a payload', () => {
+    expect(Arr.prependKeysWith({ page: 1 }, 'meta.')).toEqual({ 'meta.page': 1 })
+  })
+
+  test('select projects the same keys out of every row', () => {
+    const rows = [
+      { id: 1, name: 'a', secret: 'x' },
+      { id: 2, name: 'b', secret: 'y' }
+    ]
+
+    expect(Arr.select(rows, ['id', 'name'])).toEqual([
+      { id: 1, name: 'a' },
+      { id: 2, name: 'b' }
+    ])
+  })
+
+  /** `filter(Boolean)` would drop the zero as well, which is the whole point. */
+  test('whereNotNull keeps a falsy value that is not null', () => {
+    expect(Arr.whereNotNull([0, null, '', undefined, false])).toEqual([0, '', false])
+  })
+
+  test('onlyValues and exceptValues', () => {
+    const target = { a: 1, b: 2, c: 3 }
+
+    expect(Arr.onlyValues(target, ['c', 'a'])).toEqual([3, 1])
+    expect(Arr.exceptValues(target, ['b'])).toEqual([1, 3])
+  })
+
+  test('sortRecursive orders every level', () => {
+    expect(Arr.sortRecursive({ b: ['z', 'a'], a: { d: 1, c: 2 } })).toEqual({
+      a: { c: 2, d: 1 },
+      b: ['a', 'z']
+    })
+  })
+
+  /** A list of objects has no order to give it, so its order is left alone. */
+  test('and leaves a list of objects in place', () => {
+    expect(Arr.sortRecursive([{ b: 1 }, { a: 2 }])).toEqual([{ b: 1 }, { a: 2 }])
+  })
+
+  test('sortRecursiveDesc reverses it', () => {
+    expect(Arr.sortRecursiveDesc({ a: 1, b: 2 })).toEqual({ b: 2, a: 1 })
+  })
+})
+
+/**
+ * A JSON body is `unknown` at runtime whatever the call site believes, so these
+ * are the difference between a checked read and a cast that lies.
+ */
+describe('the typed readers', () => {
+  const body = { page: '2', size: 10, ratio: '1.5', active: 'true', tags: ['a'], name: 'x' }
+
+  test('read what is there', () => {
+    expect(Arr.string(body, 'name')).toBe('x')
+    expect(Arr.integer(body, 'size')).toBe(10)
+    expect(Arr.float(body, 'ratio')).toBe(1.5)
+    expect(Arr.boolean(body, 'active')).toBe(true)
+    expect(Arr.array(body, 'tags')).toEqual(['a'])
+  })
+
+  /** A query parameter has no way to say it is a number. */
+  test('a numeric string counts as a number', () => {
+    expect(Arr.integer(body, 'page')).toBe(2)
+  })
+
+  test("and Boolean('false') is not how a boolean is read", () => {
+    expect(Arr.boolean({ on: 'false' }, 'on')).toBe(false)
+    expect(Arr.boolean({ on: 'no' }, 'on')).toBe(false)
+    expect(Arr.boolean({ on: 'yes' }, 'on')).toBe(true)
+  })
+
+  test('a fallback answers for a missing key', () => {
+    expect(Arr.string({}, 'name', 'default')).toBe('default')
+    expect(Arr.integer({}, 'page', 1)).toBe(1)
+  })
+
+  test('and the wrong type names the key and what was there', () => {
+    expect(() => Arr.integer({ page: 'first' }, 'page')).toThrow(ArrTypeError)
+    expect(() => Arr.integer({ page: 1.5 }, 'page')).toThrow('[page] should be an integer')
+    expect(() => Arr.string({ name: 4 }, 'name')).toThrow('it is number (4)')
+    expect(() => Arr.array({}, 'tags')).toThrow('it is missing')
   })
 })

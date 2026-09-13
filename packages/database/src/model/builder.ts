@@ -1,4 +1,4 @@
-import { Collection, Macroable } from '@elvel/support'
+import { Collection, LazyCollection, Macroable } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import type { DateArgs } from '../query/builder.ts'
 import { QueryBuilder } from '../query/builder.ts'
@@ -445,9 +445,14 @@ export class ModelBuilder<M extends Model> extends Macroable {
    * walk skipping rows when something is deleted while it runs. A caller who
    * wrote `orderBy` meant that order and keeps it, cost included.
    */
-  async *lazy(size = 1000): AsyncGenerator<M> {
+  lazy(size = 1000): LazyCollection<M> {
+    return new LazyCollection(() => this.streamByPage(size))
+  }
+
+  /** The walk itself. `lazy()` wraps it so the operators are there to reach for. */
+  private async *streamByPage(size: number): AsyncGenerator<M> {
     if (!(await this.clone().base()).ordered) {
-      yield* this.lazyById(size)
+      yield* this.streamById(size)
 
       return
     }
@@ -1523,7 +1528,11 @@ export class ModelBuilder<M extends Model> extends Macroable {
    * The same reason to exist — an offset stream skips rows when they are deleted
    * mid-walk — with the same fix, in generator shape.
    */
-  async *lazyById(size = 1000, column?: string): AsyncGenerator<M> {
+  lazyById(size = 1000, column?: string): LazyCollection<M> {
+    return new LazyCollection(() => this.streamById(size, column))
+  }
+
+  private async *streamById(size = 1000, column?: string): AsyncGenerator<M> {
     const key = column ?? (this.model as typeof Model).primaryKey
     let lastId: unknown
 

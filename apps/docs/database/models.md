@@ -316,6 +316,23 @@ for await (const article of Article.query().lazyById(1000)) {
 Both page by primary key. That is what makes them safe to delete or update rows as
 you go: an offset shifts under you and skips records.
 
+`lazy()` and `lazyById()` return a `LazyCollection`, so the operators are there
+without materialising anything:
+
+```ts
+const names = await Article.query()
+  .lazy()
+  .filter((article) => article.published)
+  .map((article) => article.title)
+  .take(5)
+  .all()
+```
+
+That reads five published articles, not the table. `tapEach()` watches items go
+past, `takeUntilTimeout(deadline)` stops a scheduled walk before it overruns its
+window, and `remember()` holds what has been walked so a second pass does not
+query again.
+
 `chunk()` and `lazy()` page by key too — **unless you ordered the query yourself**:
 
 ```ts

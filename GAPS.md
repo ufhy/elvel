@@ -381,10 +381,17 @@ the read.
 
 ## Collections
 
-`Collection` carries 98 methods against upstream's 178, and the ones it has are
-faithful — `sliding`, `splitIn`, `duplicatesStrict`, `hasSole`, `firstOrFail`,
-`skipUntil`, `crossJoin`, `median`, `multiply`, `percentage`'s neighbours. Four
-things are missing, and the first is structural rather than a list of names.
+`Collection` and `Arr` carry the operators and the typed readers now, and
+`LazyCollection` carries them over a stream — `take(5)` on a million-row table
+reads five, `remember()` holds only what was walked, and `ModelBuilder.lazy()`
+returns one instead of a bare generator. What is left is structural.
+
+Some names stay out, with reasons. The strict `where` variants are what this
+`where` already does — upstream needs the pair only because PHP's `==` does not
+compare types. `reduceWithKeys` and `collapseWithKeys` belong to the keyed row
+below. And `Arr.map`, `some`, `every`, `push`, `join`, `take`, `exists`, `from`,
+`accessible` and `arrayable` are each a native array method or `Object.hasOwn`,
+which upstream cannot say because a PHP array is not an object.
 
 ### The collection is a list, not an ordered map
 
@@ -416,57 +423,6 @@ Absent with the keys: `keys`, `get`, `put`, `has`, `hasAny`, `getOrPut`,
 **Done when** a collection can hold keys — either by holding a `Map` or by a
 second keyed type that the keyed operations return — so that `keyBy` answers
 with something that can still be mapped.
-
-### Nothing is lazy
-
-`LazyCollection` has no counterpart. The database does stream —
-`ModelBuilder.lazy()` is an `async *` generator walking by key — but it yields a
-bare `AsyncGenerator<M>`, so the moment you want to `filter`, `map`, `take` or
-`chunk` what it produces you either write the loop by hand or call `.get()` and
-materialise the lot.
-
-`take(5)` over a million-row table should read five rows. Today the streaming
-half exists and the operator half does not, which means the laziness is only
-available to code that does its own `for await`.
-
-**Done when** `lazy()` returns something with the collection operators on it,
-evaluated per item, plus `takeUntilTimeout`, `tapEach` and `remember`.
-
-### Filters and shapers that are missing
-
-Not key-related, and each is a real method somebody reaches for:
-
-`whereBetween`, `whereNotBetween`, `whereInstanceOf`, `whereStrict`,
-`whereInStrict`, `whereNotInStrict`, `forPage`, `mapInto`, `mapSpread`,
-`eachSpread`, `reduceSpread`, `reduceWithKeys`, `pipeInto`, `pipeThrough`,
-`splice`, `transform`, `unshift`, `ensure`, `percentage`, `mode`, `chunkBy`,
-`collapseWithKeys`, `value`, `lazy`, `fromJson`, `toJson`, `toPrettyJson`,
-`dd`, `dump`.
-
-**Done when** each exists or is deleted from this row with a reason.
-
-### `Arr` is 33 of 59
-
-Present: `collapse`, `crossJoin`, `divide`, `dot`, `undot`, `except`, `only`,
-`first`, `last`, `flatten`, `forget`, `get`, `set`, `has`, `hasAny`, `isAssoc`,
-`isList`, `keyBy`, `mapWithKeys`, `mapSpread`, `partition`, `pluck`, `prepend`,
-`pull`, `query`, `random`, `reject`, `shuffle`, `sole`, `sortBy`, `unique`,
-`wrap`, `groupBy`.
-
-Missing: `add`, `exists`, `hasAll`, `join`, `prependKeysWith`, `select`,
-`sortRecursive`, `sortRecursiveDesc`, `where`, `whereNotNull`, `take`, `push`,
-`map`, `some`, `every`, `onlyValues`, `exceptValues`, `accessible`,
-`arrayable`, `from`, and the typed readers `string`, `integer`, `float`,
-`boolean`, `array`.
-
-The typed readers are the ones that matter beyond convenience: a JSON body is
-`unknown` at runtime whatever TypeScript believes at compile time, and
-`Arr.integer(body, 'page')` is the difference between a validated read and a
-cast that lies.
-
-**Done when** the list above is empty or each entry has a reason for staying
-out. `toCssClasses` and `toCssStyles` are **not** on it — they are `classes()`
-and `styles()` in `@elvel/view`.
 
 ---
 

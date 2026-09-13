@@ -1,7 +1,7 @@
 import { Str as StrMethods } from './str.ts'
 import { of as stringableOf } from './stringable.ts'
 
-export { Arr } from './arr.ts'
+export { Arr, type ArrMacros, ArrTypeError } from './arr.ts'
 export { Lottery, Timebox, timebox } from './chance.ts'
 export { Clock } from './clock.ts'
 export {
@@ -28,6 +28,7 @@ export {
   transform,
   value
 } from './helpers.ts'
+export { LazyCollection, lazy, type Source } from './lazy.ts'
 export { type Macro, Macroable, type Macroed, macroable } from './macroable.ts'
 export {
   defaultCurrency,
