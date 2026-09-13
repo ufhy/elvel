@@ -22,6 +22,15 @@ export type WorkerOptions = {
   maxJobs?: number
   /** Stop after this many seconds. */
   maxTime?: number
+  /**
+   * Megabytes of heap after which the worker exits between jobs.
+   *
+   * A worker is a long-lived process running application code it did not write,
+   * so a leak anywhere grows it until the OS kills it — and the OS kills it in
+   * the middle of a job rather than between two. Exiting cleanly and letting a
+   * supervisor start a fresh one loses nothing.
+   */
+  maxMemory?: number
   /** Stop as soon as the queue is empty. */
   stopWhenEmpty?: boolean
   /**
@@ -49,7 +58,7 @@ export type WorkerResult = {
   processed: number
   failed: number
   released: number
-  reason: 'empty' | 'max-jobs' | 'max-time' | 'restart' | 'stopped'
+  reason: 'empty' | 'max-jobs' | 'max-memory' | 'max-time' | 'restart' | 'stopped'
 }
 
 /** Thrown when an attempt outlives its timeout. */
@@ -206,6 +215,13 @@ export class Worker {
 
       if (this.exceededTime(startedAt, options)) {
         result.reason = 'max-time'
+        break
+      }
+
+      // Between jobs, never during one: the point is to leave without losing
+      // work, which is the whole difference from being killed.
+      if (this.exceededMemory(options)) {
+        result.reason = 'max-memory'
         break
       }
     }
@@ -531,6 +547,16 @@ export class Worker {
 
   private exceededTime(startedAt: number, options: WorkerOptions): boolean {
     return Boolean(options.maxTime) && Date.now() - startedAt >= (options.maxTime ?? 0) * 1000
+  }
+
+  /**
+   * Resident set rather than heap: what the OS counts when it decides to kill,
+   * and what a container's limit is written against.
+   */
+  private exceededMemory(options: WorkerOptions): boolean {
+    if (!options.maxMemory) return false
+
+    return process.memoryUsage.rss() / 1024 / 1024 >= options.maxMemory
   }
 }
 

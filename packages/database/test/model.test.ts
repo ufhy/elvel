@@ -2161,3 +2161,75 @@ describe('third database wave', () => {
     expect(String(touched?.attributes.updated_at)).not.toBe('2020-01-01 00:00:00')
   })
 })
+
+/**
+ * `hidden` leaks by default: a column a later migration adds is serialised
+ * until somebody remembers it. `visible` is the allow-list, and for a model
+ * that goes straight into an API response that difference is the leak.
+ */
+describe('visible and hidden', () => {
+  class Guarded extends Model {
+    static override table = 'guarded'
+    static override visible = ['id', 'name']
+
+    declare id: number
+    declare name: string
+  }
+
+  class Mixed extends Model {
+    static override table = 'mixed'
+    static override visible = ['id', 'name', 'email']
+    static override hidden = ['email']
+  }
+
+  const guarded = () => Guarded.hydrate({ id: 1, name: 'Ada', secret: 's', added_later: 'oops' })
+
+  test('an allow-list drops everything it does not name', () => {
+    expect(guarded().toObject()).toEqual({ id: 1, name: 'Ada' })
+  })
+
+  test('a column a migration adds later stays out until it is named', () => {
+    expect(Object.keys(guarded().toObject())).not.toContain('added_later')
+  })
+
+  test('hidden removes from what visible allows', () => {
+    const row = Mixed.hydrate({ id: 1, name: 'Ada', email: 'a@b.c' })
+
+    expect(row.toObject()).toEqual({ id: 1, name: 'Ada' })
+  })
+
+  test('no visible list means the old behaviour, hidden only', () => {
+    const user = User.hydrate({ id: 1, name: 'Ada', secret: 'x' })
+
+    expect(user.toObject()).toEqual({ id: 1, name: 'Ada' })
+  })
+
+  describe('per instance', () => {
+    test('makeVisible shows one field on this row and no other', () => {
+      expect(guarded().makeVisible('secret').toObject()).toMatchObject({ secret: 's' })
+      expect(guarded().toObject()).not.toHaveProperty('secret')
+    })
+
+    test('makeHidden removes one', () => {
+      expect(guarded().makeHidden('name').toObject()).toEqual({ id: 1 })
+    })
+
+    test('the last call wins when they disagree', () => {
+      expect(guarded().makeVisible('secret').makeHidden('secret').toObject()).not.toHaveProperty(
+        'secret'
+      )
+      expect(guarded().makeHidden('name').makeVisible('name').toObject()).toHaveProperty('name')
+    })
+
+    test('setVisible replaces the class list for this row', () => {
+      expect(guarded().setVisible(['secret']).toObject()).toEqual({ secret: 's' })
+    })
+
+    test('and both take an array as well as arguments', () => {
+      expect(guarded().makeVisible(['secret', 'added_later']).toObject()).toMatchObject({
+        secret: 's',
+        added_later: 'oops'
+      })
+    })
+  })
+})

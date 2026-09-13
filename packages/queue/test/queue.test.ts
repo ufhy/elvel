@@ -571,6 +571,37 @@ describe('Worker', () => {
     expect(await driver.size()).toBe(1)
   })
 
+  /**
+   * A worker holds one process for its whole life, so a leak grows it until the
+   * OS kills it — mid-job. Leaving between two jobs loses nothing.
+   */
+  test('work() stops when the memory limit is passed, between jobs', async () => {
+    for (let index = 0; index < 3; index += 1) {
+      await driver.push(payloadFor('Simple', { label: `job-${index}` }))
+    }
+
+    // One megabyte: whatever this process is using now, it is over it.
+    const result = await worker().work(undefined, { maxTries: 1, maxMemory: 1, sleep: 0 })
+
+    expect(result.reason).toBe('max-memory')
+    expect(result.processed).toBe(1)
+    expect(await driver.size()).toBe(2)
+  })
+
+  test('and a limit it has not reached does not stop it', async () => {
+    await driver.push(payloadFor('Simple', { label: 'one' }))
+
+    const result = await worker().work(undefined, {
+      maxTries: 1,
+      maxMemory: 1_000_000,
+      stopWhenEmpty: true,
+      sleep: 0
+    })
+
+    expect(result.reason).toBe('empty')
+    expect(result.processed).toBe(1)
+  })
+
   test('a worker asked to stop finishes the job in hand', async () => {
     await driver.push(payloadFor('Simple', { label: 'last' }))
 

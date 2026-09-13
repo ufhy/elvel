@@ -11,7 +11,7 @@ import { RESTART_KEY } from './queue-restart.ts'
  */
 export class QueueWorkCommand extends Command {
   static override signature =
-    'queue:work {connection? : The connection to work} {--queue= : Queue names, comma separated, in priority order} {--once : Process a single job and exit} {--stop-when-empty : Exit once the queue is empty} {--tries=1 : Attempts before a job is marked failed} {--backoff=0 : Seconds before a retry} {--timeout=60 : Seconds one attempt may run} {--sleep=3 : Seconds to wait when the queue is empty} {--max-jobs=0 : Exit after this many jobs} {--max-time=0 : Exit after this many seconds}'
+    'queue:work {connection? : The connection to work} {--queue= : Queue names, comma separated, in priority order} {--once : Process a single job and exit} {--stop-when-empty : Exit once the queue is empty} {--tries=1 : Attempts before a job is marked failed} {--backoff=0 : Seconds before a retry} {--timeout=60 : Seconds one attempt may run} {--sleep=3 : Seconds to wait when the queue is empty} {--max-jobs=0 : Exit after this many jobs} {--max-time=0 : Exit after this many seconds} {--memory=0 : Exit when RSS passes this many MB}'
 
   static override description = 'Process jobs on the queue'
 
@@ -28,6 +28,7 @@ export class QueueWorkCommand extends Command {
       sleep: Number(this.stringOption('sleep') || 3),
       maxJobs: Number(this.stringOption('max-jobs') || 0),
       maxTime: Number(this.stringOption('max-time') || 0),
+      maxMemory: Number(this.stringOption('memory') || 0),
       stopWhenEmpty: this.flag('stop-when-empty'),
 
       /**

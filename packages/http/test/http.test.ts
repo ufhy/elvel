@@ -766,3 +766,86 @@ describe('the cookie jar methods a handler reaches for', () => {
     expect(queued?.options.maxAge).toBe(0)
   })
 })
+
+describe('the session store methods a handler reaches for', () => {
+  const store = () => new Session('abc123', new MemorySessionDriver())
+
+  /** One operation, not a read-modify-write at every call site. */
+  test('push appends to a list, creating it when missing', () => {
+    const held = store()
+
+    held.push('messages', 'first')
+    held.push('messages', 'second', 'third')
+
+    expect(held.get<string[]>('messages')).toEqual(['first', 'second', 'third'])
+  })
+
+  test('push replaces a non-array rather than corrupting it', () => {
+    const held = store()
+    held.put('messages', 'not a list')
+
+    held.push('messages', 'first')
+
+    expect(held.get<string[]>('messages')).toEqual(['first'])
+  })
+
+  test('increment and decrement', () => {
+    const held = store()
+
+    expect(held.increment('views')).toBe(1)
+    expect(held.increment('views', 4)).toBe(5)
+    expect(held.decrement('views', 2)).toBe(3)
+  })
+
+  test('remember computes once', () => {
+    const held = store()
+    let calls = 0
+
+    const compute = () => {
+      calls += 1
+
+      return 'value'
+    }
+
+    expect(held.remember('key', compute)).toBe('value')
+    expect(held.remember('key', compute)).toBe('value')
+    expect(calls).toBe(1)
+  })
+
+  test('only, except, hasAny and missing', () => {
+    const held = store()
+    held.put('a', 1).put('b', 2).put('c', 3)
+
+    expect(held.only(['a', 'c'])).toEqual({ a: 1, c: 3 })
+    expect(held.except(['a'])).toMatchObject({ b: 2, c: 3 })
+    expect(held.hasAny(['z', 'b'])).toBe(true)
+    expect(held.hasAny(['z'])).toBe(false)
+    expect(held.missing('z')).toBe(true)
+  })
+
+  test('replace sets several at once', () => {
+    const held = store()
+
+    held.replace({ a: 1, b: 2 })
+
+    expect(held.get<number>('a')).toBe(1)
+    expect(held.get<number>('b')).toBe(2)
+  })
+
+  /**
+   * `flash` targets the next request, so a handler rendering its own response
+   * either cannot see the value or sees it twice. `now` is for that.
+   */
+  test('now is readable in this request and gone after a save', async () => {
+    const held = store()
+
+    held.now('status', 'saved')
+    expect(held.get<string>('status')).toBe('saved')
+
+    await held.save()
+    await held.save()
+
+    expect(held.get<string>('status')).toBeUndefined()
+    expect(held.has('status')).toBe(false)
+  })
+})

@@ -330,6 +330,92 @@ export class Session {
   }
 
   /**
+   * Append to a list in the session.
+   *
+   * One operation rather than `put(key, [...get(key, []), value])` at every
+   * call site, which is a read-modify-write anybody can get wrong and which is
+   * how a flash-message list loses an entry.
+   */
+  push(key: string, ...values: unknown[]): this {
+    const held = this.get<unknown[]>(key, [])
+
+    return this.put(key, [...(Array.isArray(held) ? held : []), ...values])
+  }
+
+  increment(key: string, by = 1): number {
+    const next = Number(this.get<number>(key, 0)) + by
+
+    this.put(key, next)
+
+    return next
+  }
+
+  decrement(key: string, by = 1): number {
+    return this.increment(key, -by)
+  }
+
+  /** Read it, or compute and store it. */
+  remember<T>(key: string, callback: () => T): T {
+    if (this.has(key)) return this.get<T>(key) as T
+
+    const value = callback()
+
+    this.put(key, value)
+
+    return value
+  }
+
+  only(keys: string[]): SessionData {
+    const out: SessionData = {}
+
+    for (const key of keys) if (this.exists(key)) out[key] = this.data[key]
+
+    return out
+  }
+
+  except(keys: string[]): SessionData {
+    const out: SessionData = {}
+
+    for (const [key, value] of Object.entries(this.data)) {
+      if (!keys.includes(key) && !key.startsWith('_flash.')) out[key] = value
+    }
+
+    return out
+  }
+
+  /** Is any one of them present and non-null? */
+  hasAny(keys: string[]): boolean {
+    return keys.some((key) => this.has(key))
+  }
+
+  missing(key: string): boolean {
+    return !this.has(key)
+  }
+
+  /** Set several at once. */
+  replace(values: SessionData): this {
+    for (const [key, value] of Object.entries(values)) this.put(key, value)
+
+    return this
+  }
+
+  /**
+   * Flash for **this** request rather than the next.
+   *
+   * What a handler that renders its own response needs: `flash()` targets the
+   * next request, so the value is either invisible now or visible twice.
+   */
+  now(key: string, value: unknown): this {
+    this.put(key, value)
+
+    // Aged as though it had already been flashed, so the next `save()` drops it.
+    this.data['_flash.old'] = [...this.flashKeys('old'), key]
+    this.changed = true
+
+    return this
+  }
+
+  /**
    * The token this session has, or an empty string.
    *
    * Reads, and only reads. A session that was never asked for a token has none —

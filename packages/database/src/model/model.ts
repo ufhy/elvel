@@ -118,6 +118,19 @@ export class Model {
   /** Columns removed from `toObject()`/`toJSON()`. */
   static hidden: string[] = []
 
+  /**
+   * Columns kept, and everything else dropped.
+   *
+   * The safer half of the pair: with `hidden`, a column added by a later
+   * migration is serialised until somebody remembers to hide it — and for a
+   * model that goes straight into an API response, that is how a field leaks.
+   * With `visible`, it stays out until somebody says otherwise.
+   *
+   * Empty means the list is not in use. When both are set, `visible` decides
+   * what is a candidate and `hidden` removes from it.
+   */
+  static visible: string[] = []
+
   /** Accessor-backed keys added to `toObject()`. */
   static appends: string[] = []
 
@@ -219,6 +232,11 @@ export class Model {
   private changes: Row = {}
   relations: Record<string, unknown> = {}
   exists = false
+
+  /** Per-instance serialisation overrides. See `makeVisible`. */
+  private shownKeys: string[] = []
+  private hiddenKeys: string[] = []
+  private visibleKeys: string[] | undefined
 
   constructor(attributes: Row = {}) {
     this.fill(attributes)
@@ -1522,17 +1540,68 @@ export class Model {
 
   // ------------------------------------------------------------ serialisation
 
+  /**
+   * Show these on this instance, whatever the class says.
+   *
+   * Per instance rather than per class, because the case is one endpoint that
+   * may see a field the rest may not — and changing the static would change it
+   * for every request in the process.
+   */
+  makeVisible(...keys: Array<string | string[]>): this {
+    const named = keys.flat()
+
+    this.shownKeys = [...new Set([...this.shownKeys, ...named])]
+    this.hiddenKeys = this.hiddenKeys.filter((key) => !named.includes(key))
+
+    return this
+  }
+
+  /** Hide these on this instance. */
+  makeHidden(...keys: Array<string | string[]>): this {
+    const named = keys.flat()
+
+    this.hiddenKeys = [...new Set([...this.hiddenKeys, ...named])]
+    this.shownKeys = this.shownKeys.filter((key) => !named.includes(key))
+
+    return this
+  }
+
+  /** Replace the class's lists for this instance. */
+  setVisible(keys: string[]): this {
+    this.visibleKeys = [...keys]
+
+    return this
+  }
+
+  setHidden(keys: string[]): this {
+    this.hiddenKeys = [...keys]
+
+    return this
+  }
+
+  /** Does this key survive `visible` and `hidden`, class and instance? */
+  private serialises(key: string): boolean {
+    if (this.hiddenKeys.includes(key)) return false
+    if (this.shownKeys.includes(key)) return true
+
+    const visible = this.visibleKeys ?? this.self.visible
+
+    if (visible.length > 0 && !visible.includes(key)) return false
+
+    return !this.self.hidden.includes(key)
+  }
+
   toObject(): Row {
     const result: Row = {}
 
     for (const key of Object.keys(this.attributes)) {
-      if (this.self.hidden.includes(key)) continue
+      if (!this.serialises(key)) continue
       result[key] = this.getAttribute(key)
     }
 
     // Accessor-backed values that have no column of their own.
     for (const key of this.self.appends) {
-      if (this.self.hidden.includes(key)) continue
+      if (!this.serialises(key)) continue
       result[key] = this.getAttribute(key)
     }
 

@@ -223,6 +223,36 @@ export class ProcessManager {
 
   // ------------------------------------------------------------- assertions
 
+  /**
+   * The commands ran in this order, with anything else allowed between them.
+   *
+   * The thing worth asserting about a deploy or a build script: that migrate
+   * came before restart. `assertRan` three times says all three happened and
+   * nothing about the order they happened in.
+   */
+  assertRanInOrder(patterns: Matcher[]): this {
+    let from = 0
+
+    for (const pattern of patterns) {
+      const at = this.recorded.findIndex(
+        (one, index) => index >= from && matches(one.command, pattern)
+      )
+
+      if (at === -1) {
+        throw new Error(
+          `Expected a command matching ${String(pattern)} after the one before it. Ran, in order: ` +
+            (this.recorded.length === 0
+              ? '(nothing)'
+              : this.recorded.map((one) => `[${one.command}]`).join(', '))
+        )
+      }
+
+      from = at + 1
+    }
+
+    return this
+  }
+
   assertRan(pattern: Matcher): this {
     const found = this.recorded.some((one) => matches(one.command, pattern))
     if (!found) {

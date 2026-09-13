@@ -392,3 +392,46 @@ describe('binary output', () => {
     expect<boolean>(result.bytes.every((byte) => byte === 0)).toBe(true)
   })
 })
+
+/**
+ * The thing worth asserting about a deploy script: that migrate came before
+ * restart. Three `assertRan` calls say all three happened and nothing about
+ * the order.
+ */
+describe('assertRanInOrder', () => {
+  const ran = async (commands: string[]) => {
+    const factory = new ProcessManager()
+    factory.fake()
+
+    for (const command of commands) await factory.run(command)
+
+    return factory
+  }
+
+  test('passes when the order holds, with anything between', async () => {
+    const factory = await ran(['bun install', 'elvel migrate', 'echo hi', 'systemctl restart app'])
+
+    factory.assertRanInOrder(['elvel migrate', 'systemctl restart app'])
+  })
+
+  test('fails when they ran the other way round', async () => {
+    const factory = await ran(['systemctl restart app', 'elvel migrate'])
+
+    expect(() => factory.assertRanInOrder(['elvel migrate', 'systemctl restart app'])).toThrow(
+      'after the one before it'
+    )
+  })
+
+  test('and the failure lists what did run, in order', async () => {
+    const factory = await ran(['a', 'b'])
+
+    expect(() => factory.assertRanInOrder(['b', 'a'])).toThrow('[a], [b]')
+  })
+
+  test('a repeated command matches twice, not the same entry twice', async () => {
+    const factory = await ran(['deploy', 'deploy'])
+
+    factory.assertRanInOrder(['deploy', 'deploy'])
+    expect(() => factory.assertRanInOrder(['deploy', 'deploy', 'deploy'])).toThrow()
+  })
+})

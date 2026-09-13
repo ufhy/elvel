@@ -11,11 +11,12 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 92** — all 37 components measured.
+**Open: 88** — all 37 components measured.
 
-Eleven added none: Concurrency, Conditionable, Config, Contracts, Encryption,
-Hashing, JsonSchema, Notifications, Reflection, Scheduling and Support. Four are
-ahead of upstream rather than level with it, and the reasons are at the bottom.
+Twelve added none: Concurrency, Conditionable, Config, Contracts, Encryption,
+Hashing, JsonSchema, Notifications, Reflection, Scheduling, Session and Support.
+Four are ahead of upstream rather than level with it, and the reasons are at the
+bottom.
 
 Scheduling sits inside Console upstream; here it is a package of its own and is
 measured separately.
@@ -820,19 +821,6 @@ a large enough number.
 
 **Done when** each exists, and the enum cast narrows the attribute's type.
 
-### `hidden` has no complement
-
-`static hidden: string[]` exists. `visible`, `makeVisible()`, `makeHidden()` and
-`setVisible()` do not.
-
-`visible` is the safer of the pair — an allow-list, where a column added by a
-later migration is hidden until somebody says otherwise, rather than exposed
-until somebody remembers. For a model that serialises straight into an API
-response that difference is a leak.
-
-**Done when** both lists exist, `visible` wins where they overlap, and per-instance
-`makeVisible`/`makeHidden` work.
-
 ### The schema cannot be inspected
 
 `Schema` has 15 methods against upstream's 44. Missing: `getTables`, `getViews`,
@@ -1408,17 +1396,6 @@ It is not slow or awkward; it does not work.
 **Done when** a process can inherit the terminal, and asking for it where there
 is no TTY is an error rather than a hang.
 
-### The fake cannot assert order
-
-`assertRan`, `assertRanTimes`, `assertNotRan`, `assertNothingRan`. Upstream also
-has `assertRanInOrder`.
-
-For the thing this package is mostly used for — a deploy or build script that
-runs several commands — the order is the behaviour worth testing, and it is the
-one thing that cannot be asserted.
-
-**Done when** a sequence of commands can be asserted in order.
-
 ---
 
 ## Queue
@@ -1449,20 +1426,6 @@ nothing to add.
 **Done when** a job can declare an exception threshold and a decay, jobs are
 released rather than attempted while the circuit is open, and the circuit is
 shared across workers through the cache.
-
-### A worker has no memory limit
-
-`--memory` is missing from `queue:work`, and nothing in `packages/queue` reads
-process memory.
-
-A worker is a long-lived process running application code it did not write. A
-leak anywhere — a cache that never evicts, a listener that accumulates — grows
-it until the OS kills it, and the OS kills it in the middle of a job rather than
-between two. Upstream's answer is to check after each job and exit cleanly, and
-let the supervisor start a fresh one.
-
-**Done when** `--memory` exists, the check happens between jobs, and the exit is
-clean enough that the supervisor's restart loses nothing.
 
 ### There is no way to turn the queue off, and no failover
 
@@ -1582,30 +1545,6 @@ reaches for them.
 
 **Done when** a route can declare a lock, the wait and the hold are separate,
 and a timed-out wait is a `429` rather than a hang.
-
----
-
-## Session
-
-Four drivers (file, memory, cache, database), flash and reflash, `keep`,
-old input, `regenerate`, `regenerateToken`, `invalidate`, CSRF token, garbage
-collection with a command, a signed cookie carrying only the id, and
-`session.encrypt` when the id itself should be hidden.
-
-### The store cannot accumulate or read conditionally
-
-`get`, `put`, `has`, `exists`, `forget`, `pull`, `all`, `flush`. Upstream's
-`Store` also has `push`, `increment`, `decrement`, `remember`, `only`, `except`,
-`hasAny`, `missing`, `replace`, and `now`.
-
-`push` is the one reached for most — appending to a list in the session, which
-today is `put(key, [...get(key, []), value])` at every call site, with the
-read-modify-write race that implies. `now` flashes for **this** request rather
-than the next, which is what a handler that renders its own response needs and
-today is impossible: `flash` always targets the next request, so the value is
-either invisible now or visible twice.
-
-**Done when** all ten exist, and `push` is a single operation on the store.
 
 ---
 
@@ -2010,3 +1949,6 @@ reader, computed lazily so a page that does not read it does not pay for it.
   condition, pass the resolved value to the callback, and take an `otherwise`
   branch — in the trait and on the query builder, which had the same four lines
   twice.
+- **Session is closed.** `push`, `increment`, `decrement`, `remember`, `only`,
+  `except`, `hasAny`, `missing`, `replace`, and a `now()` that flashes for this
+  request rather than the next.
