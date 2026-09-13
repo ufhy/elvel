@@ -33,8 +33,7 @@ export type RefreshOptions = {
 const migrated = new Map<string, Promise<unknown>>()
 
 /**
- * Wrap every test in a transaction and roll it back — Laravel's
- * `RefreshDatabase`.
+ * Wrap every test in a transaction and roll it back.
  *
  * ```ts
  * refreshDatabase(app.make('db'), { beforeEach, afterEach }, {
@@ -141,7 +140,7 @@ export async function assertDatabaseHas(
   )
 }
 
-/** Assert no row matches — Laravel's `assertDatabaseMissing`. */
+/** Assert no row matches. */
 export async function assertDatabaseMissing(
   manager: TestConnectionManager,
   table: string,

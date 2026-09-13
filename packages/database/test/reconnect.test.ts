@@ -5,11 +5,10 @@ import { BunSqlConnection } from '../src/connection/bun-sql.ts'
 /**
  * A connection the server closed underneath us.
  *
- * `Bun.SQL` is a pool and recovers on its own, so there is no equivalent of
- * Laravel's `DetectsLostConnections` here. A queue worker depends on that
- * entirely — it holds one connection for its whole life and MySQL closes an
- * idle one — and nothing else in the suite would notice if a Bun release
- * changed it.
+ * `Bun.SQL` is a pool and recovers on its own, so nothing here detects or
+ * repairs a dropped connection. A queue worker depends on that entirely — it
+ * holds one connection for its whole life and MySQL closes an idle one — and
+ * nothing else in the suite would notice if a Bun release changed it.
  *
  * Killed from a second connection rather than simulated: a hand-written error
  * would only prove a message list matches itself. SQLite has no connection to
