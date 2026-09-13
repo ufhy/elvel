@@ -365,8 +365,8 @@ describe('several at once', () => {
 /**
  * Three ways to change what a built-in middleware does.
  *
- * Laravel offers the same three — `redirectTo()` with a string or a callable,
- * re-aliasing a name, and `replace()` — and the callable is the one that matters:
+ * Three ways in — `redirectTo()` with a string or a callable, re-aliasing a
+ * name, and `replace()` — and the callable is the one that matters:
  * an admin area sends a guest somewhere else, which no fixed string expresses.
  */
 describe('customising a built-in middleware', () => {
