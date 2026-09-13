@@ -172,10 +172,54 @@ export function resolveMessage(
   const specific = custom[rule]
   if (specific) return specific
 
+  const translated = translate(rule, type)
+  if (translated !== undefined) return translated
+
   const template = MESSAGES[rule]
   if (template === undefined) return `The :attribute field is invalid.`
 
   return typeof template === 'string' ? template : template[type]
+}
+
+/** What this package needs of a translator, so it need not depend on one. */
+export type MessageTranslator = {
+  hasForLocale(key: string, locale?: string): boolean
+  has(key: string): boolean
+  get(key: string): string
+}
+
+let resolveTranslator: () => MessageTranslator | undefined = () => undefined
+
+/**
+ * Where a translated message comes from.
+ *
+ * The catalogue below is English sentences in a `Record`, and this package does
+ * not depend on `@elvel/translation` — so an Indonesian application could not
+ * publish `lang/id/validation.ts` and had to override every rule at every call
+ * site. The validation provider hands the translator over when one is
+ * registered, and nothing changes when none is.
+ */
+export function resolveMessagesUsing(resolve: () => MessageTranslator | undefined): void {
+  resolveTranslator = resolve
+}
+
+/**
+ * `validation.<rule>`, or `validation.<rule>.<type>` for a rule whose message
+ * depends on what it was measuring.
+ *
+ * Only a translation for the *current* locale counts. Falling through to the
+ * fallback locale would answer with a translator's English rather than the
+ * catalogue's, and the catalogue is the more complete of the two.
+ */
+function translate(rule: string, type: ValueType): string | undefined {
+  const translator = resolveTranslator()
+
+  if (translator === undefined) return undefined
+
+  const sized = typeof MESSAGES[rule] === 'object'
+  const key = sized ? `validation.${rule}.${type}` : `validation.${rule}`
+
+  return translator.hasForLocale(key) ? translator.get(key) : undefined
 }
 
 /** Substitute `:attribute`, `:other`, `:values`, `:min` and friends. */

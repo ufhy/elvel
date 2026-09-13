@@ -1,4 +1,5 @@
 import { ServiceProvider } from '@elvel/core'
+import { preferredLocale } from './negotiate.ts'
 import { Translator } from './translator.ts'
 
 declare module '@elvel/contracts' {
@@ -27,6 +28,24 @@ export class TranslationServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
-    await this.app.make('translator').load(this.app.basePath('lang'))
+    const translator = this.app.make('translator')
+
+    await translator.load(this.app.basePath('lang'))
+
+    if (this.config<boolean>('app.negotiateLocale', false) !== true) return
+
+    /**
+     * Off unless asked for, because it changes what every page answers with.
+     *
+     * A synchronous hook: the locale is a request slot, and a slot written from
+     * an async one is already in the wrong frame by the time a handler runs.
+     */
+    const available = translator.locales()
+
+    this.app.router.onRequest(({ request }) => {
+      const wanted = preferredLocale(request.headers.get('accept-language'), available)
+
+      if (wanted !== undefined) translator.usingLocale(wanted)
+    })
   }
 }

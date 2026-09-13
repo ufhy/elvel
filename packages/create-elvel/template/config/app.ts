@@ -29,6 +29,20 @@ export default {
 
   debug: env('APP_DEBUG', true),
 
+  locale: env('APP_LOCALE', 'en'),
+
+  fallbackLocale: env('APP_FALLBACK_LOCALE', 'en'),
+
+  /**
+   * Answer in the language the browser asked for, when we have it.
+   *
+   * Off by default because it changes what every page returns. On, the request's
+   * `Accept-Language` picks from the locales under `lang/`; a middleware can
+   * still override it with the signed-in user's own preference by calling
+   * `translator.usingLocale()`.
+   */
+  negotiateLocale: env('APP_NEGOTIATE_LOCALE', false),
+
   url: env('APP_URL', 'http://localhost:3000'),
 
   /**

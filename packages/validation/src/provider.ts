@@ -1,5 +1,6 @@
 import { app, ServiceProvider } from '@elvel/core'
 import { MakeRuleCommand } from './console/make-rule.ts'
+import { resolveMessagesUsing } from './messages.ts'
 import type { Data, PresenceVerifier, Rules, ValidatorOptions } from './types.ts'
 import { Validator } from './validator.ts'
 
@@ -82,6 +83,12 @@ export class ValidationServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
+    // Resolved per message rather than captured, so a locale set for this
+    // request is the one that answers.
+    resolveMessagesUsing(() =>
+      this.app.bound('translator') ? this.app.make('translator') : undefined
+    )
+
     if (!this.app.bound('elvel')) return
 
     this.app.make('elvel').register(MakeRuleCommand)

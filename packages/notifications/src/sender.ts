@@ -33,7 +33,12 @@ export type SenderOptions = {
    * Duck-typed rather than imported: notifications must keep working with no
    * translation package present, and only `preferredLocale()` needs it.
    */
-  translator?: { getLocale(): string; setLocale(locale: string): unknown }
+  translator?: {
+    getLocale(): string
+    setLocale(locale: string): unknown
+    /** Present since the locale became request-scoped; see `inLocale`. */
+    withLocale?<T>(locale: string, body: () => T): T
+  }
 }
 
 /**
@@ -117,16 +122,27 @@ export class NotificationSender {
   }
 
   /**
-   * Run `body` with the translator set to `locale`, restoring it afterwards.
+   * Run `body` in one language.
    *
-   * Restored in a `finally`: a channel that throws must not leave the process
-   * speaking the last recipient's language to everybody after them.
+   * A scope, not a swap. Setting the field and restoring it in a `finally`
+   * survives a throw and does not survive an `await`: while a channel is
+   * suspended, every other request in the process speaks this recipient's
+   * language — and the sender is looping over recipients, so it happens on
+   * every send.
+   *
+   * The swap stays as the fallback for a translator that predates the scope.
    */
   private async inLocale(locale: string | undefined, body: () => Promise<void>): Promise<void> {
     const translator = this.options.translator
 
     if (!locale || !translator) {
       await body()
+
+      return
+    }
+
+    if (translator.withLocale) {
+      await translator.withLocale(locale, body)
 
       return
     }

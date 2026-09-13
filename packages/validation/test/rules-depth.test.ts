@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { resolveMessagesUsing } from '../src/messages.ts'
 import { Validator } from '../src/validator.ts'
 
 /** True when the field passed. */
@@ -301,5 +302,57 @@ describe('email modes', () => {
 
   test('and a mode nobody defined is an error rather than a silent pass', async () => {
     await expect(passes('ada@example.com', 'email:nonsense')).rejects.toThrow('is not a mode')
+  })
+})
+
+/**
+ * The catalogue is English sentences in a `Record`, and this package does not
+ * depend on the translator — so it asks for one instead of importing it.
+ */
+describe('translated messages', () => {
+  afterEach(() => {
+    resolveMessagesUsing(() => undefined)
+  })
+
+  const indonesian = {
+    'validation.required': 'Kolom :attribute wajib diisi.',
+    'validation.min.string': 'Kolom :attribute minimal :min karakter.'
+  } as Record<string, string>
+
+  const translator = {
+    hasForLocale: (key: string) => key in indonesian,
+    has: (key: string) => key in indonesian,
+    get: (key: string) => indonesian[key] as string
+  }
+
+  test('a rule with one message', async () => {
+    resolveMessagesUsing(() => translator)
+
+    expect(await message(undefined, 'required')).toBe('Kolom field wajib diisi.')
+  })
+
+  /** A size rule's message depends on what it was measuring. */
+  test('a rule whose message depends on the type', async () => {
+    resolveMessagesUsing(() => translator)
+
+    expect(await message('a', 'min:3')).toBe('Kolom field minimal 3 karakter.')
+  })
+
+  test('an untranslated rule falls back to the catalogue, not to the key', async () => {
+    resolveMessagesUsing(() => translator)
+
+    expect(await message('nope', 'boolean')).toBe('The field field must be true or false.')
+  })
+
+  test('and a call-site override still wins', async () => {
+    resolveMessagesUsing(() => translator)
+
+    const validator = new Validator({ field: undefined }, { field: 'required' } as never, {
+      messages: { 'field.required': 'Say something.' }
+    })
+
+    await validator.passes()
+
+    expect(validator.errors.first('field')).toBe('Say something.')
   })
 })

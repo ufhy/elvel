@@ -1,9 +1,40 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { requestSlot } from '@elvel/core'
 import { Arr } from '@elvel/support'
 import { choose } from './selector.ts'
 
+/**
+ * The locale for the request in flight.
+ *
+ * A field on the singleton was the whole of it, and swapping it raced: a sender
+ * looping over recipients set the locale, awaited a channel, and every other
+ * request in the process rendered in that recipient's language while it was
+ * suspended. A `finally` restores it after a throw; it cannot restore it during
+ * an `await`.
+ */
+const localeSlot = requestSlot<string>('translation.locale')
+
 export type Messages = Record<string, unknown>
+
+/**
+ * Where messages come from.
+ *
+ * The one extension point in the framework that had no contract: loading was
+ * `readdir` and `readFile`, so translations edited by non-developers in a
+ * database or a CMS — the case that motivates the interface at all — could not
+ * be loaded without reimplementing the translator.
+ */
+export type TranslationLoader = {
+  /** Every group for a locale, keyed by group name. */
+  groups(locale: string): Promise<Record<string, Messages>>
+
+  /** Whole-sentence translations for a locale. */
+  sentences(locale: string): Promise<Record<string, string>>
+
+  /** Which locales this loader has anything for. */
+  locales(): Promise<string[]>
+}
 
 /**
  * Messages in more than one language.
@@ -34,6 +65,15 @@ export class Translator {
    */
   private readonly sentences = new Map<string, Record<string, string>>()
 
+  /**
+   * Directories a package registered under a name.
+   *
+   * `package::group.key` is how a package ships its own messages and an
+   * application overrides them: the application's `lang/<locale>/package/` is
+   * consulted first, so overriding one string does not mean copying the file.
+   */
+  private readonly namespaces = new Map<string, string>()
+
   /** Called with a key nothing translated. See `whenMissing`. */
   private missing: ((key: string, locale: string) => string | undefined) | undefined
 
@@ -42,8 +82,46 @@ export class Translator {
     private fallback = 'en'
   ) {}
 
+  /**
+   * Register a package's messages under a name.
+   *
+   * ```ts
+   * translator.addNamespace('billing', new URL('../lang', import.meta.url).pathname)
+   * __('billing::invoice.overdue')
+   * ```
+   */
+  addNamespace(name: string, directory: string): this {
+    this.namespaces.set(name, directory)
+
+    return this
+  }
+
+  /** Read every namespace registered so far. Called at boot, after the app's own. */
+  async loadNamespaces(): Promise<this> {
+    for (const [name, directory] of this.namespaces) {
+      await this.load(directory, name)
+    }
+
+    return this
+  }
+
+  /** Load from anywhere — a database, an API, a CMS. */
+  async loadFrom(loader: TranslationLoader, namespace?: string): Promise<this> {
+    for (const locale of await loader.locales()) {
+      for (const [group, messages] of Object.entries(await loader.groups(locale))) {
+        this.add(locale, namespace === undefined ? group : `${namespace}::${group}`, messages)
+      }
+
+      const sentences = await loader.sentences(locale)
+
+      if (Object.keys(sentences).length > 0) this.addSentences(locale, sentences)
+    }
+
+    return this
+  }
+
   /** Load every `lang/<locale>/<group>.ts` under a directory. */
-  async load(directory: string): Promise<this> {
+  async load(directory: string, namespace?: string): Promise<this> {
     let locales: string[]
 
     try {
@@ -83,7 +161,13 @@ export class Translator {
         const group = file.replace(/\.(ts|js|mts|mjs)$/, '')
         const module = (await import(join(directory, locale, file))) as { default?: Messages }
 
-        if (module.default) this.add(locale, group, module.default)
+        if (module.default) {
+          this.add(
+            locale,
+            namespace === undefined ? group : `${namespace}::${group}`,
+            module.default
+          )
+        }
       }
     }
 
@@ -143,25 +227,64 @@ export class Translator {
   /** Add messages directly — for tests, and for a package shipping its own. */
   add(locale: string, group: string, messages: Messages): this {
     const existing = this.messages.get(locale) ?? {}
+    const already = existing[group]
 
-    this.messages.set(locale, { ...existing, [group]: messages })
+    // Merged rather than replaced, so an application overriding three strings of
+    // a package's group keeps the rest of it.
+    this.messages.set(locale, {
+      ...existing,
+      [group]:
+        typeof already === 'object' && already !== null
+          ? { ...(already as Messages), ...messages }
+          : messages
+    })
 
     return this
   }
 
+  /** The process default — set at boot, and by a console command. */
   setLocale(locale: string): this {
     this.locale = locale
 
     return this
   }
 
+  /**
+   * Speak this language for the rest of this request.
+   *
+   * What a middleware calls after reading `Accept-Language` or the signed-in
+   * user's `preferredLocale()`. Must be reached from a synchronous hook the
+   * first time, like every other request slot.
+   */
+  usingLocale(locale: string): this {
+    localeSlot.set(locale)
+
+    return this
+  }
+
+  /**
+   * Run `body` in one language, leaving everything around it alone.
+   *
+   * The scope travels with the async context rather than with the process, so a
+   * notification sent to a French recipient does not make the request next door
+   * French while it awaits a channel.
+   */
+  withLocale<T>(locale: string, body: () => T): T {
+    return localeSlot.run(locale, body)
+  }
+
   getLocale(): string {
-    return this.locale
+    return localeSlot.get() ?? this.locale
+  }
+
+  /** Every locale something has been loaded for. */
+  locales(): string[] {
+    return [...new Set([...this.messages.keys(), ...this.sentences.keys()])].sort()
   }
 
   /** Is this key translated in this locale, ignoring the fallback? */
   hasForLocale(key: string, locale?: string): boolean {
-    const resolved = locale ?? this.locale
+    const resolved = locale ?? this.getLocale()
 
     return this.sentence(key, resolved) !== undefined || this.lookup(key, resolved) !== undefined
   }
@@ -178,7 +301,7 @@ export class Translator {
    * locale shows English for what it is missing rather than raw keys.
    */
   get(key: string, replace: Record<string, unknown> = {}, locale?: string): string {
-    const resolved = locale ?? this.locale
+    const resolved = locale ?? this.getLocale()
 
     // Sentences first, then dotted keys, then the fallback locale in the same
     // order. A sentence is not a dotted key, so nothing here can collide.
@@ -206,7 +329,7 @@ export class Translator {
     replace: Record<string, unknown> = {},
     locale?: string
   ): string {
-    const resolved = locale ?? this.locale
+    const resolved = locale ?? this.getLocale()
     const line =
       this.sentence(key, resolved) ??
       this.lookup(key, resolved) ??
@@ -225,6 +348,26 @@ export class Translator {
     const messages = this.messages.get(locale)
 
     if (!messages) return undefined
+
+    // `billing::invoice.overdue` is the group `billing::invoice` and the key
+    // `overdue`, and the group name has a colon in it — so the split is on the
+    // namespace marker before the dotted read, not after.
+    const marker = key.indexOf('::')
+
+    if (marker !== -1) {
+      const rest = key.slice(marker + 2)
+      const dot = rest.indexOf('.')
+
+      if (dot !== -1) {
+        const group = messages[`${key.slice(0, marker)}::${rest.slice(0, dot)}`]
+
+        if (group === undefined || group === null || typeof group !== 'object') return undefined
+
+        const value = Arr.get(group as Messages, rest.slice(dot + 1))
+
+        return typeof value === 'string' ? value : undefined
+      }
+    }
 
     const value = Arr.get(messages, key)
 

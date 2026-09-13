@@ -4,7 +4,9 @@ export {
   humanizeAttribute,
   interpolate,
   MESSAGES,
+  type MessageTranslator,
   resolveMessage,
+  resolveMessagesUsing,
   type SizeMessages,
   typeOf,
   type ValueType

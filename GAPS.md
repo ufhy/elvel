@@ -1320,81 +1320,24 @@ plural selection, a fallback locale, and `whenMissing`. A missing key returns
 **the key itself** rather than an empty string, which is what makes translating
 incremental.
 
-### The locale is process-global, and swapping it races
+The locale is request-scoped now. It was one mutable field on a singleton, and
+`NotificationSender.inLocale()` swapped it and restored it in a `finally` —
+which survives a throw and does not survive an `await`: while a channel was
+suspended, every other request in the process spoke that recipient's language,
+on every send. `withLocale()` enters a scope instead, `usingLocale()` is what a
+middleware calls, and `Accept-Language` picks from the loaded locales when
+`app.negotiateLocale` is on.
 
-```ts
-export class Translator {
-  constructor(private locale = 'en', private fallback = 'en') {}
-  setLocale(locale: string) { this.locale = locale }
-```
+`addNamespace()` and `package::group.key` let a package ship messages an
+application overrides one string at a time, and the validator resolves its
+messages through the translator when one is registered — so an Indonesian
+application publishes `lang/id/validation.ts` rather than overriding every rule
+at every call site. Validation still does not depend on translation: it asks the
+container, and nothing changes when nothing answers.
 
-One mutable field on a singleton. There is no request-scoped locale, nothing
-reads `Accept-Language`, and there is no `preferredLocale()` on a user.
-
-The consequence is already in the framework. `NotificationSender.inLocale()`
-does this:
-
-```ts
-const previous = translator.getLocale()
-translator.setLocale(locale)
-try { await body() } finally { translator.setLocale(previous) }
-```
-
-with the comment: *"a channel that throws must not leave the process speaking
-the last recipient's language to everybody after them."* The `finally` handles
-the throw. It does not handle the `await` — while `body()` is suspended, every
-other request in the process renders in that recipient's language, and the
-sender is looping over recipients so it happens on every send.
-
-`packages/core` already has `requestSlot()`, and `AuthManager` and the cookie
-bag both use it for exactly this reason.
-
-**Done when** the locale lives in the request scope, `Accept-Language` and a
-user's `preferredLocale()` can set it, and `inLocale()` enters a scope rather
-than mutating a field.
-
-### A package cannot ship translations
-
-`addNamespace()` and the `package::group.key` syntax do not exist, and no
-package in the repository ships a `lang/` directory.
-
-The framework's own messages show what that costs. `packages/validation/src/messages.ts`
-is a `Record<string, string>` of English sentences —
-
-```ts
-export const MESSAGES: Record<string, string | SizeMessages> = {
-  accepted: 'The :attribute field must be accepted.',
-  after: 'The :attribute field must be a date after :date.',
-```
-
-— and the validation package never imports the translator: a search for
-`translator`, `__(` or `trans(` across `packages/validation/src` finds nothing.
-
-So **validation messages cannot be translated**. An Indonesian application
-cannot publish `lang/id/validation.ts`; it has to pass an override for every
-rule at every call site. The same is true of any message a package emits.
-
-**Done when** a package can register a namespace, the validator resolves its
-messages through the translator, and `lang/<locale>/validation.ts` overrides
-them.
-
-### Messages come from the filesystem, and only from there
-
-`Translator.load(directory)` calls `readdir` and `readFile`. Upstream puts a
-`Loader` interface in front — `FileLoader`, `ArrayLoader` — so messages can come
-from a database, an API, or an array.
-
-`add()` and `addSentences()` cover the in-memory case, so tests are fine. What is
-not possible is the one that motivates the interface: translations edited by
-non-developers in a database or a CMS, loaded at boot and refreshed without a
-deploy.
-
-This is the one extension point in the framework with no published contract —
-every other one is recorded under Contracts as present.
-
-**Done when** loading is a contract, the file loader implements it, and it is
-exported.
-
+Loading is a contract. `TranslationLoader` is `groups`/`sentences`/`locales`,
+`FileLoader` is the same reading the translator always did, and
+`loadFrom(loader)` is what a database- or CMS-backed catalogue implements.
 ---
 
 ## Validation
