@@ -73,7 +73,7 @@ export type ThrottleOptions = {
  * Route.post('/sign-in', [SignInController, 'store']).middleware('throttle:6,1')
  * ```
  *
- * Transcribed from `Illuminate\Routing\Middleware\ThrottleRequests`, including
+ * Transcribed rather than invented, including
  * the parts that are easy to get subtly wrong:
  *
  * - the counter is **hit before** the handler runs, so a slow handler cannot be

@@ -1,5 +1,5 @@
 /**
- * String helpers — `Illuminate\Support\Str`.
+ * String helpers.
  *
  * This was once "the subset the framework itself needs", and the scope changed
  * deliberately: an application reaching for `replaceFirst` or `padBoth` and not

@@ -7,7 +7,7 @@ import { type HttpMethod, type RouteAction, RouteDefinition } from './route.ts'
 /**
  * The `Route` facade, and the group stack behind it.
  *
- * `Illuminate\Routing\Router` plus `RouteRegistrar`, with the same two halves:
+ * Two halves:
  * methods that declare a route and methods that open a group. The group stack is
  * what makes `prefix`, `name`, `middleware`, `domain` and `controller` inherit
  * downwards and nest.

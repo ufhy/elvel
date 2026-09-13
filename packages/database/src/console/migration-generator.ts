@@ -6,9 +6,7 @@ import { MakeMigrationCommand } from './make-migration.ts'
 
 /**
  * The base for commands that write **one known migration** —
- * `Illuminate\Console\MigrationGeneratorCommand`.
- *
- * `make:migration` writes whatever you name; these write a specific table the
+ *  * `make:migration` writes whatever you name; these write a specific table the
  * framework itself needs (`jobs`, `cache`, `notifications`), so they know their
  * own stub and their own default table name and only differ in those two things.
  *

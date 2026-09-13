@@ -17,7 +17,7 @@ export type DatabaseQueueOptions = {
 }
 
 /**
- * Jobs in a table — `Illuminate\Queue\DatabaseQueue`.
+ * Jobs in a table.
  *
  * The reservation is the whole design. `pop()` runs in a transaction with the
  * row locked `for update`, and looks for a job that is either available or

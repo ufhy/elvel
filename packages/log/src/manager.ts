@@ -37,7 +37,7 @@ export type ChannelConfig = {
 export type DriverFactory = (config: ChannelConfig, name: string) => LogDriver
 
 /**
- * Resolves and caches log channels — `Illuminate\Log\LogManager`.
+ * Resolves and caches log channels.
  *
  * The manager is itself a logger: `log.info(...)` writes to the default
  * channel, exactly as the `Log` facade does.

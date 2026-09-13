@@ -1,5 +1,5 @@
 /**
- * What every cache driver has to provide — `Illuminate\Contracts\Cache\Store`.
+ * What every cache driver has to provide.
  *
  * TTLs are always **seconds** at this level; `0` means forever. Normalising a
  * `Date` or a null into seconds is the Repository's job, so a driver never has to
@@ -68,7 +68,7 @@ export class LockTimeoutError extends Error {
 }
 
 /**
- * An atomic lock — `Illuminate\Cache\Lock`.
+ * An atomic lock.
  *
  * The owner token is the point of the class: without it any process could
  * release a lock it never held, which turns a mutex into a suggestion.

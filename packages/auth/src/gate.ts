@@ -35,7 +35,7 @@ type Subject = string | (new (...args: never[]) => unknown)
 type Dispatcher = { dispatch(event: string, payload?: unknown): unknown }
 
 /**
- * Decides what a user may do — `Illuminate\Auth\Access\Gate`.
+ * Decides what a user may do.
  *
  * Two ways in. An ability defined inline:
  *

@@ -10,7 +10,7 @@ export type RedisStoreOptions = {
 }
 
 /**
- * A Redis store on Bun's native client — `Illuminate\Cache\RedisStore`.
+ * A Redis store on Bun's native client.
  *
  * Bun's client speaks RESP3, pipelines automatically and reconnects on its own,
  * so there is no client library to wrap. What is left is expressing the cache

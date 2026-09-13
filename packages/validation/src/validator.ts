@@ -44,8 +44,7 @@ export class ValidationError extends Error {
  * anything asynchronous (`unique`, `exists`) and anything that reads another
  * field (`confirmed`, `required_if`, and the two dozen others).
  *
- * The execution model follows `Illuminate\Validation\Validator::passes()`
- * exactly, because the details are what make error bags readable:
+ * The execution model is transcribed rather than invented, because the details are what make error bags readable:
  *
  * - a rule runs only if the value is present or the rule is *implicit*
  * - `nullable` skips non-implicit rules for a null value

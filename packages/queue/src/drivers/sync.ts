@@ -4,7 +4,7 @@ import type { JobPayload, QueueDriver, QueuedJob } from '../contracts.ts'
 export type SyncRunner = (job: QueuedJob) => Promise<void>
 
 /**
- * No queue at all — `Illuminate\Queue\SyncQueue`.
+ * No queue at all.
  *
  * The job runs inside `push()`, before the dispatcher returns. That makes it the
  * right default for local development and for tests, where a background worker

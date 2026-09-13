@@ -4,7 +4,7 @@ import type { QueryComponents, WhereClause } from './types.ts'
 /**
  * Compiles a query description into SQL plus its bindings.
  *
- * The component order is taken from `Illuminate\Database\Query\Grammars\Grammar`
+ * The component order is fixed
  * — `aggregate, columns, from, indexHint, joins, wheres, groups, havings,
  * orders, limit, offset, lock` — because clause order is not free-form SQL.
  *

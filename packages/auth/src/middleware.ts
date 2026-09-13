@@ -47,7 +47,7 @@ export function expectsJson(request: Request): boolean {
 /**
  * `auth` — there must be somebody signed in.
  *
- * Follows `Illuminate\Auth\Middleware\Authenticate`: one failure, rendered two
+ * One failure, rendered two
  * ways. A page-shaped request is redirected and its destination remembered, so
  * signing in returns where it was going; a JSON-shaped one gets a 401 and no
  * `Location`, because a client that follows redirects would otherwise treat the

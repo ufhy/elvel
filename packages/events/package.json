@@ -1,7 +1,7 @@
 {
   "name": "@elvel/events",
   "version": "1.0.0-alpha.26",
-  "description": "Laravel-style event dispatcher for Elvel — listeners, subscribers, and deferred dispatch",
+  "description": "An event dispatcher for Elvel — listeners, subscribers, wildcards and deferred dispatch",
   "keywords": [
     "bun",
     "dispatcher",

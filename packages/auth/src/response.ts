@@ -2,7 +2,7 @@
  * The outcome of an authorization check, carrying a message and a status.
  *
  * A bare boolean cannot explain *why* a check failed, which is the whole point
- * of `Illuminate\Auth\Access\Response`: a policy returns one when the denial
+ * of a bare boolean: a policy returns one when the denial
  * needs a reason, or a status other than 403.
  */
 export class AuthorizationResponse {

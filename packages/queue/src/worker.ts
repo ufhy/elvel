@@ -69,7 +69,7 @@ export class MaxAttemptsExceededError extends Error {
 }
 
 /**
- * Pulls jobs off a queue and runs them — `Illuminate\Queue\Worker`.
+ * Pulls jobs off a queue and runs them.
  *
  * The order of the retry policy is transcribed rather than reinvented, because
  * every step of it exists for a failure that happened to somebody:

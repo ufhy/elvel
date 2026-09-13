@@ -1,7 +1,7 @@
 {
   "name": "@elvel/validation",
   "version": "1.0.0-alpha.26",
-  "description": "Laravel-style validation for Elvel — a rule DSL, message bags, and form requests",
+  "description": "Validation for Elvel — a rule DSL, message bags, form requests and JSON Schema",
   "keywords": [
     "bun",
     "elvel",

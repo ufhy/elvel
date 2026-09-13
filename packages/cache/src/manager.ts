@@ -13,7 +13,7 @@ export type StoreConfig = { driver: string } & Record<string, unknown>
 export type StoreFactory = (config: StoreConfig, app: ApplicationContract) => Store
 
 /**
- * Resolves and caches stores — `Illuminate\Cache\CacheManager`.
+ * Resolves and caches stores.
  *
  * A `Repository` is memoised per store name, so `cache()` and
  * `cache().store('redis')` in the same request share one connection and one

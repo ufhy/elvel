@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { Str } from '../src/str.ts'
 
 /**
- * The helpers added to reach `Illuminate\Support\Str`.
+ * The helpers that round out `Str`.
  *
  * Each of these is four lines somebody would otherwise write inline, and the
  * cases below are the ones those four lines get wrong: an empty needle, a

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { Collection } from '../src/collection.ts'
 
 /**
- * The methods added to reach `Illuminate\Support\Collection`.
+ * The methods that round out `Collection`.
  *
  * What is *not* here is as deliberate: `splice` and `transform` mutate, and the
  * type system charges for them — a `T[]` parameter or a `(item: T) => T` callback

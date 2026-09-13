@@ -1,7 +1,7 @@
 {
   "name": "@elvel/lens",
   "version": "1.0.0-alpha.26",
-  "description": "Request, query and job recorder for Elvel \u2014 a debug dashboard in the spirit of Laravel Telescope",
+  "description": "Request, query and job recorder for Elvel — a debug dashboard and an inspection bar",
   "keywords": [
     "bun",
     "debug",

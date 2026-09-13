@@ -1,7 +1,7 @@
 {
   "name": "@elvel/vite",
   "version": "1.0.0-alpha.26",
-  "description": "The Vite plugin for Elvel \u2014 hot file, server-side reload, build output and asset URLs",
+  "description": "The Vite plugin for Elvel — hot file, server-side reload, build output and asset URLs",
   "keywords": [
     "bun",
     "elvel",

@@ -52,7 +52,7 @@ export type ConfigLoaders = Record<string, () => Promise<{ default?: unknown }>>
  * Application — container, provider registry, and owner of the root Elysia
  * instance.
  *
- * The bootstrap order mirrors `Illuminate\Foundation\Http\Kernel`:
+ * The bootstrap order:
  * env -> config -> exceptions -> register providers -> boot providers.
  */
 export class Application implements ApplicationContract {
@@ -97,7 +97,7 @@ export class Application implements ApplicationContract {
 
   /**
    * The running application. Backs the global helpers (`config()`, `view()`),
-   * the same role `Illuminate\Container\Container::getInstance()` plays.
+   * the role a container's own static instance plays.
    */
   static getInstance(): Application {
     if (!Application.current) {

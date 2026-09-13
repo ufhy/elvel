@@ -37,7 +37,7 @@ export type SenderOptions = {
 }
 
 /**
- * Delivers notifications — `Illuminate\Notifications\NotificationSender`.
+ * Delivers notifications.
  *
  * The order is transcribed rather than reinvented, because each step of it is
  * observable behaviour somebody depends on:

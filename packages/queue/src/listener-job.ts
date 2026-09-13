@@ -12,7 +12,7 @@ export type QueuedListenerData = {
 }
 
 /**
- * The job a queued listener travels as — `Illuminate\Events\CallQueuedListener`.
+ * The job a queued listener travels as.
  *
  * A listener is not a job, so one wraps the other: the payload carries the
  * listener's name, the event's name and the event's data, and the worker rebuilds

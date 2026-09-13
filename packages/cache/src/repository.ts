@@ -24,7 +24,7 @@ export type RepositoryOptions = {
 }
 
 /**
- * The cache API — `Illuminate\Cache\Repository`.
+ * The cache API.
  *
  * A driver knows how to hold bytes for a number of seconds. Everything that makes
  * a cache pleasant to use lives here: `remember`, typed reads, stale-while-
@@ -471,7 +471,7 @@ export class Repository {
 export { LockTimeoutError }
 
 /**
- * A cache scoped to tags — `Illuminate\Cache\TaggedCache`.
+ * A cache scoped to tags.
  *
  * Every key is rewritten to `sha1(namespace):key`, so the same logical key under
  * different tags is a different entry, and `flush()` invalidates only this set.

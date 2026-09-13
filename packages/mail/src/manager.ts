@@ -21,7 +21,7 @@ export type TransportFactory = (
 ) => Transport
 
 /**
- * Resolves mailers — `Illuminate\Mail\MailManager`.
+ * Resolves mailers.
  *
  * A `Mailer` is memoised per name so an SMTP pool is opened once, and every
  * mailer shares the sender, the "always to" override and the view renderer from

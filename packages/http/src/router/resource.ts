@@ -4,8 +4,8 @@ import type { RouteDefinition } from './route.ts'
 /**
  * `Route::resource` — seven routes from one line.
  *
- * The URIs, the verbs and the names are `Illuminate\Routing\ResourceRegistrar`'s,
- * read from the source rather than from the documentation, because three details
+ * The URIs, the verbs and the names are read from the upstream source rather than
+ * from documentation, because three details
  * only appear there:
  *
  * - `update` answers **PUT and PATCH**, not just PUT.

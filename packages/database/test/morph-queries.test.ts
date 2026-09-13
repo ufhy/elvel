@@ -11,7 +11,7 @@ import { DatabaseServiceProvider, Model } from '../src/index.ts'
  * `exists` cannot span tables — so these are the methods that do it, by
  * constraining the **type** column and running one subquery per type.
  *
- * The semantics come from `Illuminate\Database\Eloquent\Concerns\QueriesRelationships`:
+ * The semantics:
  * `hasMorph` builds an `or` group of `(type = X and exists(…))` branches, and
  * `whereMorphedTo` groups models by type because two types share an id space by
  * accident.

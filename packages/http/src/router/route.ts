@@ -4,7 +4,7 @@ import { compileUri, isWildcard, type ParsedUri, parseUri, rootFor } from './uri
 /**
  * A route, and everything that can be said about one after it is declared.
  *
- * The fluent modifiers are `Illuminate\Routing\Route`'s: `name`, `where` and the
+ * The fluent modifiers: `name`, `where` and the
  * `where*` shorthands, `middleware`, `withoutMiddleware`, `domain`, `defaults`,
  * `missing`, `scopeBindings`. They return `this`, so a route reads as one
  * sentence, which is what makes a routing file readable.

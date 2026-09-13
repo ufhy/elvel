@@ -1,5 +1,5 @@
 /**
- * One rate limit — `Illuminate\Cache\RateLimiting\Limit`.
+ * One rate limit.
  *
  * The counter already exists (`RateLimiter`); this is the vocabulary for saying
  * *what* the limit is, so a named limiter can return one, several, or none:

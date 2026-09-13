@@ -43,7 +43,7 @@ export type MailerOptions = {
 }
 
 /**
- * Builds and sends messages — `Illuminate\Mail\Mailer`.
+ * Builds and sends messages.
  *
  * Building and sending are separate on purpose: `build()` is what `render()` and
  * the fake both use, so a preview, an assertion and a real delivery all see the

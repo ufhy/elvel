@@ -4,7 +4,7 @@ import { Lock, type LockProvider, type Store } from '../store.ts'
 type Entry = { value: unknown; expires: number }
 
 /**
- * An in-memory store — `Illuminate\Cache\ArrayStore`.
+ * An in-memory store.
  *
  * Values are held as they were given, not serialised: it is the fastest driver
  * and the one tests use, and a round-trip that changed a `Date` into a string

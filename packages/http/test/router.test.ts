@@ -9,7 +9,7 @@ import { RouteRegistry } from '../src/routes.ts'
 /**
  * The `Route` facade, checked against the upstream router's own tests.
  *
- * Each `describe` names the test in `Illuminate\Tests\Routing` it came from, so a
+ * Each `describe` names the upstream test it came from, so a
  * difference can be looked up rather than argued about. Where this router cannot
  * match it — constraints filter after matching rather than during it — the test
  * says so and asserts what does happen.

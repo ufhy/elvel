@@ -1,8 +1,6 @@
 /**
  * Callbacks waiting for a transaction to commit —
- * `Illuminate\Database\DatabaseTransactionsManager`.
- *
- * The problem it solves is a real bug, not an abstraction. Queue a job inside a
+ *  * The problem it solves is a real bug, not an abstraction. Queue a job inside a
  * transaction and a worker can reserve it before the transaction commits: the
  * worker then reads rows that do not exist yet, or reads nothing and fails a job
  * that should have succeeded. The same applies to a queued listener, a

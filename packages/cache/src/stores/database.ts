@@ -12,7 +12,7 @@ export type DatabaseStoreOptions = {
 }
 
 /**
- * A store on our own connection — `Illuminate\Cache\DatabaseStore`.
+ * A store on our own connection.
  *
  * Worth having even next to Redis: it needs no extra service, it survives a
  * restart, and it shares the application's transaction and event stream. The

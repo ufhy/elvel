@@ -1,7 +1,7 @@
 import type { Store } from './store.ts'
 
 /**
- * A set of tags, and the namespace they form — `Illuminate\Cache\TagSet`.
+ * A set of tags, and the namespace they form.
  *
  * Each tag holds a random id. The namespace for a write is the ids joined
  * together, so flushing a tag is just giving it a new id: every key written under

@@ -69,7 +69,7 @@ function patternToRegExp(pattern: string): RegExp {
 /**
  * Event dispatcher.
  *
- * Semantics are taken from `Illuminate\Events\Dispatcher` rather than invented:
+ * Semantics are transcribed rather than invented:
  *
  * - a listener returning `false` stops propagation to later listeners
  * - `until()` (dispatch with halting) returns the first non-null response

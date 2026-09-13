@@ -18,7 +18,7 @@ export type BatchDispatcher = {
 }
 
 /**
- * A batch being described — `Illuminate\Bus\PendingBatch`.
+ * A batch being described.
  *
  * ```ts
  * await bus()

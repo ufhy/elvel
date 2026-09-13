@@ -1575,7 +1575,7 @@ export class Model {
 }
 
 /**
- * A pivot row, as a model — `Illuminate\Database\Eloquent\Relations\Pivot`.
+ * A pivot row, as a model.
  *
  * Declared **here**, beside `Model`, rather than in a file of its own: a subclass
  * in a separate module that `relations.ts` also imports produces a cycle, and the

@@ -102,7 +102,7 @@ return size
 `
 
 /**
- * Jobs in Redis — `Illuminate\Queue\RedisQueue`.
+ * Jobs in Redis.
  *
  * Three keys per queue: a list for what is ready, a sorted set of delayed jobs
  * scored by when they become available, and a sorted set of reserved jobs scored

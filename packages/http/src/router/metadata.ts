@@ -7,8 +7,8 @@
  * component three levels down is the plumbing that makes people hard-code them
  * instead.
  *
- * The merge rules are `Illuminate\Routing\RouteGroup::mergeMetadata`, and they are
- * not obvious, so they are reproduced from the six tests in `RouteRegistrarTest`
+ * The merge rules are not obvious, so they are reproduced from the six upstream
+ * tests in `RouteRegistrarTest`
  * rather than from a reading of the code:
  *
  * - a route's metadata merges **over** its group's, key by key

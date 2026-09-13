@@ -1,7 +1,7 @@
 {
   "name": "@elvel/mail",
   "version": "1.0.0-alpha.26",
-  "description": "Laravel-style mail for Elvel — Mailables and log, array and SMTP transports",
+  "description": "Mail for Elvel — Mailables, markdown templates, and SMTP, SES, Resend and log transports",
   "keywords": [
     "bun",
     "elvel",

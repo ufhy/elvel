@@ -1,7 +1,7 @@
 import type { Repository } from './repository.ts'
 
 /**
- * Counts attempts in a window — `Illuminate\Cache\RateLimiter`.
+ * Counts attempts in a window.
  *
  * Two keys per limit: the counter, and a `:timer` holding the moment the window
  * closes. The timer is what makes `availableIn()` answerable, and what tells a

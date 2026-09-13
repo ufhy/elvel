@@ -6,7 +6,7 @@ import { type EventCallback, ScheduledEvent } from './event.ts'
 type Dispatchable = { constructor: { name: string } }
 
 /**
- * The schedule — `Illuminate\Console\Scheduling\Schedule`.
+ * The schedule.
  *
  * Four ways in, and they all produce the same kind of entry: a callback with a
  * cron expression. An elvel command becomes a callback that runs the command, a

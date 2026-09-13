@@ -1,7 +1,7 @@
 {
   "name": "@elvel/cache",
   "version": "1.0.0-alpha.26",
-  "description": "Laravel-style cache for Elvel — repository API, memory, file, database and Redis stores",
+  "description": "Cache for Elvel — a repository API over memory, file, database and Redis stores",
   "keywords": [
     "bun",
     "cache",

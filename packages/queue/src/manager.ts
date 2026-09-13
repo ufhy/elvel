@@ -39,7 +39,7 @@ export type DispatchOptions = {
 }
 
 /**
- * Resolves connections and dispatches jobs — `Illuminate\Queue\QueueManager`
+ * Resolves connections and dispatches jobs
  * with the parts of `Bus\Dispatcher` that matter here.
  */
 export class QueueManager {

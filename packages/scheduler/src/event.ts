@@ -28,7 +28,7 @@ async function ping(url: string): Promise<void> {
 }
 
 /**
- * One entry in the schedule — `Illuminate\Console\Scheduling\Event`.
+ * One entry in the schedule.
  *
  * Every frequency helper writes into the same cron expression rather than into a
  * parallel notion of time. `dailyAt('13:30')` *is* `30 13 * * *`, which means one

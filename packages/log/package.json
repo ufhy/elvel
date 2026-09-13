@@ -1,7 +1,7 @@
 {
   "name": "@elvel/log",
   "version": "1.0.0-alpha.26",
-  "description": "Logging for Elvel — channels, stacks, and levels, mirrors Laravel’s Log",
+  "description": "Logging for Elvel — channels, stacks and levels, over file, console, JSON and Slack drivers",
   "keywords": [
     "bun",
     "channels",

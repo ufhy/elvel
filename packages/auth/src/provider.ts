@@ -150,7 +150,7 @@ export class AuthServiceProvider extends ServiceProvider {
    * must not depend on this package — an application with no authentication still
    * wants `throttle` and `signed`.
    *
-   * Transcribed from `Illuminate\Auth\Middleware`, including the parts that look
+   * Transcribed rather than invented, including the parts that look
    * wrong until you read why:
    *
    * - `auth` throws for JSON and redirects for a page, because a client that

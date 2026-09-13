@@ -11,7 +11,7 @@ import { isHandling } from './levels.ts'
 /**
  * Emitted after every written record, so a listener can forward logs elsewhere
  * without wrapping the logger. This is the `MessageLogged` event that
- * `Illuminate\Log\Logger::writeLog` fires.
+ * the log record is written.
  */
 export class MessageLogged {
   static readonly eventName = 'log.message'

@@ -4,7 +4,7 @@ import { decode, encode, expiresAt, FOREVER } from '../payload.ts'
 import { Lock, type LockProvider, type Store } from '../store.ts'
 
 /**
- * A file-backed store — `Illuminate\Cache\FileStore`.
+ * A file-backed store.
  *
  * The layout: `sha1(key)` split into two two-character directories
  * so no single directory collects a million files, and the payload is a
