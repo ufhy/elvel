@@ -11,7 +11,7 @@ export function Landing({ title }: LandingProps) {
         <p class="eyebrow">Elvel</p>
 
         <h1>
-          The Laravel developer experience,
+          The developer experience you know,
           <br />
           <span class="accent">on Elysia and Bun.</span>
         </h1>

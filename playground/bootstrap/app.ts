@@ -6,7 +6,7 @@ import { LensServiceProvider } from '../app/Providers/LensServiceProvider.ts'
 /**
  * Bootstrap the application.
  *
- * Order is fixed by the framework and mirrors Laravel's HTTP kernel:
+ * Order is fixed by the framework:
  * env -> config -> exceptions -> register providers -> boot providers -> routes.
  *
  * Framework providers are listed in `config/app.ts`; application providers go

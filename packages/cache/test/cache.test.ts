@@ -279,7 +279,7 @@ for (const candidate of candidates) {
        * Two seconds, not one, and the extra second is the point.
        *
        * Expiry is stored at second resolution — `floor(now / 1000) + seconds`, as
-       * Laravel's `time() + $seconds` is — so a one-second TTL written at
+       * a `now + seconds` stamp is — so a one-second TTL written at
        * `12:00:00.980` expires at `12:00:01`, and the read on the next line at
        * `12:00:01.010` is already a miss. Nothing is wrong with the store; the test
        * was asking for a guarantee second resolution cannot give. It failed on
@@ -721,7 +721,7 @@ for (const candidate of candidates) {
       expect<unknown>(await cache.tags('brand-new', 'also-new').get('k')).toBeNull()
     })
 
-    /** The ids are joined in the order the tags were named, as Laravel joins them. */
+    /** The ids are joined in the order the tags were named. */
     test('the same tags in another order are another namespace', async () => {
       await cache.tags('one', 'two').put('k', 'first', 60)
 

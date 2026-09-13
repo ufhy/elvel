@@ -65,7 +65,7 @@ export class MailMessage {
    * A paragraph.
    *
    * Lines added before `action()` appear above the button and lines after it
-   * below, which is how Laravel's template reads and why the order is kept.
+   * below, which is how the template reads and why the order is kept.
    */
   line(line: string): this {
     if (this.actionText === undefined) this.introLines.push(line)
@@ -113,7 +113,7 @@ export class MailMessage {
   }
 
   /**
-   * A copy, and a blind copy — Laravel's `cc` and `bcc` on `MailMessage`.
+   * A copy, and a blind copy.
    *
    * These were on `@elvel/mail`'s `Envelope` and not here, so a notification could
    * be sent to one address and no other. The commonest reason to want them is an
@@ -170,7 +170,7 @@ export class MailMessage {
    * Run `body` when the condition holds, and keep the chain.
    *
    * The callback may return the message or nothing; either way the chain continues
-   * from this message, which is what Laravel's own test pins.
+   * from this message.
    */
   when(condition: boolean, body: (message: this) => unknown): this {
     if (condition) body(this)
@@ -231,7 +231,7 @@ export class MailMessage {
   markdown(source: string): this {
     this.markdownBody = source
     // The two are alternatives, so the later call wins rather than being quietly
-    // outranked — Laravel clears the other for the same reason.
+    // outranked, so the other is cleared.
     this.component = undefined
 
     return this

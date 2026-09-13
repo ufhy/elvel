@@ -1,5 +1,5 @@
 /**
- * Conditionable — Laravel's `->when()/->unless()` fluent guard.
+ * Conditionable — the `.when()` / `.unless()` fluent guard.
  */
 export class Conditionable {
   when(condition: unknown, callback: (self: this) => void): this {
@@ -19,8 +19,8 @@ export class Conditionable {
 }
 
 /**
- * Macroable — runtime extension of a class, the way Laravel packages bolt
- * methods onto `Str`, `Request`, or the query builder.
+ * Macroable — runtime extension of a class, so a package can bolt methods onto
+ * `Str`, the query builder, or anything else.
  *
  * Types are opt-in via declaration merging on the consuming class; the runtime
  * side is a plain prototype write, no proxy cost on every access.

@@ -35,8 +35,7 @@ export default new Elysia({ name: 'guard' })
 
   /**
    * `create` has no model instance to authorize against, so the class is passed
-   * and the policy drops it — the same shape as Laravel's `authorize('create',
-   * Article::class)`.
+   * and the policy drops it — `authorize('create', Article)`.
    */
   .post(
     '/check/guarded/articles',

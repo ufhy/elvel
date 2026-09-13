@@ -111,7 +111,7 @@ describe('Arr mutation helpers', () => {
 
 describe('Arr.set with numeric segments', () => {
   test('a numeric key creates an array', () => {
-    // PHP cannot tell an array from a map, so Laravel never had to choose. Here
+    // PHP cannot tell an array from a map, so it never had to choose. Here
     // the choice is visible the moment the result is serialised.
     expect(Arr.set({}, 'items.0.price', 10)).toEqual({ items: [{ price: 10 }] })
     expect(Array.isArray(Arr.set({}, 'items.0.price', 10).items)).toBe(true)

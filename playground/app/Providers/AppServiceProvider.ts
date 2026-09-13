@@ -34,9 +34,8 @@ export class AppServiceProvider extends ServiceProvider {
     /**
      * What `:article` and `:comment` mean in a path.
      *
-     * Declared rather than inferred: Laravel reads the handler's type hints, and
-     * TypeScript erases them. `Route::model()` is Laravel's own name for doing it
-     * this way.
+     * Declared rather than inferred, because TypeScript erases the handler's type
+     * hints.
      *
      * The comment is **scoped** to the article, so `/check/bound/articles/1/comments/9`
      * finds the comment among that article's comments and 404s otherwise. Without
@@ -77,7 +76,7 @@ export class AppServiceProvider extends ServiceProvider {
   }
 
   /**
-   * Named rate limiters, as `RateLimiter::for(...)` in a Laravel provider.
+   * Named rate limiters.
    *
    * A limiter decides from the request, which is what makes "500 an hour for a
    * signed-in user, 20 for everyone else" one rule instead of two routes.

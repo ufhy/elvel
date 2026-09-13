@@ -36,8 +36,8 @@ export abstract class Notification<TData = Record<string, never>> {
   /**
    * Which channels to deliver by, for this recipient.
    *
-   * A single channel may be named as a string, which is what Laravel accepts and
-   * what reads better for the many notifications that only mail.
+   * A single channel may be named as a string, which reads better for the many
+   * notifications that only mail.
    */
   abstract via(notifiable: Notifiable): string[] | string
 
@@ -55,8 +55,7 @@ export abstract class Notification<TData = Record<string, never>> {
    *
    * A notification is one job per channel, and the channels are not alike: mail
    * goes through a provider that rate-limits and can be down for minutes, while a
-   * database row is a single insert. Laravel lets the two be routed apart, and
-   * this is how — `{ mail: 'redis' }` leaves every other channel on the default.
+   * database row is a single insert. The two can be routed apart, and this is how — `{ mail: 'redis' }` leaves every other channel on the default.
    */
   viaConnections?(): Record<string, string | undefined>
 

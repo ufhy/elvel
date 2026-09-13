@@ -7,7 +7,7 @@ export type Broadcasting = {
 }
 
 /**
- * Sends a notification over a websocket — Laravel's `broadcast` channel.
+ * Sends a notification over a websocket.
  *
  * The channel a notification goes to is the recipient's own: `notifications.<id>`
  * by default, which is what lets a page subscribe once and receive everything

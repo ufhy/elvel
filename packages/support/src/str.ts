@@ -249,7 +249,7 @@ export const Str = {
 
   // ----------------------------------------------------------- inspecting
 
-  /** Does it match a pattern with `*` wildcards? Laravel's `Str::is`. */
+  /** Does it match a pattern with `*` wildcards? */
   is(pattern: string | string[], value: string): boolean {
     return (Array.isArray(pattern) ? pattern : [pattern]).some((one) => {
       if (one === value) return true
@@ -402,7 +402,7 @@ export const Str = {
     /**
      * A negative length stops that many characters from the end.
      *
-     * PHP's `substr` semantics, which Laravel relies on: `mask(card, '*', 4, -4)`
+     * PHP's `substr` semantics: `mask(card, '*', 4, -4)`
      * hides everything between the first four and the last four. Reading it as
      * `Math.abs(length)` masks four characters and leaves the rest of the number
      * in the log — which is the opposite of what the caller asked for, and looks
@@ -512,7 +512,7 @@ export const Str = {
    * `padBoth('7', 5, '0')` → `'00700'`.
    *
    * The odd character goes on the **right**, which is what PHP's `str_pad` does
-   * and therefore what a test ported from Laravel expects.
+   * and therefore what a ported test expects.
    */
   padBoth(value: string, length: number, pad = ' '): string {
     const missing = length - value.length
@@ -566,7 +566,7 @@ export const Str = {
     return value.split(/(?=\p{Lu})/u).filter((part) => part !== '')
   },
 
-  /** Laravel's other name for `studly`, so an example copies across. */
+  /** The other name for `studly`, so an example copies across. */
   pascal(value: string): string {
     return Str.studly(value)
   },

@@ -7,8 +7,8 @@ type Dict = Record<string, any>
  * `__proto__`; it walks into `Object.prototype` and writes *there*, and from
  * that moment every object in the process answers `isAdmin` — including ones
  * built long before, and ones the attacker never touched. PHP arrays have no
- * prototype, so Laravel's `data_set` never had to decide this; the port inherits
- * the API and the hazard with it.
+ * prototype, so a dotted setter there never had to decide this; the API is
+ * inherited and the hazard with it.
  *
  * It returns the segment rather than returning nothing, so that every write
  * below reads `current[refusePrototypeWalk(...)]` and there is no way to add a
@@ -74,7 +74,7 @@ export const Arr = {
    * Write a nested value using dot notation, creating what is missing.
    *
    * A **numeric** segment creates an array, not an object. PHP cannot tell the
-   * two apart, so Laravel's `data_set` never had to decide; here it matters —
+   * two apart, so a dotted setter there never had to decide; here it matters —
    * rebuilding `items.0.price` into `{ items: { '0': … } }` produces something
    * that serialises as an object, and a validated payload that reaches a database
    * write or a JSON response in that shape is wrong in a way nothing catches
@@ -84,8 +84,8 @@ export const Arr = {
    * does not write a property of that name; it walks into `Object.prototype` and
    * writes *there*, and from that moment every object in the process answers
    * `isAdmin` — including ones built long before, and ones the attacker never
-   * touched. PHP arrays have no prototype, so Laravel's `data_set` never had to
-   * decide this either; the port inherits the API and the hazard with it.
+   * touched. PHP arrays have no prototype, so a dotted setter there never had to
+   * decide this either; the API is inherited and the hazard with it.
    *
    * Refused loudly rather than ignored: a key of that shape is an attack or a
    * bug, and dropping the write in silence leaves the caller believing it stored

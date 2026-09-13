@@ -80,8 +80,8 @@ export class NotificationSender {
      * An id the caller (or a queued job) already set is kept; otherwise each
      * recipient gets its own.
      *
-     * Read *before* the loop on purpose. Laravel clones the notification per
-     * recipient, so each clone starts with an empty id; one shared instance does
+     * Read *before* the loop on purpose. Cloning the notification per recipient
+     * gives each clone an empty id; one shared instance does
      * not, and checking `notification.id` inside the loop would hand every later
      * recipient the first one's id — which would make two people's stored rows
      * indistinguishable.
@@ -189,8 +189,8 @@ export class NotificationSender {
     /**
      * Announced through `until`, so a listener can call it off.
      *
-     * Laravel's `NotificationSending` halts the send when a listener returns
-     * false, and that is the only hook there is for a decision that belongs
+     * A listener returning false halts the send,
+     * and that is the only hook there is for a decision that belongs
      * outside the notification: a suppression list, a quiet-hours window, a
      * customer who asked for no mail. `shouldSend()` covers the cases the
      * notification itself knows about; this covers the ones it should not have to.
@@ -251,9 +251,8 @@ export { AnonymousNotifiable }
 /**
  * The channels a `via()` named, however it named them.
  *
- * A string is one channel, which is what Laravel accepts and what most
- * notifications want. An empty string is nothing rather than a channel called `''`
- * — Laravel pins that too, and without it a `via()` that computes a name and
+ * A string is one channel, which is what most notifications want. An empty string is nothing rather than a channel called `''`
+ * — without which a `via()` that computes a name and
  * comes back with nothing would try to resolve a driver by empty name.
  */
 function channelsOf(via: string[] | string): string[] {

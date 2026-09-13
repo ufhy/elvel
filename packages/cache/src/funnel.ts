@@ -12,8 +12,8 @@ export type LockFactory = (name: string, seconds: number) => Lock
  * with a small connection pool. Without it those become one-at-a-time and the
  * work takes as long as the sum of its parts.
  *
- * Laravel's version is Redis-only, because it acquires a slot with a Lua script.
- * This one is not: a `Lock` is already atomic on every driver here, so N named
+ * A Redis-only version can acquire a slot with a Lua script. This one does not
+ * need to: a `Lock` is already atomic on every driver here, so N named
  * locks are a semaphore that works the same on `array`, `file`, `database` and
  * `redis`. The cost is N round trips in the worst case rather than one, which
  * matters far less than a limiter that only exists on one driver.
@@ -73,9 +73,9 @@ export class Funnel {
    * **Never `await` a funnel itself.** A `then` member makes this object
    * thenable, so `await funnel` would call this with the promise machinery's
    * `resolve` as the callback and hand it a slot. It is named `then` because
-   * Laravel names it that; always call it, never await the object.
+   * That is the documented name; always call it, never await the object.
    */
-  // biome-ignore lint/suspicious/noThenProperty: Laravel's `Funnel::then()` — the name is the documented API. The thenable hazard is real and named above.
+  // biome-ignore lint/suspicious/noThenProperty: `then()` is the documented API. The thenable hazard is real and named above.
   async then<T>(callback: () => T | Promise<T>): Promise<T | false> {
     const slot = await this.acquire()
     if (!slot) return false

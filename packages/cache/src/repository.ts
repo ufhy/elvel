@@ -178,7 +178,7 @@ export class Repository {
     return this.remember(key, null, callback)
   }
 
-  /** Laravel's alias for `rememberForever`. */
+  /** The other name for `rememberForever`. */
   async sear<T>(key: string, callback: () => T | Promise<T>): Promise<T> {
     return this.rememberForever(key, callback)
   }
@@ -252,7 +252,7 @@ export class Repository {
     return forgotten
   }
 
-  /** Laravel's PSR-16 alias. */
+  /** The PSR-16 alias. */
   async delete(key: string): Promise<boolean> {
     return this.forget(key)
   }
@@ -267,7 +267,7 @@ export class Repository {
   // --------------------------------------------------------------- typed reads
 
   /**
-   * Typed getters, as Laravel added in 11.x.
+   * Typed getters.
    *
    * They are not casts: a value of the wrong type is a programming error and
    * throws, rather than being coerced into something that looks fine and is not.

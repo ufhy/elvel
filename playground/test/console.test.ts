@@ -145,7 +145,7 @@ describe('the exit code', () => {
  * It can only be exercised in an application, and until this test existed it had
  * none — while being able to delete rows. Two bugs came out of writing it:
  *
- * - `{--model=*}` is Laravel's spelling for a repeatable option and was read as a
+ * - `{--model=*}` is the spelling for a repeatable option and was read as a
  *   default of `"*"`, so every model was filtered out and the command reported
  *   `No model defines prunable()` against an application whose model defined one.
  * - `--pretend` returned after the first batch, so it reported the chunk size

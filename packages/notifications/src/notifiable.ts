@@ -23,7 +23,7 @@ export interface Notifiable {
    */
   getNotifiableType?(): string
 
-  /** The default `mail` route, as Laravel reads it. */
+  /** The default `mail` route. */
   email?: unknown
 
   /** Fallback key when there is no `getKey()`. */
@@ -49,8 +49,7 @@ export function localeFor(notifiable: Notifiable): string | undefined {
 /**
  * The route a channel should use for a notifiable.
  *
- * An explicit `routeNotificationFor` wins; otherwise the defaults are Laravel's —
- * `mail` reads `email`, and every other channel has to be told.
+ * An explicit `routeNotificationFor` wins; otherwise `mail` reads `email`, and every other channel has to be told.
  */
 export function routeFor(notifiable: Notifiable, channel: string): Route {
   if (typeof notifiable.routeNotificationFor === 'function') {

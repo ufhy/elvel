@@ -35,8 +35,8 @@ export class TagSet {
   /**
    * The current namespace. Creates any tag that does not exist yet.
    *
-   * One read for the whole set. Laravel asks the store for each tag in turn, and
-   * so did this: `tags('a', 'b')` against Redis spent two round trips finding out
+   * One read for the whole set. Asking the store per tag is what this did before:
+   * `tags('a', 'b')` against Redis spent two round trips finding out
    * what the namespace was before it could touch the key it came for.
    *
    * Only the tags that are genuinely missing are created, and only those cost a

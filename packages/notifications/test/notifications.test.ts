@@ -930,7 +930,7 @@ describe('a notification written in markdown', () => {
 
 describe('a via() that names one channel as a string', () => {
   /**
-   * Laravel accepts `return 'mail'` as well as `return ['mail']`, and most
+   * `return 'mail'` is accepted as well as `return ['mail']`, and most
    * notifications only mail — the list is ceremony for the common case.
    */
   test('is the same as naming it in a list', async () => {

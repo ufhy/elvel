@@ -183,7 +183,7 @@ describe('the limit itself', () => {
     expect<boolean[]>(allowed).toEqual([true, true, true, false])
   })
 
-  /** A refused attempt does not count, which is Laravel's behaviour. */
+  /** A refused attempt does not count. */
   test('and a refusal does not raise the count', async () => {
     const limiter = new RateLimiter(new Repository(new ArrayStore()))
 

@@ -22,8 +22,7 @@ export class MultipleItemsFoundError extends Error {
  * `partition` and finding neither goes back to bare arrays, and then the models
  * are returning a wrapper nobody wants.
  *
- * Every method returns a new collection. Laravel's do too, apart from the few
- * that exist to mutate (`push`, `pop`, `shift`), and those are marked.
+ * Every method returns a new collection, apart from the few that exist to mutate (`push`, `pop`, `shift`), and those are marked.
  */
 export class Collection<T> implements Iterable<T> {
   constructor(private readonly items: T[] = []) {}
@@ -126,8 +125,8 @@ export class Collection<T> implements Iterable<T> {
   /**
    * The negation of `contains`, which reads better than `!c.contains(…)`.
    *
-   * Laravel's `containsStrict` and `doesntContainStrict` are the same two: the
-   * "strict" in those names is about PHP's loose `==`, and there is no loose
+   * `containsStrict` and `doesntContainStrict` are the same two: the "strict" is
+   * about a loose `==`, and there is no loose
    * comparison here to opt out of. They are aliases rather than absent so that an
    * example copies across without a reader wondering what changed.
    */
@@ -742,7 +741,7 @@ export class Collection<T> implements Iterable<T> {
 
   // -------------------------------------------------------------- mutating
 
-  /** These four change the collection in place, as Laravel's do. */
+  /** These four change the collection in place. */
   push(...items: T[]): this {
     this.items.push(...items)
 

@@ -6,8 +6,7 @@ import type { MiddlewareHook } from '@elvel/http'
  * filled in.
  *
  * A middleware the *application* writes, as opposed to the aliases the framework
- * ships. Laravel's documentation uses this same example, and it is the useful one
- * because it takes a parameter:
+ * ships, and it is the useful example because it takes a parameter:
  *
  * ```ts
  * // app/Providers/AppServiceProvider.ts

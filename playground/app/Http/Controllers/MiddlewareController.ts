@@ -253,8 +253,7 @@ export default new Elysia({ name: 'middleware-demo' })
   )
 
   /**
-   * A whole group behind one declaration — Laravel's `Route::middleware(...)
-   * ->group(...)`.
+   * A whole group behind one declaration.
    *
    * `guard()` takes the same object `middleware()` returns, so a group and a
    * route are written the same way.

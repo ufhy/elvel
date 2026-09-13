@@ -75,8 +75,8 @@ describe('building without sending', () => {
   /**
    * `build()` resolves the view and the envelope with no transport at all.
    *
-   * This is how a mailable is checked in isolation — the equivalent of Laravel's
-   * assertions on `Mailable` itself, and the shape a preview route uses.
+   * This is how a mailable is checked in isolation, and the shape a preview route
+   * uses.
    */
   it('renders a mailable that never goes anywhere', async () => {
     const { expectMessage } = await import('@elvel/mail')

@@ -19,13 +19,13 @@ export {
 } from './listener.ts'
 export { EventServiceProvider } from './provider.ts'
 
-/** The application's dispatcher — Laravel's `Event` facade. */
+/** The application's dispatcher. */
 export function events() {
   return app('events')
 }
 
 /**
- * Dispatch an event. Mirrors Laravel's `event()` helper.
+ * Dispatch an event.
  *
  * ```ts
  * await dispatch(new UserRegistered(user))

@@ -673,7 +673,7 @@ describe('listening on a base class', () => {
 
     await dispatcher.dispatch(new OrderPlaced(1))
 
-    // Laravel matches interfaces; TypeScript erases those, but a base class
+    // Interfaces are erased by TypeScript, but a base class
     // survives and carries the same meaning. Most specific first.
     expect<string[]>(heard).toEqual(['own', 'ancestor'])
   })

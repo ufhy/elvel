@@ -59,7 +59,7 @@ export function eventName(event: EventKey | object): string {
   return typeof target?.eventName === 'string' ? target.eventName : (target?.name ?? 'unknown')
 }
 
-/** Translate `user.*` into a regular expression, matching Laravel's `Str::is`. */
+/** Translate `user.*` into a regular expression, as `Str.is` matches. */
 function patternToRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
 
@@ -95,7 +95,7 @@ export class Dispatcher implements EventDispatcher {
   /**
    * The `defer()` in progress, if any — per async context, not per dispatcher.
    *
-   * A flag on the object would be wrong here in a way it is not in Laravel. One
+   * A flag on the object would be wrong here. One
    * dispatcher serves every request in the process, so a deferral held on the
    * instance would swallow the events of every other request that happened to
    * overlap with it. The store follows the callback's async context and nothing
@@ -106,7 +106,7 @@ export class Dispatcher implements EventDispatcher {
   /**
    * Teach the dispatcher how to queue — called by the queue's provider.
    *
-   * Laravel's `setQueueResolver`, and the same containment: this package depends
+   * A resolver rather than an import, for containment: this package depends
    * on `@elvel/contracts` and `@elvel/core` only.
    */
   setQueue(pusher: QueuedListenerPusher): void {
@@ -153,7 +153,7 @@ export class Dispatcher implements EventDispatcher {
         this.queuedListeners.register(listener)
         stored.push((eventKey, payload) => this.pushToQueue(listener, eventKey, payload))
       } else {
-        // Non-wildcard listeners receive the payload only, as in Laravel.
+        // Non-wildcard listeners receive the payload only.
         stored.push((_name, payload) => (listener as Listener)(payload))
       }
 
@@ -345,7 +345,7 @@ export class Dispatcher implements EventDispatcher {
   /**
    * Run `body` with dispatches held back, then dispatch them in order.
    *
-   * Laravel's `Event::defer`. What it is for is the half-finished write: an
+   * What it is for is the half-finished write: an
    * order is created, a payment is taken, an invoice is written, and the third
    * step fails. Without this, two listeners have already emailed the customer
    * about an order that no longer exists. With it, a throw means nothing was
@@ -405,8 +405,8 @@ export class Dispatcher implements EventDispatcher {
     /**
      * Listeners registered on an **ancestor** run too.
      *
-     * Laravel matches a listener registered on an interface the event
-     * implements. TypeScript erases interfaces, so there is nothing at runtime
+     * A listener can be registered on an interface the event implements.
+     * TypeScript erases interfaces, so there is nothing at runtime
      * to match — but a base class survives, and it carries the same meaning:
      * `listen(DomainEvent, …)` hears every event that extends it.
      *
@@ -430,7 +430,7 @@ export class Dispatcher implements EventDispatcher {
   /**
    * Register an event to be dispatched later by `flush()`.
    *
-   * Laravel's `push`/`flush` pair, and unrelated to queueing: nothing leaves the
+   * A `push`/`flush` pair, unrelated to queueing: nothing leaves the
    * process — the event waits in memory until `flush()` names it.
    */
   push(event: string, payload?: unknown): void {

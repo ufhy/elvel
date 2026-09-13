@@ -32,7 +32,7 @@ export function secondsUntil(expiresAt: number): number {
 /**
  * A UNIX timestamp for `seconds` from now, where `0` means forever.
  *
- * Forever is `9999999999` — the same sentinel Laravel writes, so a payload stays
+ * Forever is `9999999999` — a sentinel, so a payload stays
  * comparable with a plain integer compare and never needs a special case.
  */
 export const FOREVER = 9_999_999_999

@@ -4,7 +4,7 @@ export default {
   /**
    * The master switch. Off unless asked for.
    *
-   * Laravel Telescope defaults this on and relies on the published provider's
+   * Telescope defaults this on and relies on the published provider's
    * filter to keep production quiet. That inverts badly here: an application
    * that installs the package and forgets the provider would record everything.
    * So the default is off and turning it on is a deliberate act.

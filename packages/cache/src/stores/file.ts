@@ -6,7 +6,7 @@ import { Lock, type LockProvider, type Store } from '../store.ts'
 /**
  * A file-backed store — `Illuminate\Cache\FileStore`.
  *
- * The layout is Laravel's: `sha1(key)` split into two two-character directories
+ * The layout: `sha1(key)` split into two two-character directories
  * so no single directory collects a million files, and the payload is a
  * ten-digit expiry timestamp followed by the value. Reading only the first ten
  * bytes is enough to know whether an entry is still alive.

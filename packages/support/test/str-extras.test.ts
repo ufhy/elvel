@@ -43,7 +43,7 @@ describe('padding', () => {
    * The odd character goes right, which is what PHP's `str_pad` does.
    *
    * Worth pinning: the other choice looks equally reasonable and makes every test
-   * ported from Laravel fail by one character.
+   * ported from elsewhere fail by one character.
    */
   test('padBoth puts the remainder on the right', () => {
     expect<string>(Str.padBoth('7', 5, '0')).toBe('00700')

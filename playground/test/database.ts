@@ -11,9 +11,7 @@ import app from '../bootstrap/app.ts'
  * once: SQLite refuses the second outright, and fifteen tests fail together with
  * `database is locked` in a way that reads like fifteen separate bugs.
  *
- * Laravel's answer is the same one: a database of its own for testing.
- *
- * Everything else about the connection is left as the application configured it,
+ *  * Everything else about the connection is left as the application configured it,
  * so what the tests exercise is the application's own settings and not a second
  * arrangement that only exists here.
  */
