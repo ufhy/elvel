@@ -2,7 +2,7 @@ import type { Blueprint, ColumnAttributes, Command } from '../blueprint.ts'
 import { type Modifier, SchemaGrammar } from '../grammar.ts'
 
 export class PostgresSchemaGrammar extends SchemaGrammar {
-  /** Verbatim from Laravel's PostgresGrammar. */
+  /** The order Postgres accepts. */
   protected modifiers: Modifier[] = ['collate', 'nullable', 'default', 'increment']
 
   typeFor(column: ColumnAttributes): string {
@@ -78,7 +78,7 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
     }
   }
 
-  /** Postgres has no unsigned integers; Laravel silently ignores the modifier. */
+  /** Postgres has no unsigned integers, so the modifier is ignored. */
   protected override modifyUnsigned(): string {
     return ''
   }
@@ -176,7 +176,7 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
    *
    * Postgres has no full-text *index type*: what makes a text search fast is a GIN
    * index over the `tsvector` the query will compute. The language matters and
-   * cannot be guessed, so `english` is the default Laravel uses too — an
+   * cannot be guessed, so `english` is the default — an
    * application indexing another language wants its own `rawIndex`.
    */
   protected override compileFullText(

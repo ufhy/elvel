@@ -57,7 +57,7 @@ export interface Connection {
   disconnect(): Promise<void>
 }
 
-/** Emitted after every query, mirroring Laravel's `QueryExecuted`. */
+/** Emitted after every query. */
 export class QueryExecuted {
   static readonly eventName = 'db.query'
 

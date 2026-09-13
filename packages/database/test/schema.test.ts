@@ -446,11 +446,11 @@ describe('SchemaBuilder against a real database', () => {
 })
 
 /**
- * The columns added to reach Laravel's `Blueprint`, and why they are methods
+ * The columns added to round out `Blueprint`, and why they are methods
  * rather than `string()` calls with a comment.
  *
  * Each one names an *intent* whose column type is not the same on two dialects.
- * The types are Laravel's, read from its three schema grammars — `typeIpAddress`
+ * The types are read from the three schema grammars — `ipAddress`
  * answers `inet` on Postgres and `varchar` elsewhere, and no amount of reading
  * the documentation says so.
  */

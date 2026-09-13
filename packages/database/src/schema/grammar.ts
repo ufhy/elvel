@@ -21,8 +21,8 @@ export type Modifier =
 /**
  * Compiles a `Blueprint` into DDL.
  *
- * The `modifiers` order is not cosmetic — it is taken verbatim from each of
- * Laravel's schema grammars, because SQL rejects the wrong order (SQLite wants
+ * The `modifiers` order is not cosmetic — it is per dialect, because SQL rejects
+ * the wrong order (SQLite wants
  * `primary key autoincrement` before `not null`, MySQL wants `unsigned` first).
  */
 export abstract class SchemaGrammar {

@@ -66,7 +66,7 @@ function grammarFor(driver: ConnectionConfig['driver']): Grammar {
   }
 }
 
-/** Deadlock signatures worth retrying, as Laravel's DetectsConcurrencyErrors does. */
+/** Deadlock signatures worth retrying. */
 const CONCURRENCY_ERRORS = [
   'deadlock detected',
   'deadlock found',
@@ -130,7 +130,7 @@ export class BunSqlConnection implements Connection {
     const connection = new BunSqlConnection(name, sql, config, dispatcher)
 
     if (config.driver === 'sqlite') {
-      // Laravel enables SQLite foreign keys by default; SQLite does not.
+      // SQLite leaves foreign keys off; an application almost never wants that.
       if (config.foreignKeys !== false) await connection.unprepared('PRAGMA foreign_keys = ON')
 
       /**
@@ -193,8 +193,8 @@ export class BunSqlConnection implements Connection {
       return {
         adapter: 'sqlite',
         filename: BunSqlConnection.sqlitePath(config),
-        // Laravel expects `touch database/database.sqlite`; creating the file is
-        // friendlier and still explicit, since the path is configured.
+        // Creating the file is friendlier than demanding `touch` first, and
+        // still explicit, since the path is configured.
         create: true
       }
     }
@@ -369,8 +369,7 @@ export class BunSqlConnection implements Connection {
          * transaction use savepoint() instead" — and it is right to: `BEGIN` twice
          * is not two transactions in any engine we target. Nesting is what lets a
          * service method wrap its own work in `transaction()` without caring
-         * whether its caller already opened one, which is what Laravel's
-         * transaction level gives.
+         * whether its caller already opened one.
          */
         const open = nested
           ? (body: (tx: unknown) => Promise<unknown>) =>

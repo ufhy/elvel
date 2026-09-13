@@ -67,8 +67,8 @@ export class ConnectionManager {
   /**
    * Build one connection, or a read/write pair when the config names both.
    *
-   * `read` and `write` are merged *over* the shared keys and then removed, which
-   * is Laravel's `mergeReadWriteConfig`: one entry describes the credentials once
+   * `read` and `write` are merged *over* the shared keys and then removed, so one
+   * entry describes the credentials once
    * and only the host differs.
    */
   private async make(name: string, config: ConnectionConfig): Promise<Connection> {
@@ -287,8 +287,7 @@ export class ConnectionManager {
 /**
  * One host from a `read`/`write` entry.
  *
- * A list means "any of these replicas". Laravel picks uniformly at random, and
- * so does this by default — with several processes, random spreads the load
+ * A list means "any of these replicas", picked uniformly at random by default — with several processes, random spreads the load
  * without any of them having to agree on whose turn it is.
  *
  * A host may also carry a `weight`, which is the case random alone handles

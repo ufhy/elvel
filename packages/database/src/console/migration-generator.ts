@@ -16,7 +16,7 @@ import { MakeMigrationCommand } from './make-migration.ts'
  * timestamp, so a second run would happily write
  * `2026_08_12_121543_create_jobs_table.ts` beside an existing
  * `2026_08_12_064514_create_jobs_table.ts` and the migrator would then try to
- * create the same table twice. Laravel globs for *any* migration whose name ends
+ * create the same table twice. Any migration whose name ends
  * in `create_<table>_table`; so does this, which is why the check cannot live in
  * a subclass.
  */

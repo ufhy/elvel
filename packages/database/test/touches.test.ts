@@ -14,8 +14,7 @@ import { DatabaseServiceProvider, Model } from '../src/index.ts'
  * hands back a `Collection` and a `Collection` has no `touch`. And two models
  * that touched each other never stopped.
  *
- * Laravel does all of this with `Relation::touch()` — one `rawUpdate`, no events —
- * and guards the walk with `withoutRecursion`.
+ * One raw update, no events, and the walk guarded against recursion.
  */
 class Thread extends Model {
   static override table = 'threads'

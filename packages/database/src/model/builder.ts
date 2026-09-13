@@ -542,7 +542,7 @@ export class ModelBuilder<M extends Model> {
   }
 
   /**
-   * The `or` half of the family — Laravel's `orHas` and friends.
+   * The `or` half of the family — `orHas` and friends.
    *
    * Four methods that were missing rather than declined, and there is no way
    * round them: "posts, or comments" cannot be said with `whereHas` twice, and
@@ -569,7 +569,7 @@ export class ModelBuilder<M extends Model> {
    * `whereRelation('posts', 'is_published', true)`.
    *
    * The same as `whereHas` with a one-line callback, and worth having for the
-   * reason Laravel added it: the callback form buries the condition inside a
+   * a reason: the callback form buries the condition inside a
    * closure, and a filter on a relation is the commonest thing anybody writes.
    */
   whereRelation(relation: string, column: string, operator?: unknown, value?: unknown): this {
@@ -616,11 +616,11 @@ export class ModelBuilder<M extends Model> {
    * constrains the **type** column and runs one `exists` per type, joined with
    * `or` — which is what `hasMorph` does in `QueriesRelationships`.
    *
-   * `'*'` means every type the relation declares. Laravel finds them by querying
+   * `'*'` means every type the relation declares. Finding them by querying
    * `select distinct taggable_type`, and that is one round trip before the real
    * query, on a column that may not be indexed. The relation already lists its
    * types here, so this reads them instead — which also means a type with no rows
-   * yet still gets its subquery, where Laravel's would silently leave it out.
+   * yet still gets its subquery, where the query would silently leave it out.
    *
    * The callback receives the query **and the type**, so a constraint can differ
    * per table: a column on `posts` may not exist on `videos`.
@@ -685,7 +685,7 @@ export class ModelBuilder<M extends Model> {
   /**
    * `whereMorphedTo('taggable', post)` — which row it points at, not what it has.
    *
-   * Four shapes, all of them Laravel's: a model, several models, a type name on
+   * Four shapes: a model, several models, a type name on
    * its own, and `null` — which asks for the rows pointing at nothing, and is a
    * `where … is null` on the type column rather than a comparison with the word
    * "null".
@@ -845,7 +845,7 @@ export class ModelBuilder<M extends Model> {
      *
      * Two models of different types share an `id` space by accident; a flat
      * `type in (…) and id in (…)` would match a post whose id happens to equal a
-     * video's. Laravel groups for the same reason.
+     * video's, hence the grouping.
      */
     const byType = new Map<string, unknown[]>()
 
@@ -947,7 +947,7 @@ export class ModelBuilder<M extends Model> {
    * pivot: the pivot is the relation's business, and `has` already knows it.
    *
    * The relation name is guessed as the plural of the class — `Tag` gives
-   * `tags` — which is Laravel's guess too, and refused rather than approximated
+   * `tags` — and refused rather than approximated
    * when the relation is not a many-to-many.
    */
   whereAttachedTo(related: Model | Iterable<Model>, relation?: string): this {
@@ -1016,7 +1016,7 @@ export class ModelBuilder<M extends Model> {
   /**
    * Copy another builder's constraints onto this one — `mergeConstraintsFrom`.
    *
-   * For the case Laravel added it for: applying a relation's own constraints to a
+   * For one case: applying a relation's own constraints to a
    * query built elsewhere, so a scope defined once is not written twice.
    */
   mergeConstraintsFrom<Other extends Model>(other: ModelBuilder<Other>): this {
@@ -1114,7 +1114,7 @@ export class ModelBuilder<M extends Model> {
   /**
    * `whereBelongsTo(author)` — the child rows that belong to this parent.
    *
-   * Laravel's own test asserts what it compiles to, and it is not an `exists`
+   * The upstream assertion says what this compiles to, and it is not an `exists`
    * subquery: `whereIn('<table>.<foreignKey>', [<parent keys>])`. One model or a
    * list of them, and the relation is found by the parent's own class unless it is
    * named — which is what makes `whereBelongsTo(user, 'author')` necessary when a
@@ -1136,7 +1136,7 @@ export class ModelBuilder<M extends Model> {
     /**
      * A model, an array, or a `Collection` — whatever `get()` handed back.
      *
-     * Laravel's own test passes a `Collection` here, and `Array.isArray` is false
+     * The upstream test passes a `Collection` here, and `Array.isArray` is false
      * for one: the collection was treated as a single model, and the failure was
      * `Relation [collection] is not defined` — the class name, read off the
      * wrapper. Iterability is the property that actually distinguishes the two,
@@ -1191,7 +1191,7 @@ export class ModelBuilder<M extends Model> {
       /**
        * `exists` wraps the subquery; it is not a function applied inside one.
        *
-       * `(select exists(*) …)` is not SQL. Laravel's own assertion for
+       * `(select exists(*) …)` is not SQL. The upstream assertion for
        * `withExists` reads `exists(select * from … where …) as "foo_exists"`, and
        * the difference matters for more than syntax: this form lets the database
        * stop at the first matching row, which is the whole reason to reach for it
@@ -1230,7 +1230,7 @@ export class ModelBuilder<M extends Model> {
   /**
    * `with('posts')`, or `with({ posts: (query) => query.where('published', 1) })`.
    *
-   * The constrained form is Laravel's `with(['posts' => fn ($q) => …])`, and it is
+   * The constrained form is `with({ posts: (q) => … })`, and it is
    * not a convenience: without it the only way to eager-load *part* of a relation
    * is to load all of it and filter in memory, which is the cost the eager load
    * existed to avoid.
@@ -1269,7 +1269,7 @@ export class ModelBuilder<M extends Model> {
    * carrying `comments` were thrown away and the result had `likes` and nothing
    * else. One load of `posts`, then both tails against the same models.
    *
-   * Laravel arrives at the same place from the other direction: `with('a.b')`
+   * The same place can be reached from the other direction: `with('a.b')`
    * records `a` and `a.b`, `eagerLoadRelations` runs only the names without a dot,
    * and `relationsNestedUnder` hands the tails to the relation's own query. The
    * grouping is the same grouping; here it happens at load time because the
@@ -1653,8 +1653,8 @@ export class ModelBuilder<M extends Model> {
       const values = Array.isArray(decoded.value) ? decoded.value : [decoded.value]
 
       /**
-       * The compound where, built from the outside in — Laravel's recursive
-       * `addCursorConditions`, iteratively: each level fixes the columns before it
+       * The compound where, built from the outside in — recursive upstream and
+       * iterative here: each level fixes the columns before it
        * with `=` and moves the one at hand with `>`/`<`.
        */
       query.where((outer) => {
@@ -1760,7 +1760,7 @@ export class ModelNotFoundError extends Error {
   }
 }
 
-/** `{ value, pointsBackwards }`, base64url — the shape Laravel's Cursor encodes. */
+/** `{ value, pointsBackwards }`, base64url. */
 function encodeCursor(value: unknown, pointsBackwards: boolean): string {
   return Buffer.from(JSON.stringify({ value, pointsBackwards })).toString('base64url')
 }
@@ -1817,7 +1817,7 @@ function applyRelationCondition(
 /**
  * `whereBelongsTo(author)` with no name: the relation is guessed from the class.
  *
- * `Author` implies `author`, which is the convention Laravel guesses by too. It
+ * `Author` implies `author`, which is the convention. It
  * is only a guess — a table holding two keys to the same model has two relations
  * and no way to choose between them — so `whereBelongsTo(user, 'editor')` is the
  * form for that, and this throws rather than picking one.
@@ -1861,7 +1861,7 @@ export type MorphTarget = Model | Iterable<Model> | string | null
  * The types to build a subquery for, as `[storedName, class]` pairs.
  *
  * `'*'` reads the relation's own declaration rather than asking the database for
- * `select distinct taggable_type`, which is what Laravel does. Two reasons: it is
+ * `select distinct taggable_type`. Two reasons: it is
  * a round trip before the real query, on a column that is often unindexed; and a
  * type with no rows yet would be left out, so a query would quietly change shape
  * the day somebody inserted one.

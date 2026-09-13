@@ -12,7 +12,7 @@ export class SQLiteGrammar extends Grammar {
    * `exists (select 1 from json_each(...) where value is ?)`.
    *
    * SQLite has no `json_contains`; walking the array with `json_each` is what
-   * Laravel's grammar does too. `is` rather than `=`, so a null element can match.
+   * `is` rather than `=`, so a null element can match.
    */
   protected override compileJsonContains(
     column: string,
@@ -36,7 +36,7 @@ export class SQLiteGrammar extends Grammar {
     return 'sqlite'
   }
 
-  /** SQLite has no TRUNCATE; Laravel deletes the rows and resets the sequence. */
+  /** SQLite has no TRUNCATE: delete the rows and reset the sequence. */
   override compileTruncate(table: string): string[] {
     return [
       `delete from sqlite_sequence where name = '${table}'`,
@@ -152,8 +152,8 @@ export class SQLiteGrammar extends Grammar {
    *
    * The `cast` is not decoration. `strftime` answers text, and comparing text to
    * a bound integer in SQLite compares *types* first: `'03' = 3` is false, so
-   * `whereMonth('created_at', 3)` would answer nothing at all. Laravel's SQLite
-   * grammar casts for the same reason.
+   * `whereMonth('created_at', 3)` would answer nothing at all, which is why
+   * this casts.
    */
   protected override compileDateWhere(
     part: 'date' | 'time' | 'day' | 'month' | 'year',

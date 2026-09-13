@@ -64,8 +64,8 @@ export class PostgresGrammar extends Grammar {
   }
 
   /**
-   * Postgres wants numbered placeholders. PDO hides this from Laravel; Bun.SQL
-   * does not, which is why placeholders belong to the grammar.
+   * Postgres wants numbered placeholders, and Bun.SQL
+   * does not hide it, which is why placeholders belong to the grammar.
    */
   override parameter(index: number): string {
     return `$${index}`
@@ -211,8 +211,7 @@ export class PostgresGrammar extends Grammar {
    *
    * Two forms because Postgres has both and they are not interchangeable: a cast
    * keeps the comparison against a date literal, while `extract` answers a number.
-   * Laravel's Postgres grammar splits them the same way.
-   */
+   *    */
   protected override compileDateWhere(
     part: 'date' | 'time' | 'day' | 'month' | 'year',
     column: string,

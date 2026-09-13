@@ -290,8 +290,7 @@ export class Model {
   /**
    * Are model events muted right now?
    *
-   * A flag rather than swapping the dispatcher for a null one, which is Laravel's
-   * approach: the dispatcher here is shared with the rest of the framework, and
+   * A flag rather than swapping the dispatcher for a null one: the dispatcher here is shared with the rest of the framework, and
    * replacing it would silence a listener that has nothing to do with models.
    */
   private static muted = false
@@ -358,12 +357,11 @@ export class Model {
    * `hasMany` in `touches` threw a `TypeError` at the first save.
    *
    * The chain still propagates — a comment touching a post whose own `touches`
-   * names a thread bumps the thread — because Laravel's does, through
-   * `$this->$relation->touchOwners()`. It is followed only when the related class
+   * names a thread bumps the thread. It is followed only when the related class
    * actually declares `touches`, so the common case pays no extra read for the
    * possibility.
    *
-   * `seen` is the recursion guard, Laravel's `withoutRecursion` by another name. A
+   * `seen` is the recursion guard. A
    * pair of models that touch each other used to bump one another until the
    * process was killed; now the second visit to the same row is a no-op.
    */
@@ -676,7 +674,7 @@ export class Model {
     return this.query().onlyTrashed()
   }
 
-  /** Register a constraint applied to every query — Laravel's global scopes. */
+  /** Register a constraint applied to every query — a global scope. */
   static addGlobalScope(name: string, scope: (query: ModelBuilder<never>) => void): void {
     // Copied rather than mutated so a subclass cannot alter its parent's scopes.
     this.globalScopes = { ...this.globalScopes, [name]: scope as never }
@@ -704,7 +702,7 @@ export class Model {
 
     if (cast) return castFromDatabase(value, cast as CastType)
 
-    // Timestamps are dates even without an explicit cast, as in Laravel.
+    // Timestamps are dates even without an explicit cast.
     if (this.isDateColumn(key) && value !== null && value !== undefined) {
       return castFromDatabase(value, 'datetime')
     }
@@ -726,7 +724,7 @@ export class Model {
       const stored = custom.set(this, key, value, this.attributes)
 
       // A cast may return several columns — Money returning amount and currency —
-      // and a plain object is how it says so, exactly as Laravel reads it.
+      // and a plain object is how it says so.
       if (stored !== null && typeof stored === 'object' && !Array.isArray(stored)) {
         Object.assign(this.attributes, stored as Row)
       } else {

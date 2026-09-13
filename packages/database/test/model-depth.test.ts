@@ -52,8 +52,8 @@ describe('destroy', () => {
    * The reason it loads each row instead of one bulk delete.
    *
    * `delete where id in (…)` is one statement and fires no model events, so a
-   * cache flush or an audit line written as a listener never runs. Laravel makes
-   * the same trade for the same reason.
+   * cache flush or an audit line written as a listener never runs. That is the
+   * trade a bulk delete makes.
    */
   test('each row is deleted individually, so events can fire', async () => {
     const seen: number[] = []

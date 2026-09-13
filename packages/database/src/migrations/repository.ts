@@ -9,8 +9,8 @@ export type MigrationRecord = {
 }
 
 /**
- * Tracks which migrations have run, in a table shaped exactly as Laravel's
- * `DatabaseMigrationRepository` creates it: `increments('id')`,
+ * Tracks which migrations have run, in a table shaped exactly as the upstream
+ * migration repository creates it: `increments('id')`,
  * `string('migration')`, `integer('batch')`.
  */
 export class MigrationRepository {

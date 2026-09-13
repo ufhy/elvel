@@ -3,8 +3,7 @@ import type { Connection, Row } from './connection.ts'
 import type { TransactionManager } from './transactions.ts'
 
 /**
- * One logical connection over a writer and a reader — Laravel's read/write
- * splitting.
+ * One logical connection over a writer and a reader.
  *
  * Reads go to the replica, writes to the primary. Three cases send a read to the
  * primary instead, and each is a correctness rule rather than a preference:

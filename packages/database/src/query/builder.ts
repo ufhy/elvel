@@ -491,7 +491,7 @@ export class QueryBuilder<T extends Row = Row> {
   /**
    * `union(other)` — the rows of both queries, duplicates removed.
    *
-   * A builder or a callback that builds one, which is Laravel's pair of shapes.
+   * A builder or a callback that builds one, and both are accepted.
    * `unionAll` keeps the duplicates and is the cheaper of the two, because `union`
    * has to sort to find them.
    *
@@ -655,8 +655,8 @@ export class QueryBuilder<T extends Row = Row> {
    * ```
    *
    * The row order then answers the guess — a blind oracle needing no second
-   * statement, so whether the driver allows one is beside the point. Laravel refuses
-   * the same way and for the same reason.
+   * statement, so whether the driver allows one is beside the point. Refused for
+   * that reason.
    *
    * Reach for `orderByRaw` when an expression is what you mean. That name is the
    * whole difference: it says at the call site that the string is trusted.
@@ -688,7 +688,7 @@ export class QueryBuilder<T extends Row = Row> {
   /**
    * Drop every order, optionally replacing it with one.
    *
-   * Laravel's signature, and the replacement form is what key-based walking needs:
+   * The replacement form is what key-based walking needs:
    * paging by key requires the key's order, and leaving a caller's `orderBy` in
    * place would page in one order while filtering in another.
    */
@@ -935,7 +935,7 @@ export class QueryBuilder<T extends Row = Row> {
     return value === null || value === undefined ? null : Number(value)
   }
 
-  /** Laravel's spelling of the same aggregate. */
+  /** The other spelling of the same aggregate. */
   average(column: string): Promise<number | null> {
     return this.avg(column)
   }
@@ -1345,7 +1345,7 @@ export type DateArgs = [Operator | Value] | [Operator, Value]
  *
  * `whereMonth('created_at', new Date(...))` compares the *month*, so binding the
  * whole timestamp would match nothing — the left side is `03`, the right side a
- * full ISO string. Laravel formats in the same place and for the same reason.
+ * full ISO string, so the formatting has to happen here.
  *
  * Day and month are padded to two digits, because that is what the extraction
  * answers: `strftime('%m', …)` gives `03`, and `'03' = '3'` is false.

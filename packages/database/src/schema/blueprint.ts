@@ -105,8 +105,7 @@ export class ColumnDefinition {
    * The definition is read as a **replacement**, not a patch: everything the
    * column should still be has to be restated. `string('email').nullable()`
    * followed by `string('email').change()` makes it NOT NULL again, because that
-   * is what the new definition says. Laravel behaves the same way, and the
-   * alternative — merging with whatever is already there — means a migration
+   * is what the new definition says. The alternative — merging with whatever is already there — means a migration
    * whose result depends on the database it is run against.
    */
   change(): this {
@@ -183,7 +182,7 @@ export class ColumnDefinition {
 
   /**
    * Add the foreign key implied by the column name: `user_id` references `id`
-   * on `users`. Laravel's `constrained()`.
+   * on `users`.
    */
   constrained(table?: string, column = 'id'): ForeignKeyDefinition {
     const inferred = table ?? `${this.attributes.name.replace(/_id$/, '')}s`
@@ -386,7 +385,7 @@ export class Blueprint {
     return this.addColumn('timestamp', name)
   }
 
-  /** `created_at` and `updated_at`, both nullable, as Laravel makes them. */
+  /** `created_at` and `updated_at`, both nullable. */
   timestamps(): void {
     this.timestamp('created_at').nullable()
     this.timestamp('updated_at').nullable()
@@ -620,7 +619,7 @@ export class Blueprint {
     return new ForeignKeyDefinition(command)
   }
 
-  /** `users_email_unique` — Laravel's naming, which drop* commands rely on. */
+  /** `users_email_unique` — the naming the drop* commands rely on. */
   indexName(type: string, columns: string[]): string {
     return `${this.table}_${columns.join('_')}_${type}`.toLowerCase().replace(/[^a-z0-9_]+/g, '_')
   }

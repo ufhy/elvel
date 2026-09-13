@@ -1,7 +1,7 @@
 /**
  * A raw SQL fragment that must not be quoted or parameterised.
  *
- * Laravel's `DB::raw()`. Kept as a class so the grammar can tell "this is SQL"
+ * Raw SQL. Kept as a class so the grammar can tell "this is SQL"
  * from "this is a value" without a magic string convention.
  */
 export class Expression {

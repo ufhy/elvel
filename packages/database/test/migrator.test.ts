@@ -63,7 +63,7 @@ afterEach(async () => {
 })
 
 describe('install', () => {
-  test('creates the tracking table with the shape Laravel uses', async () => {
+  test('creates the tracking table with the expected shape', async () => {
     expect(await repository.repositoryExists()).toBe(false)
 
     await migrator().install()

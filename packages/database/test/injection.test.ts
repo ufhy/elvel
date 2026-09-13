@@ -103,7 +103,7 @@ describe('what was already safe stays safe', () => {
       .where('name"; DELETE FROM users; --', '=', 'ada')
       .toSql()
 
-    // Doubled quotes, as Laravel's grammar does: one identifier, not two statements.
+    // Doubled quotes: one identifier, not two statements.
     expect(sql).toContain('"a""; DROP TABLE users; --"')
     expect(sql).toContain('"name""; DELETE FROM users; --"')
   })

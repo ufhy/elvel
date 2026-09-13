@@ -18,7 +18,7 @@ export function customCast(entry: CastEntry | undefined): CastsAttributes | unde
   if (entry === undefined || typeof entry === 'string') return undefined
 
   // A class is constructed once per call site; a cast must therefore be
-  // stateless, which is also Laravel's contract for it.
+  // stateless.
   return typeof entry === 'function' ? new entry() : entry
 }
 

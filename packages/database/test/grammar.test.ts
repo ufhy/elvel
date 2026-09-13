@@ -72,7 +72,7 @@ describe('placeholders', () => {
 })
 
 describe('select clause order', () => {
-  test('follows the order Laravel compiles components in', () => {
+  test('follows the order components compile in', () => {
     const compiled = sqlite.compileSelect(
       query({
         columns: ['id', 'name'],
@@ -425,7 +425,7 @@ describe('JSON paths and containment', () => {
  * The five date comparisons, and the reason they are a clause rather than a
  * `whereRaw` at the call site: no two of these dialects agree.
  *
- * The SQL is Laravel's, from `Grammar::dateBasedWhere` and the two grammars that
+ * The SQL is from `Grammar::dateBasedWhere` upstream and the two grammars that
  * override it. Getting `whereMonth` subtly wrong returns *some* rows, which is the
  * kind of mistake that survives a review — so each form is pinned here.
  */

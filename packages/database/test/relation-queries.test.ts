@@ -3,7 +3,7 @@ import { Application } from '@elvel/core'
 import { DatabaseServiceProvider, Model } from '../src/index.ts'
 
 /**
- * The `QueriesRelationships` family, ported from Laravel 13's own assertions.
+ * The `QueriesRelationships` family, ported from the upstream assertions.
  *
  * `tests/Database/DatabaseEloquentBuilderTest.php` checks these by comparing
  * generated SQL — `$this->assertSame('select … exists(select * from …)', $builder->toSql())`
@@ -142,7 +142,7 @@ describe('the or half of the has family — testOrHas, testOrWhereHas', () => {
 describe('whereRelation — testWhereRelation', () => {
   /**
    * The same as `whereHas` with a one-line callback, and worth having for the
-   * reason Laravel added it: a filter on a relation is the commonest thing anybody
+   * a reason: a filter on a relation is the commonest thing anybody
    * writes, and the callback form buries the condition inside a closure.
    */
   test('the two-argument form means equals', async () => {
@@ -181,7 +181,7 @@ describe('whereRelation — testWhereRelation', () => {
 
 describe('withExists — testWithExists', () => {
   /**
-   * The SQL shape is Laravel's, from `testWithExists`:
+   * The SQL shape is from `testWithExists` upstream:
    *
    * ```
    * select "t".*, exists(select * from "related" where … ) as "foo_exists" from "t"
@@ -227,7 +227,7 @@ describe('withExists — testWithExists', () => {
 
 describe('whereBelongsTo — testWhereBelongsTo', () => {
   /**
-   * Laravel's assertion is on the *call*, not the SQL: it expects
+   * The upstream assertion is on the *call*, not the SQL: it expects
    * `whereIn('<table>.<foreignKey>', [<parent keys>], 'and')`. So this asserts the
    * same thing — an `in` against the child's foreign key, not an `exists`
    * subquery, which is what a reader would otherwise assume from the name.

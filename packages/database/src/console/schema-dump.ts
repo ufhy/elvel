@@ -14,7 +14,7 @@ import { MigrationCommand } from './base.ts'
  *
  * SQLite is dumped from `sqlite_master`, which is the schema exactly as the
  * engine stored it. Postgres and MySQL shell out to `pg_dump` and `mysqldump` —
- * Laravel does the same, and for the same reason: reproducing what those tools
+ * and for a reason: reproducing what those tools
  * emit, down to sequence ownership and index storage parameters, is a project of
  * its own and getting it subtly wrong yields a schema that restores but differs.
  */

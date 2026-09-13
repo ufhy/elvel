@@ -8,7 +8,7 @@ import { Model, type ModelClass, Pivot } from './model.ts'
 /**
  * A constraint on an eager load — `with({ posts: (query) => query.latest() })`.
  *
- * Laravel writes it `with(['posts' => fn ($q) => $q->latest()])`, and it is not a
+ * Written `with({ posts: (q) => q.latest() })`, and it is not a
  * convenience: without it the only way to eager-load *some* of a relation is to
  * load all of it and filter in memory, which is the whole cost the eager load was
  * meant to avoid.
@@ -58,12 +58,11 @@ export abstract class Relation<R extends Model> {
   /**
    * Bump `updated_at` on every row this relation reaches, with one UPDATE.
    *
-   * Laravel's `Relation::touch()`, which is `rawUpdate([updated_at => now])` — a
+   * A raw `update … set updated_at = now` — a
    * single statement against the related table. What was here instead selected the
    * rows and saved each one, so attaching a tag that 500 articles already carry
    * issued 501 queries and, because each save is a save, fired 500 sets of model
-   * events for a timestamp bump. Laravel fires none of them for a touch, and
-   * neither does this now.
+   * events for a timestamp bump. A touch fires none of them now.
    *
    * One statement, because most relations constrain the related table with a plain
    * `where` and can be updated through it directly. `belongsTo` is the common case
@@ -74,7 +73,7 @@ export abstract class Relation<R extends Model> {
    * `UPDATE … JOIN` is not something sqlite will accept.
    *
    * A related model with `timestamps = false` has no column to bump, so nothing is
-   * written: the same check Laravel makes with `isIgnoringTouch()`.
+   * written.
    *
    * The update passes no values of its own. `ModelBuilder.update` supplies
    * `updated_at` when the model keeps timestamps, and that is the whole of what a
@@ -390,7 +389,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
    * Read these pivot columns back with the related models.
    *
    * They arrive aliased as `pivot_<column>` and are moved onto the accessor after
-   * hydration — Laravel's approach, and the reason a pivot's `created_at` cannot
+   * hydration, which is the reason a pivot's `created_at` cannot
    * overwrite the related model's own.
    */
   withPivot(...columns: Array<string | string[]>): this {
@@ -402,8 +401,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   /**
    * Maintain `created_at`/`updated_at` on the pivot rows.
    *
-   * In Laravel this is `withPivot` plus writing them on attach, and it is the same
-   * here: the columns have to be read back for `pivot.created_at` to exist at all.
+   * `withPivot` plus writing them on attach: the columns have to be read back for `pivot.created_at` to exist at all.
    */
   withTimestamps(createdAt = 'created_at', updatedAt = 'updated_at'): this {
     this.timestampColumns = { createdAt, updatedAt }
@@ -557,7 +555,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   /**
    * Bump the parent's `updated_at` if it declared this relation in `touches`.
    *
-   * Laravel's `touchIfTouching`, minus the inverse guess: attach/detach/sync are
+   * Touching the parent, without the inverse guess: attach/detach/sync are
    * pivot writes, so the related rows did not change — only the parent's view of
    * them did, and only a parent that asked is told.
    */
@@ -572,8 +570,8 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   /**
    * Touch the *related* rows when they name this relation's inverse.
    *
-   * Laravel infers the inverse from the parent's class name; so does this, and
-   * the guess is deliberately narrow — the plural and the singular of the
+   * The inverse is inferred from the parent's class name, and the guess is
+   * deliberately narrow — the plural and the singular of the
    * parent's own name, camel-cased. `Tag` with `touches = ['articles']` is
    * therefore bumped when an article attaches it, which is the case that matters:
    * a cache keyed on a tag's timestamp must expire when its membership changes.
@@ -665,7 +663,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
    * something has to go and an `INSERT` only if something has to arrive. A sync
    * that changes nothing is one `select`.
    *
-   * No implicit transaction, which the audit suggested and Laravel does not do.
+   * No implicit transaction, which the audit suggested.
    * Wrapping two statements silently would decide the transaction boundary on the
    * caller's behalf; a caller who wants one writes it, and the diff has already
    * made the window as small as the change itself.
@@ -700,8 +698,8 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   /**
    * Attach the missing ids and detach the present ones.
    *
-   * One touch at the end rather than one for each half, which is what Laravel does
-   * and what a caller means: a toggle is one change, not two.
+   * One touch at the end rather than one for each half, which is what a caller
+   * means: a toggle is one change, not two.
    */
   async toggle(ids: unknown | unknown[]): Promise<{ attached: unknown[]; detached: unknown[] }> {
     const wanted = Array.isArray(ids) ? ids : [ids]
@@ -1104,7 +1102,7 @@ export class MorphOne<R extends Model> extends MorphOneOrMany<R> {
 /**
  * `country.posts()` — reach a grandchild through an intermediate table.
  *
- * Laravel's `hasManyThrough`. The join is explicit rather than inferred so the
+ * The join is explicit rather than inferred so the
  * SQL stays inspectable.
  */
 export class HasManyThrough<R extends Model> extends Relation<R> {
@@ -1213,8 +1211,8 @@ export class HasManyThrough<R extends Model> extends Relation<R> {
 /**
  * `country.latestPost()` — one row across an intermediate table.
  *
- * `HasManyThrough` with `first()` instead of `get()`, which is exactly what
- * Laravel does. The eager load is where it differs: the query still fetches every
+ * `HasManyThrough` with `first()` instead of `get()`. The eager load is where it
+ * differs: the query still fetches every
  * child, and the *first per parent* is kept — a `limit 1` would return one row for
  * the whole set rather than one per parent, which is the classic way to get this
  * wrong.

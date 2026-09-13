@@ -27,7 +27,7 @@ export type RollbackOptions = {
 /**
  * Runs and reverses migrations.
  *
- * Batching follows Laravel: `migrate` records one batch per run (or one per
+ * Batching: `migrate` records one batch per run (or one per
  * migration with `--step`), and `migrate:rollback` reverses the newest batch,
  * newest migration first.
  */

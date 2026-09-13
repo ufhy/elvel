@@ -74,8 +74,7 @@ export class MakeMigrationCommand extends Command {
 
   /**
    * `create_users_table` gets the create stub; anything else is an alteration
-   * and gets one built around `schema.table()`, as Laravel picks between its
-   * `migration.create` and `migration.update` stubs.
+   * and gets one built around `schema.table()` rather than the create stub.
    */
   private async stub(name: string): Promise<string> {
     const file = /^create_.+_table$/.test(name) ? 'migration.stub' : 'migration-update.stub'

@@ -46,7 +46,7 @@ export abstract class Factory<M extends Model> {
     return this
   }
 
-  /** Layer extra attributes on, as Laravel's states do. */
+  /** Layer extra attributes on, one layer at a time. */
   state(state: Row | FactoryState): this {
     this.states.push(typeof state === 'function' ? state : () => state)
     return this

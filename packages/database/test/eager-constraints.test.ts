@@ -7,7 +7,7 @@ import { DatabaseServiceProvider, Model } from '../src/index.ts'
  * Constrained eager loading, and the six methods that needed it.
  *
  * `with('posts')` existed; `with({ posts: (query) => … })` did not — which a
- * name-level comparison against Laravel could not see, because the *name* `with`
+ * name-level comparison could not see, because the *name* `with`
  * was there. Without it the only way to eager-load part of a relation is to load
  * all of it and filter in memory, which is the exact cost the eager load exists to
  * avoid.

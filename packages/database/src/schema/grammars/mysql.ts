@@ -4,7 +4,7 @@ import { type Modifier, SchemaGrammar } from '../grammar.ts'
 export class MySqlSchemaGrammar extends SchemaGrammar {
   protected override quote = '`'
 
-  /** Verbatim from Laravel's MySqlGrammar: unsigned first, position last. */
+  /** Unsigned first, position last — MySQL rejects any other order. */
   protected modifiers: Modifier[] = [
     'unsigned',
     'collate',

@@ -8,8 +8,8 @@ import type { QueryComponents, WhereClause } from './types.ts'
  * — `aggregate, columns, from, indexHint, joins, wheres, groups, havings,
  * orders, limit, offset, lock` — because clause order is not free-form SQL.
  *
- * Unlike Laravel we cannot assume `?` everywhere: PDO normalises placeholders,
- * Bun.SQL does not, so `parameter()` is a per-dialect concern.
+ * `?` cannot be assumed everywhere — Bun.SQL does not normalise placeholders — so
+ * `parameter()` is a per-dialect concern.
  */
 /**
  * The two fragments that reach SQL as themselves, and therefore as a whitelist.
@@ -183,7 +183,7 @@ export abstract class Grammar {
   protected wrapValue(value: string): string {
     if (value === '*') return value
 
-    // Double the quote character to escape it, as Laravel's Grammar does.
+    // Double the quote character to escape it.
     return `${this.quote}${value.replaceAll(this.quote, this.quote + this.quote)}${this.quote}`
   }
 
@@ -265,7 +265,7 @@ export abstract class Grammar {
      *
      * Each side is wrapped, and how it is wrapped is a dialect's business: SQLite
      * refuses a bare parenthesised select on the right of a `union` and needs
-     * `select * from (…)` instead. Laravel's grammars split the same way, and the
+     * `select * from (…)` instead. The bindings
      * bindings are appended in reading order — left query first, then each union —
      * because a placeholder's position is what binds it.
      */

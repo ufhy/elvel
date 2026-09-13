@@ -4,7 +4,7 @@ import { type Modifier, SchemaGrammar } from '../grammar.ts'
 /**
  * SQLite schema grammar.
  *
- * Two details from Laravel's source that a guess would get wrong: every integer
+ * Two details a guess would get wrong: every integer
  * width maps to `integer` (SQLite has one integer type), and `Increment` is the
  * *first* modifier, because `primary key autoincrement` must precede `not null`.
  */

@@ -4,7 +4,7 @@ import type { QueryBuilder } from './query/builder.ts'
 import type { SchemaBuilder } from './schema/builder.ts'
 
 /**
- * The connection manager — Laravel's `DB` facade.
+ * The connection manager for the application.
  *
  * ```ts
  * const users = await db().table('users')
@@ -20,7 +20,7 @@ export function table<T extends Row = Row>(name: string): Promise<QueryBuilder<T
   return db().table<T>(name)
 }
 
-/** The schema builder — Laravel's `Schema` facade. */
+/** The schema builder. */
 export function schema(connection?: string): Promise<SchemaBuilder> {
   return db().schema(connection)
 }
