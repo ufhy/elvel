@@ -28,6 +28,7 @@ export {
   transform,
   value
 } from './helpers.ts'
+export { type Macro, Macroable, type Macroed, macroable } from './macroable.ts'
 export {
   defaultCurrency,
   defaultLocale,
@@ -58,6 +59,9 @@ export {
   uriEncode
 } from './sigv4.ts'
 export { PendingSleep, Sleep, SleepAssertionError } from './sleep.ts'
+
+import { type Macroed, macroable } from './macroable.ts'
+
 export { of, type Stringable, StringableBase } from './stringable.ts'
 
 /**
@@ -68,6 +72,10 @@ export { of, type Stringable, StringableBase } from './stringable.ts'
  * that already carried `of` would be defined in terms of its own projection.
  * TypeScript answers `any` to that, silently.
  */
-export const Str = { ...StrMethods, of: stringableOf }
-export { Conditionable, type Macro, Macroable } from './traits.ts'
+export type StrMacros = {}
+
+export const Str: typeof StrMethods & { of: typeof stringableOf } & Macroed & StrMacros = macroable(
+  { ...StrMethods, of: stringableOf }
+)
+export { Conditionable } from './traits.ts'
 export { isAscii, transliterate } from './transliterate.ts'

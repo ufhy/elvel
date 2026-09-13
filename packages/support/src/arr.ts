@@ -1,3 +1,5 @@
+import { type Macroed, macroable } from './macroable.ts'
+
 type Dict = Record<string, any>
 
 /**
@@ -62,7 +64,10 @@ function get<T>(target: Dict, key: string, fallback?: T): T {
  */
 const MISSING = Symbol('missing')
 
-export const Arr = {
+/** Macros added to `Arr`. A package declaring its own merges into this. */
+export type ArrMacros = {}
+
+const methods = {
   wrap<T>(value: T | T[] | null | undefined): T[] {
     if (value === null || value === undefined) return []
     return Array.isArray(value) ? value : [value]
@@ -340,3 +345,5 @@ export const Arr = {
     return matched[0] as T
   }
 }
+
+export const Arr: typeof methods & Macroed & ArrMacros = macroable(methods)

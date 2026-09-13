@@ -1,4 +1,5 @@
 import { app } from '@elvel/core'
+import { Macroable } from '@elvel/support'
 import { BAGGED, DEFAULT_BAG, ERRORS_KEY, OLD_INPUT_KEY } from './errors.ts'
 import { expectsJson } from './negotiation.ts'
 import { currentScope } from './scope.ts'
@@ -30,14 +31,16 @@ export type ErrorsInput =
  * return redirect().back().withErrors(validator.errors).withInput(body)
  * ```
  */
-export class Redirect {
+export class Redirect extends Macroable {
   private flashes: Array<[string, unknown]> = []
 
   constructor(
     private target: string,
     private status = 302,
     private readonly session = currentScope()?.session
-  ) {}
+  ) {
+    super()
+  }
 
   /** Flash one value for the next request only. */
   with(key: string, value: unknown): this {

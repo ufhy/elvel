@@ -1,4 +1,4 @@
-import { Collection } from '@elvel/support'
+import { Collection, Macroable } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import type { DateArgs } from '../query/builder.ts'
 import { QueryBuilder } from '../query/builder.ts'
@@ -40,7 +40,7 @@ export type CursorPage<M> = {
  * loading, and the soft-delete scope that would otherwise have to be remembered
  * at every call site.
  */
-export class ModelBuilder<M extends Model> {
+export class ModelBuilder<M extends Model> extends Macroable {
   private query?: QueryBuilder<Row>
   private readonly pending: Array<(query: QueryBuilder<Row>) => void> = []
   private readonly eagerLoad = new Set<string>()
@@ -56,7 +56,9 @@ export class ModelBuilder<M extends Model> {
     alias: string
   }> = []
 
-  constructor(private readonly model: ModelClass<M>) {}
+  constructor(private readonly model: ModelClass<M>) {
+    super()
+  }
 
   /**
    * The underlying query builder. Async because the connection resolves lazily;

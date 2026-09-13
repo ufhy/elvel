@@ -1145,36 +1145,18 @@ size; a quiet one gets 365 tiny files a year.
 
 ## Macroable
 
-### Nothing is macroable
+`macroable()` extends an object of helpers in place and `Macroable` is the base
+a class extends, both over one registry keyed on the target rather than its
+name. `Str`, `Arr`, `Collection`, both query builders and `Redirect` are
+extensible; `mixin()` registers a whole class at once and `flushMacros()` puts
+back anything a macro shadowed, so a macro named after a real method does not
+take that method with it.
 
-`Macroable` exists in `packages/support/src/traits.ts`, with `macro()` and
-`hasMacro()`, and the comment explains carefully why `this` must be the concrete
-subclass.
-
-**No class in the framework extends it.** A search across every package finds
-zero `extends Macroable`. `Str` and `Arr` are plain object literals, `Collection`
-is a class that does not extend it, and neither do the query builder, the
-response helpers, the router, the validator, the cache repository or the HTTP
-client.
-
-In upstream the trait is on about forty classes, and it is *the* mechanism by
-which a package extends the framework without patching it: `Str::macro`,
-`Collection::macro`, `Response::macro('success', ...)`,
-`Builder::macro('whereTenant', ...)`, `Rule::macro`. Here a package that wants
-any of that has nowhere to put it.
-
-Also missing from the trait itself: `mixin()`, which registers a whole class of
-macros at once and is how most packages actually register them, and
-`flushMacros()`, without which a test that adds a macro leaks it into the next.
-
-And because `macro()` writes to `this.prototype`, it cannot extend the object
-literals at all — `Str.macro(...)` is not even callable, since `Str` is not a
-class.
-
-**Done when** `Str`, `Arr`, `Collection`, the query builder and the response
-helpers are all extensible by the same mechanism, `mixin` and `flushMacros`
-exist, and the mechanism works for the static-style helpers as well as the
-classes.
+Two notes. There is no response factory to make macroable — an Elysia handler
+returns a value — so `Redirect` is the response-shaped thing that got it. And a
+macro on `Str` is not chainable through `Str.of()`: the fluent chain is
+projected from the helper object one import earlier, and joining them would make
+`Stringable` a type defined in terms of its own projection.
 
 ---
 

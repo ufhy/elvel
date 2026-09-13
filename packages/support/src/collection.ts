@@ -1,3 +1,4 @@
+import { Macroable } from './macroable.ts'
 /** Thrown by `sole()` when nothing matched, or more than one thing did. */
 export class ItemNotFoundError extends Error {
   constructor(message = 'No matching item.') {
@@ -24,8 +25,10 @@ export class MultipleItemsFoundError extends Error {
  *
  * Every method returns a new collection, apart from the few that exist to mutate (`push`, `pop`, `shift`), and those are marked.
  */
-export class Collection<T> implements Iterable<T> {
-  constructor(private readonly items: T[] = []) {}
+export class Collection<T> extends Macroable implements Iterable<T> {
+  constructor(private readonly items: T[] = []) {
+    super()
+  }
 
   static make<T>(items: Iterable<T> = []): Collection<T> {
     return new Collection([...items])

@@ -1,4 +1,4 @@
-import { Collection } from '@elvel/support'
+import { Collection, Macroable } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { Expression, isExpression, raw } from './expression.ts'
 import type {
@@ -38,13 +38,14 @@ function compileSub(query: Subqueryable): { sql: string; bindings: unknown[] } {
   return { sql: query.toSql(), bindings: query.getBindings() }
 }
 
-export class QueryBuilder<T extends Row = Row> {
+export class QueryBuilder<T extends Row = Row> extends Macroable {
   private query: QueryComponents
 
   constructor(
     readonly connection: Connection,
     table = ''
   ) {
+    super()
     this.query = emptyQuery(table)
   }
 

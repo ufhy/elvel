@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { Conditionable, Macroable } from '../src/traits.ts'
+import { Conditionable } from '../src/traits.ts'
 
 describe('Conditionable', () => {
   class Query extends Conditionable {
@@ -50,56 +50,5 @@ describe('Conditionable', () => {
     })
 
     expect(captured).toBe(query)
-  })
-})
-
-describe('Macroable', () => {
-  /**
-   * Regression guard: an auto-fix once rewrote `this` to `Macroable` inside these
-   * static methods, which would install every macro on the shared base class.
-   * These tests fail loudly if that ever happens again.
-   */
-  class Str extends Macroable {
-    value = 'str'
-  }
-
-  class Arr extends Macroable {
-    value = 'arr'
-  }
-
-  test('a macro lands on the subclass that declared it', () => {
-    Str.macro('shout', function (this: Str) {
-      return `${this.value}!`
-    })
-
-    // Macros are a runtime extension, so the call site needs a cast unless the
-    // consuming project declares the method via interface merging.
-    expect((new Str() as unknown as { shout(): string }).shout()).toBe('str!')
-    expect(Str.hasMacro('shout')).toBe(true)
-  })
-
-  test('macros do not leak to sibling subclasses', () => {
-    Str.macro('onlyOnStr', () => 'yes')
-
-    expect(Arr.hasMacro('onlyOnStr')).toBe(false)
-    expect((new Arr() as unknown as Record<string, unknown>).onlyOnStr).toBeUndefined()
-  })
-
-  test('the same macro name can differ per subclass', () => {
-    Str.macro('describe', () => 'from Str')
-    Arr.macro('describe', () => 'from Arr')
-
-    expect((new Str() as unknown as { describe(): string }).describe()).toBe('from Str')
-    expect((new Arr() as unknown as { describe(): string }).describe()).toBe('from Arr')
-  })
-
-  test('hasMacro reports unknown names as absent', () => {
-    expect(Str.hasMacro('neverRegistered')).toBe(false)
-  })
-
-  test('macros are not enumerable, so they do not pollute spreads', () => {
-    Str.macro('hidden', () => 'x')
-
-    expect(Object.keys(Str.prototype)).not.toContain('hidden')
   })
 })
