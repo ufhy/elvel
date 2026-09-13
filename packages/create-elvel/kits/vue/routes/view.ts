@@ -2,7 +2,7 @@ import { Route } from '@elvel/http'
 import { Shell } from '../resources/views/components/shell.tsx'
 
 /**
- * The view routes — Laravel's `Route::view('{path}', 'main')->middleware('auth')`.
+ * The view routes: one shell behind `auth`, for every address the client routes.
  *
  * Two of them, and that is the whole backend's knowledge of this application's
  * pages: there is a signed-in half and a guest half, and neither knows a single

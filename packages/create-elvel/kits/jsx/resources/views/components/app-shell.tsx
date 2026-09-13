@@ -7,7 +7,7 @@ import { Layout } from './layout.tsx'
  * The shell every signed-in page shares: a sidebar, a header, and the page.
  *
  * A page passes a breadcrumb trail rather than a heading, which is the split
- * Laravel's kits arrived at too: the trail says where the page sits and belongs
+ * The trail says where the page sits and belongs
  * to the shell, while the heading is content and belongs to the page — the
  * settings pages each render their own, under one shared "Settings" title.
  */

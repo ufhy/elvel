@@ -1,7 +1,7 @@
 import { env } from '@elvel/core'
 
 /**
- * Credentials for third-party services — Laravel's `config/services.php`.
+ * Credentials for third-party services.
  *
  * A place with one rule: nothing here is a secret, everything here reads one
  * from the environment. Keeping them in a config file rather than scattering
@@ -11,7 +11,6 @@ import { env } from '@elvel/core'
  *
  * The mail and storage credentials are not here: they live with the driver that
  * uses them, in `config/mail.ts` and `config/filesystems.ts`, as they do in
- * Laravel.
  */
 export default {
   /**

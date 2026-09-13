@@ -40,7 +40,6 @@ export default {
    *
    * The list itself lives in `bootstrap/providers.ts`, where a starter kit can
    * replace it — and where the comment explains why leaving one out matters here
-   * in a way it does not in Laravel.
-   */
+   *    */
   providers
 }

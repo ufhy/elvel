@@ -4,14 +4,14 @@ import { view } from '@elvel/view'
 import { Welcome } from '../resources/views/pages/welcome.tsx'
 
 /**
- * Web routes — Laravel's `routes/web.php`, and read the same way.
+ * Web routes.
  *
  * Almost empty in this kit, and that is the shape a client-routed application
  * takes: `routes/view.ts` answers every address a browser asks for, so what
  * belongs here is only what the *server* must answer for itself.
  *
  * Both are closures rather than a controller, which `Route` takes anywhere it
- * takes `[Controller, 'method']` — Laravel's `Route::get('/', fn () => …)`. A
+ * takes `[Controller, 'method']`. A
  * controller earns its keep when a class holds several related actions or any
  * logic worth testing on its own; two pages that read nothing do not. The context
  * a handler would have received is the closure's argument, so `maybeUserOf` works

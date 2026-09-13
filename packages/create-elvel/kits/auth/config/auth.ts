@@ -110,7 +110,7 @@ const config = {
   plugins: [twoFactor(), passkey()],
 
   // ------------------------------------------------------- framework middleware
-  /** Where the `auth` middleware sends a guest. Laravel's `redirectGuestsTo`. */
+  /** Where the `auth` middleware sends a guest. */
   redirectGuestsTo: '/sign-in',
 
   /** Where the `guest` middleware sends somebody already signed in. */

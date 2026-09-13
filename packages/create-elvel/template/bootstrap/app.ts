@@ -5,7 +5,7 @@ import { AppServiceProvider } from '../app/Providers/AppServiceProvider.ts'
 /**
  * Bootstrap the application.
  *
- * Order is fixed by the framework and mirrors Laravel's HTTP kernel:
+ * Order is fixed by the framework:
  * env -> config -> exceptions -> register providers -> boot providers -> routes.
  *
  * Framework providers are listed in `config/app.ts`; application providers go
@@ -15,9 +15,8 @@ export default await Application.configure(join(import.meta.dir, '..'))
   /**
    * Every config file, named — one line each, and a new file needs a line here.
    *
-   * Laravel has no equivalent because it never has to: PHP resolves
-   * `config/*.php` from disk at run time, every time, and there is no build step
-   * to hide the directory from. Here there is. Left to read the directory, a
+   * A runtime that resolves `config/*.php` from disk on every request never has
+   * to: there is no build step to hide the directory from. Here there is. Left to read the directory, a
    * bundled application resolves those imports against a disk that may not have
    * them, and — when it does — loads a *second* copy of the framework through
    * them, so `Application.current` belongs to the copy that is not running.
@@ -49,7 +48,6 @@ export default await Application.configure(join(import.meta.dir, '..'))
   })
   .withProviders([AppServiceProvider])
   .withRoutes(() => import('../routes/web.ts'))
-  // Scheduled work lives in its own file, as Laravel's `routes/console.php`
-  // does. It registers rather than routes, so it is loaded rather than mounted.
+  // Scheduled work lives in its own file. It registers rather than routes, so it is loaded rather than mounted.
   .withConsole(() => import('../routes/console.ts'))
   .create()

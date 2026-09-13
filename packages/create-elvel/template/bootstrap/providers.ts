@@ -13,15 +13,15 @@ import { ViteServiceProvider } from '@elvel/vite/provider'
 /**
  * The service providers this application registers, in boot order.
  *
- * Laravel keeps its equivalent here too — `bootstrap/providers.php` — though for
- * a different reason: there, `laravel/framework` registers its own providers and
+ * Kept here rather than discovered, and for one reason. A framework that
+ * registers its own providers and
  * the file lists only the application's. Here every provider is named, because
  * every one of them lives in a package of its own.
  *
  * That difference is the whole point of this file. A provider named here is a
  * package imported, installed, and bundled; a provider left out is a package the
- * application never pays for. Laravel can afford to register all of Eloquent,
- * Queue and Mail in an application that uses none of them, because the code
+ * application never pays for. Registering an ORM, a queue and a mailer in an
+ * application that uses none of them costs nothing when the code
  * arrived in `vendor/` regardless. Measured here, registering all twenty-two
  * took a landing page from 1.0 MB to 3.7 MB — most of it `kysely` behind the
  * database, `nodemailer` behind mail, and better-auth behind auth.

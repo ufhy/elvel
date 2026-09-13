@@ -120,7 +120,6 @@ export function Welcome({ title, user, links }: WelcomeProps) {
 
         <section class="pt-16 pb-14">
           <h1 class="font-serif text-[clamp(2.6rem,7vw,4.6rem)] leading-[1.02] tracking-[-0.02em]">
-            Laravel's shape,
             <br />
             <em class="text-[#c9241a] dark:text-[#ff6b5e]">on Bun.</em>
           </h1>

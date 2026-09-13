@@ -7,7 +7,7 @@ import SecurityController from '../app/Http/Controllers/Settings/SecurityControl
 import TwoFactorController from '../app/Http/Controllers/Settings/TwoFactorController.ts'
 
 /**
- * The account pages — Laravel's `routes/settings.php`.
+ * The account pages.
  *
  * Two guards, and the difference between them is the point. `auth` says somebody
  * is signed in; `password.confirm` says somebody is *at the keyboard now*, and

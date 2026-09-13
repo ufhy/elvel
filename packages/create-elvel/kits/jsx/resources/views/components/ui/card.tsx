@@ -41,7 +41,7 @@ export function CardHeader({ title, description }: { title: string; description?
 /**
  * A page's title and its one line of explanation.
  *
- * Laravel's kits call this `Heading`, and every settings page opens with one — so
+ * Every settings page opens with a heading, so
  * the sizes and the gap are decided once here rather than per page.
  */
 export function Heading({

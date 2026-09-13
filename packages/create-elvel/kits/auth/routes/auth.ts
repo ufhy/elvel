@@ -9,7 +9,7 @@ import VerifyEmailController from '../app/Http/Controllers/Auth/VerifyEmailContr
 import DashboardController from '../app/Http/Controllers/DashboardController.ts'
 
 /**
- * The authentication routes — Laravel's `routes/auth.php`.
+ * The authentication routes.
  *
  * Its own file because that is where a reader looks for them, and because the
  * split is what stopped `routes/web.ts` becoming the 619-line file this kit's

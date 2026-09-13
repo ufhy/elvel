@@ -23,7 +23,7 @@ export default {
    * ```
    */
   /**
-   * The stylesheet every notification is drawn with — Laravel's mail theme.
+   * The stylesheet every notification is drawn with.
    *
    * A path to a CSS file, relative to the application root. Undefined uses the one
    * the package ships; `bun elvel mail:theme` writes a copy of it to edit.

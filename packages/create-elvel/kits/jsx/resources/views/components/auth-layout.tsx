@@ -6,8 +6,8 @@ import { Mark } from './ui/mark.tsx'
 /**
  * The shell every page you can reach while signed **out** shares.
  *
- * Laravel's kits ship three variants of this — simple, card, split — because
- * they are built on a component library where switching is an import swap. Here a
+ * Three variants of this — simple, card, split — are cheap on a component library
+ * where switching is an import swap. Here a
  * page is a file you edit, so a second variant would be a copy of this one
  * waiting to fall behind it. This is the simple one: a mark, a title, a line of
  * explanation, and the form, centred in the viewport at `max-w-sm`.

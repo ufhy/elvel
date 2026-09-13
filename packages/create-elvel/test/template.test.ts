@@ -101,8 +101,8 @@ describe('the template ships every package', () => {
  * Which providers a scaffolded application registers, and which it does not.
  *
  * It used to register all of them, and there was a test here demanding exactly
- * that. Laravel can afford the equivalent — its providers arrive inside one
- * Composer package whether or not they are used — but here each one is a
+ * that. Providers that all arrive in one package cost nothing unused; here
+ * each one is a
  * separate package, so a provider named in `bootstrap/providers.ts` is a package
  * installed, imported and bundled. Registering all twenty-two took a landing
  * page from 1.0 MB to 3.7 MB.
@@ -815,12 +815,11 @@ describe('what a scaffolded application installs', () => {
 /**
  * Which config files a scaffolded application is given.
  *
- * Laravel 11 slimmed its skeleton to ten and left the rest to `config:publish`.
- * The idea is borrowed; the list is not. Laravel's ten are chosen for an
- * application that always has every component, and two of them — `mail` and
+ * A slim skeleton, with the rest left to `config:publish`. Which files are in
+ * it is decided here rather than by a general list, and two obvious ones —
+ * `mail` and
  * `queue` — would be settings for packages `--kit=none` does not install, while
- * `view` and `vite`, in neither Laravel's ten nor its framework defaults, are
- * read on every page it serves.
+ * `view` and `vite` are read on every page it serves.
  *
  * So a config file ships when its package does. These are the results, named
  * rather than counted, because a file quietly appearing or vanishing changes
@@ -1083,8 +1082,8 @@ describe('the README a scaffolded application is given', () => {
 /**
  * The page a new application answers with.
  *
- * Laravel's `welcome.blade.php` inlines its stylesheet so the first thing anybody
- * sees is finished rather than unstyled, and ours has to do the same for a
+ * The landing page inlines its stylesheet so the first thing anybody sees is
+ * finished rather than unstyled, and it has to, for a
  * sharper reason: `vite()` renders nothing until `bun run build` has run, so
  * before that a scaffolded application served 1,295 bytes of naked markup.
  */
@@ -1119,9 +1118,8 @@ describe('the welcome page', () => {
    * The header offers only what the application has.
    *
    * `--kit=none` names no auth routes and it stays empty; a kit that ships
-   * sign-in names them and it fills in — the same question Laravel's welcome page
-   * asks with `Route::has('login')`, and the same reason: a starter page must not
-   * link to a page that answers 404.
+   * sign-in names them and it fills in. A starter page must not link to a page
+   * that answers 404.
    */
   test('and links to auth pages only where they exist', async () => {
     // Read from the routes file, which is where the handler lives: `/` is a

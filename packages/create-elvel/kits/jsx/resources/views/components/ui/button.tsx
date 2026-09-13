@@ -7,7 +7,7 @@ import type { Children } from '@kitajs/html'
  * `href` rather than a second component: the two differ by one tag, and every
  * duplicated variant afterwards is a place for them to drift apart.
  *
- * The shape is Laravel's — a `rounded-md` control the height of a form field, so
+ * A `rounded-md` control the height of a form field, so
  * a button next to an input lines up with it. The colours are roles rather than
  * greys, which is why no variant here carries a `dark:` class.
  */

@@ -3,10 +3,9 @@ import { t } from 'elysia'
 import ApiAuthController from '../app/Http/Controllers/ApiAuthController.ts'
 
 /**
- * API routes — Laravel's `routes/api.php`.
+ * API routes.
  *
- * Its own file rather than lines inside `routes/web.ts`, for the reason Laravel
- * splits them: these routes have a prefix of their own, no session and no CSRF,
+ * Its own file rather than lines inside `routes/web.ts`: these routes have a prefix of their own, no session and no CSRF,
  * and somebody asking "what does this API expose" should find one file that
  * answers it. `bootstrap/app.ts` names it alongside `routes/web.ts`.
  */

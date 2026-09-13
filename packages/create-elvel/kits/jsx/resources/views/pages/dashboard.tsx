@@ -9,8 +9,8 @@ export type DashboardProps = {
 /**
  * The page you land on after signing in.
  *
- * Four hatched boxes and nothing else, which is Laravel's answer and the right
- * one: an empty dashboard that looks *deliberately* empty invites you to put
+ * Four hatched boxes and nothing else, and it is the right answer: an empty
+ * dashboard that looks *deliberately* empty invites you to put
  * something there, where three cards of filler text read as the kit's opinion
  * about what belongs on your page.
  */

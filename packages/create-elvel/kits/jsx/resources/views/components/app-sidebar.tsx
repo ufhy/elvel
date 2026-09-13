@@ -33,8 +33,8 @@ export function account(): Account {
 /**
  * The path being rendered, so a link can say it is the current one.
  *
- * Read from the request scope rather than passed down. Laravel's React kit calls
- * a `useCurrentUrl()` hook for this and reaches the same conclusion from the
+ * Read from the request scope rather than passed down — a client-side kit reaches
+ * the same conclusion with a `useCurrentUrl()` hook, from the
  * other direction: whether a link is active is a fact about the request, and
  * threading it through every page to reach the sidebar is plumbing that only
  * exists to be forgotten by the next page somebody adds.
@@ -160,8 +160,8 @@ export function AccountMenu({ user, class: extra }: { user: Account; class?: str
  * The sidebar, and the shape most of this kit's look comes from.
  *
  * Fixed at `md` and up, and simply absent below it — the header carries the same
- * links there. Laravel's kit slides a sheet in instead, which needs a component
- * library, an overlay, focus trapping and a client to run it; the links are the
+ * links there. A slide-in sheet needs a component library, an overlay, focus
+ * trapping and a client to run it; the links are the
  * point, and they fit in a menu.
  */
 export function AppSidebar() {

@@ -76,7 +76,7 @@ export default class SignInController {
      * may have chosen, and if it still names the session afterwards then whoever
      * chose it is signed in as this user. The CSRF token rotates with it, so a
      * token picked up while signed out no longer authorises writes while signed
-     * in. Laravel calls this in the same place, for the same reason.
+     * in.
      */
     await currentScope()?.session.regenerate()
 

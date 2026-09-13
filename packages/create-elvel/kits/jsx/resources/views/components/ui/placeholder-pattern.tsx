@@ -3,8 +3,8 @@ import { classes } from '@elvel/view'
 /**
  * The hatched box that stands in for a chart you have not built yet.
  *
- * Laravel's kits open the dashboard with four of these, and the reason is a good
- * one: an empty dashboard that looks *deliberately* empty invites you to put
+ * The dashboard opens with four of these, and the reason is a good one: an empty
+ * dashboard that looks *deliberately* empty invites you to put
  * something there, where three cards of filler text read as the kit's opinion
  * about what belongs on the page.
  *

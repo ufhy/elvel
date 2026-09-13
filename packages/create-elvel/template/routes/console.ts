@@ -1,7 +1,7 @@
 import { schedule } from '@elvel/scheduler'
 
 /**
- * Scheduled work — the equivalent of Laravel's `routes/console.php`.
+ * Scheduled work.
  *
  * Imported by `bootstrap/app.ts`, so everything here is registered once the
  * providers have booted. `elvel schedule:run` is what executes it, called

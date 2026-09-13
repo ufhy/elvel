@@ -25,8 +25,7 @@ const KITS_DIR = resolve(import.meta.dir, '..', 'kits')
  *
  * A kit is a folder copied over the template, not a fork of it: everything a
  * kit does not mention it inherits, so the base and the kits cannot drift the
- * way two full templates would. Laravel's Breeze installs into an existing
- * application for the same reason.
+ * way two full templates would.
  */
 /**
  * A kit's `layers` are the folders copied over the template, in order.
@@ -675,13 +674,11 @@ const CONFIG_OWNERS: Record<string, string> = {
 /**
  * Drop the config files for packages this application does not have.
  *
- * Laravel slimmed its skeleton to ten config files in 11 and left the rest to
- * `config:publish`, which is where the idea comes from — but the list is not
- * copied, because Laravel's ten are chosen for an application that always has
- * every component. Here `--kit=none` has no mailer at all, so `config/mail.ts`
- * would be settings for a package that is not installed, while `config/view.ts`
- * and `config/vite.ts` — neither of them in Laravel's ten — are read on every
- * page it serves.
+ * A slim skeleton, with the rest left to `config:publish`. Which files are in
+ * it is decided by this scaffold rather than by a general list: `--kit=none`
+ * has no mailer at all, so `config/mail.ts` would be settings for a package
+ * that is not installed, while `config/view.ts` and `config/vite.ts` are read
+ * on every page it serves.
  *
  * So the rule follows the providers instead: a config file stays if its package
  * is one this application actually uses. `app` and `services` always stay; they
@@ -947,8 +944,7 @@ process.exit(await main())
  * Name a kit's own route files in `bootstrap/app.ts`.
  *
  * A kit that ships routes ships them as `routes/api.ts`, `routes/auth.ts`,
- * `routes/settings.ts` — the way Laravel's own starter kits are laid out, and for
- * the reason they are: nineteen routes in one file is what `routes/web.php` became
+ * `routes/settings.ts`, for one reason: nineteen routes in one file is what `routes/web.php` became
  * before Breeze split it, and somebody looking for the settings pages should find
  * a file called settings.
  *

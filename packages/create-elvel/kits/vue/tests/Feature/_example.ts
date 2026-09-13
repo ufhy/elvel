@@ -15,7 +15,7 @@ import app from '../../bootstrap/app.ts'
  * asking for it is sent to sign in rather than shown anything.
  *
  * `tests/Feature` for tests that boot the application, `tests/Unit` for the ones
- * that do not — Laravel's split, and worth keeping: the two have very different
+ * that do not. The two have very different
  * costs, and being able to run the fast ones alone is the difference between a
  * suite you run on every save and one you run before pushing.
  */

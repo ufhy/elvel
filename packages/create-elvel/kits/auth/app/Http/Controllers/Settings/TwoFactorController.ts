@@ -29,7 +29,7 @@ export default class TwoFactorController {
      *
      * It is in the session for exactly one request. That is a real if small
      * exposure — the secret touches the session store — and it is the trade
-     * Laravel's own Fortify makes for the same reason: the alternative is
+     * for one reason: the alternative is
      * rendering it from the POST, where a refresh re-posts and silently rotates
      * the secret somebody has just scanned.
      */

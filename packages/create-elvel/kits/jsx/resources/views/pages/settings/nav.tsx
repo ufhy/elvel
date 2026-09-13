@@ -28,7 +28,7 @@ const pages = [
  * better-named copy would leave that one behind in every scaffolded application,
  * unused and slowly diverging.
  *
- * A layout rather than a bare nav, which is the shape Laravel's kits use: one
+ * A layout rather than a bare nav: one
  * "Settings" heading for the whole area, the four pages listed down the left, and
  * a single `max-w-xl` column on the right. A page underneath then opens with its
  * own section heading instead of repeating where it is.

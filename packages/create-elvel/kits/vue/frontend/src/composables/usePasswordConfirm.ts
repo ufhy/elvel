@@ -11,8 +11,8 @@ import { NeedsPasswordConfirmation } from '@/api.ts'
  * confirmation screen — so reloading was a loop: same shell, same request, same
  * 423. Measured, the two-factor screen reloaded forever.
  *
- * Laravel's own Vue starter kit keeps `ConfirmPassword` a full page, and it is
- * right to: Inertia navigates documents, so the server's redirect lands as one.
+ * Keeping `ConfirmPassword` a full page is right for Inertia: it navigates
+ * documents, so the server's redirect lands as one.
  * Nothing here navigates — the client already catches the 423 — so the wall can be
  * what it actually is: an interruption, not a destination. Nobody leaves the
  * screen, and nothing has to remember where they were.

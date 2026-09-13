@@ -12,7 +12,7 @@ export type WelcomeProps = {
  * The page a new application answers with, and the first thing anybody sees.
  *
  * It carries its own styles rather than leaning on `resources/css/app.css`, for
- * the reason Laravel's `welcome.blade.php` inlines a stylesheet: before the first
+ * one reason: before the first
  * `bun run build` there is no manifest, so `vite()` renders nothing and the page
  * would arrive as unstyled markup. A starter screen that looks broken until you
  * discover a build step is a poor first minute.
@@ -93,7 +93,6 @@ export function Welcome({ title, user, links }: WelcomeProps) {
 
         <section class="lead">
           <h1>
-            Laravel's shape,
             <br />
             <em>on Bun.</em>
           </h1>

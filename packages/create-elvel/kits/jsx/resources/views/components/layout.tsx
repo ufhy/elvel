@@ -74,8 +74,8 @@ export function Layout({ title, children }: LayoutProps) {
         <script nonce={cspNonce()}>{appearance}</script>
 
         {/*
-          Instrument Sans, the face Laravel's starter kits use, from Bunny's
-          mirror of Google Fonts — the same host Laravel's `@fonts` points at,
+          Instrument Sans, from Bunny's
+          mirror of Google Fonts,
           chosen there because it sets no cookies and logs no addresses.
 
           It is a network request, so `--font-sans` in the stylesheet lists the

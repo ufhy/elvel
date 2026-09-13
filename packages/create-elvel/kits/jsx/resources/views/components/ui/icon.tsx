@@ -3,7 +3,7 @@ import { classes } from '@elvel/view'
 /**
  * The icons these pages use, inline.
  *
- * Laravel's kits import `lucide-react` and reach for a component per icon; a
+ * A component per icon is what a client-side kit reaches for; a
  * server-rendered page has no component to hydrate, so an icon here is a string
  * of SVG and a dependency would only be a way to ship several hundred of them to
  * find eleven. These are the same drawings, taken from Lucide, and they inherit

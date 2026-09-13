@@ -8,8 +8,8 @@ type Details = { name: string; email: string }
 /**
  * The name and address on the account, and closing it.
  *
- * Laravel's starter kit keeps profile and security in a `Settings` directory of
- * their own with a `routes/settings.php` beside them. This is that split, and now
+ * Profile and security live in a `Settings` directory of their own with a
+ * `routes/settings.ts` beside them, and now
  * the route file too: `routes/settings.ts`.
  *
  * Deleting lives here rather than with security because it is the last thing on
