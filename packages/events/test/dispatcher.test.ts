@@ -378,6 +378,62 @@ describe('EventFake', () => {
     expect(() => fake.assertDispatched(OrderShipped, 1)).toThrow(/2/)
   })
 
+  /** The difference between "an order shipped" and "*this* order shipped". */
+  test('assertDispatched can look at the payload', async () => {
+    const fake = new EventFake()
+
+    await fake.dispatch(new OrderShipped(1))
+    await fake.dispatch(new OrderShipped(2))
+
+    fake.assertDispatched(OrderShipped, (event) => event.orderId === 2)
+
+    expect(() => fake.assertDispatched(OrderShipped, (event) => event.orderId === 9)).toThrow(
+      /the 2 that were dispatched did not match/
+    )
+  })
+
+  test('and says so plainly when none was dispatched at all', () => {
+    const fake = new EventFake()
+
+    expect(() => fake.assertDispatched(OrderShipped, () => true)).toThrow(
+      /no \[order.shipped\] was dispatched at all/
+    )
+  })
+
+  test('assertNotDispatched takes one too', async () => {
+    const fake = new EventFake()
+
+    await fake.dispatch(new OrderShipped(1))
+
+    fake.assertNotDispatched(OrderShipped, (event) => event.orderId === 9)
+
+    expect(() => fake.assertNotDispatched(OrderShipped, (event) => event.orderId === 1)).toThrow(
+      /matching the callback/
+    )
+  })
+
+  /** What breaks silently when providers are reordered. */
+  test('assertListening says whether a listener was registered', () => {
+    const fake = new EventFake()
+    const notify = (): void => {}
+
+    fake.listen(OrderShipped, notify)
+
+    fake.assertListening(OrderShipped, notify)
+    fake.assertNotListening(OrderShipped, () => {})
+
+    expect(() => fake.assertListening('order.cancelled', notify)).toThrow(/order.cancelled/)
+  })
+
+  test('and a pattern that covers the event counts', () => {
+    const fake = new EventFake()
+    const notify = (): void => {}
+
+    fake.listen('order.*', notify)
+
+    fake.assertListening(OrderShipped, notify)
+  })
+
   test('assertNotDispatched and assertNothingDispatched', async () => {
     const fake = new EventFake()
 

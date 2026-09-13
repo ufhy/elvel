@@ -60,11 +60,24 @@ export class InvokedProcess {
   ): InvokedProcess {
     const invoked = new InvokedProcess(command, Promise.resolve() as never)
 
+    /**
+     * Refused rather than attempted.
+     *
+     * A child handed a stdin that is not a terminal waits for input that will
+     * never come, and a CI job that hangs for its whole timeout says nothing
+     * about why.
+     */
+    if (options.tty === true && !supportsTty()) {
+      throw new Error(
+        `[${command}] asked for a TTY, and there is none here. Guard the call with supportsTty(), or drop tty() when running unattended.`
+      )
+    }
+
     const child = Bun.spawn({
       cmd: argv,
       cwd: options.cwd,
       env: options.env ? { ...process.env, ...options.env } : undefined,
-      stdin: options.input === undefined ? 'ignore' : 'pipe',
+      stdin: options.tty ? 'inherit' : options.input === undefined ? 'ignore' : 'pipe',
       stdout: options.inherit ? 'inherit' : 'pipe',
       stderr: options.inherit ? 'inherit' : 'pipe',
       // Its own process group, so a kill reaches everything it started.
@@ -325,4 +338,9 @@ function concat(chunks: Uint8Array[]): Uint8Array {
   }
 
   return joined
+}
+
+/** Whether this process has a terminal to hand over. */
+export function supportsTty(): boolean {
+  return process.stdin.isTTY === true && process.stdout.isTTY === true
 }

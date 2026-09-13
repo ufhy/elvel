@@ -31,12 +31,30 @@ export type PipeResolver<T, R> = (name: string) => PipeFunction<T, R> | PipeObje
  * Async throughout. A synchronous pipeline is a special case of an async one and
  * having both would double the surface to save an `await`.
  */
+/** Runs a body inside a database transaction. */
+export type TransactionRunner = <T>(body: () => Promise<T>) => Promise<T>
+
+let runner: TransactionRunner | undefined
+
+/**
+ * How a pipeline finds a transaction.
+ *
+ * `@elvel/support` must not depend on `@elvel/database`, and a pipeline that
+ * writes wants both. So the database provider hands the runner over at boot and
+ * the pipeline asks for it — the same shape the validator uses to find the gate,
+ * and the same rule about its absence: an error, not a quiet run without one.
+ */
+export function resolveTransactionUsing(resolve: TransactionRunner | undefined): void {
+  runner = resolve
+}
+
 export class Pipeline<T, R = T> {
   private passable!: T
   private stages: Array<Pipe<T, R>> = []
   private method = 'handle'
   private resolver?: PipeResolver<T, R>
   private after?: (passable: T) => void | Promise<void>
+  private transactional = false
 
   constructor(resolver?: PipeResolver<T, R>) {
     this.resolver = resolver
@@ -91,6 +109,19 @@ export class Pipeline<T, R = T> {
   }
 
   /**
+   * Run every stage inside one transaction, so a chain that writes commits
+   * together or not at all.
+   *
+   * `finally()` still runs afterwards, outside it — releasing a lock must happen
+   * whether the transaction committed or rolled back.
+   */
+  withinTransaction(): this {
+    this.transactional = true
+
+    return this
+  }
+
+  /**
    * Run it, ending at `destination`.
    *
    * **Never `await` a pipeline itself.** A `then` member makes this object
@@ -114,7 +145,15 @@ export class Pipeline<T, R = T> {
     )
 
     try {
-      return await chain(this.passable)
+      if (!this.transactional) return await chain(this.passable)
+
+      if (runner === undefined) {
+        throw new Error(
+          'withinTransaction() needs a database. Register DatabaseServiceProvider, or drop the call.'
+        )
+      }
+
+      return await runner(() => chain(this.passable))
     } finally {
       await this.after?.(this.passable)
     }

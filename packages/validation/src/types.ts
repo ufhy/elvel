@@ -121,6 +121,18 @@ export const Rule = {
   },
 
   /**
+   * `Rule.email('dns', 'spoof')` — the strictness chosen per field.
+   *
+   * No arguments is the cheap regex, which is right for most fields. `dns`
+   * catches a typo'd domain at the form rather than at the first bounce;
+   * `spoof` refuses a homograph address, where a Cyrillic `а` stands in for a
+   * Latin one and `аdmin@company.com` reads identically to somebody else's.
+   */
+  email(...modes: Array<'rfc' | 'strict' | 'dns' | 'spoof' | 'filter'>): string {
+    return modes.length === 0 ? 'email' : `email:${modes.join(',')}`
+  },
+
+  /**
    * The gate must allow it — `Rule.can('update', Post)`.
    *
    * An authorisation failure then arrives in the error bag beside the field it

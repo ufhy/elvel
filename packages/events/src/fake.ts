@@ -45,26 +45,74 @@ export class EventFake extends Dispatcher {
     return [...this.recorded]
   }
 
-  assertDispatched(event: EventKey, times?: number): void {
+  /**
+   * A count, or a look at the payload.
+   *
+   * The callback is the difference between "an order shipped" and "*this* order
+   * shipped" — with several of the same event in one test, a count cannot tell
+   * them apart.
+   */
+  assertDispatched(event: EventKey, check?: number | ((payload: any) => boolean)): void {
     const name = eventName(event)
+
+    if (typeof check === 'function') {
+      if (this.dispatched(event).some(check)) return
+
+      throw new Error(
+        `Expected a [${name}] matching the callback, and ${describe(this.dispatched(event).length, name)}.`
+      )
+    }
+
     const count = this.dispatched(event).length
 
-    if (times === undefined) {
+    if (check === undefined) {
       if (count === 0) throw new Error(`Expected [${name}] to be dispatched, but it was not.`)
       return
     }
 
-    if (count !== times) {
-      throw new Error(`Expected [${name}] to be dispatched ${times} time(s), but got ${count}.`)
+    if (count !== check) {
+      throw new Error(`Expected [${name}] to be dispatched ${check} time(s), but got ${count}.`)
     }
   }
 
-  assertNotDispatched(event: EventKey): void {
-    const count = this.dispatched(event).length
+  assertDispatchedTimes(event: EventKey, times: number): void {
+    this.assertDispatched(event, times)
+  }
 
-    if (count !== 0) {
-      throw new Error(`Expected [${eventName(event)}] not to be dispatched, but got ${count}.`)
+  assertNotDispatched(event: EventKey, check?: (payload: any) => boolean): void {
+    const name = eventName(event)
+    const matched =
+      check === undefined ? this.dispatched(event) : this.dispatched(event).filter(check)
+
+    if (matched.length !== 0) {
+      throw new Error(
+        check === undefined
+          ? `Expected [${name}] not to be dispatched, but got ${matched.length}.`
+          : `Expected no [${name}] matching the callback, but ${matched.length} did.`
+      )
     }
+  }
+
+  /**
+   * Whether a provider actually registered its listener.
+   *
+   * The thing that breaks silently when providers are reordered: the event fires,
+   * nobody hears it, and nothing says so.
+   */
+  assertListening(event: EventKey, listener: unknown): void {
+    if (this.listening(event, listener)) return
+
+    const who = typeof listener === 'function' && listener.name !== '' ? listener.name : 'it'
+
+    throw new Error(`Expected [${who}] to be listening for [${eventName(event)}], and it is not.`)
+  }
+
+  assertNotListening(event: EventKey, listener: unknown): void {
+    if (!this.listening(event, listener)) return
+
+    const who = typeof listener === 'function' && listener.name !== '' ? listener.name : 'it'
+
+    throw new Error(`Expected [${who}] not to be listening for [${eventName(event)}], but it is.`)
   }
 
   assertNothingDispatched(): void {
@@ -93,4 +141,11 @@ export class NullDispatcher extends Dispatcher {
   override push(_event: string, _payload?: unknown): void {
     // Deliberately nothing: a pushed event would fire on flush.
   }
+}
+
+/** "none was dispatched" reads better than "0 were". */
+function describe(count: number, name: string): string {
+  if (count === 0) return `no [${name}] was dispatched at all`
+
+  return `the ${count} that were dispatched did not match`
 }

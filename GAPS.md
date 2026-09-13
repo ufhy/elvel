@@ -396,6 +396,7 @@ compare types. And `Arr.map`, `some`, `every`, `push`, `join`, `take`, `exists`,
 `from`, `accessible` and `arrayable` are each a native array method or
 `Object.hasOwn`, which upstream cannot lean on because a PHP array is not an
 object.
+
 ---
 
 ## Console
@@ -508,32 +509,10 @@ plugin's header survives, a cookie that fails to decrypt read as absent so a key
 rotation resets a preference instead of throwing, and the header parsed once per
 request rather than once per plugin.
 
-### Cookies have no configurable defaults, and `Secure` is off
-
-`CookieJar.serialize()` decides every attribute:
-
-```ts
-parts.push(`Path=${options.path ?? '/'}`)
-if (options.domain) parts.push(`Domain=${options.domain}`)
-if (options.httpOnly !== false) parts.push('HttpOnly')
-if (options.secure) parts.push('Secure')
-parts.push(`SameSite=${capitalise(options.sameSite ?? 'lax')}`)
-```
-
-`secure` is only ever set when the call site passes it, and there is nothing to
-set it from: `config/session.ts` has `secure`, and the provider applies it to
-**the session cookie only**. `config/http.ts` has no cookie block at all — the
-only cookie config is `cookies.except`.
-
-So an application on HTTPS that queues a preference, a consent flag or a
-remember-me marker sends it without `Secure` unless every call site remembers,
-and no `domain` can be set once for a deployment that spans subdomains.
-Upstream's answer is `CookieJar::setDefaultPathAndDomain($path, $domain, $secure,
-$sameSite)`, called from the session config at boot.
-
-**Done when** path, domain, secure and sameSite have configured defaults applied
-by the jar, `secure` follows `isProduction()` as the session cookie already
-does, and a call site can still override.
+Path, domain, `Secure` and `SameSite` have configured defaults now, applied by
+the jar and overridable at any call site. `secure` unset follows the
+environment, the same rule the session cookie already used — so an application
+on HTTPS no longer depends on every call site remembering the flag.
 
 ---
 
@@ -769,24 +748,11 @@ queued listeners with `shouldQueue`/`delay`/`tries`/`backoff`, listeners that
 wait for the transaction to commit, `event:list`, `EventFake` with an `except`
 list, and a real `NullDispatcher`.
 
-### The fake cannot assert on what was dispatched
-
-```ts
-assertDispatched(event: EventKey, times?: number): void
-```
-
-The event's name and a count. Upstream's takes a callback —
-`assertDispatched(OrderShipped::class, fn ($e) => $e->order->id === 1)` — which
-is the difference between "an order shipped" and "*this* order shipped". With
-several of the same event in one test, the current assertion cannot tell them
-apart.
-
-`assertListening(event, listener)` is missing too: whether a provider actually
-registered its listener, which is what breaks silently when a provider is
-reordered.
-
-**Done when** the payload can be inspected by a callback, and a registration can
-be asserted.
+`assertDispatched` takes a callback as well as a count, which is the difference
+between "an order shipped" and "*this* order shipped", and `assertListening`
+answers whether a provider actually registered its listener — the thing that
+breaks silently when providers are reordered. A pattern that covers the event
+counts, because the listener does hear it.
 
 ---
 
@@ -1108,6 +1074,7 @@ current page — the same shape the validator uses to find the gate.
 `cursorPaginate` was already done properly: multi-column keys compile to
 `created_at > ? OR (created_at = ? AND id > ?)`, the cursor is base64url, and
 there is deliberately no total.
+
 ---
 
 ## Pipeline
@@ -1118,18 +1085,12 @@ out of a throw as well as a return, which is the only reason to have it. The
 comment on `then()` names the thenable hazard — a class with a `then` member
 must never be awaited — and the queue's job middleware runs on this same code.
 
-### `withinTransaction()` is absent
-
-Upstream's pipeline can wrap the whole run in a database transaction, so a chain
-of stages that each write commit together or not at all.
-
-It is not a one-liner here, and that is the row: `@elvel/support` must not
-depend on `@elvel/database`. The pipeline already takes a resolver for named
-stages, so a transaction runner can be injected the same way — the decision is
-what that contract looks like, not whether it can be done.
-
-**Done when** a pipeline can be told to run inside a transaction without support
-importing database.
+`withinTransaction()` wraps the whole run, and `finally()` still runs outside it
+because releasing a lock must happen whether it committed or rolled back.
+`@elvel/support` still does not import `@elvel/database`: the database provider
+hands over a transaction runner at boot, the same shape the validator uses to
+find the gate, and asking for one with no database is an error rather than a
+quiet run without it.
 
 ---
 
@@ -1142,15 +1103,12 @@ importing database.
 than only "exited with code 1". `json()`, `lines()`, `onOutput()` and
 `onFinished()` have no upstream counterpart.
 
-### No TTY
-
-`tty()` and `supportsTty()` are missing. A command cannot hand its terminal to
-the process it starts, so anything interactive — an installer that asks a
-question, `ssh`, an editor, a REPL — cannot be run from an Elvel command at all.
-It is not slow or awkward; it does not work.
-
-**Done when** a process can inherit the terminal, and asking for it where there
-is no TTY is an error rather than a hang.
+`tty()` hands the terminal over, stdin included, so an installer that asks a
+question, `ssh`, an editor or a REPL can be run from a command. `supportsTty()`
+says whether there is one, and asking for a TTY where there is none is refused
+at the spawn — a child handed a stdin that is not a terminal waits for input
+that never comes, and a CI job that hangs for its whole timeout says nothing
+about why.
 
 ---
 
@@ -1452,31 +1410,18 @@ JSON-Schema builder with a TypeBox bridge that has no upstream counterpart.
 than the payload, so an unvalidated nested key cannot reach a database write —
 which is what upstream needs `excludeUnvalidatedArrayKeys` to opt into.
 
-Two things are missing, and one of them is only visible from Translation:
+`email` takes modes — `rfc`, `strict`, `dns`, `spoof`, `filter` — and the
+default stays the cheap regex, because most fields want an obvious typo caught
+and nothing more. `dns` catches a typo'd domain at the form rather than at the
+first bounce. `spoof` refuses a homograph, where a Cyrillic `а` stands in for a
+Latin one and `аdmin@company.com` reads identically to somebody else's address;
+it is a single-script check, which is what every such address violates and
+almost no real one does.
+
+One thing is still missing, and it is only visible from Translation:
 **validation messages cannot be translated**, because the catalogue is a
 hardcoded English `Record` and the package never imports the translator. That is
-recorded under Translation.
-
-### `email` is one permissive regex
-
-```ts
-email: ({ value }) =>
-  typeof value === 'string' && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value),
-```
-
-Upstream's rule takes modes — `rfc`, `strict`, `dns`, `spoof`, `filter` — and
-they are chosen per field because the right strictness differs: a sign-up form
-wants `dns` so a typo'd domain is caught at the form rather than at the first
-bounce, and an admin import wants `rfc` and nothing else.
-
-`spoof` is the one with teeth. It rejects a homograph address — a Cyrillic `а`
-standing in for a Latin `a`, so `аdmin@company.com` is a different address that
-reads identically — which is how a lookalike account gets created and then
-mistaken for the real one. Nothing here looks at that, and the DNS check that
-does exist belongs to `active_url`, not to `email`.
-
-**Done when** `Rule::email()` takes modes, `dns` and `spoof` are among them, and
-the default stays the cheap regex.
+recorded there.
 
 ---
 
@@ -1490,26 +1435,14 @@ props as props. What the framework adds around it is present — stacks
 `classes()`/`styles()`/`json()`, `render()` for a string, and a `stream()` that
 sends a page in parts so a slow query does not hold the shell.
 
-### An application cannot add ambient view data
+`shared()` registers a request-scoped value with a typed reader a component
+calls, computed on first read and remembered for the rest of the request — so a
+page that never reads it never pays for it. `sharedValue()` is the same for
+something a middleware establishes rather than computes.
 
-`View::share()`, `View::composer()` and `View::creator()` have no counterpart.
-`ViewFactory` is `render` and `build`, and a search for `share` or `composer`
-across `packages/view` finds nothing.
-
-The framework itself relies on ambient view data constantly: `errors()`,
-`old()`, `stack()`, `csrfField()` and `cspNonce()` are all read from the request
-scope inside a component, not passed as props. An application has no way to
-register one of its own, so anything a layout needs on every page — the unread
-count, the current tenant, the feature flags, the navigation — is threaded
-through the props of every handler that renders that layout, and adding one
-means editing all of them.
-
-The answer is not upstream's untyped `share()`: `view(Component, props)` being
-type-checked is the point of this package. The answer is the pattern already in
-use — a registered, typed request-scoped value with a reader a component calls.
-
-**Done when** an application can register request-scoped view data with a typed
-reader, computed lazily so a page that does not read it does not pay for it.
+Not upstream's untyped `share()`: the value is declared once and imported where
+it is read, so a component that reads it is checked. That is the point of this
+package.
 
 ---
 

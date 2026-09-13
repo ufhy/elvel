@@ -7,7 +7,7 @@
  */
 export { type FakeDefinition, ProcessManager } from './factory.ts'
 export { process } from './helpers.ts'
-export { InvokedProcess } from './invoked.ts'
+export { InvokedProcess, supportsTty } from './invoked.ts'
 export {
   type Command,
   type FakeHandler,

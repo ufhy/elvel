@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtemp, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ProcessFailedError, ProcessManager } from '../src/index.ts'
+import { ProcessFailedError, ProcessManager, supportsTty } from '../src/index.ts'
 
 /**
  * Asking the process itself where it is, rather than asking a shell.
@@ -433,5 +433,28 @@ describe('assertRanInOrder', () => {
 
     factory.assertRanInOrder(['deploy', 'deploy'])
     expect(() => factory.assertRanInOrder(['deploy', 'deploy', 'deploy'])).toThrow()
+  })
+})
+
+describe('a terminal', () => {
+  /**
+   * A child handed a stdin that is not a terminal waits for input that never
+   * comes, and a CI job that hangs for its whole timeout says nothing about why.
+   */
+  test('asking for one where there is none is an error, not a hang', async () => {
+    if (supportsTty()) return
+
+    await expect(new ProcessManager().tty().run(['echo', 'hi'])).rejects.toThrow('asked for a TTY')
+  })
+
+  test('supportsTty answers for this process', () => {
+    expect(typeof supportsTty()).toBe('boolean')
+  })
+
+  test('and a fake answers without ever spawning', async () => {
+    const manager = new ProcessManager()
+    manager.fake({ 'ssh *': 'connected' })
+
+    expect((await manager.tty().run(['ssh', 'host'])).output).toBe('connected')
   })
 })

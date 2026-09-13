@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test'
-import { Pipehub, Pipeline } from '../src/index.ts'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { Pipehub, Pipeline, resolveTransactionUsing } from '../src/index.ts'
 
 describe('Pipeline', () => {
   test('runs stages in the order they were given', async () => {
@@ -208,5 +208,81 @@ describe('Pipehub', () => {
     await expect(new Pipehub().pipe('x', 'missing')).rejects.toThrow(
       /is not defined.*pipeline\(\)/s
     )
+  })
+})
+
+describe('withinTransaction', () => {
+  afterEach(() => {
+    resolveTransactionUsing(undefined)
+  })
+
+  test('runs every stage inside one transaction', async () => {
+    const order: string[] = []
+
+    resolveTransactionUsing(async (body) => {
+      order.push('begin')
+
+      const answer = await body()
+
+      order.push('commit')
+
+      return answer
+    })
+
+    const answer = await new Pipeline<string>()
+      .send('a')
+      .through([
+        (value, next) => {
+          order.push('one')
+
+          return next(value)
+        },
+        (value, next) => {
+          order.push('two')
+
+          return next(value)
+        }
+      ])
+      .withinTransaction()
+      .thenReturn()
+
+    expect(answer).toBe('a')
+    expect(order).toEqual(['begin', 'one', 'two', 'commit'])
+  })
+
+  /** Releasing a lock must happen whether it committed or rolled back. */
+  test('finally still runs, and outside it', async () => {
+    const order: string[] = []
+
+    resolveTransactionUsing(async (body) => {
+      try {
+        return await body()
+      } catch (error) {
+        order.push('rollback')
+
+        throw error
+      }
+    })
+
+    const run = new Pipeline<string>()
+      .send('a')
+      .through(() => {
+        throw new Error('stage failed')
+      })
+      .finally(() => {
+        order.push('released')
+      })
+      .withinTransaction()
+      .thenReturn()
+
+    await expect(run).rejects.toThrow('stage failed')
+    expect(order).toEqual(['rollback', 'released'])
+  })
+
+  /** A pipeline that quietly ran without one would commit nothing and say so never. */
+  test('and asking for one with no database is an error', async () => {
+    const run = new Pipeline<string>().send('a').withinTransaction().thenReturn()
+
+    await expect(run).rejects.toThrow('needs a database')
   })
 })

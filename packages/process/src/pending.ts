@@ -15,6 +15,8 @@ export type ProcessOptions = {
   idleTimeout?: number
   quiet?: boolean
   inherit?: boolean
+  /** Hand the terminal over, so the child can be interactive. */
+  tty?: boolean
   /** Keep the bytes as they arrived, for output that is not text. */
   binary?: boolean
   onOutput?: OutputHandler
@@ -103,6 +105,21 @@ export class PendingProcess {
    */
   inherit(): PendingProcess {
     return this.derive({ inherit: true })
+  }
+
+  /**
+   * Hand this terminal to the child, stdin included.
+   *
+   * `inherit()` gives it the output streams; this gives it the input too, which
+   * is the difference between watching a program run and being able to answer
+   * it. An installer that asks a question, `ssh`, an editor, a REPL: without this
+   * they cannot be run from a command at all.
+   *
+   * Nothing is collected — the terminal is the child's, so the result's `output`
+   * is empty.
+   */
+  tty(): PendingProcess {
+    return this.derive({ tty: true, inherit: true })
   }
 
   /**

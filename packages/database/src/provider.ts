@@ -1,4 +1,5 @@
 import { ServiceProvider } from '@elvel/core'
+import { resolveTransactionUsing } from '@elvel/support'
 import { ConnectionManager } from './connection/manager.ts'
 import { DbCommand } from './console/db.ts'
 import { DbMonitorCommand } from './console/db-monitor.ts'
@@ -39,6 +40,12 @@ export class DatabaseServiceProvider extends ServiceProvider {
   override async boot(): Promise<void> {
     // A model reaches the container for notifications and encryption.
     Model.useApplication(this.app)
+
+    // A pipeline that writes wants a transaction, and support cannot import this
+    // package to find one — so it is handed over instead.
+    resolveTransactionUsing(async (body) =>
+      (await this.app.make('db').connection()).transaction(body)
+    )
 
     // Models resolve their connection lazily through the manager, so a model
     // file can be imported before the database is reachable.

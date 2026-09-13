@@ -55,7 +55,9 @@ export {
   Pipehub,
   Pipeline,
   type PipeObject,
-  type PipeResolver
+  type PipeResolver,
+  resolveTransactionUsing,
+  type TransactionRunner
 } from './pipeline.ts'
 export {
   amzDate,

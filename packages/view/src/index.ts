@@ -5,6 +5,7 @@ export type { ViewComponent } from '@elvel/contracts'
 export { type ClassInput, classes, json, styles } from './attributes.ts'
 export { JsxViewFactory, type ViewFactoryOptions } from './factory.ts'
 export { ViewServiceProvider } from './provider.ts'
+export { shared, sharedValue } from './shared.ts'
 export { once, prepend, push, pushOnce, resolveStacks, stack, withStacks } from './stacks.ts'
 
 /**

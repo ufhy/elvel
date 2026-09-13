@@ -54,5 +54,23 @@ export default {
   maxBodySize: Number(process.env.HTTP_MAX_BODY_SIZE ?? 10 * 1024 * 1024),
 
   /** Paths allowed to exceed it — an upload endpoint. A trailing `*` is a prefix. */
-  maxBodySizeExcept: [] as string[]
+  maxBodySizeExcept: [] as string[],
+
+  /**
+   * What every cookie gets unless its call site says otherwise.
+   *
+   * `secure` empty follows the environment: on in production, off elsewhere, the
+   * same rule the session cookie already uses. A cookie sent over plain HTTP in
+   * production is a cookie on the wire, and a call site that forgets the flag is
+   * how that happens.
+   *
+   * `domain` matters for a deployment spanning subdomains: set it once here
+   * rather than at every call that queues a cookie.
+   */
+  cookie: {
+    path: env('COOKIE_PATH', '/'),
+    domain: env('COOKIE_DOMAIN', '') || undefined,
+    secure: env('COOKIE_SECURE', undefined) as boolean | undefined,
+    sameSite: env('COOKIE_SAME_SITE', 'lax') as 'strict' | 'lax' | 'none'
+  }
 }

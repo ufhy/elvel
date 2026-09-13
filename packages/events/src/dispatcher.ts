@@ -84,6 +84,16 @@ function patternToRegExp(pattern: string): RegExp {
  */
 export class Dispatcher implements EventDispatcher {
   private readonly listeners = new Map<string, StoredListener[]>()
+
+  /**
+   * The listeners as they were handed over, before wrapping.
+   *
+   * `listen()` stores a closure, so the reference a caller passed is gone by the
+   * time anything could compare against it — and whether a provider actually
+   * registered its listener is the thing that breaks silently when providers are
+   * reordered.
+   */
+  private readonly declared = new Map<string, unknown[]>()
   private readonly wildcards = new Map<string, WildcardListener[]>()
   private wildcardsCache = new Map<string, StoredListener[]>()
 
@@ -124,6 +134,11 @@ export class Dispatcher implements EventDispatcher {
 
     for (const entry of events) {
       const name = eventName(entry)
+
+      const seen = this.declared.get(name)
+
+      if (seen) seen.push(listener)
+      else this.declared.set(name, [listener])
 
       if (name.includes('*')) {
         if (isQueuedListener(listener)) {
@@ -444,6 +459,8 @@ export class Dispatcher implements EventDispatcher {
   forget(event: EventKey): void {
     const name = eventName(event)
 
+    this.declared.delete(name)
+
     if (name.includes('*')) {
       this.wildcards.delete(name)
       this.wildcardsCache = new Map()
@@ -453,9 +470,42 @@ export class Dispatcher implements EventDispatcher {
     this.listeners.delete(name)
   }
 
+  /**
+   * Whether this listener is registered for this event.
+   *
+   * By identity for a function, and by name for a class — a listener registered
+   * as a class is the same listener whether or not the caller holds the same
+   * reference.
+   */
+  listening(event: EventKey, listener: unknown): boolean {
+    const name = eventName(event)
+    const wanted = nameOf(listener)
+
+    const matches = (candidate: unknown): boolean =>
+      candidate === listener || (wanted !== undefined && nameOf(candidate) === wanted)
+
+    if ((this.declared.get(name) ?? []).some(matches)) return true
+
+    // A pattern that covers this event counts: the listener does hear it.
+    for (const [pattern, listeners] of this.declared) {
+      if (!pattern.includes('*') || !patternToRegExp(pattern).test(name)) continue
+
+      if (listeners.some(matches)) return true
+    }
+
+    return false
+  }
+
   forgetPushed(): void {
     for (const name of [...this.listeners.keys()]) {
       if (name.endsWith('_pushed')) this.listeners.delete(name)
     }
   }
+}
+
+/** A listener's identity when it is a class rather than a closure. */
+function nameOf(listener: unknown): string | undefined {
+  if (typeof listener !== 'function') return undefined
+
+  return listener.name === '' ? undefined : listener.name
 }

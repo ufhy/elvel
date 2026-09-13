@@ -541,7 +541,26 @@ export const RULES: Record<string, RuleHandler> = {
   },
 
   // -- format --------------------------------------------------------------
-  email: ({ value }) => typeof value === 'string' && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value),
+  /**
+   * `email`, or `email:rfc,dns,spoof` — the strictness is chosen per field.
+   *
+   * The default stays the cheap regex, because most fields want an obvious typo
+   * caught and nothing more. The modes exist because the right strictness
+   * differs: a sign-up form wants `dns`, so a typo'd domain is caught at the
+   * form rather than at the first bounce, and an admin import wants `rfc` and
+   * no network at all.
+   */
+  email: async ({ value, params }) => {
+    if (typeof value !== 'string') return false
+
+    const modes = params.length === 0 ? ['loose'] : params
+
+    for (const mode of modes) {
+      if (!(await checkEmail(value, mode.trim()))) return false
+    }
+
+    return true
+  },
 
   url: ({ value }) => {
     if (typeof value !== 'string') return false
@@ -987,8 +1006,130 @@ export const RULES: Record<string, RuleHandler> = {
   }
 }
 
-/** How long `active_url` waits on a resolver before calling it a failure. */
+/** How long a DNS-backed rule waits on a resolver before calling it a failure. */
 const DNS_TIMEOUT = 3000
+
+/** The default: an obvious typo, and nothing more. */
+const LOOSE_EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/
+
+/**
+ * What a browser accepts for `<input type="email">`.
+ *
+ * A real, written-down grammar rather than one invented here, which is the
+ * point of the mode: a field validated against it accepts exactly what the
+ * browser in front of it already did.
+ */
+const HTML_EMAIL =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+
+/** The scripts a homograph attack borrows from. */
+const SCRIPTS: Array<[string, RegExp]> = [
+  ['Latin', /\p{Script=Latin}/u],
+  ['Cyrillic', /\p{Script=Cyrillic}/u],
+  ['Greek', /\p{Script=Greek}/u],
+  ['Han', /\p{Script=Han}/u],
+  ['Arabic', /\p{Script=Arabic}/u],
+  ['Hebrew', /\p{Script=Hebrew}/u]
+]
+
+async function checkEmail(value: string, mode: string): Promise<boolean> {
+  switch (mode) {
+    case 'loose':
+      return LOOSE_EMAIL.test(value)
+
+    case 'filter':
+      return HTML_EMAIL.test(value)
+
+    case 'rfc':
+      return rfcEmail(value)
+
+    case 'strict':
+      return rfcEmail(value) && !value.includes('..') && !/^\.|\.@|@\.|\.$/.test(value)
+
+    case 'dns':
+      return LOOSE_EMAIL.test(value) && (await resolves(value.slice(value.lastIndexOf('@') + 1)))
+
+    case 'spoof':
+      return singleScript(value)
+
+    default:
+      throw new Error(
+        `[email:${mode}] is not a mode. Use rfc, strict, dns, spoof or filter, or drop the argument.`
+      )
+  }
+}
+
+/**
+ * The addressing grammar, minus the parts nothing sends.
+ *
+ * Quoted local parts and address literals are legal and are refused: a form that
+ * accepts `"a b"@[192.0.2.1]` accepts an address most of the stack behind it
+ * cannot handle, which is a worse outcome than rejecting it here.
+ */
+function rfcEmail(value: string): boolean {
+  const at = value.lastIndexOf('@')
+
+  if (at <= 0 || at === value.length - 1) return false
+
+  const local = value.slice(0, at)
+  const domain = value.slice(at + 1)
+
+  if (local.length > 64 || value.length > 254) return false
+  if (!/^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~.-]+$/.test(local)) return false
+
+  const labels = domain.split('.')
+
+  if (labels.length < 2) return false
+
+  return labels.every(
+    (label) =>
+      label.length > 0 &&
+      label.length <= 63 &&
+      /^[a-zA-Z0-9-]+$/.test(label) &&
+      !label.startsWith('-') &&
+      !label.endsWith('-')
+  )
+}
+
+/**
+ * One script, or none.
+ *
+ * A Cyrillic `а` standing in for a Latin `a` makes `аdmin@company.com` a
+ * different address that reads identically — which is how a lookalike account
+ * gets created and then mistaken for the real one. Mixing scripts is what every
+ * such address does and what almost no real one does.
+ */
+function singleScript(value: string): boolean {
+  const found = SCRIPTS.filter(([, pattern]) => pattern.test(value))
+
+  return found.length <= 1
+}
+
+/** Does this hostname resolve? Bounded, for the reason `active_url` explains. */
+async function resolves(host: string): Promise<boolean> {
+  if (host === '') return false
+
+  try {
+    const { lookup } = await import('node:dns/promises')
+
+    let handle: ReturnType<typeof setTimeout> | undefined
+
+    const timeout = new Promise<never>((_, reject) => {
+      handle = setTimeout(
+        () => reject(new Error(`[${host}] did not resolve within ${DNS_TIMEOUT}ms.`)),
+        DNS_TIMEOUT
+      )
+    })
+
+    try {
+      return (await Promise.race([lookup(host, { all: true }), timeout])).length > 0
+    } finally {
+      clearTimeout(handle)
+    }
+  } catch {
+    return false
+  }
+}
 
 function requireVerifier(context: RuleContext, rule: string) {
   if (!context.verifier) {

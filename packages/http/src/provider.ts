@@ -19,7 +19,7 @@ import { MiddlewareListCommand } from './console/middleware-list.ts'
 import { SessionGcCommand } from './console/session-gc.ts'
 import { SessionTableCommand } from './console/session-table.ts'
 import { cookiePlugin } from './cookie-plugin.ts'
-import { CookieJar } from './cookies.ts'
+import { CookieJar, setCookieDefaults } from './cookies.ts'
 import {
   actualHeaders,
   type CorsConfig,
@@ -298,6 +298,20 @@ export class HttpServiceProvider extends ServiceProvider {
      * imports the other — so the paginator is told how to find the request it
      * belongs to rather than reaching for it.
      */
+    /**
+     * `secure` unset follows the environment, the same rule the session cookie
+     * uses, so an application on HTTPS does not depend on every call site
+     * remembering the flag.
+     */
+    const cookie = this.config<Record<string, unknown>>('http.cookie', {})
+
+    setCookieDefaults({
+      path: (cookie.path as string) ?? '/',
+      domain: cookie.domain as string | undefined,
+      secure: (cookie.secure as boolean | undefined) ?? this.app.isProduction(),
+      sameSite: (cookie.sameSite as 'strict' | 'lax' | 'none') ?? 'lax'
+    })
+
     Paginators.resolveCurrentPathUsing(() => {
       const request = currentScope()?.request
 

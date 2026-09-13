@@ -248,3 +248,58 @@ describe('the messages', () => {
     )
   })
 })
+
+/** The strictness is chosen per field, and the default stays cheap. */
+describe('email modes', () => {
+  test('no mode is the permissive regex', async () => {
+    expect(await passes('ada@example.com', 'email')).toBe(true)
+    expect(await passes('ada@example', 'email')).toBe(false)
+    expect(await passes('not an address', 'email')).toBe(false)
+  })
+
+  test('rfc refuses what most of the stack behind it cannot handle', async () => {
+    expect(await passes('ada@example.com', 'email:rfc')).toBe(true)
+    expect(await passes('"a b"@example.com', 'email:rfc')).toBe(false)
+    expect(await passes('ada@-example.com', 'email:rfc')).toBe(false)
+    expect(await passes('ada@example', 'email:rfc')).toBe(false)
+  })
+
+  test('strict adds the dot rules', async () => {
+    expect(await passes('ada.lovelace@example.com', 'email:strict')).toBe(true)
+    expect(await passes('ada..lovelace@example.com', 'email:strict')).toBe(false)
+    expect(await passes('.ada@example.com', 'email:strict')).toBe(false)
+  })
+
+  test('filter is what a browser accepts for input type=email', async () => {
+    expect(await passes("o'hara@example.co.uk", 'email:filter')).toBe(true)
+    expect(await passes('ada@exam ple.com', 'email:filter')).toBe(false)
+  })
+
+  /**
+   * A Cyrillic `а` standing in for a Latin one: the address reads identically
+   * and belongs to somebody else.
+   */
+  test('spoof refuses a homograph', async () => {
+    expect(await passes('admin@company.com', 'email:spoof')).toBe(true)
+    expect(await passes('аdmin@company.com', 'email:spoof')).toBe(false)
+  })
+
+  /**
+   * `.invalid` is reserved never to resolve, so the answer is the same
+   * everywhere. `localhost.localdomain` is not: it is an alias for 127.0.0.1 in
+   * a good many hosts files.
+   */
+  test('dns asks whether the domain exists at all', async () => {
+    expect(await passes('ada@example.invalid', 'email:dns')).toBe(false)
+    expect(await passes('not an address', 'email:dns')).toBe(false)
+  })
+
+  test('modes stack', async () => {
+    expect(await passes('аdmin@company.com', 'email:rfc,spoof')).toBe(false)
+    expect(await passes('ada@example.com', 'email:rfc,strict,spoof')).toBe(true)
+  })
+
+  test('and a mode nobody defined is an error rather than a silent pass', async () => {
+    await expect(passes('ada@example.com', 'email:nonsense')).rejects.toThrow('is not a mode')
+  })
+})

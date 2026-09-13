@@ -29,7 +29,14 @@ export {
   withCookieBag
 } from './cookie-bag.ts'
 export { type CookieMiddlewareOptions, cookiePlugin } from './cookie-plugin.ts'
-export { CookieJar, type CookieOptions, timingSafeEqual } from './cookies.ts'
+export {
+  CookieJar,
+  type CookieOptions,
+  cookieDefaults,
+  resetCookieDefaults,
+  setCookieDefaults,
+  timingSafeEqual
+} from './cookies.ts'
 export {
   actualHeaders,
   CORS_DEFAULTS,

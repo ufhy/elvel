@@ -8,6 +8,29 @@ export type CookieOptions = {
   sameSite?: 'strict' | 'lax' | 'none'
 }
 
+/**
+ * What every cookie gets unless its call site says otherwise.
+ *
+ * `Secure` used to be off unless a call site remembered it, which meant an
+ * application on HTTPS sent a preference, a consent flag or a remember-me marker
+ * in the clear — and no `domain` could be set once for a deployment spanning
+ * subdomains. Set here at boot from config, applied by `serialize`.
+ */
+let defaults: CookieOptions = {}
+
+export function setCookieDefaults(values: CookieOptions): void {
+  defaults = { ...defaults, ...values }
+}
+
+export function cookieDefaults(): CookieOptions {
+  return { ...defaults }
+}
+
+/** For a test, which must not inherit the last one's. */
+export function resetCookieDefaults(): void {
+  defaults = {}
+}
+
 /** The encryption an encrypted cookie needs. `@elvel/encryption` satisfies it. */
 export type CookieEncrypter = {
   encryptString(value: string, context?: string): string
@@ -97,7 +120,8 @@ export class CookieJar {
   }
 
   /** Render a `Set-Cookie` header value. */
-  static serialize(name: string, value: string, options: CookieOptions = {}): string {
+  static serialize(name: string, value: string, given: CookieOptions = {}): string {
+    const options = { ...defaults, ...given }
     const parts = [`${name}=${encodeURIComponent(value)}`]
 
     parts.push(`Path=${options.path ?? '/'}`)

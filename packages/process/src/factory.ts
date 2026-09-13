@@ -92,6 +92,11 @@ export class ProcessManager {
     return this.base().inherit()
   }
 
+  /** Hand this terminal to the child — see `PendingProcess.tty`. */
+  tty(): PendingProcess {
+    return this.base().tty()
+  }
+
   /** Keep the raw bytes as well as the text — see `PendingProcess.binary`. */
   binary(): PendingProcess {
     return this.base().binary()
