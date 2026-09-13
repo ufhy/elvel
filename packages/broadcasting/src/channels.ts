@@ -8,8 +8,8 @@ export type ChannelAuthorizer = (
  * Who may listen, and what the others should be told about them.
  *
  * A presence channel answers with the member — `{ id, name }`, whatever a client
- * needs to draw a list of who is here — or `null`/`false` to refuse. Laravel
- * uses the same shape, and for the same reason: authorising and identifying are
+ * needs to draw a list of who is here — or `null`/`false` to refuse. One shape,
+ * for one reason: authorising and identifying are
  * one question, since a member list of people who were not allowed in is not a
  * member list.
  */

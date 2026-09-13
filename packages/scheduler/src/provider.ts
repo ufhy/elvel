@@ -22,8 +22,7 @@ declare module '@elvel/contracts' {
  *
  * Entries are registered by the application, in a provider's `boot()`, rather than
  * discovered: a schedule is a handful of lines that belong together and want to be
- * read in one place — Laravel moved the same way when it replaced the console
- * kernel with `withSchedule()`.
+ * read in one place.
  *
  * Nothing runs on its own. Either a crontab calls `schedule:run` every minute, or
  * a long-lived process runs `schedule:work`.

@@ -43,7 +43,7 @@ export function classes(...inputs: ClassInput[]): string {
 
   // Joined as they were given, which is what `Arr::toCssClasses` does. An
   // earlier version here deduplicated; that reads like an improvement and is a
-  // difference from Laravel for no reason, and the day somebody relies on a
+  // undocumented difference for no reason, and the day somebody relies on a
   // class appearing twice — a CSS-in-JS scheme keyed by occurrence, a test that
   // counts them — it is a difference nobody wrote down.
   return names.join(' ')
@@ -98,7 +98,7 @@ export function styles(...inputs: ClassInput[]): string {
  * that never touched the HTML escaper, because JSON.stringify has no reason to
  * care. `<!--` opens an HTML comment for the same reason.
  *
- * The set is Laravel's: `@json` encodes with `JSON_HEX_TAG | JSON_HEX_APOS |
+ * The set: `JSON_HEX_TAG | JSON_HEX_APOS |
  * JSON_HEX_AMP | JSON_HEX_QUOT`, which is `<` `>` `&` `'` `"`. The quotes are
  * what make the result safe in an *attribute* as well as in a script body —
  * `<button data-user='{json(user)}'>` does not need a second helper. Only the

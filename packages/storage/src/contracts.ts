@@ -11,7 +11,7 @@ export type WriteOptions = {
 }
 
 /**
- * A place to keep files — Laravel's `Filesystem` contract.
+ * A place to keep files.
  *
  * Every method takes a path relative to the disk's root. A path that tries to
  * leave the root is refused rather than resolved: without Flysystem between us
@@ -132,7 +132,7 @@ export interface Disk {
   url(path: string): string
 }
 
-/** A disk that can hand out links which expire — Laravel's `Cloud` contract. */
+/** A disk that can hand out links which expire. */
 export interface CloudDisk extends Disk {
   /** A link that stops working after `expiresIn` seconds. */
   temporaryUrl(path: string, expiresIn: number, options?: { contentDisposition?: string }): string

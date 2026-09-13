@@ -47,7 +47,7 @@ abstract class BaseDriver implements ConcurrencyDriver {
 }
 
 /**
- * Everything in this process, one after another — Laravel's `sync` driver.
+ * Everything in this process, one after another.
  *
  * Not concurrent at all, and that is the point: it is what a test uses, and what
  * an environment without workers falls back to. Anything that behaves
@@ -157,8 +157,8 @@ type WorkerAnswer =
  * big enough not to notice. Below that threshold, `sync` is faster and the
  * comparison is worth measuring rather than assuming.
  *
- * **Only descriptors.** A function is refused here, unlike Laravel, which
- * serialises a closure with its bound scope — PHP can do that and JavaScript
+ * **Only descriptors.** A function is refused. Serialising a closure with its
+ * bound scope is something some runtimes can do and JavaScript
  * cannot. `Function.prototype.toString()` gives the body without the scope, and
  * Bun makes it worse than merely lossy: it inlines a captured `const` primitive
  * into the source, so `const name = 'ada'` arrives and `let name = 'ada'` does

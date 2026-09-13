@@ -14,7 +14,7 @@ export class PathOutsideDiskError extends Error {
  * The relative path a disk should use, or an error.
  *
  * Refused rather than normalised, and deliberately so. Flysystem does this for
- * Laravel; without it a path that came from a request — `../../.env`, or an
+ * the disk root; without it a path that came from a request — `../../.env`, or an
  * absolute `/etc/passwd` — would be read or written outside the disk. Stripping
  * the `..` segments instead would silently turn a hostile path into a valid one,
  * which is worse than an error: the caller never learns their input was wrong.

@@ -20,7 +20,7 @@ async function toBytes(contents: Writable): Promise<Uint8Array> {
 }
 
 /**
- * A disk in memory — the equivalent of Laravel's `Storage::fake()`.
+ * A disk in memory, for tests.
  *
  * It is a full disk rather than a stub, so a test exercises the same code path a
  * request would and then reads the bytes back. Nothing touches the filesystem, so
@@ -306,7 +306,7 @@ export class MemoryDisk implements Disk {
   // ----------------------------------------------------------- assertions
 
   /**
-   * What a fake disk is for — Laravel's `Storage::fake()` assertions.
+   * What a fake disk is for.
    *
    * They live on the memory disk rather than in the testing package because they
    * need the store, and because a fake nobody can assert against is only half a

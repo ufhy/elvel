@@ -266,7 +266,7 @@ describe('frequency helpers write the expression', () => {
     expect(cron.matches(at('2026-02-01T00:00:00Z'), 'UTC')).toBe(false)
   })
 
-  test('the frequencies added to close the gap with Laravel', () => {
+  test('the frequencies that round out the set', () => {
     // Every-two-hours skips the odd hours, which is exactly what makes
     // everyOddHour useful: two jobs that must not share an hour.
     expect(event().everyFourHours().cronExpression).toBe('0 */4 * * *')

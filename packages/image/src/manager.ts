@@ -10,8 +10,8 @@ export type ImageDriverFactory = () => ImageDriver
 /**
  * Opens images and picks a backend.
  *
- * The default is `auto`, which is not a Laravel idea and earns its place here:
- * Laravel can assume GD, because it ships with PHP. Nothing ships with Bun, so
+ * The default is `auto`, and it earns its place: a runtime shipping an image
+ * library can assume it. Nothing ships with Bun, so
  * the honest default is to look — `sharp` if the application installed it,
  * ImageMagick if the machine has it, `sips` if this is a Mac — and to say
  * clearly when the answer is none.

@@ -52,7 +52,7 @@ export function fakeResponse(
 }
 
 /**
- * Makes requests — Laravel's `Http` facade.
+ * Makes requests.
  *
  * ```ts
  * const response = await http().withToken(key).get('https://api.example.com/users')
@@ -97,8 +97,7 @@ export class HttpClient {
          *
          * Recording unconditionally looked harmless and is a slow leak: a server
          * that runs for a week keeps every outbound request and response it ever
-         * made, and nothing ever reads them. Laravel guards the same array with
-         * the same flag.
+         * made, and nothing ever reads them.
          */
         if (this.recording) this.records.push({ attempt, response })
 
@@ -228,7 +227,7 @@ export class HttpClient {
     this.record()
 
     // Cleared, so assertions describe this test rather than everything the
-    // process has done since it started. Laravel empties it here too.
+    // process has done since it started, so it is emptied here.
     this.records.length = 0
 
     for (const [pattern, definition] of Object.entries(definitions)) {

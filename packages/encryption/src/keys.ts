@@ -10,7 +10,7 @@ const MINIMUM_SECRET_BYTES = 32
  * The raw bytes of a configured key.
  *
  * `base64:` is honoured because that is what `key:generate` writes and what
- * anyone coming from Laravel will paste; anything else is taken as its own bytes.
+ * anybody is likely to paste; anything else is taken as its own bytes.
  */
 export function secretBytes(secret: string): Uint8Array {
   if (secret.startsWith('base64:')) {

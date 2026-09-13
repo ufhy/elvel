@@ -29,7 +29,7 @@ function matches(command: string, pattern: Matcher): boolean {
 }
 
 /**
- * Runs commands — Laravel's `Process` factory.
+ * Runs commands.
  *
  * ```ts
  * const result = await process().run(['git', 'rev-parse', 'HEAD'])
@@ -167,8 +167,8 @@ export class ProcessManager {
    * Fail loudly on a command no fake matched.
    *
    * Without it, an unmatched command runs for real — which under a fake means a
-   * test that was meant to be hermetic quietly touches the machine. Laravel
-   * calls this `preventStrayProcesses` and it is worth turning on by default in
+   * test that was meant to be hermetic quietly touches the machine. Worth turning
+   * on by default in
    * a suite.
    */
   preventStrayProcesses(prevent = true): this {

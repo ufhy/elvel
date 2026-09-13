@@ -2,7 +2,7 @@ import { app } from '@elvel/core'
 import type { HttpClient } from './factory.ts'
 
 /**
- * The HTTP client — Laravel's `Http` facade.
+ * The HTTP client.
  *
  * ```ts
  * const response = await http().acceptJson().get('https://api.example.com/users')

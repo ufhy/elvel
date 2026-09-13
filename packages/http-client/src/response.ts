@@ -17,8 +17,7 @@ export class RequestError extends Error {
      *
      * A `RequestException` saying only "HTTP request returned status code 422"
      * sends you to a log to find out which field was wrong, and the answer was in
-     * the body all along. Laravel truncates at 120 characters by default for the
-     * same reason it includes it at all: enough to identify the failure, not
+     * the body all along, truncated, for the reason it is included at all: enough to identify the failure, not
      * enough to fill a log with somebody's HTML error page.
      */
     const body = response.body.trim()

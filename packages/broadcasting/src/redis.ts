@@ -23,7 +23,7 @@ export type RedisPubSubOptions = {
  *
  * Nothing about it is ordered across processes beyond what Redis gives —
  * messages from *one* publisher arrive in order, and two publishers are two
- * orders. That is true of every fan-out of this shape, Laravel's included.
+ * orders. That is true of every fan-out of this shape.
  */
 export class RedisPubSub implements PubSub {
   private readonly publisher: RedisClient

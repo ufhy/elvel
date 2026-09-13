@@ -11,7 +11,7 @@ type ManifestChunk = {
 }
 
 /**
- * Tags for a Vite build — Laravel's `@vite` directive.
+ * Tags for a Vite build.
  *
  * Two modes, and the reason there are two is the whole feature:
  *
@@ -59,14 +59,12 @@ export class Vite {
       /**
        * What to do when there is neither a dev server nor a build.
        *
-       * A departure from Laravel, which throws
-       * `ViteManifestNotFoundException` in every environment.
+       * A departure from throwing in every environment.
        *
        * `throw` here too in production, where a missing build means a deploy
        * shipped an unstyled page and silence would be the wrong answer. `ignore`
        * elsewhere, because `laravel new` runs the asset build as part of
-       * installing — so Laravel's first boot always has a manifest — and this
-       * scaffolder cannot: Bun installs the front-end packages only when the
+       * installing, so a first boot always has a manifest. This scaffolder cannot: Bun installs the front-end packages only when the
        * developer asks. A 500 on the landing page before anybody has run
        * anything is a poor first minute; one warning naming the fix says the
        * same thing without breaking the page.
@@ -259,8 +257,7 @@ export class Vite {
    * entry — `src/main.ts` and `src/auth.ts` both empty, the CSS sitting under
    * `_style-DBiwHCGr.js`.
    *
-   * So the import graph is walked. Laravel's plugin does the same, for the same
-   * reason. Depth-first and deduplicated, so a stylesheet two entries share is
+   * So the import graph is walked. Depth-first and deduplicated, so a stylesheet two entries share is
    * linked once and in the order the graph reaches it.
    */
   private stylesheetsFor(
@@ -301,12 +298,11 @@ export class Vite {
    * Where the manifest is, allowing for both places Vite has put it.
    *
    * `build/manifest.json` is where a config that names the file writes it, and
-   * the only place Laravel looks — `laravel-vite-plugin` sets `manifest:
-   * 'manifest.json'` so it is always there. Vite 5 changed the default to
+   * the only place a plugin pinning `manifest: 'manifest.json'` needs to look. Vite 5 changed the default to
    * `.vite/manifest.json` inside the output directory, so a project that merely
    * set `manifest: true` — which is most of them, and was this framework's own
    * template until a build was actually run — has it there instead. Looking in
-   * both is one `existsSync` more than Laravel does, and saves an afternoon.
+   * both is one `existsSync`, and saves an afternoon.
    */
   private get manifestPath(): string {
     const directory = join(this.options.publicPath, this.options.buildDirectory ?? 'build')

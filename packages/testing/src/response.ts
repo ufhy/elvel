@@ -450,7 +450,7 @@ export class TestResponse {
    * The 422 named these fields.
    *
    * The framework's exception handler renders a `ValidationError` as
-   * `{ message, errors: { field: [...] } }`, the same shape Laravel uses, so
+   * `{ message, errors: { field: [...] } }`, so
    * these read the `errors` bag rather than the whole body.
    */
   assertInvalid(fields: string | string[] | Record<string, string>): this {

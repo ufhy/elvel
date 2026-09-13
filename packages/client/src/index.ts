@@ -232,7 +232,7 @@ export async function send<T>(path: string, options: CallOptions = {}): Promise<
       /**
        * `accept`, and it is not decoration.
        *
-       * The `auth` middleware answers a guest the way Laravel's does: 401 to a
+       * The `auth` middleware answers a guest with a 401 to a
        * client that asked for JSON, a redirect to a page for anything else.
        * Without this header an expired session sent `fetch` following a 302 to a
        * document, and `JSON.parse` then failed on HTML — a parse error standing in

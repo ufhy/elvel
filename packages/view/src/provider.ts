@@ -147,8 +147,8 @@ export class ViewServiceProvider extends ServiceProvider {
          * depends on the environment is a framework that cannot be developed
          * against.
          *
-         * Laravel never has this problem because static files are not routes
-         * there. Its nginx configuration is `try_files $uri $uri/ /index.php` and
+         * A stack where static files are not routes never has this problem: the nginx
+         * configuration is `try_files $uri $uri/ /index.php` and
          * Valet's `isStaticFile()` is `file_exists(...) ? path : false` — the file
          * if it is there, the router if it is not. `true` is the shape of that
          * here: the table holds only files that exist, so a miss falls through.

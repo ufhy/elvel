@@ -20,7 +20,7 @@ export { type ChannelConfig, type DriverFactory, LogManager } from './manager.ts
 export { LogServiceProvider } from './provider.ts'
 
 /**
- * The log manager — Laravel's `Log` facade.
+ * The log manager.
  *
  * ```ts
  * log().info('User {id} signed in', { id: user.id })

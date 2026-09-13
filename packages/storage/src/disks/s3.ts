@@ -30,7 +30,7 @@ export type S3DiskOptions = {
  *
  * No dependency and no AWS SDK: Bun signs requests itself, which is also why
  * `temporaryUrl` needs no network — presigning is pure SigV4 over the key and the
- * clock. Laravel reaches the same surface through Flysystem plus the AWS SDK.
+ * clock, and no SDK.
  */
 export class S3Disk implements CloudDisk {
   private readonly client: S3Client

@@ -102,8 +102,8 @@ export function contains(value: unknown, subset: unknown): boolean {
 /**
  * Read `a.b.0.c` out of a decoded body.
  *
- * `*` is not supported, unlike Laravel's. Wildcards there exist because PHP has
- * no cheap way to map over a nested array in an assertion; here `assertJsonPath`
+ * `*` is not supported. Wildcards exist where there is no cheap way to map over a
+ * nested array in an assertion; here `assertJsonPath`
  * can be handed a callback, and a callback says more than a wildcard can.
  */
 export function dataGet(target: unknown, path: string): unknown {

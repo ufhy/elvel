@@ -2,7 +2,7 @@ import { app } from '@elvel/core'
 import type { HashManager } from './manager.ts'
 
 /**
- * The hash manager — Laravel's `Hash` facade.
+ * The hash manager.
  *
  * ```ts
  * const token = await hash().make(secret)

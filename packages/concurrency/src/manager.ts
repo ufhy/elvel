@@ -8,9 +8,8 @@ export type DriverFactory = () => ConcurrencyDriver
 /**
  * Resolves drivers and forwards to the default.
  *
- * Laravel ships `fork`, `process` and `sync`. `fork` exists because PHP cannot
- * await and is unusable in a web request; neither constraint applies here, so
- * this ships `worker` and `sync`. `worker` is the one that buys something
+ * A `fork` driver exists where a runtime cannot await and is unusable in a web
+ * request. Neither constraint applies here, so this ships `worker` and `sync`. `worker` is the one that buys something
  * `Promise.all` cannot: another core.
  */
 export class ConcurrencyManager {

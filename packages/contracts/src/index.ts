@@ -15,8 +15,8 @@ export interface ConfigRepository {
  * Bindings registered in the container.
  *
  * Packages augment this interface so `app.make('view')` is typed instead of
- * returning `unknown`. This is how we keep Laravel's ergonomics without
- * Laravel's string-keyed blindness:
+ * returning `unknown`. This is how a string-keyed container keeps its ergonomics
+ * without its blindness:
  *
  * ```ts
  * declare module '@elvel/contracts' {
@@ -173,7 +173,7 @@ export interface EventDispatcher {
 
 // ---------------------------------------------------------------------- log
 
-/** RFC 5424 levels, as Laravel exposes them. */
+/** RFC 5424 levels. */
 export type LogLevel =
   | 'emergency'
   | 'alert'

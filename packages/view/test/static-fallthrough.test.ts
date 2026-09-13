@@ -8,7 +8,7 @@ import { ViewServiceProvider } from '../src/provider.ts'
 /**
  * A request for a file that is not there belongs to the router.
  *
- * This is the shape Laravel has and it is not a preference: its nginx
+ * This shape is not a preference: the nginx
  * configuration is `try_files $uri $uri/ /index.php?$query_string` and Valet's
  * `isStaticFile()` is `file_exists(...) ? path : false`. The file if it exists,
  * the application if it does not — so `Route::view('{path}', 'main')` works, and

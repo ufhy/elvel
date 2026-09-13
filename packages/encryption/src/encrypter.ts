@@ -50,12 +50,12 @@ export type EncrypterOptions = {
 /**
  * AES-256-GCM, synchronously.
  *
- * Three decisions worth stating, because they are departures from Laravel:
+ * Three decisions worth stating, because they are departures from the usual:
  *
  * **GCM only, no CBC.** GCM is AEAD: one operation encrypts and authenticates, so
  * there is no separate MAC to compute, order, or forget to compare in constant
- * time. Laravel keeps CBC for payloads written by older versions of itself; we
- * have no such history to honour.
+ * time. CBC is kept elsewhere for payloads written by older versions; there is no
+ * such history to honour here.
  *
  * **A versioned, compact payload** — `v1.<iv>.<ciphertext‖tag>` in base64url —
  * rather than base64 of a JSON object. It is shorter, which matters inside a 4 KB
@@ -113,8 +113,8 @@ export class Encrypter {
    * `context` is bound into the authentication tag, not into the plaintext. A
    * payload encrypted for one context cannot be decrypted as another — which is
    * what stops a cookie being replayed under a different name, or a queue payload
-   * being fed to a different job. Laravel achieves the same by prefixing an HMAC of
-   * the name to the plaintext and stripping it afterwards; AAD is the mechanism
+   * being fed to a different job. Prefixing an HMAC of the name to the plaintext
+   * and stripping it afterwards reaches the same place; AAD is the mechanism
    * that exists for it.
    */
   encrypt(value: unknown, context?: string): string {
@@ -167,8 +167,8 @@ export class Encrypter {
    * change. On a table that has been rotated once already that is the difference
    * between a minute and an hour.
    *
-   * Laravel answers this by handing out `getKey()` and `getAllKeys()` and
-   * leaving the comparison to the caller. This does not: key material on a
+   * Handing out `getKey()` and `getAllKeys()` and leaving the comparison to the
+   * caller is one answer. This is not it: key material on a
    * service that every part of an application can reach is one stray log line
    * away from being published, and an application that needs its own key can
    * derive a purpose-bound one from `APP_KEY` with `deriveKey`, which is safer

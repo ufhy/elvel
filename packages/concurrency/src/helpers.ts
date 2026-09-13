@@ -2,7 +2,7 @@ import { app } from '@elvel/core'
 import type { ConcurrencyManager } from './manager.ts'
 
 /**
- * The concurrency manager — Laravel's `Concurrency` facade.
+ * The concurrency manager.
  *
  * ```ts
  * const [a, b] = await concurrency().run([

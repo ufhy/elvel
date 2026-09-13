@@ -218,7 +218,7 @@ export class Broadcaster {
   /**
    * Record a member and tell the channel — a presence channel only.
    *
-   * The split follows Laravel Echo's contract, because that is what any client
+   * The split follows Echo's contract, because that is what any client
    * written for this already expects: the joiner receives `here` with the full
    * list **including themselves**, and everybody *else* receives `joined`. A
    * joiner who also received their own `joined` would render themselves twice —

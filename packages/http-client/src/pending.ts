@@ -14,7 +14,7 @@ export type RetryOptions = {
   /** Milliseconds between attempts, or a function of the attempt number. */
   delay: number | ((attempt: number) => number)
   when?: RetryWhen
-  /** Throw the last failure when the attempts run out. Laravel's default. */
+  /** Throw the last failure when the attempts run out. */
   throw: boolean
 }
 
@@ -163,7 +163,7 @@ export class PendingRequest {
    * `attach('avatar', file, 'me.png')` — a multipart part, fluently.
    *
    * `asMultipart(path, form)` already sends a `FormData` somebody built; this is
-   * the form Laravel uses, and it composes: several `attach` calls and the other
+   * the composable form: several `attach` calls and the other
    * fields go together without the caller assembling anything.
    *
    * The parts are kept and turned into a `FormData` at send time rather than now,
@@ -250,12 +250,12 @@ export class PendingRequest {
     return this.withHeader('content-type', 'application/json').acceptJson()
   }
 
-  /** Laravel's name for `withQuery`, kept so an example copies across. */
+  /** The other name for `withQuery`, kept so an example copies across. */
   withQueryParameters(query: Record<string, string>): PendingRequest {
     return this.withQuery(query)
   }
 
-  /** Laravel's name for `withBunOptions`. */
+  /** The other name for `withBunOptions`. */
   withOptions(options: BunOptions): PendingRequest {
     return this.withBunOptions(options)
   }

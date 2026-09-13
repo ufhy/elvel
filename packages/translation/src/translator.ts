@@ -10,7 +10,7 @@ export type Messages = Record<string, unknown>
  *
  * A file per locale under `lang/`, read once at boot. `lang/en/validation.ts`
  * becomes the `validation.*` keys, so `__('validation.required')` reads the way
- * it does in Laravel and the message files stay portable between the two.
+ * it reads elsewhere and the message files stay portable.
  *
  * A missing key returns **the key itself** rather than an empty string or a
  * throw. That is deliberate and it is what makes translating incremental: an
@@ -23,14 +23,14 @@ export class Translator {
   /**
    * Whole-sentence translations, keyed by the sentence itself.
    *
-   * Laravel's JSON translations, and the reason they exist is worth stating:
+   * JSON translations, and the reason they exist is worth stating:
    * `__('orders.empty_state_heading')` needs a key invented for every string,
    * and inventing keys is what stops people translating anything. `__('You have
    * no orders yet.')` reads in the source, works untranslated, and is looked up
    * here — `lang/id.json` supplies the Indonesian.
    *
-   * Kept apart from the group messages, and consulted first, exactly as Laravel
-   * does: a sentence is not a dotted key and the two never collide.
+   * Kept apart from the group messages and consulted first: a sentence is not a
+   * dotted key and the two never collide.
    */
   private readonly sentences = new Map<string, Record<string, string>>()
 
@@ -58,7 +58,7 @@ export class Translator {
       /**
        * `lang/id.json` is a locale's sentences; `lang/id/` is its groups.
        *
-       * Both shapes exist in the same directory, as they do in Laravel, so the
+       * Both shapes exist in the same directory, so the
        * entries that are files are read here and the rest are read as
        * directories below.
        */
@@ -236,8 +236,8 @@ export class Translator {
  * Fill `:name` placeholders, matching case.
  *
  * `:Attribute` becomes `Email` and `:ATTRIBUTE` becomes `EMAIL`, which is how
- * Laravel lets one message serve the start of a sentence and the middle of one
- * without a second key.
+ * One message can serve the start of a sentence and the middle of one without a
+ * second key.
  */
 export function interpolate(line: string, replace: Record<string, unknown>): string {
   /**

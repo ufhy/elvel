@@ -6,8 +6,8 @@ import { Command } from '@elvel/console'
  * `storage:link`
  *
  * Symlinks the public disk's root into the served directory, so files written to
- * it are reachable without a route that reads them. Laravel does the same, and for
- * the same reason: serving a file through the application costs a request that a
+ * it are reachable without a route that reads them, and for a reason: serving a
+ * file through the application costs a request that a
  * static file server would handle for free.
  */
 export class StorageLinkCommand extends Command {

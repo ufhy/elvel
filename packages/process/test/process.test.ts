@@ -349,7 +349,8 @@ describe('binary output', () => {
    *
    * `output` is a JavaScript string — UTF-16 — so every invalid sequence in a
    * PNG or a tarball becomes U+FFFD on the way in, and the bytes are gone before
-   * anybody can ask for them. PHP has no such problem, which is why Laravel needs
+   * anybody can ask for them. A runtime with byte strings has no such problem, so
+   * it needs
    * no equivalent: its strings are byte arrays.
    */
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])

@@ -110,7 +110,7 @@ describe('every package is publishable', () => {
   test('and they all carry the same version', async () => {
     const versions = new Set((await packages()).map((one) => one.manifest.version))
 
-    // One number for all of them, as Laravel keeps `illuminate/*` in lockstep.
+    // One number for all of them: the packages move in lockstep.
     // Mixed versions were how this got to 19 packages on 0.0.1 and 8 on 0.1.0
     // while npm held 0.1.0-alpha.6 under the old name.
     expect<number>(versions.size).toBe(1)

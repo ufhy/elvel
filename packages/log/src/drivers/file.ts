@@ -9,7 +9,7 @@ function formatLine(record: LogRecord): string {
 }
 
 /**
- * Append to one file — Laravel's `single` driver.
+ * Append to one file.
  *
  * Writes are serialised through a promise chain rather than fired in parallel,
  * because two concurrent appends to the same file can interleave mid-line.
@@ -68,7 +68,7 @@ export type DailyDriverOptions = {
 }
 
 /**
- * One file per day — Laravel's `daily` driver.
+ * One file per day.
  *
  * `logs/elvel.log` becomes `logs/elvel-2026-08-11.log`, and files beyond
  * `maxFiles` are pruned after each rotation.

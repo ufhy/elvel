@@ -1,7 +1,7 @@
 import type { LogDriver, LogLevel, LogRecord } from '@elvel/contracts'
 import { isHandling } from '../levels.ts'
 
-/** Discards everything — Laravel's `null` driver, and the default under tests. */
+/** Discards everything. The default under tests. */
 export class NullDriver implements LogDriver {
   write(): void {
     // Intentionally nothing.

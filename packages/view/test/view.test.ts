@@ -88,9 +88,9 @@ describe('class, style and json helpers', () => {
     expect<string>(classes()).toBe('')
   })
 
-  test('and does not deduplicate, which is what Laravel does', () => {
+  test('and does not deduplicate', () => {
     // `Arr::toCssClasses` joins what it was given. Removing duplicates reads
-    // like an improvement and is an undocumented difference from Laravel.
+    // like an improvement and is an undocumented difference.
     expect<string>(classes('card card', { card: true })).toBe('card card card')
   })
 
@@ -104,7 +104,7 @@ describe('class, style and json helpers', () => {
     expect<string>(styles({ 'color: red': false })).toBe('')
   })
 
-  test('json escapes the same set Laravel does', () => {
+  test('json escapes the expected set', () => {
     // @json encodes with JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP |
     // JSON_HEX_QUOT — the quotes are what make it safe in an attribute as well
     // as in a script body.

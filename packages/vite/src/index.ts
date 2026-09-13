@@ -76,7 +76,7 @@ export type ElvelViteOptions = {
    * every page then threw `is not in the Vite manifest`. Measured on the `vue-ts`
    * template.
    *
-   * `bootstrap/ssr` is Laravel's location for the same output.
+   * `bootstrap/ssr` is where the SSR bundle goes.
    */
   ssrDirectory?: string
 

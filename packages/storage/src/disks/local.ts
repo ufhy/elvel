@@ -20,7 +20,7 @@ export type LocalDiskOptions = {
 }
 
 /**
- * Files on this machine — Laravel's `local` disk.
+ * Files on this machine.
  *
  * Every path goes through `withinRoot`, which resolves it and then checks the
  * result is still inside the disk. That check is the whole reason a disk is not
@@ -362,8 +362,8 @@ export class LocalDisk implements Disk {
    * A URL for the file.
    *
    * Only meaningful when something actually serves the disk — hence the
-   * configured base URL rather than a guess. Laravel defaults to `/storage/…`,
-   * which is only right for the disk its `storage:link` command links.
+   * configured base URL rather than a guess: `/storage/…` is only right for the
+   * disk `storage:link` links.
    */
   url(path: string): string {
     const base = this.options.url

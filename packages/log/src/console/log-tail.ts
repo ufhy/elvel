@@ -24,7 +24,7 @@ function atOrAbove(level: string, minimum: string): boolean {
 }
 
 /**
- * `log:tail` — follow the log as it is written, like Laravel Pail.
+ * `log:tail` — follow the log as it is written.
  *
  * `tail -f` works and is what everybody does; the reason for a command is the
  * filtering. A log at any real volume is unreadable without it, and grepping a

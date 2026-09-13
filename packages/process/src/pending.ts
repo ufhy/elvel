@@ -111,7 +111,7 @@ export class PendingProcess {
    * `output` is a string, and a string in JavaScript is UTF-16: decoding a PNG
    * or a tarball through it replaces every invalid sequence with U+FFFD, and the
    * bytes are gone by the time anybody notices. PHP has no such problem, which is
-   * why Laravel needs no equivalent of this — its strings are byte arrays.
+   * why a runtime whose strings are byte arrays needs no equivalent.
    *
    * Off by default because it costs a second copy of the output in memory, and
    * almost everything a process prints is text.

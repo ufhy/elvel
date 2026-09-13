@@ -2861,10 +2861,10 @@ try {
   const kitBootstrap = await Bun.file(join(kitTarget, 'bootstrap/app.ts')).text()
 
   /**
-   * Nine controllers, grouped as Laravel groups them.
+   * Nine controllers, grouped.
    *
    * The kit was one controller of 619 lines; it is now `Auth/` and `Settings/`
-   * directories, which is the shape Laravel's own starter kits have. Two are
+   * directories. Two are
    * checked rather than one, so the grouping itself stays covered.
    */
   check(
@@ -2879,7 +2879,7 @@ try {
    * A file per area, and the base template's still named.
    *
    * The kit ships `routes/auth.ts` and `routes/settings.ts` and the scaffolder
-   * names both in `bootstrap/app.ts` — the split Laravel's own starter kits have.
+   * names both in `bootstrap/app.ts`.
    * `routes/web.ts` staying named is what keeps the welcome page: a kit that
    * replaced the routes file wholesale would drop it silently.
    */
@@ -3439,7 +3439,7 @@ try {
      *
      * Four at once all pass: the limiter checks the count and then increments it,
      * so concurrent requests can each read the same number before any of them has
-     * written. Laravel's `ThrottleRequests` has the same shape. It is worth
+     * written, which is the shape a throttle has. It is worth
      * knowing and it is not what this check is about.
      */
     const limited: number[] = []
@@ -5656,7 +5656,7 @@ try {
     await Bun.sleep(250)
   })
 
-  // The third hook, and the one Laravel does not have: a reset the account's
+  // The third hook, and the one nobody ships: a reset the account's
   // owner did not perform is exactly when they need to hear from us.
   check(
     'a completed reset warns the account owner',

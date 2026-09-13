@@ -119,7 +119,7 @@ export class BroadcastServiceProvider extends ServiceProvider {
   /**
    * An event that says where it broadcasts is broadcast when it is dispatched.
    *
-   * Laravel's `ShouldBroadcast`, without an interface to implement: an event
+   * No interface to implement: an event
    * with a `broadcastOn()` is broadcastable, and one without is not. TypeScript
    * erases interfaces, so a marker interface would be a marker nothing can
    * check at the moment it matters.

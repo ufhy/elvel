@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { PendingRequest } from '../src/pending.ts'
 
 /**
- * The methods added to reach Laravel's `PendingRequest`, against a real server.
+ * The methods that round out `PendingRequest`, against a real server.
  *
  * A fake would prove nothing about most of these. `attach` is about the bytes and
  * the boundary the runtime writes; `sink` is about the body going to a file

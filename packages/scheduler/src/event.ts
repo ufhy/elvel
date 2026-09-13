@@ -48,7 +48,7 @@ export class ScheduledEvent {
 
   private overlapping = false
   private runsInMaintenanceMode = false
-  /** Minutes the overlap mutex is held, as Laravel's `expiresAt` default. */
+  /** Minutes the overlap mutex is held. */
   private expiresAfter = 1440
   private oneServer = false
 
@@ -69,7 +69,7 @@ export class ScheduledEvent {
    *
    * Only a console command can be forked. A closure cannot: the child is a fresh
    * process, and there is nothing there to rebuild it from — the same wall a
-   * queued closure hits. Laravel's `CallbackEvent` throws for the same reason.
+   * queued closure hits, so a callback entry throws rather than forking.
    */
   forkable: { name: string; parameters: string[] } | undefined
 
@@ -159,7 +159,7 @@ export class ScheduledEvent {
   /**
    * At 1am, 3am, 5am … — the hours an every-two-hours schedule misses.
    *
-   * Useful for exactly the reason it exists in Laravel: two jobs that must not
+   * Useful for one reason: two jobs that must not
    * run in the same hour as each other, where one takes the even hours and the
    * other takes these.
    */
@@ -171,7 +171,7 @@ export class ScheduledEvent {
     return this.hourBased(0, 0)
   }
 
-  /** Laravel's `at()`: the same thing as `dailyAt`, read aloud differently. */
+  /** The same thing as `dailyAt`, read aloud differently. */
   at(time: string): this {
     return this.dailyAt(time)
   }
@@ -254,8 +254,8 @@ export class ScheduledEvent {
   /**
    * The last day of the month, whatever length it is.
    *
-   * `L` rather than the current month's length: Laravel splices in the number of
-   * days in the month *at the time the schedule is defined*, which is wrong for a
+   * `L` rather than the current month's length: splicing in the number of days in
+   * the month *at the time the schedule is defined* is wrong for a
    * long-running process that crosses into a shorter month.
    */
   lastDayOfMonth(time = '0:0'): this {
@@ -290,8 +290,8 @@ export class ScheduledEvent {
    * Repeat within the minute, every `seconds`.
    *
    * The expression still fires once a minute; the runner repeats the event inside
-   * that minute, which is how Laravel reaches sub-minute frequencies without a
-   * second scheduler.
+   * that minute, which is how sub-minute frequencies work without a second
+   * scheduler.
    */
   everySecond(): this {
     return this.repeatEvery(1)
@@ -432,7 +432,7 @@ export class ScheduledEvent {
   /**
    * Runs after the task, whether it succeeded or not.
    *
-   * Laravel spells this `then()` as well; that alias is deliberately absent here.
+   * A `then()` alias is deliberately absent.
    * An object with a `then` method *is* a thenable, so `await schedule.call(…)`
    * would hand `resolve` to it as a hook — a chainable builder must never be
    * mistakable for a promise.
@@ -592,8 +592,8 @@ export class ScheduledEvent {
    *
    * The child is still waited on — by the run as a whole, not by the entries
    * after it — because the mutex has to be released and `onSuccess`/`onFailure`
-   * have to see the exit code. Laravel achieves that by having the child call
-   * `schedule:finish` when it is done; a long-lived process can simply hold the
+   * have to see the exit code. Having the child call back when it is done is one
+   * way; a long-lived process can simply hold the
    * promise, which is fewer moving parts and cannot be orphaned by a crash
    * between the two commands.
    */

@@ -1,7 +1,7 @@
 import type { LogLevel } from '@elvel/contracts'
 
 /**
- * RFC 5424 levels in descending severity, exactly the eight Laravel exposes.
+ * RFC 5424 levels in descending severity, all eight.
  * The numbers are Monolog's, so a channel's minimum `level` behaves the same.
  */
 export const LEVELS: Record<LogLevel, number> = {

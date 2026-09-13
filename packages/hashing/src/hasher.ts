@@ -80,7 +80,7 @@ export function isHashed(value: unknown): boolean {
  * `Bun.password.verify` throws `UnsupportedAlgorithm` on a malformed hash. A
  * throw is wrong here: the caller asked whether a password matches, and a
  * corrupt or empty column is a "no", not an exception to handle at every call
- * site. Laravel's `check()` returns false for the same reason.
+ * site, so `check()` returns false rather than throwing.
  */
 async function verify(value: string, hashed: string): Promise<boolean> {
   if (hashed === '') return false

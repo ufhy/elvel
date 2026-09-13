@@ -146,7 +146,7 @@ function readme(manifest: Manifest): string {
 
 ${manifest.description}
 
-Part of [Elvel](https://github.com/ufhy/elvel) — a Laravel-shaped framework for
+Part of [Elvel](https://github.com/ufhy/elvel) — a framework for
 Bun, built on Elysia. This package is published from the monorepo and versioned
 in lockstep with the rest of it.
 

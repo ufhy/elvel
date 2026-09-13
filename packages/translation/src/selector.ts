@@ -1,8 +1,8 @@
 /**
  * Choose one form of a message for a count.
  *
- * Two syntaxes, both from Laravel because the message files are the thing people
- * copy between projects:
+ * Two syntaxes, because the message files are the thing people copy between
+ * projects:
  *
  * - **Ranges**: `{0} none|[1,4] a few|[5,*] many`, tried in order and exact.
  * - **Positions**: `one|many`, chosen by the locale's plural rule.
