@@ -8,7 +8,7 @@ shrink measures nothing. Behaviour that exists and merely surprises belongs in
 Measured against **`laravel/framework` v13.31.0** (released 2026-09-08), read as
 source, one component at a time. Not against the documentation.
 
-**Open: 104** — all 37 components measured against laravel/framework v13.31.0.
+**Open: 103** — all 37 components measured against laravel/framework v13.31.0.
 Concurrency, Contracts, Encryption, Hashing, JsonSchema, Notifications,
 Reflection and Scheduling added none.
 Concurrency, Contracts, Encryption, Hashing, JsonSchema and Notifications added
@@ -805,20 +805,6 @@ race between two requests inserting the same row has to be solved by hand here.
 **Done when** driver errors are wrapped with the SQL and bindings, a unique
 violation is its own type across all three dialects, and `createOrFirst()`
 exists on top of it.
-
-### A lost connection is never reconnected
-
-No `DetectsLostConnections`, no `reconnect()`, nothing that notices a closed
-socket. MySQL closes an idle connection after `wait_timeout` — eight hours by
-default, and far less on managed hosts.
-
-A web request survives this by accident: the next request opens a new
-connection. A **queue worker** does not. It holds one connection for its whole
-life, and after the server drops it every job fails, for ever, until somebody
-restarts the worker.
-
-**Done when** a query that fails on a lost connection reconnects once and
-retries, and the worker survives an idle timeout.
 
 ### `get()` returns a plain collection
 
@@ -2199,3 +2185,14 @@ reader, computed lazily so a page that does not read it does not pay for it.
   and `classes()` already does the merge.
 - **`view:cache` is not a gap.** Blade compiles templates to PHP at runtime and
   caches the result; JSX is compiled by Bun before it runs.
+- **A lost connection is not a gap, and this row was wrong.** It was written from
+  the absence of Laravel's `DetectsLostConnections` in the source, reasoning that
+  a queue worker holding one connection would fail every job after MySQL's
+  `wait_timeout` closed it. Measured instead: `Bun.SQL` is a pool, not a single
+  connection. Kill the backend with `pg_terminate_backend` or MySQL's `KILL` and
+  the next query opens a fresh one and answers — reads and writes both, and
+  without carrying on inside a transaction that the kill destroyed. Laravel needs
+  the trait because PDO holds one connection and cannot do this.
+  `packages/database/test/reconnect.test.ts` pins all three behaviours against
+  real servers, because the queue depends on them completely and nothing else in
+  the suite would notice if a Bun release changed them.
