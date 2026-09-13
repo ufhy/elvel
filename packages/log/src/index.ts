@@ -4,7 +4,14 @@ import { app } from '@elvel/core'
 
 export type { LogContext, LogDriver, LoggerContract, LogLevel, LogRecord } from '@elvel/contracts'
 export { ConsoleDriver, type ConsoleDriverOptions } from './drivers/console.ts'
-export { DailyDriver, type DailyDriverOptions, FileDriver } from './drivers/file.ts'
+export {
+  DailyDriver,
+  type DailyDriverOptions,
+  FileDriver,
+  RotatingDriver,
+  type RotatingDriverOptions,
+  type RotationPeriod
+} from './drivers/file.ts'
 export { JsonDriver, type JsonDriverOptions } from './drivers/json.ts'
 export {
   ErrorLogDriver,
@@ -14,6 +21,7 @@ export {
   type SlackDriverOptions,
   StackDriver
 } from './drivers/misc.ts'
+export { SyslogDriver, type SyslogDriverOptions } from './drivers/syslog.ts'
 export { InvalidLogLevelError, isHandling, LEVEL_NAMES, LEVELS, severityOf } from './levels.ts'
 export { interpolate, Logger, type LoggerOptions, MessageLogged } from './logger.ts'
 export { type ChannelConfig, type DriverFactory, LogManager } from './manager.ts'

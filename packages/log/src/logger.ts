@@ -6,6 +6,7 @@ import type {
   LogLevel,
   LogRecord
 } from '@elvel/contracts'
+import { Context } from '@elvel/core'
 import { isHandling } from './levels.ts'
 
 /**
@@ -58,7 +59,9 @@ export class Logger implements LoggerContract {
     // Bail before formatting: a debug call in production should cost nothing.
     if (!isHandling(level, this.options.level ?? 'debug')) return
 
-    const merged = { ...this.context, ...context }
+    // The unit of work's context first, so a call site or a channel that names
+    // the same key still wins.
+    const merged = { ...Context.all(), ...this.context, ...context }
     const rendered = interpolate(message, merged)
 
     const record: LogRecord = {

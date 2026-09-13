@@ -1,4 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
+import { Context } from '@elvel/core'
 import { ArrayBatchRepository, type BatchRepository, DatabaseBatchRepository } from './batch.ts'
 import { type BatchEntry, PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
@@ -483,6 +484,7 @@ export class QueueManager {
       chain: chain.length > 0 ? chain : undefined,
       encrypted: encrypted ? true : undefined,
       batchId: options.batchId,
+      context: Context.dehydrate(),
       createdAt: Math.floor(Date.now() / 1000)
     }
   }

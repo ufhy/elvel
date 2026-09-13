@@ -1,3 +1,5 @@
+import type { SerialisedContext } from '@elvel/core'
+
 /** The serialised form of a queued job, as it sits in the store. */
 export type JobPayload = {
   /** Stable identity across releases and retries. */
@@ -36,6 +38,13 @@ export type JobPayload = {
    * copy of the code still knows what it is looking at.
    */
   encrypted?: boolean | undefined
+  /**
+   * The dispatching unit of work's context, carried to the worker.
+   *
+   * What makes "this job failed" traceable back to "this request caused it"
+   * without threading an id through every job's constructor.
+   */
+  context?: SerialisedContext | undefined
   createdAt: number
 }
 

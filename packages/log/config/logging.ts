@@ -38,6 +38,36 @@ export default {
       maxFiles: 14
     },
 
+    /**
+     * Rotation by size as well as by period.
+     *
+     * `daily` gives one file a day whatever it holds: a busy application writes
+     * a gigabyte into one of them, a quiet one leaves 365 tiny files a year.
+     * `period` may be hourly, daily, weekly, monthly or never.
+     */
+    rotating: {
+      driver: 'rotating',
+      level: env('LOG_LEVEL', 'debug'),
+      period: env('LOG_ROTATE_PERIOD', 'daily'),
+      maxBytes: Number(env('LOG_MAX_BYTES', 0)),
+      maxFiles: 14
+    },
+
+    /**
+     * Lines to a collector over UDP, RFC 5424.
+     *
+     * UDP and not the local `/dev/log`, which is a Unix datagram socket and not
+     * something the runtime can open — and a collector elsewhere is why syslog
+     * is usually reached for anyway.
+     */
+    syslog: {
+      driver: 'syslog',
+      level: env('LOG_LEVEL', 'debug'),
+      host: env('SYSLOG_HOST', '127.0.0.1'),
+      port: Number(env('SYSLOG_PORT', 514)),
+      facility: Number(env('SYSLOG_FACILITY', 16))
+    },
+
     null: {
       driver: 'null'
     }

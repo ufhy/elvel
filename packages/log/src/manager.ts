@@ -7,7 +7,7 @@ import type {
   LogLevel
 } from '@elvel/contracts'
 import { ConsoleDriver } from './drivers/console.ts'
-import { DailyDriver, FileDriver } from './drivers/file.ts'
+import { DailyDriver, FileDriver, RotatingDriver, type RotationPeriod } from './drivers/file.ts'
 import { JsonDriver } from './drivers/json.ts'
 import {
   ErrorLogDriver,
@@ -16,6 +16,7 @@ import {
   SlackDriver,
   StackDriver
 } from './drivers/misc.ts'
+import { SyslogDriver } from './drivers/syslog.ts'
 import { severityOf } from './levels.ts'
 import { Logger } from './logger.ts'
 
@@ -219,6 +220,26 @@ export class LogManager implements LoggerContract {
       case 'daily':
         return new DailyDriver(this.pathFor(resolved, 'elvel.log'), {
           maxFiles: resolved.maxFiles ?? 14
+        })
+
+      case 'rotating':
+      case 'monthly':
+        return new RotatingDriver(this.pathFor(resolved, 'elvel.log'), {
+          period:
+            resolved.driver === 'monthly'
+              ? 'monthly'
+              : ((resolved.period as RotationPeriod | undefined) ?? 'daily'),
+          maxBytes: (resolved.maxBytes as number | undefined) ?? 0,
+          maxFiles: resolved.maxFiles ?? 14
+        })
+
+      case 'syslog':
+        return new SyslogDriver({
+          host: resolved.host as string | undefined,
+          port: resolved.port as number | undefined,
+          facility: resolved.facility as number | undefined,
+          appName:
+            (resolved.appName as string | undefined) ?? this.app.config.get('app.name', 'elvel')
         })
 
       case 'stack': {

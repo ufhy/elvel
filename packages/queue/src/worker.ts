@@ -1,4 +1,4 @@
-import { enterDeferredScope, enterWorkContext, flushDeferred } from '@elvel/core'
+import { Context, enterDeferredScope, enterWorkContext, flushDeferred } from '@elvel/core'
 import type { FailedJobStore, JobPayload, QueueDriver, QueuedJob } from './contracts.ts'
 import type { JobRunner } from './runner.ts'
 
@@ -266,6 +266,11 @@ export class Worker {
      * jobs. `enterWorkContext` marks this one so the next job starts clean.
      */
     enterWorkContext()
+
+    // After the fresh context, so the request's values land in this job's own
+    // and not in whatever the loop was carrying.
+    Context.hydrate(job.payload.context)
+
     const deferred = enterDeferredScope()
 
     this.events?.dispatch('queue.job.processing', {

@@ -14,6 +14,7 @@ export {
   type RouteModule
 } from './application.ts'
 export { Config } from './config.ts'
+export { Context, type SerialisedContext } from './context.ts'
 export {
   type DeferredQueue,
   defer,

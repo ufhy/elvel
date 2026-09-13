@@ -1005,36 +1005,19 @@ Nine drivers — `console`, `json`, `single`, `daily` with retention, `stack`,
 `forgetChannel`, a `MessageLogged` event, deprecation logging, and a `log:tail`
 command upstream has no equivalent of.
 
-### There is no `Context`
+`Context` exists and it crosses the queue boundary: `dehydrate()` at dispatch,
+`hydrate()` in the worker, so a job's log lines carry the request id of the
+request that dispatched it without an id threaded through the constructor.
+Hidden values are readable by the application and never written to a line, which
+is how a tenant id travels without being printed. It lives in `@elvel/core`
+rather than here, because the queue must reach it too and does not depend on
+this package.
 
-`Illuminate\Log\Context` is a repository of key/values that every log line in
-the request carries — and, crucially, that is **dehydrated into a queued job's
-payload and rehydrated in the worker**, so the job's log lines carry the request
-id of the request that dispatched it.
-
-Elvel has `Logger.shareContext()`, which covers the first half in this process
-and stops at the queue boundary. Nothing in the repository mentions dehydrating
-or rehydrating context; the matches for "hydrate" are model hydration.
-
-Correlating "this job failed" back to "this request caused it" therefore means
-threading an id through every job's constructor by hand, and remembering to.
-`Context` also carries hidden values — visible to the application, never written
-to a log line — which is how a tenant id or a user id travels without being
-printed.
-
-**Done when** a context repository exists, its values reach every log line, it
-survives the queue boundary in both directions, and hidden values are supported.
-
-### Rotation is daily, and there is no syslog
-
-`daily` rotates once a day and prunes to `maxFiles`. Upstream also has
-`rotating` with a configurable period, `monthly`, and `syslog`.
-
-A busy application writing a gigabyte a day gets one file per day whatever its
-size; a quiet one gets 365 tiny files a year.
-
-**Done when** rotation can be by period or by size, and `syslog` is a driver.
-
+`rotating` rotates by period — hourly, daily, weekly, monthly, never — or by
+size, or both, so a busy application does not put a gigabyte in one file and a
+quiet one does not leave 365 tiny ones. `syslog` sends RFC 5424 over UDP; the
+local `/dev/log` is a Unix datagram socket the runtime cannot open, and a
+collector elsewhere is why syslog is reached for anyway.
 ---
 
 ## Macroable

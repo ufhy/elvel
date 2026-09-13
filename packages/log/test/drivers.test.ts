@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { LogLevel, LogRecord } from '@elvel/contracts'
 import { stripControl } from '../src/console/log-tail.ts'
 import { ConsoleDriver } from '../src/drivers/console.ts'
+import { RotatingDriver } from '../src/drivers/file.ts'
 import { JsonDriver } from '../src/drivers/json.ts'
 import { ErrorLogDriver, MemoryDriver, NullDriver, SlackDriver } from '../src/drivers/misc.ts'
+import { SyslogDriver } from '../src/drivers/syslog.ts'
 
 const TIME = new Date('2026-08-11T09:30:00.000Z')
 
@@ -272,5 +277,105 @@ describe('what reaches the terminal', () => {
     // Dropping them would let a line look shorter than what was written.
     expect<string>(stripControl(`a${String.fromCharCode(0)}b`)).toBe('a�b')
     expect<string>(stripControl(`a${String.fromCharCode(127)}b`)).toBe('a�b')
+  })
+})
+
+describe('rotating', () => {
+  /** A busy application gets one file per day whatever its size, without this. */
+  test('starts a new file when the current one fills', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'elvel-rotating-'))
+    const driver = new RotatingDriver(join(directory, 'elvel.log'), {
+      maxBytes: 120,
+      now: () => new Date('2026-08-11T09:00:00.000Z')
+    })
+
+    for (let line = 0; line < 4; line += 1) {
+      await driver.write(record('info', `line ${line}`))
+    }
+
+    const files = (await readdir(directory)).sort()
+
+    expect(files.length).toBeGreaterThan(1)
+    expect(files[0]).toBe('elvel-2026-08-11.000.log')
+    expect(files[1]).toBe('elvel-2026-08-11.001.log')
+
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  /** Or a prune that trusts the sort deletes the newest file. */
+  test('and the names still sort oldest first', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'elvel-rotating-'))
+    const driver = new RotatingDriver(join(directory, 'elvel.log'), {
+      maxBytes: 120,
+      maxFiles: 2,
+      now: () => new Date('2026-08-11T09:00:00.000Z')
+    })
+
+    for (let line = 0; line < 6; line += 1) await driver.write(record('info', `line ${line}`))
+
+    const files = await readdir(directory)
+
+    expect([...files].sort()).toEqual(files.sort())
+
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  test('a period other than daily', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'elvel-rotating-'))
+
+    const written = async (period: 'hourly' | 'weekly' | 'monthly' | 'never') => {
+      const driver = new RotatingDriver(join(directory, `${period}.log`), {
+        period,
+        now: () => new Date('2026-08-11T09:30:00.000Z')
+      })
+
+      await driver.write(record('info', 'one'))
+    }
+
+    await written('hourly')
+    await written('weekly')
+    await written('monthly')
+    await written('never')
+
+    const files = await readdir(directory)
+
+    expect(files).toContain('hourly-2026-08-11-09.log')
+    expect(files).toContain('weekly-2026-W33.log')
+    expect(files).toContain('monthly-2026-08.log')
+    expect(files).toContain('never.log')
+
+    await rm(directory, { recursive: true, force: true })
+  })
+})
+
+describe('syslog', () => {
+  /** RFC 5424: the priority is facility * 8 + severity, and the severities are its own. */
+  test('formats a line the collector can parse', async () => {
+    const sent: string[] = []
+    const driver = new SyslogDriver({ facility: 16, appName: 'shop' })
+
+    // The socket is the only thing worth faking here; the format is the point.
+    ;(driver as unknown as { open(): { send(...args: unknown[]): void } }).open = () => ({
+      send: (line: unknown) => sent.push(String(line))
+    })
+
+    await driver.write(record('warning', 'disk almost full'))
+
+    expect(sent[0]).toStartWith('<132>1 ')
+    expect(sent[0]).toContain(' shop ')
+    expect(sent[0]).toContain('disk almost full')
+  })
+
+  test('a delivery failure is reported, not thrown', async () => {
+    const failures: unknown[] = []
+    const driver = new SyslogDriver({ onError: (error) => failures.push(error) })
+
+    ;(driver as unknown as { open(): unknown }).open = () => {
+      throw new Error('no socket')
+    }
+
+    await driver.write(record('info', 'anything'))
+
+    expect(failures).toHaveLength(1)
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { Context } from '@elvel/core'
 import { MemoryDriver, StackDriver } from '../src/drivers/misc.ts'
 import { InvalidLogLevelError, isHandling, LEVEL_NAMES, severityOf } from '../src/levels.ts'
 import { interpolate, Logger } from '../src/logger.ts'
@@ -247,5 +248,42 @@ describe('StackDriver', () => {
 
     expect(first.records).toHaveLength(1)
     expect(second.records).toHaveLength(1)
+  })
+})
+
+describe('the unit of work’s context', () => {
+  afterEach(() => {
+    Context.flush()
+  })
+
+  test('reaches every log line', () => {
+    const driver = new MemoryDriver()
+    const logger = new Logger({ channel: 'test', driver })
+
+    Context.add('request_id', 'abc')
+    logger.info('done')
+
+    expect(driver.records[0]?.context).toEqual({ request_id: 'abc' })
+  })
+
+  /** A call site knows more about this line than the request does. */
+  test('and a call site naming the same key still wins', () => {
+    const driver = new MemoryDriver()
+    const logger = new Logger({ channel: 'test', driver })
+
+    Context.add('user', 'from-request')
+    logger.info('done', { user: 'from-call' })
+
+    expect(driver.records[0]?.context.user).toBe('from-call')
+  })
+
+  test('a hidden value is not written', () => {
+    const driver = new MemoryDriver()
+    const logger = new Logger({ channel: 'test', driver })
+
+    Context.addHidden('tenant', 'acme')
+    logger.info('done')
+
+    expect(driver.records[0]?.context).toEqual({})
   })
 })
