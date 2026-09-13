@@ -16,6 +16,7 @@ import {
   value
 } from '../src/helpers.ts'
 import { Sleep } from '../src/sleep.ts'
+import { Conditionable } from '../src/traits.ts'
 
 afterEach(() => {
   Sleep.restore()
@@ -221,5 +222,83 @@ describe('rescue', () => {
     )
 
     expect(reported).toEqual([])
+  })
+})
+
+describe('Conditionable', () => {
+  class Box extends Conditionable {
+    readonly seen: unknown[] = []
+
+    add(value: unknown): this {
+      this.seen.push(value)
+
+      return this
+    }
+  }
+
+  /** The trap: a function object is truthy, so this used to always run. */
+  test('a function condition is called, not tested for truthiness', () => {
+    const box = new Box()
+
+    box.when(
+      () => false,
+      (self) => self.add('ran')
+    )
+
+    expect(box.seen).toEqual([])
+  })
+
+  test('and its result decides', () => {
+    const box = new Box()
+
+    box.when(
+      () => true,
+      (self) => self.add('ran')
+    )
+
+    expect(box.seen).toEqual(['ran'])
+  })
+
+  test('the resolved value reaches the callback', () => {
+    const box = new Box()
+
+    box.when('needle', (self, term) => self.add(term))
+
+    expect(box.seen).toEqual(['needle'])
+  })
+
+  test('otherwise is the else branch', () => {
+    const box = new Box()
+
+    box.when(
+      false,
+      (self) => self.add('then'),
+      (self) => self.add('else')
+    )
+
+    expect(box.seen).toEqual(['else'])
+  })
+
+  test('unless is the mirror, otherwise included', () => {
+    const box = new Box()
+
+    box.unless(
+      () => false,
+      (self) => self.add('ran')
+    )
+    box.unless(
+      true,
+      (self) => self.add('no'),
+      (self) => self.add('else')
+    )
+
+    expect(box.seen).toEqual(['ran', 'else'])
+  })
+
+  test('and both still return the subject', () => {
+    const box = new Box()
+
+    expect(box.when(true, () => undefined)).toBe(box)
+    expect(box.unless(true, () => undefined)).toBe(box)
   })
 })

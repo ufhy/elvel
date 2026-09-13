@@ -223,7 +223,7 @@ export class HttpServiceProvider extends ServiceProvider {
 
         return new CacheSessionDriver(
           app.make('cache').store(store) as never,
-          this.config<number>('session.lifetime', 7200)
+          this.app.config.integer('session.lifetime', 7200)
         )
       }
 
@@ -643,7 +643,7 @@ export class HttpServiceProvider extends ServiceProvider {
     const driver = this.app.make('session.driver')
     const jar = this.app.make('cookies')
     const name = this.config<string>('session.cookie', 'elvel_session')
-    const lifetime = this.config<number>('session.lifetime', 7200)
+    const lifetime = this.app.config.integer('session.lifetime', 7200)
 
     /**
      * `Lax` by default, `Strict` where it costs nothing.

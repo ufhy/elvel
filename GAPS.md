@@ -11,11 +11,11 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 98** — all 37 components measured.
+**Open: 94** — all 37 components measured.
 
-Nine added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
-Notifications, Reflection, Scheduling and Support. Four are ahead of upstream
-rather than level with it, and the reasons are at the bottom.
+Eleven added none: Concurrency, Conditionable, Config, Contracts, Encryption,
+Hashing, JsonSchema, Notifications, Reflection, Scheduling and Support. Four are
+ahead of upstream rather than level with it, and the reasons are at the bottom.
 
 Scheduling sits inside Console upstream; here it is a package of its own and is
 measured separately.
@@ -469,50 +469,6 @@ and `styles()` in `@elvel/view`.
 
 ---
 
-## Config
-
-Loading is more careful than upstream's — a cache that refuses to swallow a file
-exporting code and re-imports those live, a missing config file that names
-itself and says `elvel config:publish <name>`, loaders awaited in order so the
-one that fails is the one that is reported. `config:cache`, `config:clear`,
-`config:show` and `config:publish` are all there.
-
-### `config()` is a cast, not a read
-
-```ts
-get<T>(key: string, fallback?: T): T {
-  return Arr.get<T>(this.items, key, fallback as T)
-}
-```
-
-`Arr.get` casts. Nothing checks. `config.get<number>('queue.retryAfter')` types
-as `number` and returns the string `"90"` when the config file wrote
-`process.env.QUEUE_RETRY_AFTER` without a `Number()` — and it will keep typing
-as `number` all the way to the arithmetic that produces `"901"`.
-
-Upstream added `Config::string()`, `integer()`, `float()`, `boolean()`,
-`array()` and `collection()` for exactly this, and they **throw** when the value
-is the wrong type. TypeScript makes the absence worse rather than better: in PHP
-the value is visibly `mixed` and the developer stays suspicious, while here the
-generic makes a wrong value look checked.
-
-Every config file in this repository reads from `process.env`, where every value
-is a string, so this is the ordinary path and not an edge.
-
-**Done when** the typed readers exist, they throw on a mismatch naming the key
-and what was found, and the config files use them.
-
-### `getMany`, `push` and `prepend` are absent
-
-`getMany(['a.b', 'c.d'])` reads several keys in one call, with defaults, and is
-what a provider uses instead of five `get` lines. `push` and `prepend` add to a
-config array at runtime — how a package appends a path or a middleware to a list
-an application already declared, without reading, spreading and setting it back.
-
-**Done when** all three exist on the repository.
-
----
-
 ## Console
 
 The signature parser, the generator commands, `promptForMissing`, command
@@ -692,42 +648,6 @@ bindings can be listed.
 
 ---
 
-## Conditionable
-
-`Conditionable` in `packages/support/src/traits.ts` gives `when`, `unless` and
-`tap`, and `Macroable` sits beside it.
-
-### `when()` takes the condition unresolved, and drops both the value and the default
-
-```ts
-when(condition: unknown, callback: (self: this) => void): this {
-  if (condition) callback(this)
-  return this
-}
-```
-
-Three differences from upstream's trait, in the same four lines:
-
-1. **A closure is always truthy.** upstream resolves `$value instanceof Closure`
-   first, so `->when(fn () => $user->isAdmin(), ...)` works and is the habitual
-   spelling. Here `unknown` means the function object itself is the condition,
-   the branch always runs, and nothing warns. `Collection.when()` avoids this by
-   typing the parameter `boolean`; the query builder's and this one do not.
-2. **The value is not passed.** upstream calls `$callback($this, $value)`, which
-   is what makes `->when($search, (q, term) => q.where('title', 'like', term))`
-   read without capturing.
-3. **There is no default branch.** `when($v, $then, $otherwise)` is the whole
-   point of using it over an `if`.
-
-The callback's return is also discarded — `Collection.when()` honours it, these
-do not, so two `when`s in the same codebase behave differently.
-
-**Done when** the condition may be a function and is resolved, the resolved
-value reaches the callback, a default branch exists, and the query builder and
-`Conditionable` agree with `Collection`.
-
----
-
 ## Cookie
 
 `CookieBag`, `CookieJar` and `cookiePlugin` cover upstream's `EncryptCookies` and
@@ -763,18 +683,6 @@ $sameSite)`, called from the session config at boot.
 **Done when** path, domain, secure and sameSite have configured defaults applied
 by the jar, `secure` follows `isProduction()` as the session cookie already
 does, and a call site can still override.
-
-### `CookieBag` is missing four of the jar's methods
-
-`get`, `has`, `queue`, `forget`, `queued`. Upstream's `CookieJar` also has:
-
-- `forever(name, value)` — five years, the spelling used for remember-me
-- `hasQueued(name)` and `queued(name)` for one name — whether *this* request has
-  already queued it, which is how two pieces of code avoid fighting over a cookie
-- `unqueue(name)` — take one back before the response is written
-- `expire(name)` — `forget` with the defaults applied
-
-**Done when** all four exist.
 
 ---
 
@@ -2123,3 +2031,12 @@ reader, computed lazily so a page that does not read it does not pay for it.
   absent from `Str` is argued in its own source: `apa` encodes one style guide,
   `markdown` needs a parser the package will not depend on, and
   `createUuidsUsing` waits on a design for deterministic ids.
+- **Config is closed.** The checked readers (`string`, `integer`, `float`,
+  `boolean`, `array`) throw naming the key and what was there, `getMany` takes
+  its shape from the defaults it is given, and `push`/`prepend` treat a missing
+  key as an empty array so a package can append before anything has declared
+  one. The twelve numeric reads in the framework use them.
+- **Conditionable is closed.** `when()` and `unless()` resolve a function
+  condition, pass the resolved value to the callback, and take an `otherwise`
+  branch — in the trait and on the query builder, which had the same four lines
+  twice.

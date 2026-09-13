@@ -88,8 +88,47 @@ export class CookieBag {
     return this.queue(name, '', { ...options, maxAge: 0, expires: new Date(0) })
   }
 
-  queued(): QueuedCookie[] {
-    return [...this.outgoing.values()]
+  /**
+   * Five years, which is what "forever" means to a browser: there is no such
+   * attribute, so it is a date far enough out that nothing reaches it.
+   */
+  forever(name: string, value: string, options: CookieOptions = {}): this {
+    return this.queue(name, value, { maxAge: 5 * 365 * 24 * 3600, ...options })
+  }
+
+  /**
+   * `forget`, but not to be confused with it: this is the spelling that reads as
+   * an intention rather than as a removal from a list.
+   */
+  expire(name: string, options: CookieOptions = {}): this {
+    return this.forget(name, options)
+  }
+
+  /**
+   * Has *this request* already queued it?
+   *
+   * How two pieces of code stop fighting over one cookie: a layout that sets a
+   * default and a handler that set it deliberately would otherwise both write,
+   * and the last one would win by accident.
+   */
+  hasQueued(name: string): boolean {
+    return this.outgoing.has(name)
+  }
+
+  /** The queued cookie, or every one of them when no name is given. */
+  queued(): QueuedCookie[]
+  queued(name: string): QueuedCookie | undefined
+  queued(name?: string): QueuedCookie[] | QueuedCookie | undefined {
+    if (name === undefined) return [...this.outgoing.values()]
+
+    return this.outgoing.get(name)
+  }
+
+  /** Take one back before the response is written. */
+  unqueue(name: string): this {
+    this.outgoing.delete(name)
+
+    return this
   }
 }
 
@@ -126,9 +165,24 @@ export function queueCookie(name: string, value: string, options: CookieOptions 
   currentCookieBag()?.queue(name, value, options)
 }
 
-/** Queue the removal of a cookie — `Cookie::forget()`. */
+/** Queue the removal of a cookie. */
 export function forgetCookie(name: string, options: CookieOptions = {}): void {
   currentCookieBag()?.forget(name, options)
+}
+
+/** Queue one for five years — the remember-me spelling. */
+export function foreverCookie(name: string, value: string, options: CookieOptions = {}): void {
+  currentCookieBag()?.forever(name, value, options)
+}
+
+/** Has this request already queued it? */
+export function hasQueuedCookie(name: string): boolean {
+  return currentCookieBag()?.hasQueued(name) ?? false
+}
+
+/** Take a queued cookie back. */
+export function unqueueCookie(name: string): void {
+  currentCookieBag()?.unqueue(name)
 }
 
 /**

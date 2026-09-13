@@ -395,7 +395,7 @@ export class Application implements ApplicationContract {
   // -------------------------------------------------------------------- serve
 
   async listen(port?: number, hostname?: string): Promise<Application> {
-    const resolvedPort = port ?? this.config.get<number>('app.port', Env.number('PORT', 3000))
+    const resolvedPort = port ?? this.config.integer('app.port', Env.number('PORT', 3000))
     const resolvedHost = hostname ?? this.config.get<string>('app.host', Env.string('HOST', ''))
 
     /**

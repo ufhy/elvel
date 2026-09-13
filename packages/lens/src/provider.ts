@@ -74,8 +74,8 @@ export class LensServiceProvider extends ServiceProvider {
       'lens.ring',
       () =>
         new BatchRing(
-          Math.max(1, this.config<number>('lens.bar.requests', 20)),
-          Math.max(1, this.config<number>('lens.bar.budget', 8 * 1024 * 1024))
+          Math.max(1, this.app.config.integer('lens.bar.requests', 20)),
+          Math.max(1, this.app.config.integer('lens.bar.budget', 8 * 1024 * 1024))
         )
     )
 
@@ -241,7 +241,7 @@ export class LensServiceProvider extends ServiceProvider {
       return new DatabaseEntriesRepository(app.make('db'), {
         connection: this.config<string | undefined>('lens.storage.database.connection', undefined),
         table: 'lens_entries',
-        chunk: this.config<number>('lens.storage.database.chunk', 1000)
+        chunk: this.app.config.integer('lens.storage.database.chunk', 1000)
       })
     })
   }

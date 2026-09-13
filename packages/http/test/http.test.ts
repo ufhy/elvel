@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ForbiddenException } from '@elvel/core'
 import { Rule, ValidationError, type Validator } from '@elvel/validation'
+import { CookieBag } from '../src/cookie-bag.ts'
 import { CookieJar, timingSafeEqual } from '../src/cookies.ts'
 import { isExempt, TokenMismatchError, tokenFromRequest, tokensMatch } from '../src/csrf.ts'
 import { FormRequest } from '../src/form-request.ts'
@@ -714,5 +715,54 @@ describe('encrypted cookies', () => {
 
     expect(jar.decrypt('session', undefined)).toBeUndefined()
     expect(jar.decrypt('session', 'rubbish')).toBeUndefined()
+  })
+})
+
+describe('the cookie jar methods a handler reaches for', () => {
+  const bag = () => new CookieBag({}, undefined)
+
+  test('forever is five years, not a magic word', () => {
+    const held = bag()
+    held.forever('remember', 'yes')
+
+    const queued = held.queued('remember')
+    expect(queued?.options.maxAge).toBe(5 * 365 * 24 * 3600)
+  })
+
+  /** How two pieces of code stop fighting over one cookie. */
+  test('hasQueued says whether this request already set it', () => {
+    const held = bag()
+
+    expect(held.hasQueued('theme')).toBe(false)
+    held.queue('theme', 'dark')
+    expect(held.hasQueued('theme')).toBe(true)
+  })
+
+  test('queued reads one by name, or all of them', () => {
+    const held = bag()
+    held.queue('a', '1').queue('b', '2')
+
+    expect(held.queued('a')?.value).toBe('1')
+    expect(held.queued('missing')).toBeUndefined()
+    expect(held.queued()).toHaveLength(2)
+  })
+
+  test('unqueue takes one back before the response is written', () => {
+    const held = bag()
+    held.queue('a', '1').queue('b', '2')
+
+    held.unqueue('a')
+
+    expect(held.hasQueued('a')).toBe(false)
+    expect(held.queued()).toHaveLength(1)
+  })
+
+  test('expire is forget, and both send an expiry in the past', () => {
+    const held = bag()
+    held.expire('theme')
+
+    const queued = held.queued('theme')
+    expect(queued?.value).toBe('')
+    expect(queued?.options.maxAge).toBe(0)
   })
 })

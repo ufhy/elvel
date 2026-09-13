@@ -112,26 +112,42 @@ export class StringableBase {
 
 export type Stringable = StringableBase & Omit<Fluent<typeof Str>, Owned>
 
-/** Every `Str` entry, projected onto the prototype once at load. */
-for (const [name, entry] of Object.entries(Str)) {
-  if (typeof entry !== 'function' || NOT_CHAINABLE.has(name)) continue
-  if (name in StringableBase.prototype) continue
+/**
+ * Projected on first use, not at import.
+ *
+ * Filling the prototype as a side effect of being imported would make
+ * `"sideEffects": false` a lie, and `tests/side-effects.test.ts` says so. One
+ * boolean check on the first `of()` costs nothing and keeps the claim true.
+ */
+let projected = false
 
-  Object.defineProperty(StringableBase.prototype, name, {
-    value: function chained(this: StringableBase, ...args: unknown[]) {
-      const result = (entry as (...a: unknown[]) => unknown)(this.toString(), ...args)
+function project(): void {
+  if (projected) return
 
-      // A string keeps the chain; a boolean, a number or an array ends it,
-      // because that is the answer the caller asked for.
-      return typeof result === 'string' ? of(result) : result
-    },
-    writable: true,
-    configurable: true,
-    enumerable: false
-  })
+  projected = true
+
+  for (const [name, entry] of Object.entries(Str)) {
+    if (typeof entry !== 'function' || NOT_CHAINABLE.has(name)) continue
+    if (name in StringableBase.prototype) continue
+
+    Object.defineProperty(StringableBase.prototype, name, {
+      value: function chained(this: StringableBase, ...args: unknown[]) {
+        const result = (entry as (...a: unknown[]) => unknown)(this.toString(), ...args)
+
+        // A string keeps the chain; a boolean, a number or an array ends it,
+        // because that is the answer the caller asked for.
+        return typeof result === 'string' ? of(result) : result
+      },
+      writable: true,
+      configurable: true,
+      enumerable: false
+    })
+  }
 }
 
 /** `Str.of(' Title ')`. */
 export function of(value: string): Stringable {
+  project()
+
   return new StringableBase(value) as Stringable
 }

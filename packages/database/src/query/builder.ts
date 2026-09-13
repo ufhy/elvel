@@ -732,13 +732,41 @@ export class QueryBuilder<T extends Row = Row> {
 
   // ------------------------------------------------------------- conditional
 
-  when(condition: unknown, callback: (query: this) => void): this {
-    if (condition) callback(this)
+  /**
+   * Apply the callback when the condition holds.
+   *
+   * The condition may be a function, and is called if it is: without that,
+   * `when(() => wantsDrafts(), …)` always runs, because a function object is
+   * truthy. The resolved value reaches the callback, so a search term needs no
+   * capture, and `otherwise` is the else branch.
+   */
+  when<V>(
+    condition: V | ((query: this) => V),
+    callback: (query: this, value: NonNullable<V>) => unknown,
+    otherwise?: (query: this, value: V) => unknown
+  ): this {
+    const resolved = (
+      typeof condition === 'function' ? (condition as (query: this) => V)(this) : condition
+    ) as V
+
+    if (resolved) callback(this, resolved as NonNullable<V>)
+    else otherwise?.(this, resolved)
+
     return this
   }
 
-  unless(condition: unknown, callback: (query: this) => void): this {
-    if (!condition) callback(this)
+  unless<V>(
+    condition: V | ((query: this) => V),
+    callback: (query: this, value: V) => unknown,
+    otherwise?: (query: this, value: NonNullable<V>) => unknown
+  ): this {
+    const resolved = (
+      typeof condition === 'function' ? (condition as (query: this) => V)(this) : condition
+    ) as V
+
+    if (!resolved) callback(this, resolved)
+    else otherwise?.(this, resolved as NonNullable<V>)
+
     return this
   }
 

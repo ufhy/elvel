@@ -88,7 +88,7 @@ export class ViewServiceProvider extends ServiceProvider {
           prefix,
           directive,
           maxAge,
-          minimumBytes: this.config<number>('view.compressMinimumBytes', 1024),
+          minimumBytes: this.app.config.integer('view.compressMinimumBytes', 1024),
           /**
            * Headers other packages decide, read from the container, not imported.
            *

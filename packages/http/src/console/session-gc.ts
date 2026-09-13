@@ -21,7 +21,7 @@ export class SessionGcCommand extends Command {
   static override description = 'Delete sessions that have been inactive past their lifetime'
 
   async handle(): Promise<number> {
-    const configured = this.app.config.get<number>('session.lifetime', 7200)
+    const configured = this.app.config.integer('session.lifetime', 7200)
     const given = this.stringOption('lifetime', '')
     const lifetime = given === '' ? configured : Number(given)
 

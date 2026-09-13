@@ -18,10 +18,13 @@ export {
   cookieRevealer,
   currentCookieBag,
   enterCookieBag,
+  foreverCookie,
   forgetCookie,
+  hasQueuedCookie,
   type QueuedCookie,
   queueCookie,
   readCookies,
+  unqueueCookie,
   withCookieBag
 } from './cookie-bag.ts'
 export { type CookieMiddlewareOptions, cookiePlugin } from './cookie-plugin.ts'

@@ -29,6 +29,11 @@ export class HashManager implements Hasher {
     return this.app?.config.get<T>(`hashing.${key}`, fallback) ?? fallback
   }
 
+  /** Checked, because a cost read as the string `'12'` silently weakens a hash. */
+  private number(key: string, fallback: number): number {
+    return this.app?.config.integer(`hashing.${key}`, fallback) ?? fallback
+  }
+
   /** The configured default, or a named one. */
   driver(name?: string): Hasher {
     const resolved = name ?? this.config<string>('driver', 'bcrypt')
@@ -56,15 +61,15 @@ export class HashManager implements Hasher {
     switch (name) {
       case 'bcrypt':
         return new BcryptHasher({
-          cost: this.config<number>('bcrypt.cost', 12),
-          limit: this.config<number>('bcrypt.limit', 72)
+          cost: this.number('bcrypt.cost', 12),
+          limit: this.number('bcrypt.limit', 72)
         })
 
       case 'argon2id':
       case 'argon':
         return new Argon2idHasher({
-          memoryCost: this.config<number>('argon.memory', 65_536),
-          timeCost: this.config<number>('argon.time', 4)
+          memoryCost: this.number('argon.memory', 65_536),
+          timeCost: this.number('argon.time', 4)
         })
 
       default:

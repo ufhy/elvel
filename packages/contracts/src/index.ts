@@ -9,6 +9,27 @@ export interface ConfigRepository {
   get<T>(key: string, fallback: T): T
   set(key: string, value: unknown): void
   all(): Record<string, unknown>
+
+  /** Several keys at once: `getMany({ 'a.b': 1, 'c.d': null })`. */
+  getMany<T extends Record<string, unknown>>(keys: T): T
+
+  /**
+   * Checked readers.
+   *
+   * `get<number>(…)` is a cast: it types as `number` and hands back the string
+   * an env var actually held. These throw instead, naming the key and what was
+   * there, because every config file in an application reads `process.env`
+   * where every value is a string.
+   */
+  string(key: string, fallback?: string): string
+  integer(key: string, fallback?: number): number
+  float(key: string, fallback?: number): number
+  boolean(key: string, fallback?: boolean): boolean
+  array<T = unknown>(key: string, fallback?: T[]): T[]
+
+  /** Append to, or prepend to, a configured array. */
+  push(key: string, ...values: unknown[]): void
+  prepend(key: string, ...values: unknown[]): void
 }
 
 /**

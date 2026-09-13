@@ -158,9 +158,7 @@ export function canAccess(ability: string, ...args: string[]) {
  */
 export function requirePassword(redirectTo?: string, timeoutSeconds?: string) {
   return (context: Context) => {
-    const window = Number(
-      timeoutSeconds ?? app().config.get<number>('auth.passwordTimeout', 10_800)
-    )
+    const window = Number(timeoutSeconds ?? app().config.integer('auth.passwordTimeout', 10_800))
     const session = sessionOf(context)
     const confirmedAt = Number(session.get(PASSWORD_CONFIRMED_AT, 0))
 

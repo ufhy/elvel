@@ -82,7 +82,7 @@ export class CacheManager {
      * global one, so a counter store can opt out of a tier the rest of the
      * application wants.
      */
-    const seconds = Number(config.memory ?? this.app.config.get<number>('cache.memory', 0))
+    const seconds = Number(config.memory ?? this.app.config.integer('cache.memory', 0))
 
     return seconds > 0 ? new MemoStore(store, seconds) : store
   }

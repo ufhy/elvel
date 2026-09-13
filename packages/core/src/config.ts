@@ -145,4 +145,136 @@ export class Config implements ConfigRepository {
   all(): Record<string, unknown> {
     return this.items
   }
+
+  /**
+   * Several keys at once, each with its own default.
+   *
+   * The argument is the defaults, so the answer is typed from it: a provider
+   * reads five settings in one call and gets an object, not five `get` lines.
+   */
+  getMany<T extends Record<string, unknown>>(keys: T): T {
+    const out = {} as Record<string, unknown>
+
+    for (const [key, fallback] of Object.entries(keys)) {
+      out[key] = Arr.get(this.items, key, fallback)
+    }
+
+    return out as T
+  }
+
+  /**
+   * The checked readers.
+   *
+   * `get<number>('queue.retryAfter')` is a **cast**: it types as `number` and
+   * returns the string `"90"` that `process.env` actually held, and keeps typing
+   * as `number` all the way to the arithmetic that produces `"901"`. These read
+   * the value and refuse it if it is the wrong shape.
+   *
+   * A numeric string is accepted and converted, because that is what an env var
+   * is and refusing it would make the readers unusable in the one place they are
+   * needed. A non-numeric string is an error naming the key.
+   */
+  string(key: string, fallback?: string): string {
+    const value = this.get<unknown>(key, fallback)
+
+    if (typeof value === 'string') return value
+
+    throw new ConfigTypeError(key, 'a string', value)
+  }
+
+  integer(key: string, fallback?: number): number {
+    const value = Config.numberAt(this, key, fallback)
+
+    if (Number.isInteger(value)) return value
+
+    throw new ConfigTypeError(key, 'an integer', this.get<unknown>(key, fallback))
+  }
+
+  float(key: string, fallback?: number): number {
+    return Config.numberAt(this, key, fallback)
+  }
+
+  /**
+   * `'true'`, `'1'`, `'on'` and `'yes'` are true; their opposites are false.
+   *
+   * The string forms are here because an env var has no other way to say it,
+   * and because `Boolean('false')` is `true` — the bug this exists to stop.
+   */
+  boolean(key: string, fallback?: boolean): boolean {
+    const value = this.get<unknown>(key, fallback)
+
+    if (typeof value === 'boolean') return value
+
+    if (typeof value === 'string') {
+      const lowered = value.trim().toLowerCase()
+
+      if (['true', '1', 'on', 'yes'].includes(lowered)) return true
+      if (['false', '0', 'off', 'no', ''].includes(lowered)) return false
+    }
+
+    throw new ConfigTypeError(key, 'a boolean', value)
+  }
+
+  array<T = unknown>(key: string, fallback?: T[]): T[] {
+    const value = this.get<unknown>(key, fallback)
+
+    if (Array.isArray(value)) return value as T[]
+
+    throw new ConfigTypeError(key, 'an array', value)
+  }
+
+  /**
+   * Append to a configured array — how a package adds a path or a middleware to
+   * a list an application already declared, without reading, spreading and
+   * setting it back.
+   *
+   * A missing key becomes the array, which is what makes the call safe before
+   * anybody has declared one.
+   */
+  push(key: string, ...values: unknown[]): void {
+    this.set(key, [...this.array<unknown>(key, []), ...values])
+  }
+
+  prepend(key: string, ...values: unknown[]): void {
+    this.set(key, [...values, ...this.array<unknown>(key, [])])
+  }
+
+  private static numberAt(config: Config, key: string, fallback?: number): number {
+    const value = config.get<unknown>(key, fallback)
+
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value)
+
+      if (Number.isFinite(parsed)) return parsed
+    }
+
+    throw new ConfigTypeError(key, 'a number', value)
+  }
+}
+
+/** Names the key and what was there, because neither is obvious from a stack. */
+export class ConfigTypeError extends Error {
+  constructor(
+    readonly key: string,
+    expected: string,
+    readonly actual: unknown
+  ) {
+    super(
+      `config('${key}') should be ${expected}, and it is ${describe(actual)}. ` +
+        'An env var is always a string — cast it in the config file, or use the ' +
+        'reader that converts.'
+    )
+    this.name = 'ConfigTypeError'
+  }
+}
+
+function describe(value: unknown): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'not set'
+  if (typeof value === 'string') return `the string ${JSON.stringify(value)}`
+  if (Array.isArray(value)) return `an array of ${value.length}`
+
+  return `a ${typeof value}`
 }
