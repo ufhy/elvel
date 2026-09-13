@@ -9,7 +9,7 @@ import type {
   ServiceProviderConstructor,
   ServiceProviderContract
 } from '@elvel/contracts'
-import { useLocale } from '@elvel/support'
+import { reportRescuedUsing, useLocale } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { Config } from './config.ts'
 import { Env } from './env.ts'
@@ -231,6 +231,12 @@ export class Application implements ApplicationContract {
     // Before the providers, so anything formatting a number at boot already has
     // the application's locale rather than `en`.
     useLocale(this.config.get<string>('app.locale', 'en'))
+
+    // What `rescue()` swallows still reaches the log, which is the whole
+    // difference between it and a bare try/catch.
+    reportRescuedUsing((error) => {
+      if (this.bound('exception.handler')) this.make('exception.handler').report(error)
+    })
 
     for (const provider of this.providers) {
       await provider.boot?.()

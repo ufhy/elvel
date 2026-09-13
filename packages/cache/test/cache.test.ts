@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Application, flushDeferred, forgetDeferred } from '@elvel/core'
 import { ConnectionManager } from '@elvel/database'
+import { Clock, Sleep } from '@elvel/support'
 import { encode, FOREVER } from '../src/payload.ts'
 import { RateLimiter } from '../src/rate-limiter.ts'
 import { Repository } from '../src/repository.ts'
@@ -1267,5 +1268,40 @@ describe('TagSet reads the tag ids in one call', () => {
 
     expect<string>(await new TagSet(store, []).namespace()).toBe('')
     expect<number>(calls.many).toBe(0)
+  })
+})
+
+/**
+ * `block()` polls through `Sleep`, so a test of blocking behaviour does not have
+ * to wait. Before this, the same test spent a real 250ms per attempt.
+ */
+describe('a blocking lock is testable without waiting', () => {
+  // In `afterEach`, not at the end of the test: a failure before the restore
+  // would leave every later test in the process sleeping into a recorder.
+  afterEach(() => {
+    Sleep.restore()
+    Clock.restore()
+  })
+
+  test('the wait is recorded rather than taken', async () => {
+    const store = new ArrayStore('t_')
+    const held = store.lock('busy', 60)
+
+    expect(await held.acquire()).toBe(true)
+
+    // Frozen, so only the faked sleeps move the clock. Advancing a running one
+    // leaves the count racing real microseconds — three sleeps or four,
+    // depending on how long the loop itself took.
+    Clock.freeze()
+    Sleep.fake()
+
+    const waiter = store.lock('busy', 60)
+    const started = Bun.nanoseconds()
+
+    await expect(waiter.block(1)).rejects.toThrow(LockTimeoutError)
+
+    // 750ms of spinning before the clock moved with the sleep.
+    expect((Bun.nanoseconds() - started) / 1_000_000).toBeLessThan(100)
+    expect(Sleep.slept()).toEqual([250, 250, 250, 250])
   })
 })

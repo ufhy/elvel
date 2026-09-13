@@ -1,10 +1,30 @@
 export { Arr } from './arr.ts'
+export { Lottery, Timebox, timebox } from './chance.ts'
+export { Clock } from './clock.ts'
 export {
   Collection,
   collect,
   ItemNotFoundError,
   MultipleItemsFoundError
 } from './collection.ts'
+export {
+  blank,
+  classBasename,
+  filled,
+  head,
+  type Lazy,
+  last,
+  type RescueOptions,
+  type RetryOptions,
+  reportRescuedUsing,
+  rescue,
+  retry,
+  tap,
+  throwIf,
+  throwUnless,
+  transform,
+  value
+} from './helpers.ts'
 export {
   defaultCurrency,
   defaultLocale,
@@ -34,5 +54,6 @@ export {
   stringToSign,
   uriEncode
 } from './sigv4.ts'
+export { PendingSleep, Sleep, SleepAssertionError } from './sleep.ts'
 export { Str } from './str.ts'
 export { Conditionable, type Macro, Macroable } from './traits.ts'

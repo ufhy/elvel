@@ -11,7 +11,7 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 102** — all 37 components measured.
+**Open: 100** — all 37 components measured.
 
 Eight added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
 Notifications, Reflection and Scheduling. Four of those eight are ahead of
@@ -1755,37 +1755,6 @@ none of which the static form can express.
 **Done when** `Str.of()` returns a chainable string with the same methods, and
 it is macroable.
 
-### `Sleep`, `Lottery` and `Timebox` are absent
-
-Three small utilities, each earning its place:
-
-- **`Sleep`** — a sleep that can be faked and asserted. `Bun.sleep` is called
-  directly inside `Lock.block()`, so a test of blocking behaviour has to
-  actually wait, and every retry or backoff written on top of it is untestable
-  without real time passing.
-- **`Timebox`** — run a callback in a fixed window whatever it does, so a failed
-  sign-in takes exactly as long as a successful one. It is the defence against
-  user enumeration by timing, and there is nothing here to reach for.
-- **`Lottery`** — `odds(1, 100)`, for sampling: log one request in a hundred,
-  prune on one boot in fifty. Cheap, and the thing people hand-roll with
-  `Math.random()` and get subtly wrong.
-
-**Done when** all three exist and `Lock.block()` uses `Sleep`.
-
-### The global helpers are missing
-
-`retry`, `rescue`, `tap`, `value`, `blank`, `filled`, `transform`, `throw_if`,
-`throw_unless`, `optional`, `head`, `last`, `class_basename`. `packages/core`
-exports `app`, `config` and the four path helpers, and nothing else.
-
-`retry(3, fn, 100)` is the one that is written again in every project: an HTTP
-call, a flaky external service, a lock that might be held. `rescue(fn, default)`
-is the other — run it, report what went wrong, carry on with a fallback — which
-is otherwise four lines of `try`/`catch` that usually forgets to report.
-
-**Done when** they exist in one place, `retry` supports a backoff and a
-`when` predicate, and `rescue` reports through the exception handler.
-
 ### `slug()` empties a non-Latin title
 
 ```ts
@@ -1845,18 +1814,24 @@ Missing with them: `assertRedirectBack`, `assertRedirectBackWithErrors`,
 **Done when** the session and its error bags can be asserted directly, and a
 redirect can be checked against a route name.
 
-### There is no way to control time
+### The clock exists, and almost nothing reads it
 
-No `travel`, `travelTo`, `travelBack` or `freezeTime`.
+`Clock` in `@elvel/support` freezes, advances and travels, and a faked `Sleep`
+moves it — which is what turned a blocking-lock test from 750ms of spinning into
+3ms. `Lock.block()` is the only caller so far.
 
-Anything with a clock in it is therefore tested by injecting one: the daily log
-driver carries an "injectable clock, so retention is testable without waiting a
-day", and the baseline, the rate limiter, the session sweep, `flexible()`, token
-expiry and every scheduled frequency each need the same trick or go untested.
-Six hand-rolled clocks instead of one.
+Everything else still reads `Date.now()` directly: the rate limiter, the session
+sweep, `flexible()`, the baseline, token expiry, the daily log driver's
+"injectable clock, so retention is testable without waiting a day", and every
+scheduled frequency. Each of those is a test that has to wait or hand-roll a
+clock of its own.
 
-**Done when** time can be frozen and moved for the whole process, and
-`Date.now()` inside framework code respects it.
+There is also no `travel`/`travelTo`/`freezeTime` on the test helper, so a test
+reaches for `@elvel/support` rather than for the thing it is testing with.
+
+**Done when** framework code reads `Clock.now()`, the six hand-rolled clocks are
+deleted, and `@elvel/testing` exposes `travel` and `freezeTime` that restore
+themselves after each test.
 
 ### A failing test hides its own exception
 

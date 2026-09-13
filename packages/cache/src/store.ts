@@ -1,3 +1,4 @@
+import { Clock, Sleep } from '@elvel/support'
 /**
  * What every cache driver has to provide.
  *
@@ -113,14 +114,14 @@ export abstract class Lock {
    * slow driver cannot stretch the timeout.
    */
   async block<T>(seconds: number, callback?: () => Promise<T> | T): Promise<T | boolean> {
-    const deadline = Date.now() + seconds * 1000
+    const deadline = Clock.now() + seconds * 1000
 
     while (!(await this.acquire())) {
-      if (Date.now() + this.sleepMilliseconds > deadline) {
+      if (Clock.now() + this.sleepMilliseconds > deadline) {
         throw new LockTimeoutError(this.name)
       }
 
-      await Bun.sleep(this.sleepMilliseconds)
+      await Sleep.milliseconds(this.sleepMilliseconds)
     }
 
     if (!callback) return true
