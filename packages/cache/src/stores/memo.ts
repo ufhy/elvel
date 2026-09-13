@@ -1,3 +1,4 @@
+import { Clock } from '@elvel/support'
 import type { Lock, LockProvider, Store } from '../store.ts'
 
 /**
@@ -36,7 +37,7 @@ export class MemoStore implements Store, LockProvider {
     private readonly inner: Store,
     private readonly seconds: number,
     /** Injectable clock, so the window is testable without waiting. */
-    private readonly now: () => number = () => Date.now()
+    private readonly now: () => number = () => Clock.now()
   ) {}
 
   get prefix(): string {

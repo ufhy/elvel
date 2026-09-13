@@ -63,8 +63,6 @@ export class FileDriver implements LogDriver {
 export type DailyDriverOptions = {
   /** How many dated files to keep. 0 keeps everything. */
   maxFiles?: number
-  /** Injectable clock, so retention is testable without waiting a day. */
-  now?: () => Date
 }
 
 /**
@@ -105,9 +103,7 @@ export class DailyDriver extends FileDriver {
   }
 
   private dateFor(time: Date): string {
-    const source = this.options.now ? this.options.now() : time
-
-    return source.toISOString().slice(0, 10)
+    return time.toISOString().slice(0, 10)
   }
 
   private async prune(directory: string, name: string): Promise<void> {
@@ -145,7 +141,6 @@ export type RotatingDriverOptions = {
   maxBytes?: number
   /** How many files to keep. 0 keeps everything. */
   maxFiles?: number
-  now?: () => Date
 }
 
 /**
@@ -211,7 +206,7 @@ export class RotatingDriver extends FileDriver {
   }
 
   private periodFor(time: Date): string {
-    const at = this.rotation.now ? this.rotation.now() : time
+    const at = time
     const iso = at.toISOString()
 
     switch (this.rotation.period ?? 'daily') {

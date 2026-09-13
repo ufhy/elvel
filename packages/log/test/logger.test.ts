@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Context } from '@elvel/core'
+import { Clock } from '@elvel/support'
 import { MemoryDriver, StackDriver } from '../src/drivers/misc.ts'
 import { InvalidLogLevelError, isHandling, LEVEL_NAMES, severityOf } from '../src/levels.ts'
 import { interpolate, Logger } from '../src/logger.ts'
@@ -11,8 +12,7 @@ function makeLogger(options: { level?: Parameters<typeof severityOf>[0] } = {}) 
   const logger = new Logger({
     channel: 'probe',
     driver,
-    level: (options.level as never) ?? 'debug',
-    now: () => FIXED
+    level: (options.level as never) ?? 'debug'
   })
 
   return { driver, logger }
@@ -70,6 +70,8 @@ describe('interpolate', () => {
 
 describe('Logger', () => {
   test('writes a record carrying level, channel and time', () => {
+    Clock.freeze(FIXED)
+
     const { driver, logger } = makeLogger()
 
     logger.info('hello')
@@ -78,9 +80,17 @@ describe('Logger', () => {
     expect(driver.records[0]).toMatchObject({
       level: 'info',
       message: 'hello',
-      channel: 'probe',
-      time: FIXED
+      channel: 'probe'
     })
+
+    /**
+     * Compared as a string on purpose: `toMatchObject` does not compare a `Date`
+     * at all — measured, it passes for any two — so the assertion above said
+     * nothing about the time it claimed to check.
+     */
+    expect(driver.records[0]?.time.toISOString()).toBe(FIXED.toISOString())
+
+    Clock.restore()
   })
 
   test('exposes every level as a method', () => {

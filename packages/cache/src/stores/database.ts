@@ -1,5 +1,6 @@
 import type { Connection, ConnectionManager } from '@elvel/database'
 import { QueryBuilder } from '@elvel/database'
+import { Clock } from '@elvel/support'
 import { decode, encode, expiresAt } from '../payload.ts'
 import { Lock, type LockProvider, type Store } from '../store.ts'
 
@@ -51,7 +52,7 @@ export class DatabaseStore implements Store, LockProvider {
       )
       .get()
 
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(Clock.now() / 1000)
     const expired: string[] = []
 
     for (const row of rows.all()) {
@@ -99,7 +100,7 @@ export class DatabaseStore implements Store, LockProvider {
    * an observed failure.
    */
   async add(key: string, value: unknown, seconds: number): Promise<boolean> {
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(Clock.now() / 1000)
 
     return (await this.query()).claim(
       {
@@ -173,7 +174,7 @@ export class DatabaseStore implements Store, LockProvider {
 
   /** Delete every expired entry — what `cache:prune` calls. */
   async prune(): Promise<number> {
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(Clock.now() / 1000)
 
     const entries = await (await this.query()).where('expiration', '<=', now).delete()
     const locks = await (await this.lockQuery()).where('expiration', '<=', now).delete()
@@ -220,7 +221,7 @@ class DatabaseLock extends Lock {
    * question, with the row briefly belonging to nobody in between.
    */
   async acquire(): Promise<boolean> {
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(Clock.now() / 1000)
 
     return (await this.query()).claim(
       { key: this.name, owner: this.owner(), expiration: this.expiry() },
@@ -254,7 +255,7 @@ class DatabaseLock extends Lock {
     const row = await (await this.query()).where('key', '=', this.name).first()
 
     if (!row) return null
-    if (Number(row.expiration) <= Math.floor(Date.now() / 1000)) return null
+    if (Number(row.expiration) <= Math.floor(Clock.now() / 1000)) return null
 
     return String(row.owner)
   }

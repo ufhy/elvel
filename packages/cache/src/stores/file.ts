@@ -1,5 +1,6 @@
 import { mkdir, open, rm, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { Clock } from '@elvel/support'
 import { decode, encode, expiresAt, FOREVER } from '../payload.ts'
 import { Lock, type LockProvider, type Store } from '../store.ts'
 
@@ -154,7 +155,7 @@ export class FileStore implements Store, LockProvider {
     const expires = Number(contents.slice(0, 10))
     if (!Number.isFinite(expires)) return null
 
-    if (expires !== FOREVER && expires <= Math.floor(Date.now() / 1000)) {
+    if (expires !== FOREVER && expires <= Math.floor(Clock.now() / 1000)) {
       // Reading is also when expired files get cleaned up.
       await this.forget(key)
       return null
@@ -182,7 +183,7 @@ class FileLock extends Lock {
     const existing = await this.read()
 
     // A lock whose holder died is reclaimed; an unexpired one is not.
-    if (existing && existing.expires > Date.now()) return false
+    if (existing && existing.expires > Clock.now()) return false
     if (existing) await this.forget()
 
     await mkdir(this.directory, { recursive: true })
@@ -225,7 +226,7 @@ class FileLock extends Lock {
   protected async currentOwner(): Promise<string | null> {
     const existing = await this.read()
 
-    if (!existing || existing.expires <= Date.now()) return null
+    if (!existing || existing.expires <= Clock.now()) return null
 
     return existing.owner
   }
@@ -248,7 +249,7 @@ class FileLock extends Lock {
   }
 
   private expiry(seconds = this.seconds): number {
-    return seconds === 0 ? Number.MAX_SAFE_INTEGER : Date.now() + seconds * 1000
+    return seconds === 0 ? Number.MAX_SAFE_INTEGER : Clock.now() + seconds * 1000
   }
 
   private path(): string {

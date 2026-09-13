@@ -738,6 +738,12 @@ export class Application implements ApplicationContract {
    * A container lookup per error is a Map read on a path that only runs when
    * something already went wrong.
    */
+  /**
+   * Set by `withoutExceptionHandling()`. A static because the error hook is
+   * registered once, at boot, and a test flips this between requests.
+   */
+  static rethrowExceptions = false
+
   handleExceptions(): this {
     this.router.onError(async ({ error, request, set }) => {
       const handler = this.make('exception.handler')
@@ -760,6 +766,15 @@ export class Application implements ApplicationContract {
 
       await lifecycle.prepare(request)
       lifecycle.enter(request)
+
+      /**
+       * A test that turned handling off sees the exception itself.
+       *
+       * The stack, the message and the line are all inside the handler that
+       * turned the exception into a response, and the only way to see them was
+       * to edit the application.
+       */
+      if (Application.rethrowExceptions) throw error
 
       void handler.report(error)
 

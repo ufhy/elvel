@@ -1,3 +1,4 @@
+import { Clock } from '@elvel/support'
 import type { Repository } from './repository.ts'
 
 /**
@@ -123,11 +124,11 @@ export class RateLimiter {
     const until = await this.cache.get<number>(`${this.clean(key)}:timer`)
     if (until === null) return 0
 
-    return Math.max(0, Number(until) - Math.floor(Date.now() / 1000))
+    return Math.max(0, Number(until) - Math.floor(Clock.now() / 1000))
   }
 
   private availableAt(seconds: number): number {
-    return Math.floor(Date.now() / 1000) + seconds
+    return Math.floor(Clock.now() / 1000) + seconds
   }
 
   /**

@@ -1,3 +1,4 @@
+import { Clock } from '@elvel/support'
 import { type Lock, LockTimeoutError } from './store.ts'
 
 /** How a funnel gets the locks it hands out. Satisfied by `Repository`. */
@@ -90,12 +91,12 @@ export class Funnel {
    * cannot quietly stretch the timeout — the same rule `Lock.block()` follows.
    */
   async block<T>(seconds: number, callback?: () => T | Promise<T>): Promise<T | boolean> {
-    const deadline = Date.now() + seconds * 1000
+    const deadline = Clock.now() + seconds * 1000
 
     let slot = await this.acquire()
 
     while (!slot) {
-      if (Date.now() + this.sleepMilliseconds > deadline) {
+      if (Clock.now() + this.sleepMilliseconds > deadline) {
         throw new LockTimeoutError(this.name)
       }
 

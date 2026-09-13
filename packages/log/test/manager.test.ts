@@ -242,7 +242,7 @@ describe('file drivers', () => {
 
   test('daily writes to a dated file', async () => {
     const path = join(root, 'logs', 'app.log')
-    const driver = new DailyDriver(path, { now: () => new Date('2026-08-11T12:00:00Z') })
+    const driver = new DailyDriver(path)
 
     await driver.write({
       level: 'info',
@@ -263,8 +263,7 @@ describe('file drivers', () => {
     }
 
     const driver = new DailyDriver(join(directory, 'app.log'), {
-      maxFiles: 2,
-      now: () => new Date('2026-08-11T00:00:00Z')
+      maxFiles: 2
     })
 
     await driver.write({
@@ -285,8 +284,7 @@ describe('file drivers', () => {
     await Bun.write(join(directory, 'app-2026-01-01.log'), 'old\n')
 
     const driver = new DailyDriver(join(directory, 'app.log'), {
-      maxFiles: 0,
-      now: () => new Date('2026-08-11T00:00:00Z')
+      maxFiles: 0
     })
 
     await driver.write({

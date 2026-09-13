@@ -1,3 +1,4 @@
+import { Clock } from '@elvel/support'
 import { CronExpression, DAY_OF_MONTH, DAY_OF_WEEK, HOUR, MINUTE, MONTH, partsIn } from './cron.ts'
 
 /** What a scheduled event does when it is due. */
@@ -514,7 +515,7 @@ export class ScheduledEvent {
   // ------------------------------------------------------------------ reading
 
   /** Is this expression due in the minute `date` falls in? */
-  isDue(date = new Date(), environment?: string): boolean {
+  isDue(date = Clock.date(), environment?: string): boolean {
     if (!this.runsInEnvironment(environment)) return false
 
     return CronExpression.parse(this.expression).matches(date, this.timezoneName)
@@ -544,7 +545,7 @@ export class ScheduledEvent {
     return this.environmentNames.includes(environment)
   }
 
-  nextRunAt(from = new Date()): Date {
+  nextRunAt(from = Clock.date()): Date {
     return CronExpression.parse(this.expression).nextRunAt(from, this.timezoneName)
   }
 
@@ -716,7 +717,7 @@ export class ScheduledEvent {
    * to say so rather than matching nothing.
    */
   private inTimeInterval(start: string, end: string): boolean {
-    const parts = partsIn(new Date(), this.timezoneName)
+    const parts = partsIn(Clock.date(), this.timezoneName)
     const now = parts.hour * 60 + parts.minute
 
     const from = ScheduledEvent.minutesOf(start)

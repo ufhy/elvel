@@ -1,5 +1,6 @@
 import { isUnlimited, Limit, type RateLimiter } from '@elvel/cache'
 import { app, HttpException } from '@elvel/core'
+import { Clock } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { clientIp, type ProxyOptions, type SocketAddress } from './proxies.ts'
 
@@ -120,7 +121,7 @@ export async function enforceThrottle(
         'X-RateLimit-Limit': String(limit.maxAttempts),
         'X-RateLimit-Remaining': '0',
         'Retry-After': String(retryAfter),
-        'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + retryAfter)
+        'X-RateLimit-Reset': String(Math.floor(Clock.now() / 1000) + retryAfter)
       })
     }
 

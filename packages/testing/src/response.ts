@@ -45,11 +45,22 @@ export class TestResponse {
 
   private constructor(
     readonly response: Response,
-    readonly body: string
+    readonly body: string,
+    /**
+     * The session as it was left, read back through the driver.
+     *
+     * Read after the response rather than during it: the request scope is gone
+     * by the time an assertion runs, and the driver is where the data actually
+     * ended up — which is also the half a test should be checking.
+     */
+    readonly session: Record<string, unknown> = {}
   ) {}
 
-  static async of(response: Response): Promise<TestResponse> {
-    return new TestResponse(response, await response.text())
+  static async of(
+    response: Response,
+    session: Record<string, unknown> = {}
+  ): Promise<TestResponse> {
+    return new TestResponse(response, await response.text(), session)
   }
 
   get status(): number {
@@ -622,6 +633,233 @@ export class TestResponse {
     return this
   }
 
+  // --------------------------------------------------------------- session
+
+  /**
+   * The session, after the request.
+   *
+   * "Post an invalid form, get redirected back, with the errors and the old
+   * input in the session" is the commonest flow in a server-rendered
+   * application, and asserting it meant following the redirect and searching the
+   * HTML for the message — which passes for the wrong reason as often as the
+   * right one.
+   */
+  assertSessionHas(key: string, value?: unknown): this {
+    const held = sessionValue(this.session, key)
+
+    assert(
+      held !== MISSING,
+      `Expected the session to hold [${key}], saw ${show(Object.keys(this.session))}`
+    )
+
+    if (value !== undefined) {
+      assert(
+        equals(held, value),
+        `Expected session [${key}] to be ${show(value)}, saw ${show(held)}`,
+        value,
+        held
+      )
+    }
+
+    return this
+  }
+
+  assertSessionHasAll(values: Record<string, unknown> | string[]): this {
+    const entries = Array.isArray(values)
+      ? values.map((key) => [key, undefined] as const)
+      : Object.entries(values)
+
+    for (const [key, value] of entries) this.assertSessionHas(key, value)
+
+    return this
+  }
+
+  assertSessionMissing(key: string): this {
+    assert(
+      sessionValue(this.session, key) === MISSING,
+      `Expected the session not to hold [${key}], saw ${show(sessionValue(this.session, key))}`
+    )
+
+    return this
+  }
+
+  /** The errors flashed for a redirect back, in the default bag or a named one. */
+  assertSessionHasErrors(keys?: string[] | Record<string, string>, bag = 'default'): this {
+    const errors = errorsIn(this.session, bag)
+
+    assert(
+      Object.keys(errors).length > 0,
+      `Expected the session to hold validation errors${bag === 'default' ? '' : ` in [${bag}]`}, saw none`
+    )
+
+    if (keys === undefined) return this
+
+    const wanted = Array.isArray(keys)
+      ? keys.map((key) => [key, undefined] as const)
+      : Object.entries(keys)
+
+    for (const [field, message] of wanted) {
+      const messages = errors[field]
+
+      assert(
+        messages !== undefined,
+        `Expected an error for [${field}], saw ${show(Object.keys(errors))}`
+      )
+
+      if (message !== undefined) {
+        assert(
+          (messages as string[]).includes(message),
+          `Expected [${field}] to report ${show(message)}, saw ${show(messages)}`,
+          message,
+          messages
+        )
+      }
+    }
+
+    return this
+  }
+
+  assertSessionHasErrorsIn(bag: string, keys?: string[] | Record<string, string>): this {
+    return this.assertSessionHasErrors(keys, bag)
+  }
+
+  assertSessionHasNoErrors(keys?: string[]): this {
+    const errors = errorsIn(this.session, 'default')
+
+    if (keys === undefined) {
+      assert(
+        Object.keys(errors).length === 0,
+        `Expected no validation errors, saw ${show(Object.keys(errors))}`
+      )
+
+      return this
+    }
+
+    for (const key of keys) {
+      assert(errors[key] === undefined, `Expected no error for [${key}], saw ${show(errors[key])}`)
+    }
+
+    return this
+  }
+
+  assertSessionDoesntHaveErrors(keys?: string[]): this {
+    return this.assertSessionHasNoErrors(keys)
+  }
+
+  /** What the user typed, kept so the form can be redrawn with it. */
+  assertSessionHasInput(key: string, value?: unknown): this {
+    const old = (this.session._old_input ?? {}) as Record<string, unknown>
+
+    assert(key in old, `Expected the old input to hold [${key}], saw ${show(Object.keys(old))}`)
+
+    if (value !== undefined) {
+      assert(
+        equals(old[key], value),
+        `Expected old input [${key}] to be ${show(value)}, saw ${show(old[key])}`,
+        value,
+        old[key]
+      )
+    }
+
+    return this
+  }
+
+  assertSessionMissingInput(key: string): this {
+    const old = (this.session._old_input ?? {}) as Record<string, unknown>
+
+    assert(!(key in old), `Expected the old input not to hold [${key}], saw ${show(old[key])}`)
+
+    return this
+  }
+
+  /** Sent back where it came from — what a failed form does. */
+  assertRedirectBack(): this {
+    this.assertRedirect()
+
+    const previous = this.session['_previous.url']
+    const found = this.headers.get('location')
+
+    if (typeof previous === 'string') {
+      assert(
+        found === previous,
+        `Expected a redirect back to ${show(previous)}, saw ${show(found)}`,
+        previous,
+        found
+      )
+    }
+
+    return this
+  }
+
+  assertRedirectBackWithErrors(keys?: string[] | Record<string, string>): this {
+    return this.assertRedirectBack().assertSessionHasErrors(keys)
+  }
+
+  /**
+   * A redirect to a named route.
+   *
+   * The name is resolved through the registry, so a renamed route fails here
+   * rather than in the browser — which is the whole reason route names exist.
+   */
+  assertRedirectToRoute(
+    routes: { to(name: string, parameters?: Record<string, unknown>): string },
+    name: string,
+    parameters: Record<string, unknown> = {}
+  ): this {
+    return this.assertRedirect(routes.to(name, parameters))
+  }
+
+  // ----------------------------------------------------------------- bodies
+
+  /** A download: the disposition says attachment, and it names a file. */
+  assertDownload(filename?: string): this {
+    const disposition = this.headers.get('content-disposition') ?? ''
+
+    assert(
+      disposition.toLowerCase().startsWith('attachment'),
+      `Expected an attachment, saw ${show(disposition)}`
+    )
+
+    if (filename !== undefined) {
+      assert(
+        disposition.includes(`filename="${filename}"`) ||
+          disposition.includes(`filename*=UTF-8''${encodeURIComponent(filename)}`),
+        `Expected the download to be named ${show(filename)}, saw ${show(disposition)}`
+      )
+    }
+
+    return this
+  }
+
+  /**
+   * A streamed response.
+   *
+   * The body is already read by the time this runs, so what is asserted is that
+   * it was *sent* as a stream — no `content-length`, which is what a chunked or
+   * unbounded response looks like on the wire.
+   */
+  assertStreamed(): this {
+    assert(
+      this.headers.get('content-length') === null,
+      `Expected a streamed response, saw a content-length of ${show(this.headers.get('content-length'))}`
+    )
+
+    return this
+  }
+
+  assertStreamedContent(expected: string): this {
+    this.assertStreamed()
+
+    assert(
+      this.body === expected,
+      `Expected the streamed body to be ${show(expected)}, saw ${show(this.body, 300)}`,
+      expected,
+      this.body
+    )
+
+    return this
+  }
+
   /** Anything this class does not cover, without reaching past it. */
   tap(callback: (response: this) => void): this {
     callback(this)
@@ -629,3 +867,30 @@ export class TestResponse {
     return this
   }
 }
+
+/** Nothing a session could legitimately hold, so "absent" is distinguishable. */
+const MISSING = Symbol('missing')
+
+/** Dot access, so a nested flash can be asserted the way it is read. */
+function sessionValue(session: Record<string, unknown>, key: string): unknown {
+  return dataHas(session, key) ? dataGet(session, key) : MISSING
+}
+
+/**
+ * The errors for a bag.
+ *
+ * Named bags live under a sentinel key rather than beside the fields, because
+ * two forms on one page each need their own — so reading the default bag means
+ * checking whether the sentinel is there at all.
+ */
+function errorsIn(session: Record<string, unknown>, bag: string): Record<string, unknown> {
+  const errors = (session.errors ?? {}) as Record<string, unknown>
+  const bagged = errors[BAGGED] as Record<string, Record<string, unknown>> | undefined
+
+  if (bagged !== undefined) return bagged[bag] ?? {}
+
+  return bag === 'default' ? errors : {}
+}
+
+/** The same sentinel `@elvel/http` writes; a string here would collide with a field. */
+const BAGGED = '__bags'

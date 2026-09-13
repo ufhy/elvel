@@ -245,7 +245,48 @@ export class TestRequest {
       hops -= 1
     }
 
-    return TestResponse.of(response)
+    return TestResponse.of(response, await this.sessionAfter(response))
+  }
+
+  /**
+   * The session the request left behind, read through the driver.
+   *
+   * The request scope is gone by the time an assertion runs, and the driver is
+   * where the data actually ended up — which is also the half worth asserting.
+   * Everything is asked of the container structurally, so this package still
+   * depends on nothing.
+   *
+   * An application without sessions answers `{}` rather than failing: the
+   * assertions then say the session holds nothing, which is true.
+   */
+  private async sessionAfter(response: Response): Promise<Record<string, unknown>> {
+    const app = this.app
+
+    if (app.bound === undefined || app.make === undefined) return {}
+    if (!app.bound('session.driver') || !app.bound('cookies')) return {}
+
+    const config = app.bound('config')
+      ? (app.make('config') as { get<T>(key: string, fallback: T): T })
+      : undefined
+
+    const name = config?.get<string>('session.cookie', 'elvel_session') ?? 'elvel_session'
+
+    // The response's own cookie first: a request that started a session has the
+    // new id there and nowhere else.
+    const signed = cookieFrom(response.headers.getSetCookie(), name) ?? this.cookies[name]
+
+    if (signed === undefined) return {}
+
+    const jar = app.make('cookies') as { unsign(value: string | undefined): string | undefined }
+    const id = jar.unsign(decodeURIComponent(signed))
+
+    if (id === undefined) return {}
+
+    const driver = app.make('session.driver') as {
+      read(id: string): Promise<Record<string, unknown> | undefined>
+    }
+
+    return (await driver.read(id)) ?? {}
   }
 
   private url(path: string): string {
@@ -256,4 +297,19 @@ export class TestRequest {
 /** Entry point: `test(app).getJson('/posts')`. */
 export function test(app: Pressable): TestRequest {
   return new TestRequest(app)
+}
+
+/** One cookie's value out of a `Set-Cookie` list. */
+function cookieFrom(headers: string[], name: string): string | undefined {
+  for (const header of headers) {
+    const [pair] = header.split(';')
+    const separator = (pair ?? '').indexOf('=')
+
+    if (separator === -1) continue
+    if ((pair as string).slice(0, separator) !== name) continue
+
+    return (pair as string).slice(separator + 1)
+  }
+
+  return undefined
 }

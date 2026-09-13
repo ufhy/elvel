@@ -44,6 +44,16 @@ export {
 export { AssertableJson, matchesStructure } from './json.ts'
 export { type Method, type Pressable, TestRequest, test } from './request.ts'
 export { type ResponseCookie, TestResponse } from './response.ts'
+export {
+  type Freezable,
+  freezeTime,
+  type Rethrowable,
+  restoreTime,
+  type Travel,
+  travel,
+  travelTo,
+  withoutExceptionHandling
+} from './time.ts'
 
 import { PendingCommand, type Runnable } from './console.ts'
 

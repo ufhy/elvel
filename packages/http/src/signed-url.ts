@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual as nodeTimingSafeEqual } from 'node:crypto'
 import { app, HttpException } from '@elvel/core'
+import { Clock } from '@elvel/support'
 import { route } from './route-helpers.ts'
 
 /** 403, for a URL whose signature does not hold. */
@@ -72,7 +73,7 @@ export function signedUrl(url: string, expiresInSeconds?: number, absolute = tru
   const built = new URL(url, origin)
 
   if (expiresInSeconds !== undefined) {
-    built.searchParams.set(EXPIRES, String(Math.floor(Date.now() / 1000) + expiresInSeconds))
+    built.searchParams.set(EXPIRES, String(Math.floor(Clock.now() / 1000) + expiresInSeconds))
   }
 
   /**
@@ -119,7 +120,7 @@ export function hasValidSignature(request: Request, absolute = true): boolean {
   const expires = url.searchParams.get(EXPIRES)
   if (expires !== null) {
     const at = Number(expires)
-    if (!Number.isFinite(at) || at * 1000 < Date.now()) return false
+    if (!Number.isFinite(at) || at * 1000 < Clock.now()) return false
   }
 
   /**

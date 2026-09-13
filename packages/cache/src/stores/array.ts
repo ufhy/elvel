@@ -1,3 +1,4 @@
+import { Clock } from '@elvel/support'
 import { expiresAt, FOREVER } from '../payload.ts'
 import { Lock, type LockProvider, type Store } from '../store.ts'
 
@@ -145,7 +146,7 @@ export class ArrayStore implements Store, LockProvider {
   }
 
   private hasExpired(entry: Entry): boolean {
-    return entry.expires !== FOREVER && entry.expires <= Math.floor(Date.now() / 1000)
+    return entry.expires !== FOREVER && entry.expires <= Math.floor(Clock.now() / 1000)
   }
 }
 
@@ -162,13 +163,13 @@ class ArrayLock extends Lock {
   async acquire(): Promise<boolean> {
     const existing = this.locks.get(this.name)
 
-    if (existing && existing.expires > Date.now()) return false
+    if (existing && existing.expires > Clock.now()) return false
 
     this.locks.set(this.name, {
       owner: this.owner(),
       // A lock with no expiry would survive a crashed holder forever, so an
       // unbounded lock is stored as far-future rather than as "no expiry".
-      expires: this.seconds === 0 ? Number.MAX_SAFE_INTEGER : Date.now() + this.seconds * 1000
+      expires: this.seconds === 0 ? Number.MAX_SAFE_INTEGER : Clock.now() + this.seconds * 1000
     })
 
     return true
@@ -189,7 +190,7 @@ class ArrayLock extends Lock {
 
     this.locks.set(this.name, {
       owner: this.owner(),
-      expires: extend === 0 ? Number.MAX_SAFE_INTEGER : Date.now() + extend * 1000
+      expires: extend === 0 ? Number.MAX_SAFE_INTEGER : Clock.now() + extend * 1000
     })
 
     return true
@@ -198,7 +199,7 @@ class ArrayLock extends Lock {
   protected async currentOwner(): Promise<string | null> {
     const existing = this.locks.get(this.name)
 
-    if (!existing || existing.expires <= Date.now()) return null
+    if (!existing || existing.expires <= Clock.now()) return null
 
     return existing.owner
   }

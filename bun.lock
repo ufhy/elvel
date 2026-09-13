@@ -66,6 +66,7 @@
         "@elvel/http": "workspace:*",
         "@elvel/notifications": "workspace:*",
         "@elvel/support": "workspace:*",
+        "@elvel/validation": "workspace:*",
       },
       "devDependencies": {
         "@elvel/cache": "workspace:*",
@@ -94,6 +95,7 @@
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
         "@elvel/database": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
     },
     "packages/client": {
@@ -325,6 +327,7 @@
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
         "@elvel/process": "workspace:*",
+        "@elvel/support": "workspace:*",
       },
       "devDependencies": {
         "@elvel/cache": "workspace:*",

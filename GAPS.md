@@ -1113,62 +1113,35 @@ application through the same `handle()` a server would, so the session, the
 middleware and the exception handler all take part, and nothing depends on a
 test runner.
 
-### The commonest web flow cannot be asserted
+The session can be asserted directly — nine assertions, plus `assertRedirectBack`,
+`assertRedirectBackWithErrors`, `assertRedirectToRoute`, `assertDownload` and
+`assertStreamed`. It is read back **through the driver** after the response: the
+request scope is gone by the time an assertion runs, and the driver is where the
+data actually ended up. The whole read is structural, so `@elvel/testing` still
+depends on nothing.
 
-Upstream has nine session assertions — `assertSessionHas`, `assertSessionHasAll`,
-`assertSessionHasErrors`, `assertSessionHasErrorsIn`, `assertSessionHasInput`,
-`assertSessionHasNoErrors`, `assertSessionDoesntHaveErrors`,
-`assertSessionMissing`, `assertSessionMissingInput` — and four view assertions:
-`assertViewHas`, `assertViewHasAll`, `assertViewIs`, `assertViewMissing`.
+Framework code reads `Clock` — the cache stores and their expiry, `flexible()`,
+the rate limiter, signed URLs, the session, the throttle, and the scheduler's
+due-ness — and the three hand-rolled `now?: () => Date` options are gone.
+`@elvel/testing` exposes `freezeTime`, `travel`, `travelTo` and `restoreTime`,
+which remember what they moved so a test that forgets does not poison the ones
+after it.
 
-Elvel has none of either. So "post an invalid form, get redirected back, with
-the errors and the old input in the session" — the single most common flow in a
-server-rendered application, and the one `errors.ts` and `old()` exist to
-serve — can only be asserted by following the redirect and searching the HTML
-for the message.
+The scheduler's runner keeps `Date.now()` on purpose, and says so: its loop and
+its durations measure elapsed real time, and a frozen clock would make the
+deadline unreachable and spin the worker for ever — the trap `Lock.block()` fell
+into from the other side.
 
-Missing with them: `assertRedirectBack`, `assertRedirectBackWithErrors`,
-`assertRedirectToRoute`, `assertRedirectToSignedRoute`,
-`assertJsonValidationErrors`, `assertOnlyInvalid`, `assertDownload`,
-`assertStreamed` and `assertStreamedContent`.
+`withoutExceptionHandling` puts the exception back on the surface, restoring in a
+`finally` because a test that threw is exactly the one that would leave it on.
+`withoutMiddleware` is **not** here: Elysia composes hooks into a compiled
+handler at mount time, so there is nothing to remove per request — the honest
+equivalent is mounting the route under test on a bare `Elysia`, which needs no
+framework support.
 
-**Done when** the session and its error bags can be asserted directly, and a
-redirect can be checked against a route name.
-
-### The clock exists, and almost nothing reads it
-
-`Clock` in `@elvel/support` freezes, advances and travels, and a faked `Sleep`
-moves it — which is what turned a blocking-lock test from 750ms of spinning into
-3ms. `Lock.block()` is the only caller so far.
-
-Everything else still reads `Date.now()` directly: the rate limiter, the session
-sweep, `flexible()`, the baseline, token expiry, the daily log driver's
-"injectable clock, so retention is testable without waiting a day", and every
-scheduled frequency. Each of those is a test that has to wait or hand-roll a
-clock of its own.
-
-There is also no `travel`/`travelTo`/`freezeTime` on the test helper, so a test
-reaches for `@elvel/support` rather than for the thing it is testing with.
-
-**Done when** framework code reads `Clock.now()`, the six hand-rolled clocks are
-deleted, and `@elvel/testing` exposes `travel` and `freezeTime` that restore
-themselves after each test.
-
-### A failing test hides its own exception
-
-`withoutExceptionHandling()` and `withoutMiddleware()` do not exist.
-
-So a test that gets a 500 sees the rendered error page. The stack trace, the
-message and the line are all inside the handler that turned the exception into
-a response, and the way to see them is to edit the application. Upstream's
-answer is one call that puts the exception back on the surface.
-
-`withoutMiddleware` is the same idea for the other common case: proving that a
-handler is correct when a middleware is what is actually refusing the request.
-
-**Done when** both exist, and `withoutExceptionHandling` rethrows with the
-original stack.
-
+Writing these found a real one: bun's `toMatchObject` does not compare a `Date`
+at all, so the logger's assertion about the time it wrote had never checked
+anything. It compares the ISO string now.
 ---
 
 ## Translation

@@ -1,3 +1,5 @@
+import { Clock } from '@elvel/support'
+
 /** The five cron fields, in order. */
 const MINUTE = 0
 const HOUR = 1
@@ -192,7 +194,7 @@ export class CronExpression {
   }
 
   /** The next minute at or after `from` at which this fires. */
-  nextRunAt(from: Date = new Date(), timeZone?: string): Date {
+  nextRunAt(from: Date = Clock.date(), timeZone?: string): Date {
     // Start at the next whole minute: a cron fires on the minute, and the seconds
     // of `from` are not part of the question.
     const candidate = new Date(from.getTime())

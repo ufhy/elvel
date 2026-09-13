@@ -1,4 +1,5 @@
 import { defer } from '@elvel/core'
+import { Clock } from '@elvel/support'
 import { Funnel } from './funnel.ts'
 import { isLockProvider, type Lock, LockTimeoutError, type Store } from './store.ts'
 import { NamespacedStore, TagSet } from './tags.ts'
@@ -209,7 +210,7 @@ export class Repository {
     const write = async (): Promise<T> => {
       const computed = await callback()
 
-      await this.putMany({ [key]: computed, [createdKey]: Math.floor(Date.now() / 1000) }, total)
+      await this.putMany({ [key]: computed, [createdKey]: Math.floor(Clock.now() / 1000) }, total)
 
       return computed
     }
@@ -217,7 +218,7 @@ export class Repository {
     if (value === null || created === null) return write()
 
     const freshUntil = Number(created) + Repository.secondsFrom(fresh)
-    if (freshUntil > Math.floor(Date.now() / 1000)) return value as T
+    if (freshUntil > Math.floor(Clock.now() / 1000)) return value as T
 
     const refresh = async () => {
       if (!isLockProvider(this.store)) {
@@ -464,7 +465,7 @@ export class Repository {
     if (ttl === null) return 0
     if (typeof ttl === 'number') return Math.trunc(ttl)
 
-    return Math.ceil((ttl.getTime() - Date.now()) / 1000)
+    return Math.ceil((ttl.getTime() - Clock.now()) / 1000)
   }
 }
 

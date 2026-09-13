@@ -1,3 +1,4 @@
+import { Clock } from '@elvel/support'
 /**
  * How values are written to a driver that only holds text.
  *
@@ -26,7 +27,7 @@ export function decode<T = unknown>(text: string | null): T | null {
 
 /** Seconds until `expiresAt`, floored at zero. */
 export function secondsUntil(expiresAt: number): number {
-  return Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
+  return Math.max(0, Math.ceil((expiresAt - Clock.now()) / 1000))
 }
 
 /**
@@ -40,7 +41,7 @@ export const FOREVER = 9_999_999_999
 export function expiresAt(seconds: number): number {
   if (seconds <= 0) return FOREVER
 
-  const at = Math.floor(Date.now() / 1000) + seconds
+  const at = Math.floor(Clock.now() / 1000) + seconds
 
   return at > FOREVER ? FOREVER : at
 }

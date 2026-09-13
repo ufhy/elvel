@@ -285,8 +285,7 @@ describe('rotating', () => {
   test('starts a new file when the current one fills', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'elvel-rotating-'))
     const driver = new RotatingDriver(join(directory, 'elvel.log'), {
-      maxBytes: 120,
-      now: () => new Date('2026-08-11T09:00:00.000Z')
+      maxBytes: 120
     })
 
     for (let line = 0; line < 4; line += 1) {
@@ -307,8 +306,7 @@ describe('rotating', () => {
     const directory = await mkdtemp(join(tmpdir(), 'elvel-rotating-'))
     const driver = new RotatingDriver(join(directory, 'elvel.log'), {
       maxBytes: 120,
-      maxFiles: 2,
-      now: () => new Date('2026-08-11T09:00:00.000Z')
+      maxFiles: 2
     })
 
     for (let line = 0; line < 6; line += 1) await driver.write(record('info', `line ${line}`))
@@ -324,10 +322,7 @@ describe('rotating', () => {
     const directory = await mkdtemp(join(tmpdir(), 'elvel-rotating-'))
 
     const written = async (period: 'hourly' | 'weekly' | 'monthly' | 'never') => {
-      const driver = new RotatingDriver(join(directory, `${period}.log`), {
-        period,
-        now: () => new Date('2026-08-11T09:30:00.000Z')
-      })
+      const driver = new RotatingDriver(join(directory, `${period}.log`), { period })
 
       await driver.write(record('info', 'one'))
     }

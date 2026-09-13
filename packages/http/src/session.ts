@@ -1,6 +1,6 @@
 import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Str } from '@elvel/support'
+import { Clock, Str } from '@elvel/support'
 
 export type SessionData = Record<string, unknown>
 
@@ -17,7 +17,7 @@ export interface SessionDriver {
 export class MemorySessionDriver implements SessionDriver {
   private readonly store = new Map<string, { data: SessionData; touched: number }>()
 
-  constructor(private readonly now: () => number = () => Date.now()) {}
+  constructor(private readonly now: () => number = () => Clock.now()) {}
 
   async read(id: string): Promise<SessionData | undefined> {
     return this.store.get(id)?.data
@@ -96,7 +96,7 @@ export class FileSessionDriver implements SessionDriver {
   }
 
   async gc(lifetime: number): Promise<number> {
-    const cutoff = Date.now() - lifetime * 1000
+    const cutoff = Clock.now() - lifetime * 1000
     let removed = 0
 
     let entries: string[]

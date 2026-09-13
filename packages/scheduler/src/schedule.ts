@@ -1,5 +1,6 @@
 import type { ApplicationContract } from '@elvel/contracts'
 import { ProcessManager } from '@elvel/process'
+import { Clock } from '@elvel/support'
 import { type EventCallback, ScheduledEvent } from './event.ts'
 
 /** A job, structurally — the queue package satisfies this. */
@@ -145,7 +146,7 @@ export class Schedule {
   }
 
   /** The entries whose expression and environment say they are due now. */
-  dueEvents(at = new Date()): ScheduledEvent[] {
+  dueEvents(at = Clock.date()): ScheduledEvent[] {
     const environment = this.app.environment()
 
     return this.entries.filter((event) => event.isDue(at, environment))

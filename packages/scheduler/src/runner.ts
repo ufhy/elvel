@@ -161,6 +161,13 @@ export class ScheduleRunner {
     const lastRunAt = new Map<ScheduledEvent, number>()
     for (const event of repeatable) lastRunAt.set(event, startedAt.getTime())
 
+    /**
+     * `Date.now()`, deliberately, where everything else reads `Clock`.
+     *
+     * This loop and the durations around it measure elapsed real time. A frozen
+     * clock would make the deadline unreachable and spin the worker for ever —
+     * the same trap `Lock.block()` fell into from the other side.
+     */
     while (Date.now() <= endOfMinute.getTime()) {
       for (const event of repeatable) {
         const interval = (event.repeatInterval ?? 0) * 1000

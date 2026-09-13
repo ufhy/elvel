@@ -7,6 +7,7 @@ import type {
   LogRecord
 } from '@elvel/contracts'
 import { Context } from '@elvel/core'
+import { Clock } from '@elvel/support'
 import { isHandling } from './levels.ts'
 
 /**
@@ -32,8 +33,6 @@ export type LoggerOptions = {
   level?: LogLevel
   context?: LogContext
   dispatcher?: EventDispatcher
-  /** Injectable clock so tests do not depend on the wall clock. */
-  now?: () => Date
 }
 
 /**
@@ -69,7 +68,7 @@ export class Logger implements LoggerContract {
       message: rendered,
       context: merged,
       channel: this.options.channel,
-      time: this.options.now ? this.options.now() : new Date()
+      time: Clock.date()
     }
 
     // Drivers may be async (file writes); a caller that needs the flush can

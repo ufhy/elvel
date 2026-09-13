@@ -1,7 +1,7 @@
 {
   "name": "@elvel/scheduler",
   "version": "1.0.0-alpha.26",
-  "description": "Task scheduling for Elvel — cron expressions, fluent frequencies, schedule:run",
+  "description": "Task scheduling for Elvel \u2014 cron expressions, fluent frequencies, schedule:run",
   "keywords": [
     "bun",
     "cron",
@@ -39,7 +39,8 @@
     "@elvel/console": "workspace:*",
     "@elvel/contracts": "workspace:*",
     "@elvel/core": "workspace:*",
-    "@elvel/process": "workspace:*"
+    "@elvel/process": "workspace:*",
+    "@elvel/support": "workspace:*"
   },
   "devDependencies": {
     "@elvel/cache": "workspace:*",
