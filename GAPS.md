@@ -11,7 +11,7 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 100** — all 37 components measured.
+**Open: 98** — all 37 components measured.
 
 Eight added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
 Notifications, Reflection and Scheduling. Four of those eight are ahead of
@@ -1739,45 +1739,6 @@ parser the package will not depend on, `createUuidsUsing` waits on a design for
 deterministic ids. `Arr`, `Collection`, `Pipeline`, `Conditionable`,
 `Macroable`, `Env`, `ServiceProvider`, `defer`, SigV4 signing, `ulid()` with
 48 bits of time so it sorts by creation.
-
-### There is no `Stringable`
-
-`Str::of('  Some Title ')->trim()->slug()->limit(20)` — the fluent half of
-Upstream's string API, and the half that gets used in views and controllers,
-because the static form reads inside-out:
-`Str.limit(Str.slug(Str.trim(value)), 20)`.
-
-`Str` here is an object literal of static functions, so there is no `of()` and
-nowhere to put one. `Stringable` also carries `when`, `unless`, `pipe`, `tap`,
-`whenEmpty`, `whenContains` and the `explode`/`split` returning a collection —
-none of which the static form can express.
-
-**Done when** `Str.of()` returns a chainable string with the same methods, and
-it is macroable.
-
-### `slug()` empties a non-Latin title
-
-```ts
-slug(value, separator = '-') {
-  return value
-    .normalize('NFKD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-zA-Z0-9\s_-]+/g, '')
-    ...
-```
-
-Diacritics are handled, so `Café` becomes `cafe`. Anything outside the Latin
-alphabet is **deleted**: a Cyrillic, Greek, or Arabic title produces an empty
-string, and so does a Chinese one. The route is then `/articles/` and every such
-article collides.
-
-Upstream avoids the empty case through `Str::ascii()`, which carries a
-transliteration table. The source here says that table is why `transliterate` is
-absent — a fair reason for the method, but the consequence lands in `slug`,
-which does not say so and does not have a fallback.
-
-**Done when** a non-Latin title produces a usable slug, or `slug` refuses rather
-than returning an empty string.
 
 ---
 

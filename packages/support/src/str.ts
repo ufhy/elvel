@@ -1,3 +1,5 @@
+import { transliterate } from './transliterate.ts'
+
 /**
  * String helpers.
  *
@@ -73,14 +75,103 @@ export const Str = {
     return Str.headline(value)
   },
 
-  slug(value: string, separator = '-'): string {
-    return value
-      .normalize('NFKD')
-      .replace(/\p{Diacritic}/gu, '')
-      .replace(/[^a-zA-Z0-9\s_-]+/g, '')
-      .trim()
-      .replace(/[\s_-]+/g, separator)
-      .toLowerCase()
+  /**
+   * `Hello World` -> `hello-world`.
+   *
+   * Letters and digits from **any** script survive, because a URL may carry
+   * UTF-8 and a title that is not Latin still deserves a slug. Stripping to
+   * `[a-z0-9]` gave `Привет мир` an empty string, and every such article then
+   * collided on `/articles/`.
+   *
+   * `ascii: true` transliterates first, for a caller that needs an ASCII path —
+   * Cyrillic and Greek have romanisations, and anything without one keeps its
+   * characters rather than being deleted.
+   */
+  slug(value: string, separator = '-', options: { ascii?: boolean } = {}): string {
+    const source = options.ascii ? transliterate(value) : value
+
+    return (
+      source
+        .normalize('NFKD')
+        .replace(/\p{Diacritic}/gu, '')
+        // Everything that is not a letter, a number or a separator.
+        .replace(/[^\p{L}\p{N}\s_-]+/gu, '')
+        .trim()
+        .replace(/[\s_-]+/g, separator)
+        .toLowerCase()
+        /**
+         * Recomposed: `NFKD` decomposes a Hangul syllable into its jamo, and a
+         * decomposed slug does not equal the composed one a browser sends —
+         * fourteen code points where the reader sees six.
+         */
+        .normalize('NFC')
+    )
+  },
+
+  /** `append('!')` — the chain's way of writing concatenation. */
+  append(value: string, ...suffixes: string[]): string {
+    return value + suffixes.join('')
+  },
+
+  prepend(value: string, ...prefixes: string[]): string {
+    return prefixes.join('') + value
+  },
+
+  /**
+   * Trim whitespace, or the characters given.
+   *
+   * Here rather than left to `String.prototype.trim` because `Str.of(x).trim()`
+   * is the commonest way a chain starts, and a fluent API that drops out to the
+   * native method for its first call is not fluent.
+   */
+  trim(value: string, characters?: string): string {
+    if (characters === undefined) return value.trim()
+
+    return Str.rtrim(Str.ltrim(value, characters), characters)
+  },
+
+  /** Replace every occurrence. A string needle is literal, not a pattern. */
+  replace(value: string, search: string | RegExp, replacement: string): string {
+    if (typeof search !== 'string') return value.replace(search, replacement)
+
+    return value.split(search).join(replacement)
+  },
+
+  /** A slice, with PHP's negative-offset reading. */
+  substr(value: string, start: number, length?: number): string {
+    const from = start < 0 ? Math.max(0, value.length + start) : start
+
+    if (length === undefined) return value.slice(from)
+
+    return length < 0 ? value.slice(from, value.length + length) : value.slice(from, from + length)
+  },
+
+  /** Where a needle first appears, or `false` — never `-1`, which is a valid index. */
+  position(value: string, needle: string, offset = 0): number | false {
+    const at = value.indexOf(needle, offset)
+
+    return at === -1 ? false : at
+  },
+
+  /** Characters, not bytes. */
+  length(value: string): number {
+    return [...value].length
+  },
+
+  /** Best-effort ASCII: `Привет` -> `Privet`. */
+  transliterate(value: string): string {
+    return transliterate(value)
+  },
+
+  /** ASCII only, dropping anything that has no romanisation. */
+  ascii(value: string): string {
+    return (
+      transliterate(value)
+        .normalize('NFKD')
+        .replace(/\p{Diacritic}/gu, '')
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: the ASCII range is the filter.
+        .replace(/[^\x00-\x7f]/g, '')
+    )
   },
 
   /** Split an arbitrarily-cased identifier into its word parts. */

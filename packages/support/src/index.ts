@@ -1,3 +1,6 @@
+import { Str as StrMethods } from './str.ts'
+import { of as stringableOf } from './stringable.ts'
+
 export { Arr } from './arr.ts'
 export { Lottery, Timebox, timebox } from './chance.ts'
 export { Clock } from './clock.ts'
@@ -55,5 +58,16 @@ export {
   uriEncode
 } from './sigv4.ts'
 export { PendingSleep, Sleep, SleepAssertionError } from './sleep.ts'
-export { Str } from './str.ts'
+export { of, type Stringable, StringableBase } from './stringable.ts'
+
+/**
+ * The string helpers, with `of` merged on.
+ *
+ * Merged here rather than declared inside `str.ts` so the type does not refer
+ * to itself: `Stringable` is projected from `typeof StrMethods`, and a `Str`
+ * that already carried `of` would be defined in terms of its own projection.
+ * TypeScript answers `any` to that, silently.
+ */
+export const Str = { ...StrMethods, of: stringableOf }
 export { Conditionable, type Macro, Macroable } from './traits.ts'
+export { isAscii, transliterate } from './transliterate.ts'
