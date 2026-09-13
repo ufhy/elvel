@@ -13,9 +13,9 @@ brand.
 
 **Open: 98** — all 37 components measured.
 
-Eight added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
-Notifications, Reflection and Scheduling. Four of those eight are ahead of
-Upstream rather than level with it, and the reasons are at the bottom.
+Nine added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
+Notifications, Reflection, Scheduling and Support. Four are ahead of upstream
+rather than level with it, and the reasons are at the bottom.
 
 Scheduling sits inside Console upstream; here it is a package of its own and is
 measured separately.
@@ -1731,17 +1731,6 @@ either invisible now or visible twice.
 
 ---
 
-## Support
-
-`Str` carries 83 of upstream's 111, and the absences are argued in the source
-rather than accidental — `apa` encodes one style guide, `markdown` needs a
-parser the package will not depend on, `createUuidsUsing` waits on a design for
-deterministic ids. `Arr`, `Collection`, `Pipeline`, `Conditionable`,
-`Macroable`, `Env`, `ServiceProvider`, `defer`, SigV4 signing, `ulid()` with
-48 bits of time so it sorts by creation.
-
----
-
 ## Testing
 
 62 response assertions against upstream's 75, and the overlap is not the whole
@@ -2127,3 +2116,10 @@ reader, computed lazily so a page that does not read it does not pay for it.
   formatting, so ICU's spellout is unreachable from JavaScript, and a
   hand-written English speller in a framework that ships a translator would be
   the wrong file for it. Every other `Number` method is there.
+- **Support is closed.** `Str` is 92 of upstream's 111 with a `Stringable`
+  projected from it rather than written twice, `Number` over `Intl`, `Sleep`
+  and `Clock` that a test can move, `Lottery`, `Timebox`, and the global
+  helpers with a `retry` whose backoff is asserted as a sequence. What is still
+  absent from `Str` is argued in its own source: `apa` encodes one style guide,
+  `markdown` needs a parser the package will not depend on, and
+  `createUuidsUsing` waits on a design for deterministic ids.
