@@ -41,7 +41,7 @@ is why a config file may call one while it is being evaluated.
 `process.env` is all strings, which is how `APP_DEBUG=false` ends up switching
 debugging *on*. `Env.boolean` reads `true`, `(true)`, `on` and `yes` as true, and
 `false`, `(false)`, `off` and `no` as false — the parenthesised forms because
-Laravel's `.env` parser accepts them. `Env.number` falls back rather than handing
+A `.env` parser accepts them. `Env.number` falls back rather than handing
 you a `NaN`. `null`, `(null)`, `nil` and an empty value all read as absent, so a
 key that is present but blank behaves like a key that is missing.
 
@@ -60,7 +60,8 @@ export default await Application.configure(join(import.meta.dir, '..'))
 
 Lazy imports, and literal ones. Lazy so a config file can call `storage_path()`
 while it is being evaluated; literal because **a bundler can follow an `import`
-and cannot follow a directory read at run time**. Laravel needs no equivalent —
+and cannot follow a directory read at run time**. A runtime that resolves config
+from disk on every request needs no equivalent —
 PHP resolves `config/*.php` from disk on every request and there is no build step
 to hide the directory from.
 
@@ -73,7 +74,7 @@ lets it drop the packages a kit does not use.
 ## Not every config file ships
 
 A scaffolded application gets the files its kit actually needs — ten for
-`--kit=none`, seventeen for `--kit=jsx` — rather than all twenty. Laravel 11
+`--kit=none`, seventeen for `--kit=jsx` — rather than all twenty. A slim skeleton
 slimmed its skeleton the same way for the same reason: a file you have never
 opened is a file you cannot reason about.
 
@@ -85,7 +86,7 @@ bun elvel config:publish mail
 bun elvel config:publish --all
 ```
 
-Two things it does that Laravel's does not have to. It **warns when the package
+Two things it does that a disk-resolving equivalent need not. It **warns when the package
 is not installed** — publishing `mail` into an application with no
 `@elvel/mail` is a question with a real answer, not a missing file. And it
 **adds the line to `bootstrap/app.ts`**, because a published file nobody named

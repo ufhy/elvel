@@ -13,9 +13,9 @@ const rows = collect([
 ])
 ```
 
-## The one difference from Laravel worth knowing first
+## The one difference worth knowing first
 
-Laravel's collection accepts a **string** almost everywhere a value has to be
+A PHP collection accepts a **string** almost everywhere a value has to be
 read out of an item. Here some methods take a string and some take a callback,
 and which is which is decided by what TypeScript can check:
 
@@ -140,7 +140,7 @@ characters from the *end*, rather than masking that many:
 Str.mask('4111111111111111', '*', 4, -4)   // '4111********1111'
 ```
 
-That is Laravel's semantics, and the reason to say so out loud is what the other
+Those are the semantics, and the reason to say so out loud is what the other
 reading would do: taking `-4` as "mask four characters" leaves the rest of the
 card number sitting in your log, and looks plausible enough to ship.
 
@@ -172,7 +172,7 @@ prototype, so `data_set` never had to decide this.
 Arr.set({}, 'items.0.price', 9)   // { items: [{ price: 9 }] }, not { items: { '0': … } }
 ```
 
-PHP cannot tell the two apart, so Laravel never had to choose. Here it matters:
+PHP cannot tell the two apart, so it never had to choose. Here it matters:
 rebuilding `items.0.price` into an object produces something that serialises as
 an object, and a validated payload that reaches a database write or a JSON
 response in that shape is wrong in a way nothing catches until a user sees it.
@@ -197,6 +197,6 @@ Formatter.macro('asCsv', function () { … })   // a plain prototype write
 ```
 
 `Macroable` is how a package bolts a method onto something it does not own — the
-way Laravel packages extend `Str` or the query builder. Types are opt-in through
+way a package extends `Str` or the query builder. Types are opt-in through
 declaration merging, and the runtime side is a prototype write rather than a
 proxy, so nothing pays for it on every property access.

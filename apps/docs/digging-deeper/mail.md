@@ -188,7 +188,7 @@ element.
 ::: tip Why it is inlined at all
 **Gmail strips `<style>` blocks.** A mail that relies on one looks right in every
 preview and unstyled in the inbox. So the styling has to end up in `style`
-attributes — but that is the renderer's job, not yours. Laravel reaches the same
+attributes — but that is the renderer's job, not yours. The same
 place through `CssToInlineStyles`; this uses `css-inline`, which is WASM and has no
 dependencies of its own.
 
@@ -255,7 +255,7 @@ says. A page that renders every mail you send describes your customers to whoeve
 finds it.
 :::
 
-Laravel gets the rendering half from one interface — `Mailable implements Renderable`,
+Rendering a mailable from a route takes one interface,
 so a route returning a mailable renders it — and leaves the page to you; catching mail
 there is Mailpit, a container in `laravel/sail` rather than part of the framework.
 `mailer().render(mailable)` is the same thing when you want the HTML rather than the
@@ -370,6 +370,6 @@ Also there: `assertNotSent`, `assertQueued`, `assertOnlyRecipients`,
 await fake.assertSent('InvoicePaid').assertHasAttachmentFromDisk('s3', 'invoices/42.pdf')
 ```
 
-Laravel's version of this compares the path its attachment kept. Ours has no path
+Comparing the path would need the attachment to keep one. Ours has no path
 to compare — the bytes were read when the attachment was built — so it reads the
 disk and compares the content instead. It is the one assertion that awaits.

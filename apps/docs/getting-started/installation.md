@@ -44,7 +44,8 @@ and `--force` writes into a directory that already has something in it.
 
 ## An application installs only what its kit uses
 
-This is the one place Elvel departs from Laravel by necessity. Laravel's
+This is the one place Elvel departs by necessity. A runtime that resolves
+config from disk on every request needs no such step; the
 components arrive inside a single Composer package whether or not you touch them;
 these are twenty-nine npm packages, and **registering all of them took a landing
 page from 1.0 MB to 3.7 MB** — most of it `kysely` behind the database,
@@ -68,7 +69,7 @@ bun elvel config:publish database
 the rest are registered — a command exists only if its package does, so
 `bun elvel list` is the honest list.
 
-`config:publish` does one thing Laravel's does not need to: it **adds the line to
+`config:publish` does one thing a disk-resolving equivalent need not: it **adds the line to
 `bootstrap/app.ts`** as well, because a config file nobody named is configuration
 the framework never reads. See [configuration](/getting-started/configuration).
 

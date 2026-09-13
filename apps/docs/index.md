@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Elvel
-  text: Laravel's shape, on Bun
+  text: A familiar shape, on Bun
   tagline: >-
     Twenty-seven packages, an Elysia core, and no facades — because TypeScript
     erases the types that facades depend on.

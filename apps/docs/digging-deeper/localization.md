@@ -20,7 +20,7 @@ lang/
 ::: warning A group file is a module, not JSON
 `lang/en/messages.json` is **not read**. Files inside a locale directory must be
 `.ts` (or `.js`) with a default export; only `lang/<locale>.json` — the
-whole-sentence file — is JSON. Laravel's equivalents are `messages.php` and
+whole-sentence file — is JSON. The PHP equivalents are `messages.php` and
 `en.json`, so the split is the same and the extension is not.
 :::
 
@@ -71,7 +71,7 @@ choice('messages.articles.count', 1, { count: '1' })   // 'One article'
 choice('messages.articles.count', 5, { count: '5' })   // '5 articles'
 ```
 
-`{0}`, `{1}` and `[2,*]` are Laravel's conditions, and `choose(line, count,
+`{0}`, `{1}` and `[2,*]` are the conditions, and `choose(line, count,
 locale)` applies them to a line you already have:
 
 ```

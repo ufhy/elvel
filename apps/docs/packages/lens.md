@@ -4,7 +4,7 @@ What the application just did, recorded and readable. Every request with the
 queries it ran, the exception it threw, the mail it sent and the jobs it
 dispatched — collected as one unit of work, not seventeen unrelated log lines.
 
-Lens is Laravel Telescope's shape, read closely and rebuilt for Bun. It is an
+Lens is Telescope's shape, read closely and rebuilt for Bun. It is an
 **optional package**: no starter kit installs it, nothing in the framework
 depends on it, and an application that never asks for it never pays for it.
 
@@ -131,7 +131,7 @@ leaves the reading to you. This one reads first:
 LENS_BAR=true
 ```
 
-That is the whole installation. Unset, it follows `APP_DEBUG` — Laravel
+That is the whole installation. Unset, it follows `APP_DEBUG` — the
 Debugbar's rule, and the right one: a bar showing query results belongs to the
 same switch as a stack trace in the browser. **No tables are needed**: the bar
 reads a ring of the last twenty requests held in memory.
@@ -270,7 +270,7 @@ list rather than showing an empty screen that reads as "nothing ran".
 
 ### It is not a second Debugbar
 
-Laravel Debugbar is a separate package with its own collectors sitting beside
+Debugbar is a separate package with its own collectors sitting beside
 Telescope's. An application running both collects everything twice, configures
 it twice, and can have the two disagree.
 
@@ -356,7 +356,7 @@ protected override async authorise(_request: Request): Promise<boolean> {
 ```
 
 Telescope's default is `environment('local') || Gate::check(...)`. The `local`
-half is not copied: in Laravel `local` means a machine somebody is developing
+half is not copied: `local` usually means a machine somebody is developing
 on, but here a server with an empty `HOST` binds every interface, so "local" is
 not a statement about who can reach it.
 
@@ -425,7 +425,7 @@ across every process without a restart.
 
 ## In production
 
-Yes, and Laravel says the same of Telescope. What is not optional is the
+Yes, and the same is said of Telescope. What is not optional is the
 configuration you run it under.
 
 The flush happens in `onAfterResponse` — the response has already gone out

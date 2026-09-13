@@ -43,7 +43,7 @@
  * `bg-card`, `text-muted-foreground`, `border-border` — a page never names a
  * grey. Both themes then reduce to one block of variables each, and a component
  * needs no `dark:` variant for its colours at all. The values are the ones
- * Laravel's starter kits use, in oklch: perceptually even lightness steps, so
+ * the same starter kits use, in oklch: perceptually even lightness steps, so
  * `0.97` reads as the same nudge away from white everywhere it is used.
  *
  * `--color-brand` is the exception and stays a real colour, because the mark has

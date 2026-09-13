@@ -25,7 +25,7 @@
  *    outside it carries a class, `index.html` included. Add a directory with
  *    `@source "../wherever"` if that stops being true.
  * 2. **fonts.bunny.net, not fonts.googleapis.com.** A drop-in mirror that sets no
- *    cookies and logs no IPs. Laravel's starter kits use it for the same reason.
+ *    cookies and logs no IPs.
  * 3. **`Geist`, not `Geist Variable`.** That is the family name bunny serves it
  *    under; the generated name resolves to nothing and every heading silently
  *    falls back to `sans-serif`.

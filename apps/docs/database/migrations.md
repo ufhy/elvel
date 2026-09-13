@@ -39,7 +39,7 @@ bun elvel migrate --isolated          # skip if another migrate holds the lock
 bun elvel migrate:status
 ```
 
-The tracking table matches Laravel's — `id`, `migration`, `batch` — and `migrate`
+The tracking table is `id`, `migration`, `batch` — and `migrate`
 records **one batch per run**. `migrate:rollback` reverses the newest batch,
 newest first.
 

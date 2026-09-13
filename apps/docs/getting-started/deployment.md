@@ -19,7 +19,7 @@ where exactly one of them should do the work.
 `--pretend` prints the migrations that *would* run. Worth doing first on anything
 you have not deployed before.
 
-## `optimize`, and why it matters more here than in Laravel
+## `optimize`, and why it matters more here
 
 ```bash
 bun elvel optimize

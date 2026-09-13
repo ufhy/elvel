@@ -1,6 +1,6 @@
 # The 30 packages
 
-Laravel is one package. Elvel is thirty, and this page is why.
+A framework is usually one package. Elvel is thirty, and this page is why.
 
 | Package | Contents |
 | --- | --- |
@@ -18,7 +18,7 @@ Laravel is one package. Elvel is thirty, and this page is why.
 | `@elvel/client` | The browser's `fetch` for its own backend: session cookie, CSRF token, `/api` prefix, typed failures, `useForm`. |
 | `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. |
 | `@elvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
-| `@elvel/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
+| `@elvel/queue` | Jobs, three drivers, a worker with retries and backoff, chains, failed jobs. |
 | `@elvel/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |
 | `@elvel/mail` | Mailables, nodemailer transports, queued mail. |
 | `@elvel/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |
@@ -29,7 +29,7 @@ Laravel is one package. Elvel is thirty, and this page is why.
 
 ## Why thirty
 
-Laravel is one Composer package: `illuminate/*` arrives whole whether or not you
+A one-package framework arrives whole whether or not you
 touch it, and registering all of Eloquent, Queue and Mail in an application that
 uses none of them costs nothing extra because the code was already in `vendor/`.
 
@@ -54,7 +54,7 @@ What follows from it is the whole shape of the framework:
 
 ### The container is typed, not stringly-typed
 
-Laravel leans on
+Some frameworks lean on
 `app('cache')` + facades; copying that verbatim would destroy Elysia's
 end-to-end inference, its main advantage. Bindings are declared by augmenting
 `ContainerBindings`, so `app('view')` resolves to a real type. That interface
@@ -70,7 +70,7 @@ deduplicates its routes.
 ### Global helpers instead of context decorators
 
 `view()`, `config()`, `app()`
-resolve from the running application, like Laravel's helpers. Decorating the
+resolve from the running application. Decorating the
 Elysia context instead would force every route to carry those types.
 
 ### Views are typed JSX, not a template language
@@ -113,14 +113,14 @@ dependencies into its store; an editor that writes by replacing a file detaches
 the copy, and the app then runs stale code while TypeScript sees two identities
 of the same module. Apps scaffolded inside this repo become workspace members.
 
-## Where the differences from Laravel are forced
+## Where the differences are forced
 
 Four, and each has a page:
 
 | | Why |
 | --- | --- |
 | No facades, no autowiring | TypeScript erases the types both depend on — [lifecycle](/architecture/lifecycle#the-container-resolves-by-token-not-by-reflection) |
-| `allowGuests` on a policy | Laravel reads a nullable `$user` type; there is no type at runtime — [authorization](/security/authorization#guests-and-the-one-place-typescript-forces-a-difference) |
+| `allowGuests` on a policy | Reading a nullable `user` type is not possible; there is no type at runtime — [authorization](/security/authorization#guests-and-the-one-place-typescript-forces-a-difference) |
 | A job carries `data`, not itself | PHP can `serialize($job)` — [queues](/digging-deeper/queues#jobs-carry-data-not-themselves) |
 | `onSuccess` rather than `then` | A class with a `then` member is a thenable — [queues](/digging-deeper/queues#batches) |
 

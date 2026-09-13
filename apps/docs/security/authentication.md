@@ -464,11 +464,11 @@ ResetPasswordNotification.toMailUsing((data) =>
 )
 ```
 
-Laravel's `toMailUsing`, and set the same way — once, in a provider at boot. All four
+Set once, in a provider at boot. All four
 take one.
 
-There is no `createUrlUsing` and that is not an omission: Laravel needs it because
-Laravel builds the link, with `route('password.reset')` and
+There is no `createUrlUsing` and that is not an omission: it is needed where the
+framework builds the link itself, with `route('password.reset')` and
 `URL::temporarySignedRoute`. better-auth builds ours and hands it over already
 signed, so there is nothing left to override — `data.url` is that link.
 
@@ -488,7 +488,7 @@ only the words are.
 
 ### They translate
 
-Every sentence goes through the translator when one is registered, the way Laravel's
+Every sentence goes through the translator when one is registered, so the
 `Lang::get` does. The English is both the default and the lookup key, so
 `lang/id.json` is all it takes:
 

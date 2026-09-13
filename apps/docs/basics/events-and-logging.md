@@ -44,7 +44,7 @@ dispatch(new UserRegistered('…'))     → ancestor
 ```
 
 That last line is the one worth knowing. **A listener registered on an ancestor
-class runs too.** Laravel matches a listener registered on an interface the event
+class runs too.** A listener can be registered on an interface the event
 implements; TypeScript erases interfaces so there is nothing at runtime to match,
 but a base class survives and carries the same meaning — `listen(DomainEvent, …)`
 hears everything that extends it.

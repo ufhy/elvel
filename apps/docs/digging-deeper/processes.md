@@ -1,6 +1,6 @@
 # Processes
 
-Run a command, get a result. `@elvel/process` is Laravel's `Process` facade on
+Run a command, get a result. `@elvel/process` is a process factory on
 Bun's spawn.
 
 ```ts

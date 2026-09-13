@@ -16,7 +16,7 @@ import { sessionOf } from '@elvel/http'
 
 `put`, `get`, `has`, `exists`, `all`, `forget`, `flush`, `pull`, `increment`.
 `has` is false for a key holding `null`; `exists` is true — the distinction
-Laravel draws, and the one you want when `null` is a real value.
+worth drawing, and the one you want when `null` is a real value.
 
 ### Flash data
 
@@ -27,7 +27,7 @@ session.keep(['status'])   // keep some of it
 ```
 
 A flashed value survives **exactly one further request**, implemented with the
-same `_flash.new` → `_flash.old` ageing Laravel uses. That is why nothing has to
+same `_flash.new` → `_flash.old` ageing. That is why nothing has to
 clean up after a redirect: the value expires by being read once.
 
 ### A response with no handler still has a session
@@ -122,7 +122,7 @@ looks like a bug in the auth code and is not. `database` needs
 `enabled: false` turns the middleware off entirely, which is what a pure API
 wants.
 
-The `sessions` table's `last_activity` is **64-bit**, unlike Laravel's — see
+The `sessions` table's `last_activity` is **64-bit** — see
 [behaviours](https://github.com/ufhy/elvel/blob/main/BEHAVIOURS.md) for why a
 32-bit one is a problem before 2038 rather than at it.
 
@@ -135,14 +135,14 @@ await currentScope()?.session.regenerate()
 Session fixation, concretely: an attacker gets a victim's browser to hold a session
 id they already know, the victim signs in, and the id they know is now an
 authenticated session. Nothing about the sign-in is broken — the id simply never
-changed. The auth layer calls this straight after a successful sign-in, where Laravel
+changed. The auth layer calls this straight after a successful sign-in, which is where it
 calls it too.
 
 The CSRF token rotates with it, because a token is bound to a session: keeping the
 old one across a privilege change means the value a page picked up while signed out
 still authorises writes while signed in.
 
-The old record is destroyed, which is where this differs from Laravel's
+The old record is destroyed, which is where this differs from a plain
 `regenerate()`. What an attacker holds *is* that record, and leaving it to expire
 leaves it usable until it does. `regenerate(false)` keeps it for the rare case
 where something else still reads it.
@@ -260,7 +260,7 @@ The check compares `_token` or `X-CSRF-TOKEN` against the session token in
 on a mismatch. Constant-time because a comparison that returns early leaks the
 token one byte at a time to anybody willing to measure.
 
-419 rather than 403 is Laravel's choice and a useful one: it means specifically
+419 rather than 403 is a useful choice: it means specifically
 "your token expired", which a client can respond to by reloading the form rather
 than by telling the user they are not allowed.
 

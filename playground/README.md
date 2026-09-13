@@ -1,6 +1,6 @@
 # playground
 
-An [Elvel](https://github.com/) application — Laravel's structure and DX on
+An [Elvel](https://github.com/) application — a familiar structure and DX on
 Elysia + Bun.
 
 ## Getting started

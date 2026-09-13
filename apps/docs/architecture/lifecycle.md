@@ -66,7 +66,7 @@ Application.configure(root)
 Yours register **last**, so an application provider can override a framework
 binding rather than fighting it.
 
-Laravel keeps a `bootstrap/providers.php` too, for a different reason: there,
+A provider list is kept here rather than discovered, and for one reason. Where
 `laravel/framework` registers its own and the file lists only the application's.
 Here every provider is named, because every one lives in a package of its own —
 and that is the whole point of the file. **A provider named there is a package
@@ -75,7 +75,7 @@ pays for.** Measured, registering all twenty-two took a landing page from 1.0 MB
 to 3.7 MB, most of it `kysely` behind the database, `nodemailer` behind mail, and
 better-auth behind auth. It is the list a starter kit changes.
 
-Events and logging come first, as Laravel's base providers do, because everything
+Events and logging come first, because everything
 booting after them may emit an event or write a line.
 
 ### Why `register` and `boot` are separate
@@ -99,7 +99,7 @@ app.instance('reports', builder)                  // one you already have
 app.bound('reports')                              // is it registered?
 ```
 
-Laravel's container reads a constructor's **parameter types** and resolves each
+A container that reads a constructor's **parameter types** can resolve each
 one. That cannot work here: TypeScript erases those types, and
 `Reflect.getMetadata('design:paramtypes', …)` is `undefined` under Bun even with
 `experimentalDecorators` and `emitDecoratorMetadata` both on — checked directly,
@@ -317,7 +317,7 @@ export default await Application.configure(join(import.meta.dir, '..'))
   })
 ```
 
-Laravel needs no equivalent: PHP resolves `config/*.php` from disk on every
+A runtime that resolves `config/*.php` from disk on every
 request and there is no build step to hide the directory from. Here there is —
 and getting it wrong was not subtle. Left to scan `config/`, a **bundled**
 application resolved those imports against a disk that may not have them and,

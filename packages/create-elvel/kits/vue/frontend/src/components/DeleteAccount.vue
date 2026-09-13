@@ -16,7 +16,7 @@ import { useForm } from '@/lib/form.ts'
 /**
  * Closing the account, behind a dialog that asks for the password.
  *
- * A dialog and not a bare button on the page, which is the shape Laravel's own Vue
+ * A dialog and not a bare button on the page, which is the shape a Vue
  * starter kit uses for this — `resources/js/components/DeleteUser.vue`. The reason
  * is the same one that makes the password field here load-bearing: this is the one
  * action on the account that nothing undoes, and it should take two deliberate

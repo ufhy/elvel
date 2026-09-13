@@ -58,7 +58,7 @@ const stats = await cache().remember('stats', 300, async () => expensive())
 ```
 
 Called twice, the callback runs once. `rememberForever` has no expiry, and
-`sear` is Laravel's alias for it.
+`sear` is the other name for it.
 
 ## `flexible` — stale while revalidate
 
@@ -123,12 +123,12 @@ await cache().funnel('reports').limit(3).releaseAfter(60).block(10, async () => 
 memory at four, a legacy database with a small pool. Forcing those through one
 lock turns concurrent work into a queue.
 
-Laravel's funnel is Redis-only, because it takes a slot with a Lua script. This
+A Redis-only funnel can take a slot with a Lua script. This
 one is not: a lock is already atomic on every driver here, so N named locks are a
 semaphore that behaves the same on `array`, `file`, `database` and `redis`.
 
 ::: warning Never `await` a funnel itself
-`Funnel` has a `then()` method, because that is what Laravel calls it — which
+`Funnel` has a `then()` method, because that is the documented name — which
 makes the object thenable. `await funnel` would hand the promise machinery's
 `resolve` a slot. Always call it: `funnel.then(cb)` or `funnel.block(10, cb)`.
 :::

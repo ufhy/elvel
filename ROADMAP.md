@@ -163,7 +163,7 @@ behind a config key that is off by default.
 
 The scaffolded `stack` channel contains `['console']`. Nothing writes a file, so
 `storage/logs` stays empty — which reads as a bug to anyone who arrives from
-Laravel, where the default stack writes `storage/logs/laravel.log`.
+the convention of a single `storage/logs/*.log` written by the default stack.
 
 Either the default gains a file channel, or the divergence is documented where
 somebody looking for their logs will find it. Doing neither is what happens now.
@@ -196,4 +196,4 @@ HTML, which costs nothing architecturally.
 and the server-driven simplicity — `errors()`, `old()`, a redirect that carries a
 message — is the thing being traded away. It is the right answer for an
 application whose pages are one long-lived session; it is the wrong default for a
-framework whose shape is Laravel's.
+framework of this shape.

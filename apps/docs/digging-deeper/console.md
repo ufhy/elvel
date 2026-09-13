@@ -1,6 +1,6 @@
 # Console
 
-`elvel` is the CLI — Laravel's `artisan`, renamed. Every command in every
+`elvel` is the CLI. Every command in every
 installed package shows up in one list, grouped by prefix:
 
 ```bash
@@ -116,7 +116,7 @@ const kind = await this.choice('Which?', ['a', 'b'], 'a')
 ```
 
 `this.call('migrate', ['--force'])` runs another command from inside this one —
-Laravel's `$this->call()`.
+`this.call()`.
 
 Return a number from `handle()` to set the exit code; returning nothing means
 success.

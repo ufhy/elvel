@@ -1,6 +1,6 @@
 # Elvel
 
-Laravel's structure and developer experience, built on [Elysia](https://elysiajs.com)
+A familiar structure and developer experience, built on [Elysia](https://elysiajs.com)
 and Bun.
 
 **Status: alpha, published on npm.** Twenty-seven packages, released together and
@@ -49,7 +49,7 @@ has the rest.
 | `@elvel/view` | JSX renderer (`@kitajs/html`), `view()`/`render()` helpers, static file serving. |
 | `@elvel/auth` | better-auth over our own query builder, plus Gate and policies. Two-factor and passkeys are plugins the kits with accounts already wire up. |
 | `@elvel/cache` | Four stores (array, file, database, redis) with atomic locks, tags and a rate limiter. |
-| `@elvel/queue` | Jobs, three drivers, worker with Laravel's retry policy, chains, failed jobs. |
+| `@elvel/queue` | Jobs, three drivers, a worker with retries and backoff, chains, failed jobs. |
 | `@elvel/scheduler` | Cron matcher, `withoutOverlapping`, timezones, `schedule:run`/`schedule:test`. |
 | `@elvel/mail` | Mailables, nodemailer transports, queued mail. |
 | `@elvel/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |

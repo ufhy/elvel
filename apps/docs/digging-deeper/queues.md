@@ -1,7 +1,7 @@
 # Queues
 
 A queue is how a request returns before the work is done. `@elvel/queue` is
-Laravel's queue with one honest difference, and the rest of this page is mostly
+A familiar queue with one honest difference, and the rest of this page is mostly
 about what follows from it.
 
 ## Jobs carry data, not themselves
@@ -27,7 +27,7 @@ await dispatch(new SendWelcomeEmail({ userId: user.id }))
 await dispatch(new SendWelcomeEmail({ userId: user.id }), { delay: 60, queue: 'mail' })
 ```
 
-Laravel serialises the job **object**; PHP can `serialize($job)` and TypeScript
+Serialising the job **object** is possible where a runtime has `serialize()`; TypeScript
 cannot. So the base class owns `data`, and it is `data` that is written to the
 queue and read back. The class is found by name when a worker picks the payload
 up, which is why a job has to be registered:
@@ -69,9 +69,9 @@ const batch = await queue()
   .dispatch()
 ```
 
-Three things differ from Laravel, each for a reason.
+Three things differ from what you may expect, each for a reason.
 
-**The callbacks are job classes, not closures.** Laravel serialises a closure
+**The callbacks are job classes, not closures.** Serialising a closure
 into the batch row; a closure cannot be rebuilt in the worker that would run it.
 Naming a job is the honest version of the same idea, and it means a callback gets
 retries and a failure record like anything else that runs in a worker.
@@ -104,7 +104,7 @@ not wait for each other — and neither a plain batch nor a plain chain says it.
 A chain counts as all of its links, so `onSuccess` fires when the last one lands
 rather than when the first chain is merely queued.
 
-Failures stop the rest by default, as Laravel has it. `allowFailures()` keeps
+Failures stop the rest by default. `allowFailures()` keeps
 going. Cancelling does not delete queued jobs — a worker cannot reach into
 another queue and remove them — they are skipped at reservation instead, so a job
 of a cancelled batch never reaches `handle()`.
@@ -207,7 +207,7 @@ to ask whether anything changed in the microsecond since the last look. Both set
 are scored in whole seconds, so once a second finds everything a busier sweep
 would. The cost is patience: a delayed job may start up to this many seconds after
 its time, and a job abandoned by a dead worker is recovered that much later. `0`
-sweeps on every pop, which is what Laravel does.
+sweeps on every pop.
 
 `blockFor` decides how an idle worker waits. Unset, it sleeps `--sleep` seconds
 between looks, so a job pushed just after a look waits that long to start — 1.7
@@ -219,7 +219,7 @@ redis: { driver: 'redis', url: env('REDIS_URL'), blockFor: 5 }
 ```
 
 The cost is a second Redis connection per worker, held open for as long as it
-waits — which is why it is a choice rather than the default, as Laravel's
+waits — which is why it is a choice rather than the default, as the
 `block_for` is. The blocking read gets its own connection deliberately: `BLPOP`
 holds whichever connection it runs on, and sharing the driver's would mean a
 worker's idle wait stalling every `push` from the same process.

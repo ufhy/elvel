@@ -75,7 +75,7 @@
   },
   "version": "1.0.0-alpha.26",
   "license": "MIT",
-  "description": "Elvel — a Laravel-shaped framework for Bun, built on Elysia",
+  "description": "Elvel — a batteries-included framework for Bun, built on Elysia",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ufhy/elvel.git"

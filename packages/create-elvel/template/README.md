@@ -1,6 +1,6 @@
 # {{ name }}
 
-An [Elvel](https://github.com/ufhy/elvel) application — Laravel's structure and
+An [Elvel](https://github.com/ufhy/elvel) application — a familiar structure and
 developer experience on Elysia and Bun.
 
 ## Getting started
@@ -41,7 +41,7 @@ offers — `bootstrap/providers.ts` decides. Adding a package adds its commands.
 ## Routing and controllers
 
 Routes are declared in `routes/web.ts`, and the file exports nothing — the same
-shape as Laravel's `routes/web.php`.
+shape as any routes file you have written.
 
 ```ts
 // routes/web.ts
@@ -53,7 +53,7 @@ Route.get('/', () => view(Welcome, { title: 'Welcome' })).name('home')
 Route.get('/health', () => ({ status: 'ok' }))
 ```
 
-A handler is either a closure or `[Controller, 'method']` — Laravel's `fn () => …`
+A handler is either a closure or `[Controller, 'method']` — the `fn () => …`
 and `[Controller::class, 'method']`. The two above are closures because neither has
 anything a class would hold.
 
@@ -79,7 +79,7 @@ Elysia's request context, so `{ params, query, body, request, set }` is
 destructured from its argument — a closure takes the same thing as its argument.
 One instance is built per route and reused — keep them stateless.
 
-Groups, names, constraints and resources all read the way they do in Laravel:
+Groups, names, constraints and resources all read the way you expect:
 
 ```ts
 Route.middleware('auth').prefix('admin').name('admin.').group(() => {
@@ -180,7 +180,7 @@ a silent failure.
 bun test
 ```
 
-`tests/Feature` boots the application, `tests/Unit` does not — Laravel's split,
+`tests/Feature` boots the application, `tests/Unit` does not — a split by cost,
 kept because the two have very different costs.
 
 ```ts
@@ -279,4 +279,4 @@ why `config:publish` adds a line there as well as copying the file.
 The framework's own documentation lives at
 <https://github.com/ufhy/elvel>. `BEHAVIOURS.md` there records the decisions
 behind each package — where it stops, and why — which is usually the answer when
-something behaves differently from Laravel.
+something behaves differently from what you expected.

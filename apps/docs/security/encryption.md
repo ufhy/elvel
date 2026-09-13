@@ -15,7 +15,7 @@ decrypt<Card>(payload, 'card:1')       // throws unless the purpose matches
 
 **GCM only, no CBC.** GCM is AEAD: one operation encrypts *and* authenticates, so
 there is no separate MAC to compute, order, or forget to compare in constant time.
-Laravel keeps CBC for payloads written by older versions of itself; there is no
+CBC is kept elsewhere for payloads written by older versions; there is no
 such history here to honour.
 
 **A versioned, compact payload** — `v1.<iv>.<ciphertext‖tag>` in base64url —

@@ -11,7 +11,8 @@ Route.get('/', [PageController, 'index']).name('home')
 Route.get('/health', [PageController, 'health'])
 ```
 
-That is Laravel's `routes/web.php`, and the resemblance is the point: `Route`
+That is a routes file, and the resemblance to one you have written before is
+the point: `Route`
 collects what the file declares while it is being imported, and the framework
 compiles the collection once the file has finished. Nothing to export, and nothing
 to remember to mount.
@@ -34,11 +35,11 @@ Route.any(uri, action)                        // every verb
 Route.match(['get', 'post'], uri, action)     // these two
 ```
 
-A verb the route did not name answers **404**, not 405 — the same as Laravel's.
+A verb the route did not name answers **404**, not 405.
 
 ## What a route runs
 
-Three forms, all of them Laravel's:
+Three forms:
 
 ```ts
 Route.get('/users/{id}', [UserController, 'show'])       // a controller method
@@ -61,7 +62,7 @@ export default class UserController {
 }
 ```
 
-One instance is built per route and reused — not one per request. Laravel resolves
+One instance is built per route and reused — not one per request. Resolving
 a controller out of the container per request because a PHP process serves one
 request at a time; here a per-request instance would be a new object on every hit
 for a class that almost never has state, and state on a controller is a bug either
@@ -104,8 +105,8 @@ Route.pattern('id', '[0-9]+')      // every {id} in the application
 
 A route's own `where` beats the global one.
 
-::: warning One difference from Laravel
-In Laravel a constraint is part of **matching**: `/users/{id}` restricted to digits
+::: warning One difference worth knowing
+Where a constraint is part of **matching**, `/users/{id}` restricted to digits
 and `/users/{slug}` can both exist, and a non-numeric id falls through from the
 first to the second. Here a failed constraint is a **404** instead.
 
@@ -119,7 +120,7 @@ exists with a different parameter name ("id") in the same location
 
 The pair cannot coexist at all, so there is nothing to fall through to. Closing
 the gap means replacing Elysia's router — and the typed context, schema validation
-and speed that come with it. Everything else about `where` behaves as Laravel's
+and speed that come with it. Everything else about `where` behaves as you
 does.
 :::
 
@@ -135,7 +136,7 @@ Route.permanentRedirect('/old', '/new')       // 301
 an application that never registered `ViewServiceProvider` gets a container error
 naming `view` rather than a mystery.
 
-It also takes a **status and headers**, Laravel's fourth and fifth arguments, and
+It also takes a **status and headers**, and
 the fifth is the one with a job:
 
 ```ts
@@ -197,7 +198,7 @@ Route.prefix('admin')
   })
 ```
 
-The attributes are `prefix`, `name` (and `as`, its Laravel alias), `middleware`,
+The attributes are `prefix`, `name` (and its alias `as`), `middleware`,
 `withoutMiddleware`, `domain`, `controller`, `where` and the `where*` shorthands,
 `scopeBindings`, `withoutScopedBindings` and `missing`. The object form works too:
 
@@ -227,7 +228,7 @@ current()?.getMetadata('head.robots', ['index'])   // with a fallback
 ```
 
 A route's metadata merges **over** its group's, key by key and deeply. Two rules
-are not what the merge suggests, and both come from Laravel's own tests:
+are not what the merge suggests, and both come from the upstream tests:
 
 - a **list replaces** a list — `robots: ['index', 'follow']` under
   `robots: ['noindex']` leaves `['noindex']`, not three entries
@@ -256,7 +257,7 @@ Route.middleware('auth').group(() => {
 })
 ```
 
-`can` is spelt as Laravel spells it, over the middleware `@elvel/auth` registers:
+`can` sits over the middleware `@elvel/auth` registers:
 
 ```ts
 Route.put('/posts/{post}', [PostController, 'update']).can('update', 'post')
@@ -266,7 +267,7 @@ See [Middleware](/basics/middleware) for the aliases and how to add your own.
 
 ## Validation
 
-Laravel has no `->validate()` on a route, and this framework does, because Elysia's
+`->validate()` sits beside a form request rather than replacing it, because Elysia's
 schemas type the handler's `body` — a mistyped field name is a compile error rather
 than an `undefined` two layers later:
 
@@ -289,7 +290,7 @@ middleware, so a guard never sees a body that failed its schema.
 Route.resource('photos', PhotoController)
 ```
 
-Seven routes, with Laravel's URIs, verbs and names:
+Seven routes, with their URIs, verbs and names:
 
 | Verb | URI | Method | Name |
 | --- | --- | --- | --- |
@@ -368,9 +369,9 @@ export default class ArticleController {
 }
 ```
 
-Declared rather than inferred from a type hint, which Laravel can do and this
+Declared rather than inferred from a type hint, which this
 cannot: TypeScript erases types and Bun emits no decorator metadata to put them
-back. `Route::model()` is Laravel's own explicit form and this is that.
+back.
 
 A middleware rather than something automatic: a route that takes an id and does not
 want the row loaded should not pay for a query.
@@ -416,7 +417,8 @@ to be able to find it.
 
 ## A catch-all, and the fallback
 
-A client-side router owns addresses the server has no routes for. Laravel writes
+A client-side router owns addresses the server has no routes for. The usual
+spelling
 that as `Route::view('{path}', 'main')` with `where('path', '.*')`, and so does
 this:
 
@@ -426,7 +428,7 @@ Route.view('/{path}', MainLayout, { title: 'App' }).where('path', '.*')
 
 `.*` is the one constraint that changes matching rather than filtering: it compiles
 to a wildcard, because `:path` matches a single segment. A prefixed wildcard also
-answers the prefix itself — `/admin/{rest}` answers `/admin` — because Laravel's
+answers the prefix itself — `/admin/{rest}` answers `/admin` — because a
 does and a panel whose own front page 404s is a gap found in production.
 
 `Route.fallback` is the other form, and it differs in one way worth knowing:
@@ -483,7 +485,7 @@ reason routes have names.
 
 ## More than one routes file
 
-A file per area, which is how Laravel's own starter kits are laid out:
+A file per area:
 
 ```ts
 // bootstrap/app.ts

@@ -63,7 +63,7 @@ nothing infers that for you, and a missing one is a script the browser refuses w
 only a console line to say so.
 
 Inline **styles** are allowed. A view is allowed to carry its own, for the reason
-Laravel's `welcome.blade.php` does: a stylesheet request before the first paint is
+the scaffold's landing page does: a stylesheet request before the first paint is
 a flash of unstyled text.
 
 ## The dev server is part of the policy

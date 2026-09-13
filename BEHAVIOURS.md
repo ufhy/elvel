@@ -10,7 +10,7 @@ code. The code says what happens; this says why.
 It had a companion, `GAPS.md`, holding what was still missing. Four of them have
 now counted down to zero and been deleted, which is the only way their length ever
 meant anything — the third because the second measured the wrong thing: it
-compared Laravel *component by component* and found 30 of 38 covered, while the
+compared the upstream framework *component by component* and found 30 of 38 covered, while the
 real distance was inside them. Measured at method level against 13.25.0, that
 distance is closed as well; the `gh api` recipe for re-measuring is in the git
 history, and a fourth list belongs there only when there is real debt to count
@@ -103,7 +103,7 @@ Three things to know about pivots:
   journal to switch.
 - **The playground's tests use a database of their own.** Even with WAL, one file
   shared by the tests, the smoke run and a running server is a file that is being
-  migrated out from under somebody. Laravel's answer is the same: a separate
+  migrated out from under somebody. The usual answer is the same: a separate
   database for testing.
 
 
@@ -129,7 +129,8 @@ Four things to know about a queued listener:
 
 Two things to know about `defer()`:
 
-- **It is per async context, not per dispatcher.** Laravel can hold the deferral
+- **It is per async context, not per dispatcher.** A runtime serving one request
+  at a time can hold the deferral
   on the instance because one request is one process; here a single dispatcher
   serves every request at once, and a flag on it would swallow the events of
   whatever else happened to be in flight. The deferral follows the callback's
@@ -137,7 +138,7 @@ Two things to know about `defer()`:
   loses its events nor inherits somebody else's rollback.
 - **`until()` is never deferred.** A halting dispatch is a question, and holding
   one would answer `null` before a single listener had run — which reads as
-  "nobody objected". Laravel defers it because `until` is `dispatch(…, halt:
+  "nobody objected". It is deferred because `until` is `dispatch(…, halt:
   true)` there; here it runs at once, inside a deferral as it would outside one.
 
 The dispatcher itself knows nothing about queues: the push arrives as a hook that
@@ -157,10 +158,10 @@ Four things to know about file rules:
   anything else `mimes` falls back to the type the client declared, which is a
   claim; `mimetypes:` takes a media type directly, and the extension table is
   deliberately short rather than pretending to cover everything.
-- **A size rule on an upload is kilobytes.** `max:2048` is 2MB, matching Laravel,
+- **A size rule on an upload is kilobytes.** `max:2048` is 2MB,
   and the message says "kilobytes" rather than "characters".
 - **Executable extensions are refused unless named.** `mimes:txt` will not accept
-  `run.sh` or `x.phar`; `mimes:php` will. Laravel blocks the PHP family the same
+  `run.sh` or `x.phar`; `mimes:php` will. The PHP family is blocked the same
   way, widened here to the obvious shell and Windows cases.
 
 Three things to know about wildcard rules:
@@ -220,7 +221,7 @@ Four things to know about the form loop:
 - **Silence means opposite things to validation and to a redirect**, and that is
   deliberate. A request with no `Accept` header at all is read as a client by
   `FormRequest` — no browser omits it — and as a browser by `Redirect`, which is
-  Laravel's own reading. What is at stake decides it: a `Request` built without
+  the usual reading. What is at stake decides it: a `Request` built without
   headers is a test, an internal dispatch or a health probe, and reading those as
   clients turned 29 redirects into JSON payloads nobody followed. The rule lives in
   one place, `negotiation.ts`, with the difference passed in as `whenSilent`.
@@ -322,7 +323,7 @@ Two things to know when using it:
 
 Three behaviours worth knowing rather than discovering:
 
-- **`funnel()` works on every driver, unlike Laravel's.** Laravel acquires a
+- **`funnel()` works on every driver.** A Redis-only version acquires a
   slot with a Lua script, which ties it to Redis. A `Lock` here is already atomic
   on every store, so N named locks are a semaphore that behaves the same on
   `array`, `file`, `database` and `redis` — at the cost of up to N round trips to
@@ -330,7 +331,7 @@ Three behaviours worth knowing rather than discovering:
 - **Tagged entries linger.** Flushing a tag rotates its id, so every key written
   under the old namespace becomes unreachable at once — but the entries stay until
   their own TTL runs out. That is what lets tags work without an index of which
-  keys belong to which tag, and it is Laravel's design too.
+  keys belong to which tag.
 - **`flush()` on Redis scans this store's prefix** rather than issuing `FLUSHDB`,
   which would take another application's keys with it. With no prefix configured
   there is nothing to scan for, and it does flush the database.
@@ -369,14 +370,14 @@ Behaviours worth knowing rather than discovering:
   dispatches another callback, for ever. The id travels in the callback's data
   instead. Found by a test hanging rather than failing.
 - **A chain inside a batch counts as all of its links.** An array in the job
-  list is a chain, as in Laravel: every link carries the batch id and decrements
+  list is a chain: every link carries the batch id and decrements
   the count as it succeeds. Counting the chain as one job would fire `onSuccess`
   while most of the work was still queued. A cancelled batch is why
   `queue:prune-batches` has a `--cancelled` window of its own — see below.
 - **A cancelled batch's jobs are skipped, not deleted.** A driver has no random
   access and another worker may already hold one, so cancellation is checked when a
   job is reserved. A cancelled batch therefore stays unfinished, with a pending
-  count for work that will never run — Laravel behaves the same way.
+  count for work that will never run.
 - **`app.handle()` never runs deferred callbacks.** Elysia fires
   `onAfterResponse` when a response is transmitted, and an in-process
   `app.handle()` transmits nothing. A test that needs `defer()` should call
@@ -396,11 +397,11 @@ Behaviours worth knowing rather than discovering:
   queued.
 - **`retryAfter` must exceed your slowest job.** It is how long a reservation is
   trusted; a job still running when it expires will be picked up a second time,
-  which is the same trade Laravel makes.
+  which is the trade a bulk operation makes.
 - **A timed-out job is abandoned, not killed.** Without process isolation there
   is no way to stop an async function already running, so the worker stops
   waiting, fails or retries the job, and moves on — while the original attempt
-  keeps going in the background until it finishes on its own. Laravel's `pcntl`
+  keeps going in the background until it finishes on its own. A signal-based alarm
   alarm does kill it. This is the honest half of that, and it means a timeout
   bounds *the worker's* wait, not the job's work: a job that leaks a connection
   will still leak it after being declared failed.
@@ -411,20 +412,20 @@ Behaviours worth knowing rather than discovering:
 **A rate limit checks and then increments, so concurrent requests slip past.**
 Four simultaneous calls against `throttle:3,1` all return 200: each reads the
 counter before any of them has written to it. `Illuminate\Routing\Middleware\ThrottleRequests`
-has the same shape, so this is Laravel's behaviour rather than a divergence, and
+has the same shape, so this is not a divergence, and
 the smoke test presses the routes sequentially because that is what a client does.
 It matters for a limit meant to stop a burst rather than a rate — an atomic
 increment-and-compare in the store is what would fix it.
 
-**Route bindings are declared, not inferred, and that is forced.** Laravel reads
+**Route bindings are declared, not inferred, and that is forced.** A container reading
 the handler's type hints and needs no registration; TypeScript erases them and
 Bun emits no decorator metadata to put them back — the measurement is in the
 Limits section below. So `bindings().model('article', Article)` is how a
-parameter gets a meaning, which is what Laravel's own `Route::model()` is for
+parameter gets a meaning, which is what an explicit `Route.model()` is for
 anyway.
 
 Resolution is a middleware rather than automatic, as `SubstituteBindings` is in
-Laravel: a route that takes an id and never loads the row should not pay for a
+automatic: a route that takes an id and never loads the row should not pay for a
 query. It runs after `auth` and `verified` and before `can` — loading a row for
 somebody about to be turned away is work for nothing, and `can:update,article`
 needs the article already there.
@@ -538,7 +539,7 @@ why it is a second bootstrap rather than the only one.
 - **Output is text unless you ask for bytes.** `output` is a JavaScript string,
   and a string here is UTF-16: a PNG or a tarball on stdout becomes replacement
   characters on the way in, and the bytes are gone before anybody can ask. PHP
-  has no such problem — its strings are byte arrays — which is why Laravel needs
+  has no such problem — its strings are byte arrays — which is why it needs
   no equivalent of `binary()`. Ours keeps the raw chunks when asked and answers
   with an empty buffer when not, rather than re-encoding the decoded string,
   which is the round trip that destroyed the data.
@@ -568,8 +569,8 @@ a client that swallowed them would be unusable inside a corporate network.
 family read an array the client only fills while `fake()` or `record()` has
 turned recording on. Filling it unconditionally looked harmless and is a slow
 leak — a server running for a week would keep every outbound request and response
-it ever made, and nothing would ever read them. Laravel guards the same array with
-the same flag, and `fake()` empties it so an assertion describes the test rather
+it ever made, and nothing would ever read them. `fake()` empties it so an
+assertion describes the test rather
 than the process.
 
 **The default retry policy is narrow, and that is the safety.** A connection
@@ -590,7 +591,7 @@ Things worth knowing:
 - **`command()` runs in this process, so a slow command holds the minute.**
   There is no second runtime to start and the exit code comes back directly,
   which is the whole reason; the cost is that `schedule:run` is occupied until
-  the command returns, and anything else due that minute waits. Laravel spawns,
+  the command returns, and anything else due that minute waits. Spawning,
   and pays a PHP boot per entry instead. `runInBackground()` is the escape hatch
   when a command is long enough to matter.
 
@@ -634,9 +635,9 @@ Things worth knowing:
   that succeeds silently every night would otherwise send an empty mail every
   night, and mail nobody reads is mail nobody notices when it matters.
 
-## The CLI — the Laravel commands that have no counterpart
+## The CLI — the upstream commands that have no counterpart
 
-Measured against `ArtisanServiceProvider` in Laravel 13.25.0. What is left after
+Measured against the upstream console provider at 13.25.0. What is left after
 building everything that applies is not a backlog; each of these is absent
 because the thing it operates on does not exist here.
 
@@ -644,7 +645,7 @@ because the thing it operates on does not exist here.
 instances holding closures, and there is no serialisable form of a route table
 whose handlers are functions. `view:cache`/`view:clear` — views are TypeScript
 modules; Bun's module cache *is* the compile cache and there is no template
-language to compile ahead of time. `event:cache`/`event:clear` — Laravel's exists
+language to compile ahead of time. `event:cache`/`event:clear` — the upstream pair exists
 to skip reflection when mapping events to listeners, and there is no reflection
 here. `clear-compiled` — no compiled container file. `optimize` therefore runs
 `config:cache` alone rather than printing four lines of which three are theatre.
@@ -659,11 +660,11 @@ wire, a Vapor internal), `make:trait` (no TypeScript equivalent), `docs`.
 table and expires its own tokens. `cache:prune-stale-tags` — tags here are a
 namespace built from per-tag ids, so flushing a tag is giving it a new id and the
 orphaned entries expire on their own TTL; there is no tag index to go stale.
-`schedule:finish` — Laravel's callback for a background task reporting
+`schedule:finish` — the callback for a background task reporting
 completion, not a command anybody runs.
 
 **The same thing under one name.** `queue:prune-failed` is `queue:flush --hours`.
-`make:console` is `make:command`. `model:prune` is Laravel's `db:prune` class.
+`make:console` is `make:command`. `model:prune` is the `db:prune` equivalent.
 `event:generate` generates from an event-to-listener map that does not exist
 here; listeners are discovered from `app/Listeners`.
 
@@ -689,7 +690,7 @@ Three behaviours worth knowing:
 - **A built message does not remember which disk an attachment came from.**
   `attachFromDisk` resolves the file to bytes while the message is built, on
   purpose: a queued message must not depend on the disk still holding the file an
-  hour later. So Laravel's `assertHasAttachmentFromStorageDisk` has no equivalent
+  hour later. So an assertion naming a disk path has no equivalent
   — `assertHasAttachment(filename)` and `assertHasAttachedData` are what is left,
   and they check what actually travels.
 - **`assertSeeInHtml` escapes its needle by default.** The view wrote
@@ -736,7 +737,7 @@ Four behaviours worth knowing:
 - **A sentence can be its own key.** `lang/id.json` translates whole strings —
   `__('You have no orders yet.')` — beside the dotted keys in `lang/id/`. Both
   shapes live in the same directory and are consulted sentence-first. The reason
-  Laravel has both is that inventing a key for every string is what stops people
+  both exist is that inventing a key for every string is what stops people
   translating anything, and a sentence key still reads correctly untranslated.
 
 
@@ -759,7 +760,7 @@ And three more:
 
 - **The id belongs to the delivery, not to the notification object.** Each recipient
   gets its own uuid, shared by every channel it is sent through — that is what lets
-  a stored row and the mail about it be correlated. Laravel gets this by cloning the
+  a stored row and the mail about it be correlated. Cloning the
   notification per recipient; we share one instance, so the id is assigned per
   recipient explicitly. Writing the test for it is what caught the first draft
   handing recipient two the id of recipient one.
@@ -785,7 +786,7 @@ Decisions worth knowing rather than discovering:
 - **Context is authenticated, not carried.** `encrypt(value, 'cookie:remember')`
   binds the purpose into the tag: the payload does not grow, the context does not
   leak, and lifting a value from one cookie into another fails to decrypt rather
-  than merely looking odd. This is what Laravel's HMAC-of-the-cookie-name prefix
+  than merely looking odd. This is what an HMAC-of-the-cookie-name prefix
   buys, without the bytes or the stripping.
 - **Every failure reads the same.** A caller is told "Could not decrypt the
   payload." whether the version, the length, the tag, the context or the key was
@@ -793,7 +794,7 @@ Decisions worth knowing rather than discovering:
 - **`session.encrypt` without the provider warns.** The cookie falls back to being
   signed rather than failing the boot, but it says so through the log: silently
   degrading would leave somebody believing a cookie is encrypted when it is not.
-- **No key accessors, on purpose.** Laravel's encrypter hands out `getKey()`,
+- **No key accessors, on purpose.** An encrypter that hands out `getKey()`,
   `getAllKeys()` and `getPreviousKeys()`; this one exposes only `keyCount`. Key
   material on a service that every controller, job and model can reach is one
   `dd($crypt)` or one serialised exception away from being written somewhere it
@@ -825,7 +826,7 @@ Decisions worth knowing rather than discovering:
   member list is something the server chose to publish — a channel that leaked an
   address would have had to name `email`. Returning nothing refuses.
 - **`here` includes the joiner; `joined` does not go to them.** That is Echo's
-  contract, and any client written for Laravel already expects it. The other
+  contract, and any client written against it already expects it. The other
   arrangement — a list without yourself, plus your own arrival — makes a client
   render itself twice.
 - **One person with two tabs is one member and one arrival.** Membership is
@@ -906,18 +907,18 @@ deliberate.
 - **A frontend build.** `vite.config.ts`, `resources/js/app.ts`,
   `resources/css/app.css`, and `bun run build` / `bun run dev:assets`. The hot
   file is written by a plugin in the config rather than by a dependency —
-  Laravel's `laravel-vite-plugin` does the same few lines. The config exports a
+  The upstream Vite plugin is the same few lines. The config exports a
   plain object rather than going through `defineConfig`, so `bun run typecheck`
   works before the front-end dependencies are installed.
 - **`vite()` is loud in production and quiet elsewhere**, which is a departure:
-  Laravel's `Vite` throws `ViteManifestNotFoundException` in every environment.
+  Throwing in every environment is the usual choice.
   It can, because `laravel new` runs the asset build while installing, so its
   first boot always has a manifest; this scaffolder cannot, since the front-end
   packages are installed when the developer asks. A 500 on the landing page
   before anybody has run anything is a poor first minute, so outside production
   it warns once, names the fix, and renders no tags.
 - **The manifest is looked for in two places.** `build/manifest.json` is where
-  Laravel looks and where `laravel-vite-plugin` puts it — it sets `manifest:
+  a plugin pinning it puts it — it sets `manifest:
   'manifest.json'`, and this template does the same. Vite 5's default is
   `.vite/manifest.json`, so a project that only set `manifest: true` has it
   there; falling back costs one `existsSync`. Found by running the build rather
@@ -925,21 +926,21 @@ deliberate.
   came out with no assets at all.
 - **`routes/console.ts`**, loaded by `withConsole()` rather than `withRoutes()`:
   it registers schedules and commands and mounts nothing, so it has no default
-  export to mount. Laravel reaches the same file through `withRouting(console:)`.
+  export to mount.
 - **`config/services.ts`**, `.editorconfig`, `.gitattributes` — the last of these
   for the reason this repository learned the hard way: a checkout on Windows
   arrives with CRLF and every file reads as unformatted.
 - **Storage directories exist**, each with the `.gitignore` that keeps its
   contents out and itself in.
 
-**Tests are split as Laravel splits them** — `tests/Feature` for the ones that
+**Tests are split by cost** — `tests/Feature` for the ones that
 boot the application, `tests/Unit` for the ones that do not. The two have very
 different costs, and being able to run the fast half alone is the difference
 between a suite you run on every save and one you run before pushing.
 
 What is still deliberately different, and why:
 
-- **`sessions.last_activity` is 64-bit, where Laravel's is 32.** The column holds
+- **`sessions.last_activity` is 64-bit, where the original is 32.** The column holds
   seconds, so a 32-bit one stops working in January 2038 — and this table's whole
   job is to be swept by comparing against that column. It is not a distant
   problem in the way it sounds: Postgres refuses an `integer` insert above `2^31`
@@ -961,7 +962,7 @@ What is still deliberately different, and why:
   alter table sessions modify last_activity bigint not null;
   -- sqlite needs nothing: it never stored the width
   ```
-- **No migrations.** Laravel ships three because its defaults put session, cache
+- **No migrations.** Three ship elsewhere because those defaults put session, cache
   and the queue in the database. Ours default to `file`, `file` and `sync`, so a
   new application needs no table at all on day one; `cache:table`, `queue:table`
   and `session:table` write them when you move. The users table is better-auth's
@@ -970,7 +971,7 @@ What is still deliberately different, and why:
   an auth kit has been chosen and `auth:schema` has run, and a model pointing at
   a table that is not there is a lie the first time anybody queries it. Both auth
   kits ship one.
-- **Providers are listed in `config/app.ts`**, where Laravel 11 moved them out to
+- **Providers are listed in `config/app.ts`**, where a later skeleton moved them out to
   `bootstrap/providers.php`; and a controller is `controller('name')` rather than
   a class extending a base `Controller`.
 - **No `phpunit.xml` equivalent.** `bun test` needs no configuration file.
@@ -1018,12 +1019,12 @@ same one — which is the only reason a second kit is worth its weight.
   `tests/Feature/Settings/`. It began as one controller of 619 lines and nineteen
   routes.
 
-  The arrangement is Laravel's, checked against the React starter kit rather than
+  The arrangement is checked against a React starter kit rather than
   guessed: it keeps `Settings/ProfileController` and `Settings/SecurityController`
   in a directory of their own, groups its auth pages under `pages/auth/`, and
   splits its tests into `Feature/Auth` and `Feature/Settings`. What it does *not*
   have is our auth controllers at all — Fortify owns those routes there. This
-  framework has no Fortify, so the kit owns them, grouped the way Laravel groups
+  framework has no Fortify, so the kit owns them, grouped the way those kits group
   what it does own. Its flows are
   driven over HTTP in the smoke run, inbox included: a reset link is read out of
   the log the `log` mailer writes to, followed to the form, used once, and refused
@@ -1051,7 +1052,7 @@ one line, and its two test files.
 **A scaffolded application arrives with tests.** The template ships a feature
 test and a unit test; each kit ships tests for the flows it scaffolds — written
 the way the application's author would write them, since they are the author's
-now. Laravel does the same, and for the same reason: `@elvel/testing` was in
+now, and for a reason: `@elvel/testing` was in
 every scaffolded `package.json` and no scaffolded file used it, which is the
 shape of every "we have that feature" that turns out not to work.
 
@@ -1083,7 +1084,7 @@ rather than merely being cleared in the browser.
 
 One thing worth knowing, and two worth remembering:
 
-- **No migrations ship in the box.** Laravel's skeleton carries `users`, `cache`
+- **No migrations ship in the box.** A skeleton usually carries `users`, `cache`
   and `jobs`; better-auth's tables depend on `config/auth.ts`, so they are
   generated with `auth:schema`, and the rest are only needed when a driver changes.
   `create-elvel` prints those steps rather than assuming them.
@@ -1109,7 +1110,7 @@ between processes: `BUN_RUNTIME_TRANSPILER_CACHE_PATH` holds only files above
 50 KB, and a framework of small modules has almost none — measured with it set,
 the cache took ten entries and the boot did not move.
 
-This is why there is no `DeferrableProvider` here. Laravel defers `Mail`,
+This is why there is no `DeferrableProvider` here. Deferring `Mail`,
 `Cache`, `Queue`, `Validation`, `Broadcasting`, `Translation` and `Hashing`, and
 porting that would have bought some fraction of those 244 ms, against a container
 that resolves bindings by loading packages and a rule that a deferred provider's
@@ -1360,7 +1361,7 @@ the rejection happens rather than sampling the output and hoping.
 **`Arr.set` would write to `Object.prototype`.** `Arr.set(target, '__proto__.isAdmin',
 true)` does not create a property called `__proto__`; it walks into the prototype
 and writes there, after which every object in the process answers `isAdmin`.
-Laravel's `data_set` has the same API and no such hazard, because PHP arrays have
+A PHP `data_set` has the same API and no such hazard, because its arrays have
 no prototype — a place where copying the interface faithfully copies a hole that
 was not in the original. Inside the framework the keys come from validation rules
 rather than from request data, so nothing shipped was exploitable; `@elvel/support`
@@ -1412,7 +1413,7 @@ braces already gone, escaping `{` and `}` costs nothing.
 **The route parameter pattern was ambiguous with itself.** `\{\s*(\w+)\s*(?::\s*(\w+)\s*)?(\?)?\s*\}`
 has two `\s*` runs that can each claim the same spaces, so `{{0` followed by a long
 run of them makes the engine try every split. Measured on the pattern directly: 2ms
-at 2,000 spaces, 5ms at 4,000, 18ms at 8,000 — quadratic. Laravel's own pattern
+at 2,000 spaces, 5ms at 4,000, 18ms at 8,000 — quadratic. The upstream pattern
 allows no whitespace at all (`RouteUri.php`: `/\{([\w\:]+?)\??\}/`), so matching it
 removed the ambiguity rather than working around it.
 
@@ -1482,7 +1483,7 @@ Measured, not judged by eye:
 WCAG asks 3:1 of a graphic and 4.5:1 of normal text, so the raw red passes as a
 logo and fails as a wordmark. The scaffolded welcome page's `--accent` is
 therefore `#c9241a` on light and `#ff5c50` on dark, and the documentation site's
-`--vp-c-brand-1` matches. Laravel does the same thing: its logo is this red and
+`--vp-c-brand-1` matches, the way a framework's logo colour and
 its body copy is not.
 
 `mark.svg` is drawn in `currentColor` so one file serves both themes — but
@@ -1605,7 +1606,7 @@ Two things this makes plain, both worth keeping:
 
 ## `{--model=*}` was read as a default of `"*"`
 
-Laravel's spelling for a repeatable option puts the star after the equals —
+The spelling for a repeatable option puts the star after the equals —
 `mail:send {--id=*}`, invoked as `--id=1 --id=2`. The signature parser handled
 `{--tag*}`, the star *before* the equals, and read the canonical form as an
 option whose default value is the string `"*"`.
@@ -1644,7 +1645,7 @@ key, with `.index()`, and with `.unique()`:
 | postgres | `json` with an index — *"data type json has no default operator class for access method btree"*. `jsonb` is fine. |
 | mysql | `text`, `mediumText`, `longText`, `binary` — *"BLOB/TEXT column used in key specification without a key length"*. `json`/`jsonb` cannot be indexed at all: *"supports indexing only via generated columns on a specified JSON path"*. |
 
-Laravel has the same limits, because they are the databases'. What this framework
+The same limits apply anywhere, because they are the databases'. What this framework
 adds is the reason the auth generator now picks `varchar` for any keyed string: a
 generator choosing `text` for something it also indexes produces a migration that
 cannot run, and unlike a hand-written blueprint there is nobody to notice.
@@ -1733,7 +1734,7 @@ is correct.
 ### `spa.areas` was built and then removed
 
 It declared a prefix, a bundle and a guard per region of an application — the shape
-Laravel writes as `Route::view('{path}', 'main')->middleware('auth')` beside
+is written as `Route.view('{path}', 'main').middleware('auth')` beside
 `Route::view('/auth/{path}', 'auth')`. Prefixed areas became real routes; the root
 area was applied by the exception handler, which ran its middleware itself, because
 a `GET /*` route lost to the static file plugin in development.
@@ -1741,7 +1742,7 @@ a `GET /*` route lost to the static file plugin in development.
 That last clause was a framework bug, found later and fixed: `@elysiajs/static`
 with `alwaysStatic: false` claims `/*` and answers its own misses, so routing
 depended on `APP_ENV` — `/deep/link` served the page in production and 404 in
-development, from one source. Laravel never has this because static files are not
+development, from one source. A stack where static files are not
 routes there: nginx is `try_files $uri $uri/ /index.php`, Valet's `isStaticFile()`
 is `file_exists(...) ? path : false`. `alwaysStatic: true` is that shape — a route
 per file that exists, and a miss falls through. A bare `.get('/*')` now works in
@@ -1786,7 +1787,7 @@ time an application had two.
 into a chunk they share, so both entries report `css: []`. `vite()` read only
 `chunk.css`, so the page rendered as unstyled HTML with nothing in the console —
 found by looking at a screenshot, not at code. It walks the import graph now, as
-Laravel's plugin does.
+the upstream plugin does.
 
 **`useForm` cannot post from a shell.** It read the CSRF token from the embedded
 payload, and a shell carries none. `FormOptions.token` is a getter rather than a
@@ -2290,7 +2291,7 @@ variable is a trap, so `WorkerDriver` refuses a function outright and asks for
 `{ module, export, args }`. `SyncDriver` accepts one, because nothing crosses a
 boundary there — which also makes `sync` a poor rehearsal for `worker`.
 
-**Laravel's `Reflection` component cannot be written here.**
+**A `Reflection` component cannot be written here.**
 `Reflector` exists to read a constructor's parameter *types* and resolve each one
 from the container. TypeScript erases those types, and nothing puts them back:
 `Reflect.getMetadata('design:paramtypes', …)` is `undefined` under Bun even with

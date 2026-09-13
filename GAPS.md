@@ -5,16 +5,20 @@ narrowed — the length of this file measures the work left, and a file that can
 shrink measures nothing. Behaviour that exists and merely surprises belongs in
 `BEHAVIOURS.md`.
 
-Measured against **`laravel/framework` v13.31.0** (released 2026-09-08), read as
-source, one component at a time. Not against the documentation.
+Measured against **`github.com/laravel/framework` v13.31.0** (released
+2026-09-08), read as source, one component at a time — not against the
+documentation. That tag is the only place it is named: everywhere below it is
+"upstream", because a measurement needs a baseline and a gap row does not need a
+brand.
 
-**Open: 103** — all 37 components measured against laravel/framework v13.31.0.
-Concurrency, Contracts, Encryption, Hashing, JsonSchema, Notifications,
-Reflection and Scheduling added none.
-Concurrency, Contracts, Encryption, Hashing, JsonSchema and Notifications added
-none. Concurrency added none: it is ahead of
-Laravel's. Laravel keeps Scheduling inside Console; here it is a package of its
-own and is measured separately.
+**Open: 103** — all 37 components measured.
+
+Eight added none: Concurrency, Contracts, Encryption, Hashing, JsonSchema,
+Notifications, Reflection and Scheduling. Four of those eight are ahead of
+Upstream rather than level with it, and the reasons are at the bottom.
+
+Scheduling sits inside Console upstream; here it is a package of its own and is
+measured separately.
 
 ---
 
@@ -22,7 +26,7 @@ own and is measured separately.
 
 ### HTTP Basic authentication does not exist
 
-Laravel has three doors into it: the `auth.basic` middleware
+Upstream has three doors into it: the `auth.basic` middleware
 (`Illuminate/Auth/Middleware/AuthenticateWithBasicAuth.php`), `Auth::basic()`,
 and `Auth::onceBasic()` for a stateless check. `SessionGuard::basic()` reads the
 `Authorization: Basic` header, attempts against the user provider, and answers
@@ -40,7 +44,7 @@ constant-time.
 
 ### Nothing is dispatched when somebody signs in
 
-Laravel dispatches fourteen events from `Illuminate/Auth/Events`: `Attempting`,
+Upstream dispatches fourteen events from `Illuminate/Auth/Events`: `Attempting`,
 `Validated`, `Login`, `Authenticated`, `Failed`, `Lockout`, `Logout`,
 `CurrentDeviceLogout`, `OtherDeviceLogout`, `Registered`, `Verified`,
 `PasswordReset`, `PasswordResetLinkSent`, and `GateEvaluated`.
@@ -52,7 +56,7 @@ revocation epoch.
 
 The consequence is not cosmetic. "Log every failed sign-in", "notify on a new
 device", "seed a workspace when a user registers", "audit password resets" are
-all listener-shaped problems in Laravel and have no seam at all here. Lens
+all listener-shaped problems in upstream and have no seam at all here. Lens
 cannot have an auth watcher for the same reason.
 
 better-auth already calls hooks at each of these moments, so the work is a
@@ -74,7 +78,7 @@ built on — and what tells you a policy you wrote is not being discovered.
 
 ### `Gate::defaultDenialResponse()` is absent
 
-Laravel lets an application set the response every denial falls back to, so an
+Upstream lets an application set the response every denial falls back to, so an
 API can answer `404` everywhere instead of `403` without writing
 `denyAsNotFound()` in forty policies. `AuthorizationResponse` supports the
 status; nothing configures the default.
@@ -96,7 +100,7 @@ nobody declared is refused. That is Reverb's design, built in.
 `Broadcastable.broadcastExcept()` exists in `packages/broadcasting/src/provider.ts`
 and `Broadcaster.deliver()` honours it. Nothing can ever supply the value.
 
-In Laravel the loop closes in two places: the browser learns its socket id from
+In upstream the loop closes in two places: the browser learns its socket id from
 the connection, sends it back as `X-Socket-ID` on every request, and
 `Broadcast::socket($request)` reads it into the event. Elvel closes neither end
 — the `open` hook registers the subscriber and sends **nothing**, so the client
@@ -112,7 +116,7 @@ that request skips that socket by default.
 
 ### Every broadcast is sent inline
 
-Laravel queues a broadcast unless the event says otherwise: `ShouldBroadcast`
+Upstream queues a broadcast unless the event says otherwise: `ShouldBroadcast`
 goes through the `BroadcastEvent` job on `broadcastQueue`/`broadcastConnection`,
 `ShouldBroadcastNow` is the opt-out, and `afterCommit` holds it until the
 transaction lands.
@@ -130,7 +134,7 @@ when a publish that fails is a failed job rather than silence.
 
 ### `broadcastWhen()` is absent
 
-Laravel's event decides at dispatch time whether it broadcasts at all — the
+Upstream's event decides at dispatch time whether it broadcasts at all — the
 usual case being a state machine that only announces some transitions. The
 `Broadcastable` type has `broadcastOn`, `broadcastAs`, `broadcastWith` and
 `broadcastExcept`, and no condition.
@@ -150,7 +154,7 @@ error at boot rather than a silent fallback.
 
 ### No managed broker
 
-Laravel ships Pusher and Ably drivers; Elvel holds the sockets itself. That is
+Upstream ships Pusher and Ably drivers; Elvel holds the sockets itself. That is
 the right default and it is the whole story on a server you control — but it is
 not a story at all on a platform that will not let a process hold connections,
 which is where the managed brokers are the only option.
@@ -161,7 +165,7 @@ alive.
 
 ### Nothing on the client
 
-Laravel ships `laravel-echo`. Elvel documents the frame shapes —
+Upstream ships `laravel-echo`. Elvel documents the frame shapes —
 `{"subscribe":"orders.7"}` — and stops there, so every application writes the
 same reconnect loop, the same backoff, the same resubscribe-after-reconnect, and
 the same presence bookkeeping, and gets the third one wrong.
@@ -182,7 +186,7 @@ same idea. `ShouldBeUnique` and `afterCommit` are both there.
 
 ### `dispatchAfterResponse()` does not exist
 
-Laravel's third dispatch mode: run the job in **this** process once the response
+Upstream's third dispatch mode: run the job in **this** process once the response
 has been sent, with no queue and no worker. It is what a small side effect wants
 — write an audit row, warm a cache — where queuing is more infrastructure than
 the work is worth and `dispatchSync` would make the visitor wait for it.
@@ -208,7 +212,7 @@ uses it.
 
 ### A batch cannot grow
 
-`$batch->add($jobs)` is how Laravel fans work out progressively — the first job
+`$batch->add($jobs)` is how upstream fans work out progressively — the first job
 discovers the work and adds it to the batch it is already in, and the totals
 move with it. `Batch` has no `add`, and `BatchRepository` has no way to raise
 `totalJobs` and `pendingJobs` on a row that already exists.
@@ -239,7 +243,7 @@ chain, and a batch can stand as a link.
 
 ### A batch only announces that it was dispatched
 
-Laravel dispatches four: `BatchDispatched`, `BatchStarted`, `BatchFinished`,
+Upstream dispatches four: `BatchDispatched`, `BatchStarted`, `BatchFinished`,
 `BatchCanceled`. Elvel emits `queue.batch.dispatched` from
 `packages/queue/src/bus.ts` and nothing else.
 
@@ -256,7 +260,7 @@ and counts, and the Lens batch entry is amended when they arrive.
 `QueueFake` asserts `assertPushed`, `assertNotPushed`, `assertPushedTimes`,
 `assertPushedOn`, `assertPushedWithDelay`, `assertNothingPushed`, `assertCount`.
 
-Laravel's bus fake also carries `assertChained`, `assertDispatchedWithoutChain`,
+Upstream's bus fake also carries `assertChained`, `assertDispatchedWithoutChain`,
 `assertNothingChained`, `assertBatched`, `assertBatchCount`,
 `assertNothingBatched` and `assertDispatchedSync`. None have an equivalent, so
 "this controller dispatches these three jobs *in order*" and "this import is
@@ -281,7 +285,7 @@ counting attempts, and `flexible()` refreshes behind a lock after the response.
 ### Four stores
 
 `array`, `file`, `database`, `redis`, plus the `memo` wrapper and `extend()`.
-Laravel also ships `null`, `memcached` and `dynamodb`.
+Upstream also ships `null`, `memcached` and `dynamodb`.
 
 `null` is the one that is missed daily: there is no way to say "cache nothing"
 in an environment, and `CACHE_STORE=null` today is a boot error. Proving a page
@@ -292,7 +296,7 @@ or a documented `extend()` recipe.
 
 ### A store that is down takes the application with it
 
-Laravel 13 added `FailoverStore`: a list of stores tried in order, falling to
+Upstream added `FailoverStore`: a list of stores tried in order, falling to
 the next when one throws, dispatching `CacheFailedOver` as it goes. Nothing
 equivalent exists here — `CacheManager.driverFor()` builds exactly one store per
 name, and a Redis that stops answering turns every cached read into an
@@ -321,7 +325,7 @@ that almost nobody checks. The cache silently stops caching and the only symptom
 is that the application gets slower.
 
 Elvel emits five cache events: `hit`, `missed`, `written`, `forgotten`,
-`flushed`. Laravel emits eighteen, and the two families missing here are exactly
+`flushed`. Upstream emits eighteen, and the two families missing here are exactly
 the ones that are not decorative:
 
 - the failures — `KeyWriteFailed`, `KeyForgetFailed`, `CacheFlushFailed`,
@@ -332,7 +336,7 @@ the ones that are not decorative:
 
 **Done when** a failed write, forget or flush dispatches an event, Lens shows it
 as a finding, and the before-events exist for the six operations that have them
-in Laravel.
+in upstream.
 
 ### Locks cannot be flushed or inspected
 
@@ -346,13 +350,13 @@ behind, and the only ways out today are waiting for the TTL or deleting the key
 by hand. `isLocked()` is one line on top of `currentOwner()`.
 
 **Done when** a lock can be inspected and force-released, and every lock in a
-store can be flushed with the events Laravel dispatches around it.
+store can be flushed with the events upstream dispatches around it.
 
 ### A named limiter cannot shape its own refusal
 
 `LimiterRegistry` in `packages/http/src/throttle.ts` covers
 `RateLimiter::for(...)`. What `Limit` cannot do is say what happens when it is
-hit: Laravel's `Limit::response(...)` gives the limiter its own 429 body,
+hit: Upstream's `Limit::response(...)` gives the limiter its own 429 body,
 `Limit::after(...)` its own callback. Elvel throws a fixed
 `TooManyRequestsError('Too Many Attempts.')` for every limiter in the
 application.
@@ -364,7 +368,7 @@ Also absent from `Limit`: `perMinutes(n)` and `fallbackKey`.
 
 ### `rememberWithWarmth()` is absent
 
-Laravel's `remember()` is now one line on top of it, and it returns
+Upstream's `remember()` is now one line on top of it, and it returns
 `[value, wasWarm]` — whether the value came from the store or was just computed.
 That boolean is what a caller logs, counts, or uses to decide whether to warm
 something else. Elvel's `remember()` throws it away.
@@ -376,7 +380,7 @@ the read.
 
 ## Collections
 
-`Collection` carries 98 methods against Laravel's 178, and the ones it has are
+`Collection` carries 98 methods against upstream's 178, and the ones it has are
 faithful — `sliding`, `splitIn`, `duplicatesStrict`, `hasSole`, `firstOrFail`,
 `skipUntil`, `crossJoin`, `median`, `multiply`, `percentage`'s neighbours. Four
 things are missing, and the first is structural rather than a list of names.
@@ -467,7 +471,7 @@ and `styles()` in `@elvel/view`.
 
 ## Config
 
-Loading is more careful than Laravel's — a cache that refuses to swallow a file
+Loading is more careful than upstream's — a cache that refuses to swallow a file
 exporting code and re-imports those live, a missing config file that names
 itself and says `elvel config:publish <name>`, loaders awaited in order so the
 one that fails is the one that is reported. `config:cache`, `config:clear`,
@@ -486,7 +490,7 @@ as `number` and returns the string `"90"` when the config file wrote
 `process.env.QUEUE_RETRY_AFTER` without a `Number()` — and it will keep typing
 as `number` all the way to the arithmetic that produces `"901"`.
 
-Laravel added `Config::string()`, `integer()`, `float()`, `boolean()`,
+Upstream added `Config::string()`, `integer()`, `float()`, `boolean()`,
 `array()` and `collection()` for exactly this, and they **throw** when the value
 is the wrong type. TypeScript makes the absence worse rather than better: in PHP
 the value is visibly `mixed` and the developer stays suspicious, while here the
@@ -525,7 +529,7 @@ suppress its output.
 
 Every command therefore has to choose once, for everybody: print the detail and
 be noisy in CI, or stay quiet and give a person debugging nothing to work with.
-Laravel's answer is one argument on every write.
+Upstream's answer is one argument on every write.
 
 **Done when** `-v/-vv/-vvv` are parsed, every output method takes a minimum
 verbosity, `isVerbose()` exists, and `call()` can run a command silently.
@@ -544,7 +548,7 @@ output is not a terminal.
 
 ### Signals are handled three times, by hand, and not by commands
 
-Laravel puts `trap()` and `untrap()` on the command. Here, `SIGINT`/`SIGTERM`
+Upstream puts `trap()` and `untrap()` on the command. Here, `SIGINT`/`SIGTERM`
 are wired with raw `process.on` in `commands/dev.ts`, `queue/console/queue-work.ts`
 and `scheduler/console/schedule-work.ts` — three copies, and nothing an
 application's own long-running command can reach.
@@ -558,7 +562,7 @@ it, and a trapped command still exits non-zero on the second interrupt.
 ### Only migrations are protected from production
 
 `confirmInProduction()` exists — on `MigrationCommand`, in
-`packages/database/src/console/base.ts`. Laravel's `ConfirmableTrait` is
+`packages/database/src/console/base.ts`. Upstream's `ConfirmableTrait` is
 available to any command, and `Prohibitable` goes further: `Command::prohibit()`
 takes a destructive command out of the application entirely, which is how
 `db:wipe` and `migrate:fresh` are kept off production hosts.
@@ -571,7 +575,7 @@ and a command can be prohibited.
 
 ### A command cannot be hidden or aliased
 
-`Command` declares `signature`, `description` and `isolatable`. Laravel carries
+`Command` declares `signature`, `description` and `isolatable`. Upstream carries
 `aliases`, `hidden`, `usage` and `help` as attributes.
 
 `hidden` is what keeps internal plumbing — the command a scheduler invokes for
@@ -601,11 +605,11 @@ bind(key, factory)      singleton(key, factory)   instance(key, value)
 make(key)               bound(key)
 ```
 
-backed by two `Map`s. Laravel's has fifty-odd. Most of the difference is not
+backed by two `Map`s. Upstream's has fifty-odd. Most of the difference is not
 convenience — each row below is a thing packages currently cannot do to each
 other, which is what a container is for.
 
-Two of Laravel's pillars are **not** listed as gaps and are recorded at the
+Two of upstream's pillars are **not** listed as gaps and are recorded at the
 bottom: autowiring (`build()`) and method injection (`call()`) both need runtime
 type information, and TypeScript erases types.
 
@@ -702,14 +706,14 @@ when(condition: unknown, callback: (self: this) => void): this {
 }
 ```
 
-Three differences from Laravel's trait, in the same four lines:
+Three differences from upstream's trait, in the same four lines:
 
-1. **A closure is always truthy.** Laravel resolves `$value instanceof Closure`
+1. **A closure is always truthy.** upstream resolves `$value instanceof Closure`
    first, so `->when(fn () => $user->isAdmin(), ...)` works and is the habitual
    spelling. Here `unknown` means the function object itself is the condition,
    the branch always runs, and nothing warns. `Collection.when()` avoids this by
    typing the parameter `boolean`; the query builder's and this one do not.
-2. **The value is not passed.** Laravel calls `$callback($this, $value)`, which
+2. **The value is not passed.** upstream calls `$callback($this, $value)`, which
    is what makes `->when($search, (q, term) => q.where('title', 'like', term))`
    read without capturing.
 3. **There is no default branch.** `when($v, $then, $otherwise)` is the whole
@@ -726,7 +730,7 @@ value reaches the callback, a default branch exists, and the query builder and
 
 ## Cookie
 
-`CookieBag`, `CookieJar` and `cookiePlugin` cover Laravel's `EncryptCookies` and
+`CookieBag`, `CookieJar` and `cookiePlugin` cover upstream's `EncryptCookies` and
 `AddQueuedCookiesToResponse` faithfully — an `except` list for cookies something
 else must read, `Set-Cookie` appended rather than assigned so the session
 plugin's header survives, a cookie that fails to decrypt read as absent so a key
@@ -753,7 +757,7 @@ only cookie config is `cookies.except`.
 So an application on HTTPS that queues a preference, a consent flag or a
 remember-me marker sends it without `Secure` unless every call site remembers,
 and no `domain` can be set once for a deployment that spans subdomains.
-Laravel's answer is `CookieJar::setDefaultPathAndDomain($path, $domain, $secure,
+Upstream's answer is `CookieJar::setDefaultPathAndDomain($path, $domain, $secure,
 $sameSite)`, called from the session config at boot.
 
 **Done when** path, domain, secure and sameSite have configured defaults applied
@@ -762,7 +766,7 @@ does, and a call site can still override.
 
 ### `CookieBag` is missing four of the jar's methods
 
-`get`, `has`, `queue`, `forget`, `queued`. Laravel's `CookieJar` also has:
+`get`, `has`, `queue`, `forget`, `queued`. Upstream's `CookieJar` also has:
 
 - `forever(name, value)` — five years, the spelling used for remember-me
 - `hasQueued(name)` and `queued(name)` for one name — whether *this* request has
@@ -777,11 +781,11 @@ does, and a call site can still override.
 ## Database
 
 The largest component, and the one with the most already built. Every relation
-type Laravel has is here — including `HasOneOfMany` and a `MorphToManyThrough`
-Laravel does not. The migrator has `--pretend`, `--step`, `--isolated`,
+type upstream has is here — including `HasOneOfMany` and a `MorphToManyThrough`
+Upstream does not. The migrator has `--pretend`, `--step`, `--isolated`,
 squashing, per-environment `shouldRun` and transactional migrations. The console
 set is complete and then some (`make:cast`, `make:observer`, `make:scope`).
-`Blueprint` is 110 methods against Laravel's 126 and folds in the fluent foreign
+`Blueprint` is 110 methods against upstream's 126 and folds in the fluent foreign
 key modifiers. Deadlocks are retried. Read/write splitting and sticky
 connections work.
 
@@ -791,7 +795,7 @@ connections work.
 Nothing wraps a driver error, and the only exception class the whole package
 exports is `ModelNotFoundError`.
 
-Laravel wraps every failure in `QueryException`, which carries the SQL and the
+Upstream wraps every failure in `QueryException`, which carries the SQL and the
 bindings and puts the statement in the message. Here a bad column name arrives
 as whatever Bun's SQL client said, with no statement attached — so the log line,
 and the Lens exception entry, name a syntax error and not the query.
@@ -877,7 +881,7 @@ recorder reads at the end of the request, and Lens shows the count.
 `Factory` has `count`, `state`, `with`, `raw`, `make`, `create`, `createOne`.
 That is the whole class.
 
-Laravel's has `has()`, `for()`, `hasAttached()` and `withoutParents` — creating a
+Upstream's has `has()`, `for()`, `hasAttached()` and `withoutParents` — creating a
 user with three posts each with five comments in one expression — plus
 `sequence()` and `crossJoinSequence()` to cycle values across a batch,
 `afterMaking`/`afterCreating` hooks, `recycle()` to share one parent across a
@@ -895,7 +899,7 @@ hooks run, and `Model.factory()` resolves the class.
 
 Present: `int`, `float`, `boolean`, `string`, `json`, `object`, `array`, `date`,
 `datetime`, `timestamp`, `encrypted`, `encrypted:json`, plus custom
-`CastsAttributes` classes and blind-index columns, which Laravel has no
+`CastsAttributes` classes and blind-index columns, which upstream has no
 equivalent of.
 
 Missing: **enum** (`'status' => Status`), **`decimal:2`**, `immutable_date`,
@@ -923,7 +927,7 @@ response that difference is a leak.
 
 ### The schema cannot be inspected
 
-`Schema` has 15 methods against Laravel's 44. Missing: `getTables`, `getViews`,
+`Schema` has 15 methods against upstream's 44. Missing: `getTables`, `getViews`,
 `getColumns` (only `getColumnListing`, which is names), `getIndexes`,
 `getForeignKeys`, `getColumnType`, `getTypes`, `getSchemas`, `hasView`,
 `hasColumns`, `hasForeignKey`, `dropAllTables`, `dropAllViews`, `createDatabase`,
@@ -962,7 +966,7 @@ having it; `engine`, `charset` and table-level `collation`; `temporary`;
 
 ### Query builder: seven families missing
 
-136 methods against Laravel's 232. Setting aside internals and pagination
+136 methods against upstream's 232. Setting aside internals and pagination
 (recorded under Pagination), what is left:
 
 - **multi-column search** — `whereAll`, `whereAny`, `whereNone` and their `or`
@@ -987,7 +991,7 @@ statement with its bindings inlined, ready to paste into a client — is the one
 that gets used most, and Lens's query panel would render it instead of the
 placeholder form.
 
-Laravel 13's vector search (`whereVectorSimilarTo`, `orderByVectorDistance`,
+Upstream's vector search (`whereVectorSimilarTo`, `orderByVectorDistance`,
 `selectVectorDistance`) is absent too, and pairs with the missing
 `vectorIndex` above.
 
@@ -1025,7 +1029,7 @@ list, and a real `NullDispatcher`.
 assertDispatched(event: EventKey, times?: number): void
 ```
 
-The event's name and a count. Laravel's takes a callback —
+The event's name and a count. Upstream's takes a callback —
 `assertDispatched(OrderShipped::class, fn ($e) => $e->order->id === 1)` — which
 is the difference between "an order shipped" and "*this* order shipped". With
 several of the same event in one test, the current assertion cannot tell them
@@ -1042,9 +1046,9 @@ be asserted.
 
 ## Filesystem
 
-The `Disk` contract carries 32 of Laravel's methods, the `memory` disk is
+The `Disk` contract carries 32 of upstream's methods, the `memory` disk is
 `Storage::fake()` with `assertExists`, `assertMissing`, `assertCount`,
-`assertDirectoryEmpty` and an `assertContents` Laravel has no equivalent of, and
+`assertDirectoryEmpty` and an `assertContents` upstream has no equivalent of, and
 `fileResponse()` gets `Content-Disposition` right for a non-ASCII filename under
 RFC 6266 — stripping quotes rather than escaping them, because a filename that
 closes the quoted string early injects a header parameter.
@@ -1069,7 +1073,7 @@ pipes to a file handle, and the S3 disk uses a multipart upload.
 
 So a video or audio file served from a disk cannot be seeked: the browser asks
 for a byte range, gets the whole file with a `200`, and starts again from the
-beginning. An interrupted download cannot be resumed either. Laravel's
+beginning. An interrupted download cannot be resumed either. Upstream's
 `Storage::serve()` handles both.
 
 **Done when** a range request is answered with `206` and the requested slice,
@@ -1077,7 +1081,7 @@ beginning. An interrupted download cannot be resumed either. Laravel's
 
 ### A remote disk is read remotely, every time
 
-Laravel 13 added `ReadThroughFilesystem`: a local disk in front of a remote one,
+Upstream added `ReadThroughFilesystem`: a local disk in front of a remote one,
 so a file fetched from S3 is served from local disk the next time and the
 round trip is paid once.
 
@@ -1108,7 +1112,7 @@ do — and each re-decides what "make the directory if it is missing" means.
 
 Maintenance mode with a bypass cookie, deferred callbacks flushed after the
 response, trusted proxies with per-header control, the security headers, CSRF,
-CORS, and a `middleware:list` command Laravel has no equivalent of.
+CORS, and a `middleware:list` command upstream has no equivalent of.
 
 ### The `Host` header is believed
 
@@ -1117,7 +1121,7 @@ from a trusted proxy — correct, and its own comment says why. What it does whe
 there is no proxy is fall back to the raw `Host` header, and nothing anywhere
 checks that header against a list of hosts the application answers for.
 
-Laravel's `TrustHosts` middleware exists for one attack: a request with
+Upstream's `TrustHosts` middleware exists for one attack: a request with
 `Host: attacker.example` produces a password-reset link pointing at
 `attacker.example`, which is mailed to the user, who clicks it and hands over
 the token. The same header decides every signed URL.
@@ -1142,7 +1146,7 @@ before the body is read, and a route can raise its own limit for uploads.
 
 ### Input is not normalised
 
-`TrimStrings` and `ConvertEmptyStringsToNull` are in every Laravel application's
+`TrimStrings` and `ConvertEmptyStringsToNull` are in every upstream application's
 default stack. Neither exists here.
 
 Without the first, a form field submitted with a trailing space is stored with
@@ -1172,7 +1176,7 @@ handler is not run, and the scaffolded kits use it.
 
 `withProviders`, `withConfig`, `withRoutes`, `withRouting`, `withConsole`.
 
-Laravel's `ApplicationBuilder` also has `withMiddleware` — the one that matters,
+Upstream's `ApplicationBuilder` also has `withMiddleware` — the one that matters,
 because it is where an application appends to, removes from, or reorders the
 global stack, and today that means reaching into providers. Then
 `withExceptions` for reporting and rendering rules, `withSchedule`, and
@@ -1241,7 +1245,7 @@ works, and a form request exposes the same set.
 ### Nothing supports a conditional GET
 
 No `ETag`, no `Last-Modified`, no `If-None-Match`, no `304` — the strings do not
-appear in `packages/http`. Laravel's `CheckResponseForModifications` is in the
+appear in `packages/http`. Upstream's `CheckResponseForModifications` is in the
 default stack.
 
 Every response is therefore sent in full every time, including the ones that
@@ -1273,7 +1277,7 @@ the bytes in pure TypeScript for eight formats with no dependency and no driver,
 because the extension and the `Content-Type` a client sent are claims and the
 header is the file. Transforming looks for a backend — `sharp`, ImageMagick,
 `sips` — rather than assuming one, and a driver that cannot perform a queued
-step says so instead of skipping it. Laravel's own component is new in 13 and
+step says so instead of skipping it. the upstream component is new in 13 and
 Elvel matches most of it.
 
 ### An image cannot be read from or written to a disk
@@ -1286,7 +1290,7 @@ async store(path: string): Promise<Uint8Array> {
 }
 ```
 
-`Bun.write` — the local filesystem, and only that. Laravel's `Image` has
+`Bun.write` — the local filesystem, and only that. Upstream's `Image` has
 `store`, `storeAs`, `storePublicly`, `storePubliclyAs` and `hashName` against a
 configured disk, and reads with `fromStorage`, `fromUpload` and `fromUrl`.
 
@@ -1317,7 +1321,7 @@ Nine drivers — `console`, `json`, `single`, `daily` with retention, `stack`,
 `errorlog`, `slack`, `memory`, `null` — all eight PSR levels, `channel`,
 `stack`, `build`, `extend`, `shareContext`, `withContext`, `withoutContext`,
 `forgetChannel`, a `MessageLogged` event, deprecation logging, and a `log:tail`
-command Laravel has no equivalent of.
+command upstream has no equivalent of.
 
 ### There is no `Context`
 
@@ -1341,7 +1345,7 @@ survives the queue boundary in both directions, and hidden values are supported.
 
 ### Rotation is daily, and there is no syslog
 
-`daily` rotates once a day and prunes to `maxFiles`. Laravel 13 also has
+`daily` rotates once a day and prunes to `maxFiles`. Upstream also has
 `rotating` with a configurable period, `monthly`, and `syslog`.
 
 A busy application writing a gigabyte a day gets one file per day whatever its
@@ -1365,7 +1369,7 @@ is a class that does not extend it, and neither do the query builder, the
 response helpers, the router, the validator, the cache repository or the HTTP
 client.
 
-In Laravel the trait is on about forty classes, and it is *the* mechanism by
+In upstream the trait is on about forty classes, and it is *the* mechanism by
 which a package extends the framework without patching it: `Str::macro`,
 `Collection::macro`, `Response::macro('success', ...)`,
 `Builder::macro('whereTenant', ...)`, `Rule::macro`. Here a package that wants
@@ -1389,11 +1393,11 @@ classes.
 ## Mail
 
 Six transports — SMTP, SES, Resend, Postmark and Mailgun over plain `fetch` with
-no library, plus `log`, `array` and a **`fallback`** transport Laravel has no
+no library, plus `log`, `array` and a **`fallback`** transport upstream has no
 equivalent of. Markdown mail with a theme, inline images by `cid:`, attachments
 from a disk, per-recipient locale resolved before queueing, one queued job per
-channel, `alwaysTo` for staging, and a mail preview browser Laravel needs a
-package for. The assertions go past Laravel's: `assertOnlyRecipients`,
+channel, `alwaysTo` for staging, and a mail preview browser upstream needs a
+package for. The assertions go past upstream's: `assertOnlyRecipients`,
 `assertSentCount`, `assertHasHeader`.
 
 ### No `Return-Path`, and no message priority
@@ -1434,7 +1438,7 @@ export type Paginated<M> = {
 }
 ```
 
-Five numbers. Laravel's paginator answers `nextPageUrl()`, `previousPageUrl()`,
+Five numbers. Upstream's paginator answers `nextPageUrl()`, `previousPageUrl()`,
 `url($page)`, `hasMorePages()`, `onFirstPage()`, `onLastPage()`, `firstItem()`,
 `lastItem()`, `appends()`, `withQueryString()`, `path()`, `fragment()`, and
 `through()` to map the items without losing the page.
@@ -1471,7 +1475,7 @@ them.
 
 ### A paginated resource does not serialise as one
 
-`ResourceCollection.withMeta()` takes whatever you hand it. Laravel's
+`ResourceCollection.withMeta()` takes whatever you hand it. Upstream's
 `PaginatedResourceResponse` emits `data`, `links` (`first`, `last`, `prev`,
 `next`) and `meta` (`current_page`, `from`, `last_page`, `path`, `per_page`,
 `to`, `total`) without being asked, which is the shape every JavaScript client
@@ -1487,14 +1491,14 @@ cannot be built at all because the paginator has no URLs.
 ## Pipeline
 
 `send`, `through`, `pipe`, `via`, `then`, `thenReturn`, a resolver in place of
-`setContainer`, and `Pipehub` for Laravel's `Hub`. `finally()` runs on the way
+`setContainer`, and `Pipehub` for upstream's `Hub`. `finally()` runs on the way
 out of a throw as well as a return, which is the only reason to have it. The
 comment on `then()` names the thenable hazard — a class with a `then` member
 must never be awaited — and the queue's job middleware runs on this same code.
 
 ### `withinTransaction()` is absent
 
-Laravel's pipeline can wrap the whole run in a database transaction, so a chain
+Upstream's pipeline can wrap the whole run in a database transaction, so a chain
 of stages that each write commit together or not at all.
 
 It is not a one-liner here, and that is the row: `@elvel/support` must not
@@ -1514,7 +1518,7 @@ importing database.
 `waitUntil`, the fake with a sequence and stray-process prevention, and
 `ProcessFailedError` puts the command's own error output in the message rather
 than only "exited with code 1". `json()`, `lines()`, `onOutput()` and
-`onFinished()` have no Laravel counterpart.
+`onFinished()` have no upstream counterpart.
 
 ### No TTY
 
@@ -1528,7 +1532,7 @@ is no TTY is an error rather than a hang.
 
 ### The fake cannot assert order
 
-`assertRan`, `assertRanTimes`, `assertNotRan`, `assertNothingRan`. Laravel also
+`assertRan`, `assertRanTimes`, `assertNotRan`, `assertNothingRan`. Upstream also
 has `assertRanInOrder`.
 
 For the thing this package is mostly used for — a deploy or build script that
@@ -1551,7 +1555,7 @@ middleware sharing the pipeline, and `queue:flush --hours` covering
 
 ### There is no circuit breaker
 
-Job middleware is `WithoutOverlapping`, `RateLimited` and `Skip`. Laravel also
+Job middleware is `WithoutOverlapping`, `RateLimited` and `Skip`. Upstream also
 has `ThrottlesExceptions`, `FailOnException`, `Release` and
 `SkipIfBatchCancelled`.
 
@@ -1576,7 +1580,7 @@ process memory.
 A worker is a long-lived process running application code it did not write. A
 leak anywhere — a cache that never evicts, a listener that accumulates — grows
 it until the OS kills it, and the OS kills it in the middle of a job rather than
-between two. Laravel's answer is to check after each job and exit cleanly, and
+between two. Upstream's answer is to check after each job and exit cleanly, and
 let the supervisor start a fresh one.
 
 **Done when** `--memory` exists, the check happens between jobs, and the exit is
@@ -1584,7 +1588,7 @@ clean enough that the supervisor's restart loses nothing.
 
 ### There is no way to turn the queue off, and no failover
 
-Connections are `sync`, `database`, `redis` and `sqs`. Laravel also ships
+Connections are `sync`, `database`, `redis` and `sqs`. Upstream also ships
 `null` — discard everything, for an environment that must not run background
 work — and, since 13, `FailoverQueue`, which tries the next connection when one
 is unreachable.
@@ -1595,7 +1599,7 @@ and it is worse here: the dispatch usually happens after the work that mattered
 has already been done.
 
 The failed-job stores have the same shape — `array` and `database` only, where
-Laravel also has `file`, `dynamodb` and `null`, so a service with a queue and no
+Upstream also has `file`, `dynamodb` and `null`, so a service with a queue and no
 database has nowhere to record a failure.
 
 **Done when** `null` and a failover connection exist, and a failed job can be
@@ -1622,7 +1626,7 @@ each from its own config key — `cache.stores.redis.url`,
 An application using cache, queue and broadcasting opens **at least four**
 connections per process — broadcasting needs two, because a client in subscribe
 mode may issue nothing else — and every worker and every web process multiplies
-that. Laravel resolves one connection per *named* connection and hands the same
+that. Upstream resolves one connection per *named* connection and hands the same
 one to every consumer.
 
 Pointing them all at one server also means saying so three times, in three
@@ -1640,7 +1644,7 @@ cluster can be configured once.
 
 ### Redis commands are invisible
 
-Laravel dispatches `CommandExecuted` and `CommandFailed` for every command, and
+Upstream dispatches `CommandExecuted` and `CommandFailed` for every command, and
 that is what a Redis watcher is built on. Nothing here dispatches anything —
 Lens has watchers for queries, cache operations, jobs, mail and thirteen more,
 and none for Redis.
@@ -1712,7 +1716,7 @@ collection with a command, a signed cookie carrying only the id, and
 
 ### The store cannot accumulate or read conditionally
 
-`get`, `put`, `has`, `exists`, `forget`, `pull`, `all`, `flush`. Laravel's
+`get`, `put`, `has`, `exists`, `forget`, `pull`, `all`, `flush`. Upstream's
 `Store` also has `push`, `increment`, `decrement`, `remember`, `only`, `except`,
 `hasAny`, `missing`, `replace`, and `now`.
 
@@ -1729,7 +1733,7 @@ either invisible now or visible twice.
 
 ## Support
 
-`Str` carries 83 of Laravel's 111, and the absences are argued in the source
+`Str` carries 83 of upstream's 111, and the absences are argued in the source
 rather than accidental — `apa` encodes one style guide, `markdown` needs a
 parser the package will not depend on, `createUuidsUsing` waits on a design for
 deterministic ids. `Arr`, `Collection`, `Pipeline`, `Conditionable`,
@@ -1739,7 +1743,7 @@ deterministic ids. `Arr`, `Collection`, `Pipeline`, `Conditionable`,
 ### There is no `Stringable`
 
 `Str::of('  Some Title ')->trim()->slug()->limit(20)` — the fluent half of
-Laravel's string API, and the half that gets used in views and controllers,
+Upstream's string API, and the half that gets used in views and controllers,
 because the static form reads inside-out:
 `Str.limit(Str.slug(Str.trim(value)), 20)`.
 
@@ -1811,7 +1815,7 @@ alphabet is **deleted**: a Cyrillic, Greek, or Arabic title produces an empty
 string, and so does a Chinese one. The route is then `/articles/` and every such
 article collides.
 
-Laravel avoids the empty case through `Str::ascii()`, which carries a
+Upstream avoids the empty case through `Str::ascii()`, which carries a
 transliteration table. The source here says that table is why `transliterate` is
 absent — a fair reason for the method, but the consequence lands in `slug`,
 which does not say so and does not have a fallback.
@@ -1823,7 +1827,7 @@ than returning an empty string.
 
 ## Testing
 
-62 response assertions against Laravel's 75, and the overlap is not the whole
+62 response assertions against upstream's 75, and the overlap is not the whole
 story: Elvel adds a named assertion for nearly every status code
 (`assertConflict`, `assertGone`, `assertPayloadTooLarge`, `assertNotModified`),
 an `AssertableJson` with the fluent `has`/`each`/`etc`, and console testing with
@@ -1834,7 +1838,7 @@ test runner.
 
 ### The commonest web flow cannot be asserted
 
-Laravel has nine session assertions — `assertSessionHas`, `assertSessionHasAll`,
+Upstream has nine session assertions — `assertSessionHas`, `assertSessionHasAll`,
 `assertSessionHasErrors`, `assertSessionHasErrorsIn`, `assertSessionHasInput`,
 `assertSessionHasNoErrors`, `assertSessionDoesntHaveErrors`,
 `assertSessionMissing`, `assertSessionMissingInput` — and four view assertions:
@@ -1873,7 +1877,7 @@ Six hand-rolled clocks instead of one.
 
 So a test that gets a 500 sees the rendered error page. The stack trace, the
 message and the line are all inside the handler that turned the exception into
-a response, and the way to see them is to edit the application. Laravel's
+a response, and the way to see them is to edit the application. Upstream's
 answer is one call that puts the exception back on the surface.
 
 `withoutMiddleware` is the same idea for the other common case: proving that a
@@ -1952,7 +1956,7 @@ them.
 
 ### Messages come from the filesystem, and only from there
 
-`Translator.load(directory)` calls `readdir` and `readFile`. Laravel puts a
+`Translator.load(directory)` calls `readdir` and `readFile`. Upstream puts a
 `Loader` interface in front — `FileLoader`, `ArrayLoader` — so messages can come
 from a database, an API, or an array.
 
@@ -1971,16 +1975,16 @@ exported.
 
 ## Validation
 
-**All 108 of Laravel's rules are implemented.** So are `Rule::unique` and
+**All 108 of upstream's rules are implemented.** So are `Rule::unique` and
 `Rule::exists` with a presence verifier, `Rule::anyOf`, `Rule::enum`,
 `Rule::dimensions`, `Rule::file`, `Rule::password` with `uncompromised()`,
 conditional and nested rules, wildcards, `sometimes`, `bail`, `after` hooks,
 `stopOnFirstFailure`, `safe()`, custom rules through `extendRules`, and a
-JSON-Schema builder with a TypeBox bridge that has no Laravel counterpart.
+JSON-Schema builder with a TypeBox bridge that has no upstream counterpart.
 
-`validated()` is stricter than Laravel's: it walks the declared rule keys rather
+`validated()` is stricter than upstream's: it walks the declared rule keys rather
 than the payload, so an unvalidated nested key cannot reach a database write —
-which is what Laravel needs `excludeUnvalidatedArrayKeys` to opt into.
+which is what upstream needs `excludeUnvalidatedArrayKeys` to opt into.
 
 Two things are missing, and one of them is only visible from Translation:
 **validation messages cannot be translated**, because the catalogue is a
@@ -2007,7 +2011,7 @@ email: ({ value }) =>
   typeof value === 'string' && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value),
 ```
 
-Laravel's rule takes modes — `rfc`, `strict`, `dns`, `spoof`, `filter` — and
+Upstream's rule takes modes — `rfc`, `strict`, `dns`, `spoof`, `filter` — and
 they are chosen per field because the right strictness differs: a sign-up form
 wants `dns` so a typo'd domain is caught at the form rather than at the first
 bounce, and an admin import wants `rfc` and nothing else.
@@ -2047,7 +2051,7 @@ count, the current tenant, the feature flags, the navigation — is threaded
 through the props of every handler that renders that layout, and adding one
 means editing all of them.
 
-The answer is not Laravel's untyped `share()`: `view(Component, props)` being
+The answer is not upstream's untyped `share()`: `view(Component, props)` being
 type-checked is the point of this package. The answer is the pattern already in
 use — a registered, typed request-scoped value with a reader a component calls.
 
@@ -2077,10 +2081,10 @@ reader, computed lazily so a page that does not read it does not pay for it.
 - **Higher-order proxies** (`$users->map->name`, `$posts->each->delete()`) are
   left out on purpose. A `Proxy` could do it, and the result would be a member
   access TypeScript cannot type, which trades the framework's one real advantage
-  over Laravel for brevity.
-- **Concurrency has no gap.** Laravel has `run` and `defer` over `process`,
+  over upstream for brevity.
+- **Concurrency has no gap.** upstream has `run` and `defer` over `process`,
   `fork` and `sync`; Elvel has `run`, `defer`, and `settle` over `worker` and
-  `sync`. The two Laravel drivers that are missing exist because PHP cannot
+  `sync`. The two upstream drivers that are missing exist because PHP cannot
   await, which is not a constraint here — the reasoning is written into
   `ConcurrencyManager`. What Elvel adds on top: `settle()` for the
   all-or-report case, a timeout that actually terminates the thread rather than
@@ -2096,7 +2100,7 @@ reader, computed lazily so a page that does not read it does not pay for it.
   a second, weaker type system beside the real one. An explicit factory —
   `singleton('mailer', (app) => new Mailer(app.make('config')))` — says the same
   thing, checked by the compiler.
-- **Contracts is not a component gap.** Laravel publishes 155 interfaces in one
+- **Contracts is not a component gap.** upstream publishes 155 interfaces in one
   package so an application can type-hint without depending on an
   implementation. Elvel publishes each contract from the package that owns it —
   `Store` from `@elvel/cache`, `QueueDriver` from `@elvel/queue`, `Transport`
@@ -2107,16 +2111,16 @@ reader, computed lazily so a page that does not read it does not pay for it.
   the container bindings, `ApplicationContract`, `ServiceProviderContract`.
   Every extension point checked has a published type. The one that does not —
   a loader contract for translations — is recorded under Translation as a gap.
-- **Encryption has no gap, and is ahead.** Laravel still supports AES-CBC with a
+- **Encryption has no gap, and is ahead.** upstream still supports AES-CBC with a
   separate HMAC; Elvel is AES-256-GCM only, binds the context into the
   authentication tag as AAD rather than prefixing an HMAC to the plaintext,
   derives keys with a purpose label, and gives one `DecryptError` for every
   rejection reason so a padding oracle has nothing to read. `previousKeys` for
-  rotation matches Laravel; `blindIndex`, envelope encryption with a pluggable
-  master key provider, and the `encryption:rotate` command have no Laravel
+  rotation matches upstream; `blindIndex`, envelope encryption with a pluggable
+  master key provider, and the `encryption:rotate` command have no upstream
   counterpart. Only `supported()` and `getAllKeys()` are missing, and both are
   introspection for a cipher choice Elvel does not offer.
-- **Package auto-discovery is deliberately absent.** Laravel reads
+- **Package auto-discovery is deliberately absent.** upstream reads
   `extra.laravel.providers` from every installed composer package and registers
   what it finds. Elvel lists providers in `bootstrap/providers.ts`. Discovery
   buys one less line on install and costs the two things this framework is for:
@@ -2128,36 +2132,36 @@ reader, computed lazily so a page that does not read it does not pay for it.
   read back out of the hash string so `needsRehash` is real. It refuses a bcrypt
   input over 72 bytes rather than truncating it — Bun does not truncate where
   most implementations do, so a hash made here from a long passphrase would stop
-  verifying the day it moved to a library that does. Only Laravel's
+  verifying the day it moved to a library that does. Only upstream's
   `verifyConfiguration()` has no counterpart, and `info()` plus `needsRehash()`
   answer the same question.
 - **`response()->streamDownload()` is not counted.** A generated CSV is
   `new Response(stream, { headers })`, six lines, and `contentDisposition()` is
   already exported from `@elvel/storage`.
-- **JsonSchema has no gap.** Laravel 13 added a schema builder with eight types
+- **JsonSchema has no gap.** upstream added a schema builder with eight types
   and a deserializer. `packages/validation/src/schema` has all eight —
   `string`, `integer`, `number`, `boolean`, `array`, `object`, `anyOf`,
   `union` — plus `fromJsonSchema()` for the round trip, and a TypeBox bridge
-  (`toTypeBox`/`fromTypeBox`) with no Laravel counterpart, which is what lets
+  (`toTypeBox`/`fromTypeBox`) with no upstream counterpart, which is what lets
   one schema be both a published document and a validator Elysia compiles.
 - **Notifications has no gap.** All four events (`sending`, `sent`, `failed`,
   `skipped`), `markAsRead`/`markAsUnread`/`unread`, anonymous routing,
   `shouldSend`, `viaQueues`, per-recipient locale, delay, and the three channels
-  Laravel still ships in the framework — mail, database, broadcast — plus a
-  `log` channel it does not. Slack and Vonage are **not** missing: Laravel moved
+  upstream still ships in the framework — mail, database, broadcast — plus a
+  `log` channel it does not. Slack and Vonage are **not** missing: Upstream moved
   both out of `illuminate/notifications` into separate first-party packages, and
   its `Channels/` directory holds the same three. The queued path is better
-  factored than Laravel's: one job per channel, so a mail server being down does
+  factored than upstream's: one job per channel, so a mail server being down does
   not stop the database row being written, and the locale is resolved while the
   recipient model still exists rather than in the worker where it does not.
-- **Reflection is out of reach, like autowiring.** Laravel 13's `Reflector`
+- **Reflection is out of reach, like autowiring.** upstream's `Reflector`
   answers `getParameterClassName`, `isParameterSubclassOf`,
   `isParameterBackedEnumWithStringBackingType` and reads class attributes —
   every one of them a question about types that exist at runtime in PHP and are
   erased at compile time in TypeScript. `ReflectsClosures`, which infers an
   event type from a listener's parameter, is the same. Same reasoning as the
   container's `build()` and `call()`.
-- **Scheduling has no gap.** Every frequency Laravel has, down to
+- **Scheduling has no gap.** Every frequency upstream has, down to
   `everyTwoSeconds` and `twiceMonthly`; `onOneServer`, `withoutOverlapping`,
   `runInBackground`, `environments`, `evenInMaintenanceMode`, `when`/`skip`,
   `repeat`, `timezone`, `group`; output to a file or an email, and pings before,
@@ -2166,11 +2170,11 @@ reader, computed lazily so a page that does not read it does not pay for it.
   running can. `schedule:run`, `schedule:work`, `schedule:list`,
   `schedule:test`, `schedule:interrupt`, `schedule:pause`, `schedule:resume` and
   `schedule:clear-cache` are all there, and all five task events are dispatched.
-  Laravel's `onSuccessWithOutput` has no separate method because the hook is
+  upstream's `onSuccessWithOutput` has no separate method because the hook is
   handed the event and `event.output` is filled by the runner before it runs.
   `then()` is deliberately absent: a chainable builder with a `then` member is a
   thenable, and `await schedule.call(...)` would hand `resolve` to it as a hook.
-- **A cookie session driver is not counted.** Laravel's exists mainly to avoid
+- **A cookie session driver is not counted.** upstream's exists mainly to avoid
   shared server-side storage across instances; the `cache` driver over Redis
   answers that properly, without a 4 KB ceiling on everything the session holds.
   Sessions can already be turned off with `session.enabled`, so `null` has
@@ -2186,12 +2190,12 @@ reader, computed lazily so a page that does not read it does not pay for it.
 - **`view:cache` is not a gap.** Blade compiles templates to PHP at runtime and
   caches the result; JSX is compiled by Bun before it runs.
 - **A lost connection is not a gap, and this row was wrong.** It was written from
-  the absence of Laravel's `DetectsLostConnections` in the source, reasoning that
+  the absence of upstream's `DetectsLostConnections` in the source, reasoning that
   a queue worker holding one connection would fail every job after MySQL's
   `wait_timeout` closed it. Measured instead: `Bun.SQL` is a pool, not a single
   connection. Kill the backend with `pg_terminate_backend` or MySQL's `KILL` and
   the next query opens a fresh one and answers — reads and writes both, and
-  without carrying on inside a transaction that the kill destroyed. Laravel needs
+  without carrying on inside a transaction that the kill destroyed. Upstream needs
   the trait because PDO holds one connection and cannot do this.
   `packages/database/test/reconnect.test.ts` pins all three behaviours against
   real servers, because the queue depends on them completely and nothing else in

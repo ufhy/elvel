@@ -94,7 +94,7 @@ Four things that follow from it:
 
   The two disagree on one point, deliberately. A request with **no `Accept` at
   all** is read as a client by validation — no browser omits the header — and as a
-  browser by a redirect, which is Laravel's reading. What is at stake decides it:
+  browser by a redirect. What is at stake decides it:
   a `Request` built without headers is a test, an internal dispatch or a health
   probe, and answering those with JSON silently breaks every redirect they rely
   on.
@@ -107,7 +107,7 @@ Four things that follow from it:
 
 ## A form reaching PUT, PATCH or DELETE
 
-A browser form can only send `GET` or `POST`. Laravel's answer is a hidden
+A browser form can only send `GET` or `POST`. The answer is a hidden
 `_method` field, and this is the same one — Blade's `@method` is `methodField()`
 here:
 

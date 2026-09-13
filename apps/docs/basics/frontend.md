@@ -100,7 +100,7 @@ boot the application. One route says so:
 Route.view('/{path}', Shell, { entry: 'src/main.ts' }).where('path', '.*')
 ```
 
-This is Laravel's `Route::view('{path}', 'main')`, and it works: a request for a path
+This is `Route.view('{path}', 'main')`, and it works: a request for a path
 with no file on disk falls through to the router, in development exactly as in
 production. It did not always — `@elysiajs/static` used to claim `/*` in development
 and answer its own 404s, so the same source answered `/deep/link` in production and
@@ -139,7 +139,7 @@ registers, and the first handler to answer wins.
 ### What a wildcard must not swallow
 
 A bare catch-all answers a page for `/build/assets/index-abc.js` too, exactly as
-`Route::view('{path}', 'main')` does in Laravel — so a stale asset URL renders HTML
+`Route.view('{path}', 'main')` does — so a stale asset URL renders HTML
 to a browser waiting for JavaScript. Two claims take those prefixes back:
 
 ```ts
@@ -191,7 +191,7 @@ Route.view('/{path}', Shell, { entry: 'src/main.ts' }, 200, {
 }).where('path', '.*')
 ```
 
-Laravel's fourth and fifth arguments to `Route::view`, and the fifth is the one with
+The status and the headers, and the headers are the pair with
 a job here: a view returns markup rather than a response, so a route that renders is
 the only place a header can be named. Without it the shell goes out with no
 `cache-control` at all and every cache is left guessing at freshness — which is

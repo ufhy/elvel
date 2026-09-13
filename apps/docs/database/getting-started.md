@@ -46,7 +46,7 @@ order by "name" asc, (CASE WHEN (SELECT secret FROM users WHERE name = 'Ada')
 ```
 
 The row order then answers the guess — a blind oracle needing no second statement,
-so whether the driver permits one is beside the point. Laravel refuses the same way.
+so whether the driver permits one is beside the point.
 Column names, table names and values were never exposed: identifiers are quoted with
 any embedded quote doubled, values are always bindings, and operators are checked
 against a list. `orderByRaw` is there when an expression is genuinely what you mean,
@@ -55,7 +55,7 @@ trusted.
 :::
 
 Dialect differences are handled rather than assumed away, and the details come
-from Laravel's source:
+from the upstream source:
 
 - **placeholders** — PDO normalises them and Bun.SQL does not, so `parameter()`
   is per-dialect: postgres emits `$1..$n`, the others `?`
@@ -105,7 +105,7 @@ rest.
 ### Models
 
 The model layer has no brand name — it is `Model`, and the docs call them models.
-Laravel needs "Eloquent" because its ecosystem has a marketing surface; a
+A name like "Eloquent" earns its keep where an ecosystem has a marketing surface; a
 descriptive name costs nothing to explain.
 
 ```ts
@@ -132,7 +132,7 @@ boolean, so `active` arrives as `0`, and `'0'` is truthy in JavaScript.
 **Relations are methods, and there is no synchronous lazy loading.** Reaching the
 database is asynchronous on Bun, so `user.posts` cannot return rows the way
 `$user->posts` does; it is `await user.posts().get()`. `with()` is what keeps
-that from becoming an N+1 — it uses the two-query strategy from Laravel's
+that from becoming an N+1 — it uses the two-query strategy of
 `addEagerConstraints`/`match`: collect the parents' keys, fetch every child in
 one `where in`, build a dictionary, assign. Parents with a null key are skipped
 rather than matched against null. `hasMany`, `hasOne`, `belongsTo` and
@@ -174,7 +174,7 @@ await new UserFactory().count(3).state({ active: false }).create()
 No fake-data generator is bundled. `definition()` receives a 0-based index, so
 unique values are derived from it rather than from a random source that collides
 with a unique index roughly one run in fifty. Factories bypass `fillable`, as
-Laravel's do.
+the fillable list does.
 
 Seeders are composed explicitly with `call()` — there is no auto-discovery,
 because seed order matters and a directory listing is a poor way to express it. A

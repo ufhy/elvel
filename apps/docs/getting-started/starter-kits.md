@@ -1,14 +1,14 @@
 # Starter kits
 
-::: tip How these compare to Laravel's
-Laravel's kits are named by frontend — React, Vue, Svelte, Livewire — and each
+::: tip How these compare to the kits you know
+Kits are usually named by frontend — React, Vue, Svelte — and each
 ships a component library, teams and two-factor screens. Ours are thinner: `jsx`
 is the closest equivalent, with Tailwind, a component set and a dashboard shell;
 `vue` is a Vue client project with **shadcn-vue**, a collapsible sidebar and a JSON
 API behind it; `none` and `api` are closer to variants of one template. Two-factor
 authentication and passkeys are in all three kits that have accounts. No teams.
 
-One difference worth knowing before you pick: Laravel's Vue kit renders every page
+One difference worth knowing before you pick: a Vue kit usually renders every page
 through Inertia, which sends a page's props with each navigation. Ours does not
 send props at all — the document is a shell and each screen reads what it needs
 from `/api/`. Closer to `Route::view('{path}', 'main')` with an API behind it than
@@ -17,7 +17,7 @@ to Inertia.
 
 A kit is a folder copied **over** the base template, not a fork of it. Everything
 a kit does not mention it inherits, so the base and the kits cannot drift the way
-two full templates would — Laravel's Breeze installs into an existing application
+two full templates would — a kit installs into an existing application
 for the same reason.
 
 Pick one when scaffolding:
@@ -54,7 +54,7 @@ starting point for something whose shape you do not know yet.
 
 ## `jsx` — the one with Tailwind
 
-The auth layer's pages, styled with Tailwind. The look is Laravel's own starter
+The auth layer's pages, styled with Tailwind. The look follows the same starter
 kits: a fixed sidebar with the account menu at the foot of it, breadcrumbs in the
 header, settings as a column of pages next to a form, and an appearance setting
 with light, dark and system.
@@ -84,7 +84,7 @@ shadcn-vue, where `bunx shadcn-vue add dialog` writes a new component for you an
 ninety files arrive whether you touch them or not.
 
 Three of them read the request rather than taking props, for the same reason
-Laravel's kits reach for a hook:
+A client-side kit reaches for a hook:
 
 - `Input` reads `errors()` and `old()`, so a rejected form keeps what was typed
   and says why without the page threading anything through — and a password is
@@ -156,7 +156,7 @@ mismatch fails as a browser prompt that closes without saying why.
 
 `resources/css/app.css` defines the palette once as tokens — `bg-card`,
 `text-muted-foreground`, `border-border`, `bg-sidebar` — in the same oklch values
-Laravel's kits use. A page never names a grey, and no component needs a `dark:`
+the same kits use. A page never names a grey, and no component needs a `dark:`
 variant for its colours: light and dark are two blocks of variables in that one
 file.
 
@@ -182,7 +182,7 @@ a white flash on every page load.
 The account menu and the small-screen nav are `<details>` elements. That gives
 the open state, the keyboard behaviour and the focus handling for free; the two
 things it will not do — close on a click elsewhere, close on Escape — are ten
-lines in `resources/js/app.ts`. Laravel's kit slides a sheet in instead, which
+lines in `resources/js/app.ts`. A slide-in sheet is the usual alternative, which
 needs the library, an overlay and focus trapping.
 
 ### It is the auth layer, styled

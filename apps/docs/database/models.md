@@ -102,7 +102,7 @@ over the whole set, which is the expense cursor pagination exists to avoid. What
 it buys is stability: an offset page silently repeats or skips rows when something
 is inserted while somebody is paging.
 
-The cursor carries the last row's key, base64url-encoded as Laravel's is, so it
+The cursor carries the last row's key, base64url-encoded, so it
 travels in a URL. `previousCursor` points *backwards* from the first row of the
 page, which is what makes paging back work without counting.
 

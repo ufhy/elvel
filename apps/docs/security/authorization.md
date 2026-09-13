@@ -1,6 +1,6 @@
 # Authorization
 
-Who may do what. Two ways in, exactly as Laravel has them: a **gate** for a
+Who may do what. Two ways in: a **gate** for a
 one-off ability, and a **policy** for a model's whole set.
 
 ```ts
@@ -111,12 +111,12 @@ guest views a draft              → false
 guest updates                    → false   (update is not in allowGuests)
 ```
 
-Laravel decides this from the **reflected type** of the `$user` parameter: a
+Deciding this from the **reflected type** of a `user` parameter is one way: a
 nullable type means the ability may run for a guest. TypeScript erases that type
 and nothing puts it back, so an ability reachable without a user has to say so by
 name. `allowGuests = true` allows every ability in the policy.
 
-This is one of the few places the port could not follow Laravel exactly, and the
+This is one of the few places the port could not follow exactly, and the
 reason is the same one that rules out facades — see
 [the packages page](/architecture/packages).
 
@@ -151,7 +151,7 @@ await gate().discoverPolicies(app.appPath('Policies'), models)
 
 `ArticlePolicy` in that directory is registered for the model called `Article`,
 resolved from the registry the application already keeps for queue payloads.
-Laravel guesses the *namespace*; here the guess is the class name, which carries
+Guessing the *namespace* is one way; here the guess is the class name, which carries
 the same meaning. **Explicit registration always wins** — a file that happens to
 be called `ArticlePolicy` never overrides a `gate().policy(...)` you wrote.
 

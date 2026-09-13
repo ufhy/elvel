@@ -200,7 +200,7 @@ json({ user: '</script><b>x</b>' })
 → {"user":"\u003c/script\u003e\u003cb\u003ex\u003c/b\u003e"}
 ```
 
-The escaped set is Laravel's `@json`: `<` `>` `&` `'` `"`. The quotes are what
+The escaped set: `<` `>` `&` `'` `"`. The quotes are what
 make the result safe in an **attribute** too, so
 `<button data-user={json(user)}>` needs no second helper. U+2028 and U+2029 are
 escaped as well — they are valid in JSON strings and are line terminators in
@@ -259,7 +259,7 @@ bun run dev        # server (bun --hot) + Vite + queue + scheduler, one terminal
 A `.tsx` view is rendered to a **string on the server**; the browser never
 receives a module for it, so there is nothing to swap. State-preserving HMR is
 not a missing feature here, it is a question that does not apply — the same
-reason Laravel has never had HMR for Blade. Fetching the page again is the honest
+reason a server-rendered template has never had HMR. Fetching the page again is the honest
 answer, and it is what `laravel-vite-plugin`'s `refresh` option does too.
 :::
 
@@ -304,7 +304,7 @@ serves `app.js` for ever — and a deploy ships stale JavaScript to anybody with
 warm cache — or defeats caching entirely with a query string.
 
 When there is neither a dev server nor a build, it **throws in production** and
-stays quiet elsewhere. Laravel throws in every environment; here a missing build
+stays quiet elsewhere. Throwing in every environment is the usual choice; here a missing build
 in production means a deploy shipped an unstyled page and silence would be wrong,
 while locally it usually means `bun run build` has not been run yet.
 
@@ -452,7 +452,7 @@ behind it for what it does not: a range request. Turn it off with
 `view.serveStatic: false` when something in front of the application already
 serves them.
 
-**A path with no file on disk belongs to the router.** That is Laravel's shape —
+**A path with no file on disk belongs to the router.** That is the usual shape —
 nginx `try_files $uri $uri/ /index.php`, Valet `file_exists(...) ? path : false` —
 and it is what makes `.get('/*')` work, in development exactly as in production.
 The plugin is mounted with `alwaysStatic: true` for it: a route per file that

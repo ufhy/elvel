@@ -22,7 +22,7 @@ import { defineConfig } from 'vitepress'
  */
 export default defineConfig({
   title: 'Elvel',
-  description: 'A Laravel-shaped framework for Bun, built on Elysia',
+  description: 'A batteries-included framework for Bun, built on Elysia',
   lang: 'en',
 
   // Published at ufhy.github.io/elvel, so every asset needs the prefix.
@@ -135,7 +135,7 @@ export default defineConfig({
       },
       {
         /**
-         * Optional packages, the way Laravel groups Telescope and Horizon.
+         * Optional packages, grouped apart from the framework's own.
          *
          * Not "digging deeper": everything in that group is a capability the
          * framework already has and an application configures. These are tools

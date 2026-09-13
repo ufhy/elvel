@@ -98,7 +98,7 @@ middlewares().priority(['auth', 'verified'])
 `auth` guarantees, and reversed it reports "not verified" to a **guest** who
 should have been sent to sign in. So a caller who writes
 `middleware('verified', 'auth')` still gets the working order — route order alone
-does not solve this, which is why Laravel keeps a priority list too.
+does not solve this, which is why there is a priority list.
 
 ## Rate limiting
 
@@ -137,7 +137,7 @@ Four things that follow:
 
 ::: warning A limit checks and then increments, so a burst can slip past
 Four simultaneous requests against `throttle:3,1` can all return 200: each reads
-the counter before any of them has written to it. Laravel's `ThrottleRequests`
+the counter before any of them has written to it. A throttle
 has the same shape, so this is its behaviour rather than a divergence — but it
 matters if you are using a limit to stop a *burst* rather than a rate. What would
 close it is an atomic increment-and-compare in the store, which is not what this

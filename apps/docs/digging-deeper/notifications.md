@@ -143,7 +143,7 @@ computes its answer and comes back with nothing should do.
 ## Who receives it
 
 Anything with an `email` is already a `mail` recipient — that is the default
-route Laravel reads too. Anything more specific declares its own:
+route read by default. Anything more specific declares its own:
 
 ```ts
 class User extends Model {
