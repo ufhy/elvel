@@ -46,7 +46,8 @@
     "@elvel/database": "workspace:*",
     "@elvel/http": "workspace:*",
     "@elvel/notifications": "workspace:*",
-    "@elvel/support": "workspace:*"
+    "@elvel/support": "workspace:*",
+    "@elvel/validation": "workspace:*"
   },
   "peerDependencies": {
     "better-auth": ">=1.6.0",

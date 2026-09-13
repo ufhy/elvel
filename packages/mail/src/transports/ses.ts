@@ -86,6 +86,8 @@ export class SesTransport implements Transport {
       ...(message.replyTo.length > 0
         ? { ReplyToAddresses: message.replyTo.map(formatAddress) }
         : {}),
+      // The envelope sender SES bounces to, distinct from `FromEmailAddress`.
+      ...(message.returnPath ? { FeedbackForwardingEmailAddress: message.returnPath.address } : {}),
       ...(this.options.configurationSet
         ? { ConfigurationSetName: this.options.configurationSet }
         : {}),

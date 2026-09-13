@@ -1159,3 +1159,65 @@ describe('the theme as a stylesheet', () => {
     expect<boolean>(html.includes('#123456')).toBe(true)
   })
 })
+
+/**
+ * Where bounces go. Without it every bounce lands on `From`, so an application
+ * that wants to process them — remove a dead address, stop sending to it — has
+ * nowhere to point the handler.
+ */
+describe('return path', () => {
+  class Plain extends Mailable {
+    envelope() {
+      return { to: 'ada@example.com', subject: 'Hi' }
+    }
+
+    content() {
+      return { html: '<p>Hi</p>' }
+    }
+  }
+
+  class Bouncing extends Mailable {
+    envelope() {
+      return {
+        to: 'ada@example.com',
+        subject: 'Hi',
+        returnPath: 'bounce+ada@example.com'
+      }
+    }
+
+    content() {
+      return { html: '<p>Hi</p>' }
+    }
+  }
+
+  const mailer = (returnPath?: string) =>
+    new Mailer('array', new ArrayTransport(), {
+      from: { address: 'no-reply@example.com' },
+      ...(returnPath ? { returnPath } : {})
+    })
+
+  test('absent by default, so a transport uses From', async () => {
+    const message = await mailer().build(new Plain({}))
+
+    expect(message.returnPath).toBeUndefined()
+  })
+
+  test('the mailer default applies to every message', async () => {
+    const message = await mailer('bounces@example.com').build(new Plain({}))
+
+    expect(message.returnPath?.address).toBe('bounces@example.com')
+  })
+
+  /** VERP: the recipient encoded in the path, so a bounce identifies itself. */
+  test('a mailable naming its own wins', async () => {
+    const message = await mailer('bounces@example.com').build(new Bouncing({}))
+
+    expect(message.returnPath?.address).toBe('bounce+ada@example.com')
+  })
+
+  test('and it is not the From address', async () => {
+    const message = await mailer('bounces@example.com').build(new Plain({}))
+
+    expect(message.from.address).toBe('no-reply@example.com')
+  })
+})

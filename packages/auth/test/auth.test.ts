@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { BunSqlConnection, QueryBuilder, SchemaBuilder } from '@elvel/database'
+import { makeValidator, Rule, resolveGateUsing } from '@elvel/validation'
 import { betterAuth } from 'better-auth'
 import { Elysia } from 'elysia'
 import { elvelAdapter, migrationFor } from '../src/adapter.ts'
@@ -796,5 +797,69 @@ describe('the response glue a server-rendered application needs', () => {
 
   test('and answers an empty list for anything that is not one', () => {
     expect<unknown[]>(sessionSummaries(undefined, new Headers())).toEqual([])
+  })
+})
+
+/**
+ * An authorisation failure in the error bag beside the field it concerns,
+ * rather than a 403 that says nothing about which of three ids was wrong.
+ */
+describe('Rule.can()', () => {
+  /**
+   * The ability is asked about the field's **value**, which is what makes the
+   * failure belong to that field: `post_id` is authorised, not the request.
+   */
+  const gateAllowing = (allowed: unknown[]) => {
+    const gate = new Gate(() => ada)
+
+    gate.define('touch', (_user, id) => allowed.includes(id))
+
+    return gate
+  }
+
+  const check = async (value: unknown, gate: Gate) => {
+    resolveGateUsing(() => gate)
+
+    const instance = makeValidator({ post_id: value }, { post_id: [Rule.can('touch')] })
+
+    return { passes: await instance.passes(), errors: JSON.stringify(instance.errors.all()) }
+  }
+
+  test('passes when the gate allows that value', async () => {
+    expect((await check(1, gateAllowing([1]))).passes).toBe(true)
+  })
+
+  test('fails when it does not, and the message names the field', async () => {
+    const result = await check(2, gateAllowing([1]))
+
+    expect(result.passes).toBe(false)
+    expect(result.errors).toContain('post_id')
+    expect(result.errors).toContain('touch')
+  })
+
+  test('extra arguments come before the value', async () => {
+    const seen: unknown[][] = []
+    const gate = new Gate(() => ada)
+
+    gate.define('inspect', (_user, ...args) => {
+      seen.push(args)
+
+      return true
+    })
+
+    resolveGateUsing(() => gate)
+
+    await makeValidator({ ref: 42 }, { ref: [Rule.can('inspect', 'posts')] }).passes()
+
+    expect(seen[0]).toEqual(['posts', 42])
+  })
+
+  /** A rule that quietly passes when nothing can authorise is worse than one that fails. */
+  test('no gate is an error rather than a pass', async () => {
+    resolveGateUsing(() => undefined)
+
+    await expect(
+      makeValidator({ post_id: 1 }, { post_id: [Rule.can('touch')] }).passes()
+    ).rejects.toThrow('needs a gate')
   })
 })

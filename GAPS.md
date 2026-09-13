@@ -11,12 +11,12 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 88** — all 37 components measured.
+**Open: 86** — all 37 components measured.
 
-Twelve added none: Concurrency, Conditionable, Config, Contracts, Encryption,
-Hashing, JsonSchema, Notifications, Reflection, Scheduling, Session and Support.
-Four are ahead of upstream rather than level with it, and the reasons are at the
-bottom.
+Thirteen added none: Concurrency, Conditionable, Config, Contracts, Encryption,
+Hashing, JsonSchema, Mail, Notifications, Reflection, Scheduling, Session and
+Support. Four are ahead of upstream rather than level with it, and the reasons
+are at the bottom.
 
 Scheduling sits inside Console upstream; here it is a package of its own and is
 measured separately.
@@ -1256,33 +1256,6 @@ classes.
 
 ---
 
-## Mail
-
-Six transports — SMTP, SES, Resend, Postmark and Mailgun over plain `fetch` with
-no library, plus `log`, `array` and a **`fallback`** transport upstream has no
-equivalent of. Markdown mail with a theme, inline images by `cid:`, attachments
-from a disk, per-recipient locale resolved before queueing, one queued job per
-channel, `alwaysTo` for staging, and a mail preview browser upstream needs a
-package for. The assertions go past upstream's: `assertOnlyRecipients`,
-`assertSentCount`, `assertHasHeader`.
-
-### No `Return-Path`, and no message priority
-
-`alwaysTo`, `alwaysReplyTo` and the `from` default are all there.
-`alwaysReturnPath` and a per-message `Return-Path` are not, and neither is
-`priority`.
-
-`Return-Path` is where bounces go. Without it every bounce lands on the `From`
-address, so an application that wants to process them — remove a dead address,
-stop sending to it — has nowhere to point the handler, and VERP (encoding the
-recipient into the return path so a bounce identifies itself) is impossible.
-
-**Done when** a return path can be set globally and per message, and each
-transport maps it to its own field: SMTP's `MAIL FROM`, SES's `ReturnPath`, and
-the provider equivalents.
-
----
-
 ## Pagination
 
 `ModelBuilder.paginate()` and `cursorPaginate()` exist, and the cursor half is
@@ -1720,19 +1693,6 @@ Two things are missing, and one of them is only visible from Translation:
 hardcoded English `Record` and the package never imports the translator. That is
 recorded under Translation.
 
-### `Rule::can()` is absent
-
-`'post_id' => [Rule::can('update', Post::class)]` runs the gate as a validation
-rule, so authorisation failures arrive in the error bag beside the field they
-concern instead of as a 403 that says nothing about which field was wrong.
-
-The gate is there and the rule contract takes a closure, so this is a small
-piece — but writing it per project means writing the message and the field
-mapping per project too.
-
-**Done when** the rule exists, resolves the gate lazily so validation still
-works with no auth package, and reports through the normal message resolution.
-
 ### `email` is one permissive regex
 
 ```ts
@@ -1952,3 +1912,8 @@ reader, computed lazily so a page that does not read it does not pay for it.
 - **Session is closed.** `push`, `increment`, `decrement`, `remember`, `only`,
   `except`, `hasAny`, `missing`, `replace`, and a `now()` that flashes for this
   request rather than the next.
+- **Mail is closed.** `Return-Path` is set globally or per mailable, and each
+  transport maps it to what it has: SMTP's `MAIL FROM` envelope, SES's
+  `FeedbackForwardingEmailAddress`, Mailgun's `h:Return-Path`. Resend and
+  Postmark have no envelope-sender field, so it travels as a header there —
+  which is what a receiving server rewrites anyway.

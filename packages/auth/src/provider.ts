@@ -6,6 +6,7 @@ import {
   registerCurrentPasswordRule,
   type SocketAddress
 } from '@elvel/http'
+import { resolveGateUsing } from '@elvel/validation'
 import { Elysia } from 'elysia'
 import { type Dialect, elvelAdapter } from './adapter.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
@@ -182,6 +183,12 @@ export class AuthServiceProvider extends ServiceProvider {
 
       return new Gate(() => (app.bound('auth') ? app.make('auth').user() : null), events)
     })
+
+    /**
+     * `Rule.can()` reaches the gate through this rather than importing it:
+     * `@elvel/validation` must keep working with no auth package present.
+     */
+    resolveGateUsing(() => (this.app.bound('gate') ? this.app.make('gate') : undefined))
 
     if (this.config<boolean>('auth.mount', true) === false) return
 

@@ -63,7 +63,8 @@ export class ResendTransport implements Transport {
         subject: message.subject,
         html: message.html,
         text: message.text,
-        headers: Object.keys(message.headers).length > 0 ? message.headers : undefined,
+        // Resend has no envelope-sender field, so the intent travels as a header.
+        headers: resendHeaders(message),
         tags: message.tags.length > 0 ? message.tags.map((name) => ({ name })) : undefined,
         attachments: attachments.length > 0 ? attachments : undefined
       })
@@ -111,7 +112,15 @@ export class PostmarkTransport implements Transport {
         HtmlBody: message.html,
         TextBody: message.text,
         MessageStream: this.options.stream ?? 'outbound',
-        Headers: Object.entries(message.headers).map(([Name, Value]) => ({ Name, Value })),
+        /**
+         * Postmark has no envelope-sender field: bounces go to the stream's
+         * configured address. The header is sent so the intent survives, and
+         * `Return-Path` is what a receiving server rewrites anyway.
+         */
+        Headers: Object.entries({
+          ...message.headers,
+          ...(message.returnPath ? { 'Return-Path': message.returnPath.address } : {})
+        }).map(([Name, Value]) => ({ Name, Value })),
         Attachments: attachments.length > 0 ? attachments : undefined
       })
     })
@@ -143,6 +152,9 @@ export class MailgunTransport implements Transport {
     for (const mailbox of message.cc) form.append('cc', formatAddress(mailbox))
     for (const mailbox of message.bcc) form.append('bcc', formatAddress(mailbox))
     for (const mailbox of message.replyTo) form.append('h:Reply-To', formatAddress(mailbox))
+
+    // Mailgun's envelope sender, which is what a bounce is addressed to.
+    if (message.returnPath) form.append('h:Return-Path', message.returnPath.address)
 
     form.append('subject', message.subject)
     if (message.html) form.append('html', message.html)
@@ -187,4 +199,14 @@ export class MailgunTransport implements Transport {
 
     return { transport: this.name, id: body.id }
   }
+}
+
+/** Resend takes headers or nothing; a return path has to travel as one. */
+function resendHeaders(message: SentMessage): Record<string, string> | undefined {
+  const headers = {
+    ...message.headers,
+    ...(message.returnPath ? { 'Return-Path': message.returnPath.address } : {})
+  }
+
+  return Object.keys(headers).length > 0 ? headers : undefined
 }

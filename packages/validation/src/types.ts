@@ -121,6 +121,36 @@ export const Rule = {
   },
 
   /**
+   * The gate must allow it — `Rule.can('update', Post)`.
+   *
+   * An authorisation failure then arrives in the error bag beside the field it
+   * concerns, rather than as a 403 that says nothing about which field was
+   * wrong. For a form carrying three ids, that is the difference between a
+   * usable message and a dead end.
+   *
+   * The value is passed to the ability as its last argument, so
+   * `can('update', Post)` on `post_id` asks the policy about *that* id. The
+   * gate is resolved lazily and its absence is an error rather than a pass: a
+   * rule that quietly succeeds when nothing can authorise is worse than one
+   * that fails.
+   */
+  can(ability: string, ...args: unknown[]): ClosureRule {
+    return async ({ value, attribute }) => {
+      const gate = resolveGate()
+
+      if (!gate) {
+        throw new Error(
+          `Rule.can('${ability}') needs a gate. Register AuthServiceProvider, or drop the rule.`
+        )
+      }
+
+      const allowed = await gate.allows(ability, [...args, value])
+
+      return allowed ? true : `You are not authorised to ${ability} this ${attribute}.`
+    }
+  },
+
+  /**
    * Apply rules only when a condition holds — `Rule.when()`.
    *
    * The condition is a function of the data and is asked at validation time, not
@@ -235,4 +265,18 @@ export type ValidatorOptions = {
   attributes?: Record<string, string>
   verifier?: PresenceVerifier
   stopOnFirstFailure?: boolean
+}
+
+/** What `Rule.can()` needs, without this package depending on `@elvel/auth`. */
+type Gate = { allows(ability: string, args?: unknown): Promise<boolean> }
+
+let gateResolver: (() => Gate | undefined) | undefined
+
+/** Called by the auth provider at boot. */
+export function resolveGateUsing(resolver: () => Gate | undefined): void {
+  gateResolver = resolver
+}
+
+function resolveGate(): Gate | undefined {
+  return gateResolver?.()
 }

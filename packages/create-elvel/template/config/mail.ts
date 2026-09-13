@@ -64,7 +64,7 @@ export default {
 
   from: {
     address: env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-    name: env('MAIL_FROM_NAME', '{{ name }}')
+    name: env('MAIL_FROM_NAME', 'Elvel')
   },
 
   /**
@@ -74,6 +74,14 @@ export default {
    * difference between a test send and mail reaching real customers.
    */
   alwaysTo: env('MAIL_ALWAYS_TO', '') || undefined,
+
+  /**
+   * Where bounces go, when it is not the `From` address.
+   *
+   * Without one every bounce lands on `From`, so an application that wants to
+   * process them has nowhere to point the handler. A mailable may name its own.
+   */
+  returnPath: env('MAIL_RETURN_PATH', '') || undefined,
 
   mailers: {
     /** Writes to the log channel. The right default while developing. */

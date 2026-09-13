@@ -50,6 +50,7 @@ export {
   type RuleDeclaration,
   type RuleHandler,
   type Rules,
+  resolveGateUsing,
   UniqueRule,
   type ValidatorOptions
 } from './types.ts'

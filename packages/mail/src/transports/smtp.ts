@@ -52,6 +52,19 @@ export class SmtpTransport implements Transport {
       cc: message.cc.length > 0 ? message.cc.map(formatAddress) : undefined,
       bcc: message.bcc.length > 0 ? message.bcc.map(formatAddress) : undefined,
       replyTo: message.replyTo.length > 0 ? message.replyTo.map(formatAddress) : undefined,
+      /**
+       * `MAIL FROM`, which is where bounces go — not the `From` header a reader
+       * sees. Nodemailer takes it as `envelope`, and naming one means naming
+       * both, so the recipients are repeated here.
+       */
+      ...(message.returnPath
+        ? {
+            envelope: {
+              from: message.returnPath.address,
+              to: [...message.to, ...message.cc, ...message.bcc].map((one) => one.address)
+            }
+          }
+        : {}),
       subject: message.subject,
       html: message.html,
       text: message.text,

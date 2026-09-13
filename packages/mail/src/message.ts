@@ -21,6 +21,16 @@ export type SentMessage = {
   cc: Array<{ address: string; name?: string }>
   bcc: Array<{ address: string; name?: string }>
   replyTo: Array<{ address: string; name?: string }>
+  /**
+   * Where bounces go, when it is not the `From`.
+   *
+   * The envelope sender, not a header a reader sees. Without it every bounce
+   * lands on `From`, so an application that wants to process them — remove a
+   * dead address, stop sending to it — has nowhere to point the handler, and
+   * VERP, which encodes the recipient into the return path so a bounce
+   * identifies itself, is impossible.
+   */
+  returnPath?: { address: string; name?: string }
   subject: string
   html?: string
   text?: string

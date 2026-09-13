@@ -27,6 +27,13 @@ export type MailerOptions = {
    * every answer to reach support anyway.
    */
   replyTo?: Address
+  /**
+   * Where bounces go for every message this mailer sends.
+   *
+   * A default rather than an override: a mailable that names its own wins, the
+   * same way `replyTo` works.
+   */
+  returnPath?: Address
   render?: ViewRenderer
   events?: { dispatch(event: string, payload?: unknown): unknown }
   /**
@@ -94,6 +101,11 @@ export class Mailer {
         envelope.replyTo === undefined
           ? addresses(this.options.replyTo)
           : addresses(envelope.replyTo),
+      /**
+       * The envelope's, then the mailer's, then nothing — and nothing means the
+       * transport uses `from`, which is the behaviour without this.
+       */
+      returnPath: addresses(envelope.returnPath ?? this.options.returnPath)[0],
       subject: envelope.subject ?? '',
       html: html ?? ('html' in content ? content.html : undefined),
       text: 'text' in content ? content.text : undefined,

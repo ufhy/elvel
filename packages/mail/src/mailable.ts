@@ -33,6 +33,8 @@ export type Envelope = {
   cc?: Address | Address[]
   bcc?: Address | Address[]
   replyTo?: Address | Address[]
+  /** Where bounces go. Falls back to `mail.returnPath`, then to `from`. */
+  returnPath?: Address
   subject?: string
   /** Passed through to transports that understand them. */
   tags?: string[]
