@@ -54,8 +54,8 @@ export class DatabasePresenceVerifier implements PresenceVerifier {
     for (const [column, value] of extra) {
       const text = String(value)
 
-      // `!value` negates, and `NULL` compares against null, as Laravel's
-      // string-rule shorthand does.
+      // `!value` negates, and `NULL` compares against null — the string-rule
+      // shorthand.
       if (text.startsWith('!')) current = current.where(column, '!=', text.slice(1))
       else if (text === 'NULL') current = current.where(column, 'is', null)
       else current = current.where(column, '=', value)

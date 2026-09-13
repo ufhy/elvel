@@ -16,8 +16,7 @@ import {
  *
  * A `$ref` that points at an ancestor expands forever, and a document with a
  * few dozen mutually-referencing definitions expands into millions of nodes
- * from a few kilobytes of input. Laravel caps this at 20,000 for the same
- * reason: the parser has to be safe to point at a schema someone uploaded.
+ * from a few kilobytes of input, so it is capped: the parser has to be safe to point at a schema someone uploaded.
  */
 const MAX_NODES = 20_000
 

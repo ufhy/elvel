@@ -3,7 +3,7 @@ import type { Model, ModelClass } from '@elvel/database'
 /**
  * A model that travelled through a payload as a reference.
  *
- * Laravel's `SerializesModels` exists for two reasons, and both apply here: a
+ * Serialising a model by identifier rather than by value, for two reasons: a
  * payload carrying a whole record is large, and by the time a worker runs it the
  * record may have changed. Storing the key and re-reading it means the job always
  * sees the current row — and finds out, rather than working on a ghost, when the

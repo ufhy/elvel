@@ -68,14 +68,14 @@ export abstract class DatabaseRule {
 
   abstract readonly name: string
 
-  /** Extra constraint, as Laravel's `->where('account_id', 1)`. */
+  /** Extra constraint: `.where('account_id', 1)`. */
   where(column: string, value: unknown): this {
     this.wheres.push([column, value])
     return this
   }
 
   whereNot(column: string, value: unknown): this {
-    // Encoded as `!value`, the same shorthand Laravel's string rules accept.
+    // Encoded as `!value`, the shorthand the string rules accept.
     this.wheres.push([column, `!${String(value)}`])
     return this
   }
@@ -177,10 +177,10 @@ export const Rule = {
 }
 
 /**
- * A rule written as a function — Laravel's closure rule.
+ * A rule written as a function.
  *
- * Return `true` (or nothing) to pass, or a **message** to fail with. Laravel
- * calls a `$fail` callback; returning the message is the same information with
+ * Return `true` (or nothing) to pass, or a **message** to fail with. Returning
+ * the message rather than calling a `fail` callback is the same information with
  * one less moving part, and it makes the rule usable in a `.map()`.
  *
  * ```ts

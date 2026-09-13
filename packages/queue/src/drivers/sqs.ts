@@ -26,7 +26,7 @@ export type SqsQueueOptions = Credentials & {
 }
 
 /**
- * Amazon SQS — Laravel's `sqs` connection.
+ * Amazon SQS.
  *
  * The one driver here that does not own its reservations. SQS *is* the
  * reservation: a received message is invisible for its visibility timeout, and
@@ -38,7 +38,7 @@ export type SqsQueueOptions = Credentials & {
  *
  * - **The attempt count is SQS's.** `ApproximateReceiveCount` is the only counter,
  *   and it counts *receives* rather than attempts, so a worker killed before it
- *   could release still increments it. That is the same trade Laravel makes.
+ *   could release still increments it.
  * - **`size()` is approximate.** Every SQS counter is, and a queue spread over
  *   several hosts cannot answer exactly without stopping. Do not build a
  *   "wait until empty" loop on it.

@@ -16,7 +16,7 @@ export type JobMiddleware = {
 export type AnyJob = Job<unknown>
 
 /**
- * A queued job — Laravel's `ShouldQueue` class with its `handle()`.
+ * A queued job: a class with a `handle()`.
  *
  * ```ts
  * export class SendWelcomeEmail extends Job<{ userId: string }> {
@@ -32,8 +32,8 @@ export type AnyJob = Job<unknown>
  * ```
  *
  * The class is found by name when a worker picks the payload up, and the data
- * travels in the payload. That is the one real difference from Laravel, where the
- * object itself is serialised: PHP can `serialize($job)`, TypeScript cannot, so
+ * travels in the payload rather than the object itself, because TypeScript cannot
+ * serialise one, so
  * the base class owns `data` and it is `data` that is written and read back.
  */
 export abstract class Job<TData = Record<string, never>> {

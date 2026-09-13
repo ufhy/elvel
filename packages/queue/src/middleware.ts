@@ -2,8 +2,7 @@ import type { Lock, RateLimiter, Repository } from '@elvel/cache'
 import type { AnyJob, JobMiddleware } from './job.ts'
 
 /**
- * Let only one instance of a job run at a time — Laravel's
- * `WithoutOverlapping`.
+ * Let only one instance of a job run at a time.
  *
  * The difference from a unique job is *when* the guard applies: unique stops a
  * duplicate being **queued**, this stops two that are already queued from
@@ -77,7 +76,7 @@ export class RateLimited implements JobMiddleware {
 /**
  * Delete the job instead of running it when a condition holds.
  *
- * Useful for the case Laravel's `Skip` middleware covers: a job whose reason to
+ * Useful for one case: a job whose reason to
  * exist disappeared while it sat in the queue.
  */
 export class Skip implements JobMiddleware {

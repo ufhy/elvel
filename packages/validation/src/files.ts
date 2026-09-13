@@ -89,8 +89,8 @@ export type SniffedImage = { type: string; width: number; height: number }
  * Read a file's real type, and an image's real dimensions, from its bytes.
  *
  * `file.type` is a header the client sent; a `.php` renamed to `.png` arrives
- * claiming `image/png` and nothing about the object contradicts it. Laravel
- * guesses the type from content with `finfo` for exactly this reason, so `mimes`
+ * claiming `image/png` and nothing about the object contradicts it. The type has
+ * to be guessed from content for that reason, so `mimes`
  * and `image` here believe the bytes over the claim whenever the bytes are
  * legible — and only fall back to the claim for formats this cannot read.
  *

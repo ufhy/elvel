@@ -11,7 +11,7 @@ import {
 } from './types.ts'
 
 /**
- * Build a JSON Schema — Laravel's `JsonSchema` facade.
+ * Build a JSON Schema.
  *
  * ```ts
  * const schema = Schema.object({

@@ -533,7 +533,7 @@ export class Validator {
   }
 
   /**
-   * `attribute.rule` beats `rule`, matching Laravel's message lookup order.
+   * `attribute.rule` beats `rule`.
    *
    * An expanded attribute also answers to its pattern, so a message written for
    * `items.*.price` is found from `items.0.price` — the concrete key is ours, not

@@ -40,7 +40,7 @@ export default {
        *
        * The cost is patience: a delayed job may start up to this many seconds after
        * its time, and a job abandoned by a dead worker is recovered that much later.
-       * `0` sweeps on every pop, which is what Laravel does.
+       * `0` sweeps on every pop.
        */
       migrateEvery: 1,
       /**

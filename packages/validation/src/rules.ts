@@ -109,7 +109,7 @@ function namedParameters(params: string[]): Record<string, string> {
   return named
 }
 
-/** `3/2` as a number. A bare `1.5` is accepted too, as Laravel's sscanf is. */
+/** `3/2` as a number. A bare `1.5` is accepted too. */
 function parseRatio(ratio: string): number {
   const [numerator, denominator] = ratio.split('/')
 
@@ -131,7 +131,7 @@ function get(data: Data, key: string): unknown {
   return Arr.get(data, key)
 }
 
-/** Laravel's notion of "present": not null, not an empty string or array. */
+/** "Present": not null, not an empty string or array. */
 export function isFilled(value: unknown): boolean {
   if (value === null || value === undefined) return false
   if (typeof value === 'string') return value.trim() !== ''
@@ -326,7 +326,7 @@ export const RULES: Record<string, RuleHandler> = {
    * An image, decided by the file's **bytes** rather than its claimed type.
    *
    * `image:allow_svg` adds SVG, which is off by default because an SVG is a
-   * document that can carry script — Laravel made the same choice.
+   * document that can carry script.
    */
   image: async ({ value, params }) => {
     if (!isFile(value)) return false
@@ -349,7 +349,7 @@ export const RULES: Record<string, RuleHandler> = {
    *
    * `mimes:jpg` accepts a file called `photo.jpeg`, and refuses `photo.jpg` that
    * is really a zip. An executable extension is refused unless it was asked for
-   * by name, which is Laravel's `shouldBlockPhpUpload` widened a little.
+   * by name, widened past the usual PHP-upload list.
    */
   mimes: async ({ value, params }) => {
     if (!isFile(value)) return false
@@ -389,7 +389,7 @@ export const RULES: Record<string, RuleHandler> = {
   /**
    * `dimensions:min_width=100,ratio=3/2` — width, height and aspect ratio.
    *
-   * The ratio tolerance is Laravel's, and it is not arbitrary: an exact
+   * The ratio tolerance is not arbitrary: an exact
    * comparison of two floats rejects a 1600x900 image for `16/9`.
    */
   dimensions: async ({ value, params }) => {
@@ -431,7 +431,7 @@ export const RULES: Record<string, RuleHandler> = {
     return params.every((param) => keys.includes(param))
   },
 
-  /** The array contains every one of these values. Laravel's `contains`. */
+  /** The array contains every one of these values. */
   contains: ({ value, params }) => {
     if (!Array.isArray(value)) return false
 
@@ -732,7 +732,7 @@ export const RULES: Record<string, RuleHandler> = {
 
   hex_color: ({ value }) =>
     // Three, four, six or eight digits: `#abc`, `#abcd`, `#aabbcc`, `#aabbccdd`.
-    // The four- and eight-digit forms carry alpha, and Laravel accepts both.
+    // The four- and eight-digit forms carry alpha, and both are accepted.
     typeof value === 'string' && /^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i.test(value),
 
   ulid: ({ value }) => typeof value === 'string' && Str.isUlid(value),
@@ -852,8 +852,8 @@ export const RULES: Record<string, RuleHandler> = {
    * Scaled to integers before dividing.
    *
    * `0.3 % 0.1` is `0.09999999999999998` in binary floating point, so the obvious
-   * spelling reports that 0.3 is not a multiple of 0.1. Laravel reaches for a
-   * decimal library for the same reason.
+   * spelling reports that 0.3 is not a multiple of 0.1, which is why this does
+   * not use it.
    */
   multiple_of: ({ value, params }) => {
     const numerator = Number(value)
@@ -876,7 +876,7 @@ export const RULES: Record<string, RuleHandler> = {
    * The negative of `contains`, and on arrays rather than strings.
    *
    * `doesnt_start_with` and `doesnt_end_with` below are the string ones. The
-   * naming is Laravel's and it is worth knowing which is which before writing a
+   * naming is worth knowing before writing a
    * rule that silently passes on the wrong type.
    */
   doesnt_contain: ({ value, params }) => {

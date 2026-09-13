@@ -1,5 +1,5 @@
 /**
- * Message catalogue, worded as Laravel's `lang/en/validation.php`.
+ * The message catalogue.
  *
  * Size rules carry one message per value type, because "must be at least 3"
  * means characters for a string, items for an array, and a magnitude for a
@@ -143,7 +143,7 @@ export const MESSAGES: Record<string, string | SizeMessages> = {
   schema: 'The :attribute field is invalid.'
 }
 
-/** `first_name` -> `first name`, matching Laravel's default attribute naming. */
+/** `first_name` -> `first name`. */
 export function humanizeAttribute(attribute: string): string {
   return attribute
     .replace(/\[(\d+)\]/g, '.$1')

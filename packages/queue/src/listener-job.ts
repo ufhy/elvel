@@ -21,7 +21,7 @@ export type QueuedListenerData = {
  * going through a job rather than inventing a second worker.
  *
  * Its per-job options are copied off the listener class at dispatch time by
- * `queuedListenerJob()`, mirroring Laravel's `propagateListenerOptions`.
+ * `queuedListenerJob()`.
  */
 export class CallQueuedListener extends Job<QueuedListenerData> {
   static listenerRegistry: ListenerRegistry | undefined
@@ -51,7 +51,7 @@ export class CallQueuedListener extends Job<QueuedListenerData> {
   /**
    * Forward the failure to the listener's own `failed()`, with the event.
    *
-   * Laravel passes the event and the exception, and so do we: a listener that
+   * The event and the exception are both passed: a listener that
    * wants to record what it could not do needs to know *what* it was.
    */
   override async failed(error: unknown): Promise<void> {
@@ -90,8 +90,7 @@ export class CallQueuedListener extends Job<QueuedListenerData> {
 /**
  * Build the job for one (listener, event) pair, carrying the listener's options.
  *
- * Laravel's `propagateListenerOptions`: what a job declares with statics, a queued
- * listener declares the same way, and the values are copied onto the job class so
+ * What a job declares with statics, a queued listener declares the same way, and the values are copied onto the job class so
  * the queue reads them where it already looks.
  */
 export function queuedListenerJob(

@@ -44,7 +44,7 @@ export class JobRunner {
      *
      * They cannot be deleted from the queue when the batch is cancelled — a driver
      * has no random access, and another worker may already hold one — so the check
-     * happens here, at the moment of reservation. Laravel does the same.
+     * happens here, at the moment of reservation.
      */
     if (await this.batchWasCancelled(queued)) {
       if (!queued.isDeleted()) await queued.delete()

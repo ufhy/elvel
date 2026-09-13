@@ -29,8 +29,8 @@ export type BatchDispatcher = {
  *   .dispatch()
  * ```
  *
- * The callbacks are **job classes**, not closures. Laravel serialises closures
- * into the batch row; a closure cannot be rebuilt in the worker that would run it,
+ * The callbacks are **job classes**, not closures. A closure cannot be rebuilt in
+ * the worker that would run it,
  * which is the same wall queued listeners hit. Naming a job is the honest version
  * of the same idea — and it means a callback gets retries and a failure record
  * like anything else that runs in a worker.
@@ -62,7 +62,7 @@ export class PendingBatch {
   /**
    * Dispatched, with the batch id, once every job has succeeded.
    *
-   * Laravel calls this `then`. It cannot be called that here: a class with a
+   * It cannot be called `then`: a class with a
    * `then` member is a thenable, so `await queue().batch([...])` would invoke it
    * with `resolve`/`reject` instead of job classes — a chainable builder must not
    * be mistakable for a promise. The scheduler dropped its own `then()` alias for

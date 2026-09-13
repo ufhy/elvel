@@ -10,11 +10,11 @@ export type RedisQueueOptions = {
   /**
    * Seconds between sweeps for due delayed jobs and expired reservations.
    *
-   * Laravel sweeps on every `pop`, which on a busy queue is two extra round trips
+   * Sweeping on every `pop` is two extra round trips
    * for every job taken — two thirds of the traffic, spent asking whether anything
    * became due in the microsecond since the last time. Once a second is often
    * enough for a mechanism whose own resolution is whole seconds, and `0` restores
-   * Laravel's behaviour exactly.
+   * the unswept behaviour exactly.
    */
   migrateEvery?: number
   /**

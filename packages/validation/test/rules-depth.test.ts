@@ -27,7 +27,7 @@ describe('shape of a string', () => {
   test('hex_color takes three, four, six and eight digits', async () => {
     expect(await passes('#abc', 'hex_color')).toBe(true)
     expect(await passes('#AABBCC', 'hex_color')).toBe(true)
-    // Four and eight carry alpha, and Laravel accepts both.
+    // Four and eight carry alpha, and both are accepted.
     expect(await passes('#abcd', 'hex_color')).toBe(true)
     expect(await passes('#aabbccdd', 'hex_color')).toBe(true)
 
@@ -78,7 +78,7 @@ describe('shape of a string', () => {
   /**
    * The group parameter is refused rather than ignored.
    *
-   * `timezone:AFRICA` means "an African zone" in Laravel. `Intl` exposes no
+   * `timezone:AFRICA` would mean "an African zone". `Intl` exposes no
    * grouping, so accepting the parameter and checking only membership would pass
    * `Asia/Tokyo` for a rule that excluded it — worse than saying so.
    */

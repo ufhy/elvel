@@ -39,9 +39,8 @@ export type BatchOptions = {
 /**
  * A batch of jobs, and the counters that say how far along it is.
  *
- * The one real departure from Laravel: **callbacks are job classes, not
- * closures.** Laravel serialises the closures into the batch row; a closure here
- * cannot travel to the worker that would run it, for exactly the reason a queued
+ * **Callbacks are job classes, not closures.** A closure cannot travel to the
+ * worker that would run it, for exactly the reason a queued
  * listener is a class. So `onSuccess(SendReport)` dispatches `SendReport` — with the
  * batch id in its payload — instead of calling a function nobody can rebuild.
  */
@@ -100,8 +99,7 @@ export class Batch {
    *
    * Jobs already queued are not deleted — a worker cannot reach into another
    * queue and remove them. They are skipped when reserved instead, which is
-   * Laravel's approach and the only one that works with a driver that has no
-   * random access.
+   * The only approach that works with a driver that has no random access.
    */
   async cancel(): Promise<void> {
     await this.repository.cancel(this.id)

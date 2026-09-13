@@ -1035,7 +1035,7 @@ describe('batches', () => {
   /**
    * A job that reads its own batch and calls the rest of it off.
    *
-   * The direction Laravel's `$this->batch()` is mostly used in: one job finds
+   * The direction `this.batch()` is mostly used in: one job finds
    * out the whole run is pointless — the import file is malformed, the account
    * is gone — and stops the others without touching the queue.
    */
@@ -1972,7 +1972,7 @@ if (redisAvailable) {
       driver.disconnect()
     })
 
-    test('unless the interval is zero, which is what Laravel does', async () => {
+    test('unless the interval is zero, which sweeps every pop', async () => {
       const driver = new RedisQueue('redis', {
         url: REDIS_URL,
         prefix: `t0${Date.now().toString(36)}:`,

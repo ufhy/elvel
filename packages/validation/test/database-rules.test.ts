@@ -52,7 +52,7 @@ describe('unique', () => {
     )
   })
 
-  test('the message matches Laravel', async () => {
+  test('the message reads as expected', async () => {
     const instance = validator({ email: 'ada@example.com' }, { email: 'unique:users' })
     await instance.passes()
 
@@ -144,7 +144,7 @@ describe('exists', () => {
     ).toBe(true)
   })
 
-  test('the message matches Laravel', async () => {
+  test('the message reads as expected', async () => {
     const instance = validator({ email: 'nobody@example.com' }, { email: 'exists:users' })
     await instance.passes()
 
