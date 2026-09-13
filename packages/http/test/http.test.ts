@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ForbiddenException } from '@elvel/core'
+import { collect, Paginator } from '@elvel/support'
 import { Rule, ValidationError, type Validator } from '@elvel/validation'
 import { CookieBag } from '../src/cookie-bag.ts'
 import { CookieJar, timingSafeEqual } from '../src/cookies.ts'
@@ -379,6 +380,53 @@ describe('JsonResource', () => {
       ],
       meta: { total: 2 }
     })
+  })
+
+  /** The shape every JavaScript client library already understands. */
+  test('a page serialises as data, links and meta without being asked', () => {
+    const page = new Paginator(
+      collect([
+        { id: 1, title: 'A' },
+        { id: 2, title: 'B' }
+      ]),
+      10,
+      2,
+      2,
+      { path: '/posts' }
+    )
+
+    const body = PostResource.collection(page).toObjectWithWrapper()
+
+    expect(body).toEqual({
+      data: [
+        { id: 1, title: 'A' },
+        { id: 2, title: 'B' }
+      ],
+      links: {
+        first: '/posts?page=1',
+        last: '/posts?page=5',
+        prev: '/posts?page=1',
+        next: '/posts?page=3'
+      },
+      meta: {
+        current_page: 2,
+        from: 3,
+        last_page: 5,
+        path: '/posts',
+        per_page: 2,
+        to: 4,
+        total: 10
+      }
+    })
+  })
+
+  test('and meta added by hand is merged over it, not instead of it', () => {
+    const page = new Paginator(collect([{ id: 1, title: 'A' }]), 1, 15, 1, { path: '/posts' })
+
+    const body = PostResource.collection(page).withMeta({ label: 'recent' }).toObjectWithWrapper()
+
+    expect((body.meta as Record<string, unknown>).total).toBe(1)
+    expect((body.meta as Record<string, unknown>).label).toBe('recent')
   })
 
   test('nested resources resolve recursively', () => {

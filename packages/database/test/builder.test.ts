@@ -264,6 +264,27 @@ describe('reading', () => {
     expect((await users().orderBy('id').forPage(2, 2).get()).pluck('name').all()).toEqual(['Grace'])
   })
 
+  /** A report or a join is the query most likely to be large enough to need this. */
+  test('paginate works on the query builder, not only the model one', async () => {
+    const page = await users().orderBy('id').paginate(2, 2)
+
+    expect(page.data.pluck('name').all()).toEqual(['Grace'])
+    expect(page.total).toBe(3)
+    expect(page.lastPage).toBe(2)
+  })
+
+  test('simplePaginate answers only whether there is another page', async () => {
+    const first = await users().orderBy('id').simplePaginate(1, 2)
+
+    expect(first.data.count()).toBe(2)
+    expect(first.hasMorePages()).toBe(true)
+
+    const second = await users().orderBy('id').simplePaginate(2, 2)
+
+    expect(second.data.count()).toBe(1)
+    expect(second.hasMorePages()).toBe(false)
+  })
+
   test('distinct', async () => {
     await users().insert({ name: 'Ada', email: 'second@example.com' })
 

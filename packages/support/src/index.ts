@@ -42,6 +42,13 @@ export {
   withLocale
 } from './number.ts'
 export {
+  type PageLink,
+  Paginator,
+  type PaginatorOptions,
+  Paginators,
+  SimplePaginator
+} from './paginator.ts'
+export {
   type Next,
   type Pipe,
   type PipeFunction,

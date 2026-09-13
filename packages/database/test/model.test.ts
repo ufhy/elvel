@@ -555,6 +555,15 @@ describe('querying', () => {
     expect(page).toMatchObject({ total: 3, perPage: 2, currentPage: 2, lastPage: 2 })
   })
 
+  /** One query instead of two: the count is what a Previous/Next control does not need. */
+  test('simplePaginate does not count', async () => {
+    const page = await User.query().orderBy('id').simplePaginate(1, 2)
+
+    expect(page.data.pluck('name').all()).toEqual(['Ada', 'Linus'])
+    expect(page.hasMorePages()).toBe(true)
+    expect(page.nextPageUrl()).toContain('page=2')
+  })
+
   test('chunk walks every model', async () => {
     const seen: string[] = []
     await User.query()

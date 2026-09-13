@@ -1,4 +1,4 @@
-import { Collection } from '@elvel/support'
+import { Collection, Paginator, SimplePaginator } from '@elvel/support'
 
 export type Attributes = Record<string, unknown>
 
@@ -154,7 +154,7 @@ export abstract class JsonResource<T = unknown> {
     this: new (
       resource: M
     ) => R,
-    resources: Iterable<M>
+    resources: Iterable<M> | Paginator<M> | SimplePaginator<M>
   ): ResourceCollection<M, R> {
     return new ResourceCollection<M, R>(this, resources)
   }
@@ -167,10 +167,22 @@ export class ResourceCollection<M, R extends JsonResource<M>> {
   private extra: Attributes = {}
   private meta: Attributes = {}
 
+  /** The page these came from, when they came from one. */
+  private readonly page?: Paginator<M> | SimplePaginator<M>
+
+  private readonly models: Iterable<M>
+
   constructor(
     private readonly resource: new (model: M) => R,
-    private readonly models: Iterable<M>
-  ) {}
+    models: Iterable<M> | Paginator<M> | SimplePaginator<M>
+  ) {
+    if (models instanceof Paginator || models instanceof SimplePaginator) {
+      this.page = models
+      this.models = models.items()
+    } else {
+      this.models = models
+    }
+  }
 
   additional(data: Attributes): this {
     this.extra = { ...this.extra, ...data }
@@ -192,6 +204,20 @@ export class ResourceCollection<M, R extends JsonResource<M>> {
     const items = this.resolve()
 
     const body: Attributes = wrap === undefined ? { items } : { [wrap]: items }
+
+    /**
+     * A page serialises as `data`, `links` and `meta` without being asked, which
+     * is the shape every JavaScript client library already understands. Anything
+     * added by hand is merged over it rather than replacing it.
+     */
+    if (this.page !== undefined) {
+      const serialised = this.page.toJSON() as { links: Attributes; meta: Attributes }
+
+      body.links = serialised.links
+      body.meta = { ...serialised.meta, ...this.meta }
+
+      return { ...body, ...this.extra }
+    }
 
     if (Object.keys(this.meta).length > 0) body.meta = this.meta
 

@@ -1,4 +1,12 @@
-import { Collection, LazyCollection, Macroable } from '@elvel/support'
+import {
+  Collection,
+  LazyCollection,
+  Macroable,
+  Paginator,
+  type PaginatorOptions,
+  Paginators,
+  SimplePaginator
+} from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import type { DateArgs } from '../query/builder.ts'
 import { QueryBuilder } from '../query/builder.ts'
@@ -8,13 +16,14 @@ import { attributeEncrypter, formatDateTime } from './casts.ts'
 import type { Model, ModelClass } from './model.ts'
 import type { EagerConstraint } from './relations.ts'
 
-export type Paginated<M> = {
-  data: Collection<M>
-  total: number
-  perPage: number
-  currentPage: number
-  lastPage: number
-}
+/**
+ * A numbered page.
+ *
+ * An alias rather than a shape of its own: it was five numbers and no URLs, and
+ * a caller reading `page.data` or `page.total` still reads the same properties
+ * off the paginator.
+ */
+export type Paginated<M> = Paginator<M>
 
 /**
  * A page reached by remembering where the last one ended.
@@ -1473,22 +1482,45 @@ export class ModelBuilder<M extends Model> extends Macroable {
    * listing is the shape most applications serve most often, so it is the round
    * trip most worth not spending.
    */
-  async paginate(page = 1, perPage = 15): Promise<Paginated<M>> {
+  async paginate(
+    page?: number,
+    perPage = 15,
+    options: PaginatorOptions = {}
+  ): Promise<Paginator<M>> {
+    const current = Math.max(1, page ?? Paginators.currentPage(options.pageName))
+
     const [total, data] = await Promise.all([
       this.clone().count(),
       this.clone()
-        .offset((Math.max(1, page) - 1) * perPage)
+        .offset((current - 1) * perPage)
         .limit(perPage)
         .get()
     ])
 
-    return {
-      data,
-      total,
-      perPage,
-      currentPage: Math.max(1, page),
-      lastPage: Math.max(1, Math.ceil(total / perPage))
-    }
+    return new Paginator(data, total, perPage, current, options)
+  }
+
+  /**
+   * One page and one query: `perPage + 1` rows, the extra one dropped.
+   *
+   * All a Previous/Next control needs, and it skips the `count(*)` over the whole
+   * filtered set, which is usually the slower of the numbered paginator's two.
+   */
+  async simplePaginate(
+    page?: number,
+    perPage = 15,
+    options: PaginatorOptions = {}
+  ): Promise<SimplePaginator<M>> {
+    const current = Math.max(1, page ?? Paginators.currentPage(options.pageName))
+
+    const rows = await this.clone()
+      .offset((current - 1) * perPage)
+      .limit(perPage + 1)
+      .get()
+
+    const more = rows.count() > perPage
+
+    return new SimplePaginator(more ? rows.take(perPage) : rows, perPage, current, more, options)
   }
 
   /** Mass update, bypassing model events exactly. */

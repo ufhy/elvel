@@ -1090,73 +1090,24 @@ projected from the helper object one import earlier, and joining them would make
 
 ## Pagination
 
-`ModelBuilder.paginate()` and `cursorPaginate()` exist, and the cursor half is
-done properly: multi-column keys compile to
-`created_at > ? OR (created_at = ? AND id > ?)` so a page boundary is exact when
-two rows share a timestamp, the cursor is base64url so it travels in a URL, and
-there is deliberately no `total` because counting is the cost cursor pagination
-exists to avoid.
+Both builders answer with a `Paginator` that knows its own URLs — `url(page)`,
+`nextPageUrl`, `firstItem`, `hasMorePages`, `through()` to map the items without
+losing the page — and carries the request's query string into every one of them,
+so paging away from a filtered list keeps the filters. `linkCollection()` is the
+`1 … 4 5 6 … 20` window, and `toJSON()` is the `data`/`links`/`meta` shape a
+resource collection now emits without being asked.
 
-### A page does not know its own URLs
+`simplePaginate` runs one query instead of two: `perPage + 1` rows and no
+`count(*)`, which on a large filtered table is usually the slower of the pair.
 
-```ts
-export type Paginated<M> = {
-  data: Collection<M>
-  total: number
-  perPage: number
-  currentPage: number
-  lastPage: number
-}
-```
+The paginator lives in `@elvel/support` because a page is built in the database
+layer and rendered in the http one, and neither imports the other. The http
+provider hands it three resolvers at boot — the path, the query string and the
+current page — the same shape the validator uses to find the gate.
 
-Five numbers. Upstream's paginator answers `nextPageUrl()`, `previousPageUrl()`,
-`url($page)`, `hasMorePages()`, `onFirstPage()`, `onLastPage()`, `firstItem()`,
-`lastItem()`, `appends()`, `withQueryString()`, `path()`, `fragment()`, and
-`through()` to map the items without losing the page.
-
-The two that cost most are `withQueryString` and the page window. Without the
-first, paging away from a filtered list drops the filters — the commonest
-pagination bug there is. Without the second there is no `linkCollection` /
-`getUrlRange`, so every application reimplements `1 … 4 5 6 … 20`, which is
-`UrlWindow` and is more fiddly than it looks.
-
-**Done when** a page can build its own URLs, keeps the current query string,
-and exposes the window of page numbers to render.
-
-### There is no `simplePaginate`
-
-Every numbered page pays a `count(*)` over the whole filtered set to compute
-`total` and `lastPage`. `simplePaginate` fetches `perPage + 1` rows instead and
-answers only "is there a next page", which is all a Previous/Next control needs.
-
-On a large filtered table the count is usually the slower of the two queries.
-
-**Done when** `simplePaginate` exists on both builders and runs one query.
-
-### The query builder cannot paginate
-
-`paginate` and `cursorPaginate` are on `ModelBuilder` only. `QueryBuilder` has
-`forPageAfterId`, `forPage` and `cursor`, and no page.
-
-So a report, an aggregate, or any join that is not a model — the queries most
-likely to be large enough to need paging — has to be paged by hand.
-
-**Done when** both live on the query builder and the model builder inherits
-them.
-
-### A paginated resource does not serialise as one
-
-`ResourceCollection.withMeta()` takes whatever you hand it. Upstream's
-`PaginatedResourceResponse` emits `data`, `links` (`first`, `last`, `prev`,
-`next`) and `meta` (`current_page`, `from`, `last_page`, `path`, `per_page`,
-`to`, `total`) without being asked, which is the shape every JavaScript client
-library already understands.
-
-Here the totals are assembled by hand at each call site, and the `links` object
-cannot be built at all because the paginator has no URLs.
-
-**Done when** handing a page to a resource collection produces that shape.
-
+`cursorPaginate` was already done properly: multi-column keys compile to
+`created_at > ? OR (created_at = ? AND id > ?)`, the cursor is base64url, and
+there is deliberately no total.
 ---
 
 ## Pipeline

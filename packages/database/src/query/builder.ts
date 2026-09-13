@@ -1,4 +1,11 @@
-import { Collection, Macroable } from '@elvel/support'
+import {
+  Collection,
+  Macroable,
+  Paginator,
+  type PaginatorOptions,
+  Paginators,
+  SimplePaginator
+} from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { Expression, isExpression, raw } from './expression.ts'
 import type {
@@ -719,6 +726,54 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
 
   forPage(page: number, perPage = 15): this {
     return this.offset((Math.max(1, page) - 1) * perPage).limit(perPage)
+  }
+
+  /**
+   * One page, plus the totals a numbered pager needs.
+   *
+   * The count and the page go out together against two clones — neither reads
+   * the other's answer, and awaiting them in turn spent a round trip on nothing.
+   *
+   * On the query builder as well as the model one because a report, an aggregate
+   * or a join that is not a model is the query most likely to be large enough to
+   * need paging.
+   */
+  async paginate(
+    page?: number,
+    perPage = 15,
+    options: PaginatorOptions = {}
+  ): Promise<Paginator<T>> {
+    const current = Math.max(1, page ?? Paginators.currentPage(options.pageName))
+
+    const [total, data] = await Promise.all([
+      this.clone().count(),
+      this.clone().forPage(current, perPage).get()
+    ])
+
+    return new Paginator(data, total, perPage, current, options)
+  }
+
+  /**
+   * One page and one query: `perPage + 1` rows, the extra one dropped.
+   *
+   * All a Previous/Next control needs, and on a large filtered table the count
+   * the numbered paginator pays for is usually the slower of its two queries.
+   */
+  async simplePaginate(
+    page?: number,
+    perPage = 15,
+    options: PaginatorOptions = {}
+  ): Promise<SimplePaginator<T>> {
+    const current = Math.max(1, page ?? Paginators.currentPage(options.pageName))
+    // Not `forPage(current, perPage + 1)`: that would move the offset too, so
+    // page two would start a row late.
+    const rows = await this.clone()
+      .offset((current - 1) * perPage)
+      .limit(perPage + 1)
+      .get()
+    const more = rows.count() > perPage
+
+    return new SimplePaginator(more ? rows.take(perPage) : rows, perPage, current, more, options)
   }
 
   lockForUpdate(): this {

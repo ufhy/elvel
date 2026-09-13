@@ -9,6 +9,7 @@ import {
   requestTarget,
   ServiceProvider
 } from '@elvel/core'
+import { Paginators } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { BindingRegistry, resolveBindings } from './bindings.ts'
 import { bodySizePlugin } from './body-size.ts'
@@ -38,7 +39,7 @@ import { expectsJson } from './negotiation.ts'
 import { PREVIOUS_URL_KEY, redirect } from './redirect.ts'
 import { compileRoutes } from './router/compile.ts'
 import { RouteRegistry } from './routes.ts'
-import { enterRequestScope } from './scope.ts'
+import { currentScope, enterRequestScope } from './scope.ts'
 import { newNonce, type SecurityConfig, securityHeaderWriter } from './security.ts'
 import { FileSessionDriver, MemorySessionDriver, Session, type SessionDriver } from './session.ts'
 import { CacheSessionDriver, DatabaseSessionDriver } from './session-drivers.ts'
@@ -292,6 +293,33 @@ export class HttpServiceProvider extends ServiceProvider {
   }
 
   override async boot(): Promise<void> {
+    /**
+     * A page is built in the database layer and rendered here, and neither
+     * imports the other — so the paginator is told how to find the request it
+     * belongs to rather than reaching for it.
+     */
+    Paginators.resolveCurrentPathUsing(() => {
+      const request = currentScope()?.request
+
+      return request === undefined ? '/' : new URL(request.url).pathname
+    })
+
+    Paginators.resolveQueryStringUsing(() => {
+      const request = currentScope()?.request
+
+      if (request === undefined) return {}
+
+      return Object.fromEntries(new URL(request.url).searchParams)
+    })
+
+    Paginators.resolveCurrentPageUsing((name) => {
+      const request = currentScope()?.request
+
+      if (request === undefined) return 1
+
+      return Number(new URL(request.url).searchParams.get(name) ?? 1)
+    })
+
     if (this.app.bound('elvel')) {
       this.app
         .make('elvel')
