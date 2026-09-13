@@ -3,7 +3,7 @@ import { QueryBuilder } from './query/builder.ts'
 
 export type SeederContext = {
   connection: Connection
-  /** Run another seeder from inside this one — Laravel's `$this->call()`. */
+  /** Run another seeder from inside this one. */
   call(...seeders: Array<new () => Seeder>): Promise<void>
   /** A query builder for a table, for bulk inserts that skip the model layer. */
   table(name: string): QueryBuilder<Row>

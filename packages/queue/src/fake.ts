@@ -10,7 +10,7 @@ export type PushedJob = {
 }
 
 /**
- * A queue driver that records instead of queueing — Laravel's `Queue::fake()`.
+ * A queue driver that records instead of queueing.
  *
  * The problem it solves is that `sync` is not a fake. Running the job inline
  * proves the job works, which is a different question from "did the controller

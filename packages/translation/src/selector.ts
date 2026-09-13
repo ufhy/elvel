@@ -1,5 +1,5 @@
 /**
- * Choose one form of a message for a count — Laravel's `MessageSelector`.
+ * Choose one form of a message for a count.
  *
  * Two syntaxes, both from Laravel because the message files are the thing people
  * copy between projects:

@@ -26,7 +26,7 @@ export function formatAddress(mailbox: { address: string; name?: string }): stri
   return `"${mailbox.name.replaceAll('"', '\\"')}" <${mailbox.address}>`
 }
 
-/** Who the message is from and to — Laravel's `Mailables\Envelope`. */
+/** Who the message is from and to. */
 export type Envelope = {
   from?: Address
   to?: Address | Address[]
@@ -41,7 +41,7 @@ export type Envelope = {
 }
 
 /**
- * What the message says — Laravel's `Mailables\Content`.
+ * What the message says.
  *
  * A view is one of our JSX components with its props. The pairing is checked by
  * `viewContent()` rather than by this type: a method that returns
@@ -89,7 +89,7 @@ export type Attachment = {
 }
 
 /**
- * A message worth sending — Laravel's `Mailable`.
+ * A message worth sending.
  *
  * ```ts
  * export class ArticlePublished extends Mailable<{ title: string }> {

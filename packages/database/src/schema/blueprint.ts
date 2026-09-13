@@ -100,7 +100,7 @@ export class ColumnDefinition {
   ) {}
 
   /**
-   * Modify this column instead of adding it — Laravel's `->change()`.
+   * Modify this column instead of adding it.
    *
    * The definition is read as a **replacement**, not a patch: everything the
    * column should still be has to be restated. `string('email').nullable()`

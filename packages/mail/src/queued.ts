@@ -45,7 +45,7 @@ export type QueuedMailData = {
 }
 
 /**
- * Sends a mailable from a worker — Laravel's `SendQueuedMailable`.
+ * Sends a mailable from a worker.
  *
  * Registered by the mail provider, so `Mail.to(...).queue(...)` works without the
  * application knowing this class exists.

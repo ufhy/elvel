@@ -23,7 +23,7 @@ export abstract class Migration {
 
   abstract down(context: MigrationContext): Promise<void> | void
 
-  /** Return false to skip this migration for now — Laravel's `shouldRun`. */
+  /** Return false to skip this migration for now. */
   shouldRun(): boolean {
     return true
   }

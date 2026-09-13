@@ -4,7 +4,7 @@ import type { SentMessage } from './message.ts'
 import type { ArrayTransport } from './transports/array.ts'
 
 /**
- * A mailer that records instead of sending — Laravel's `Mail::fake()`.
+ * A mailer that records instead of sending.
  *
  * It is a real mailer with the `array` transport behind it, so every message is
  * built for real: the view is rendered, the recipients resolved, the subject

@@ -1,7 +1,7 @@
 import { Model } from '@elvel/database'
 
 /**
- * A stored notification — Laravel's `DatabaseNotification`.
+ * A stored notification.
  *
  * A model rather than a plain row so `unread()` is a query the database runs, not
  * a filter over everything ever stored.

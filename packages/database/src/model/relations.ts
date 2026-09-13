@@ -651,7 +651,7 @@ export class BelongsToMany<R extends Model> extends Relation<R> {
   }
 
   /**
-   * Make the pivot rows exactly `ids` — Laravel's `sync`.
+   * Make the pivot rows exactly `ids`.
    *
    * The rows that are already right are left alone. This used to delete every
    * pivot row and reinsert the lot, which is cheap to write and expensive in a way

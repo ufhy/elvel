@@ -8,7 +8,7 @@ export type CookieMiddlewareOptions = {
 }
 
 /**
- * Decrypt what came in, encrypt what goes out — Laravel's `EncryptCookies`.
+ * Decrypt what came in, encrypt what goes out.
  *
  * A cookie is the one piece of application state the user holds, and the only
  * thing standing between "remember this preference" and "remember that I am an

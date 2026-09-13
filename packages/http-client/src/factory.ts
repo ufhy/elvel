@@ -188,7 +188,7 @@ export class HttpClient {
   }
 
   /**
-   * Several at once — Laravel's `Http::pool`.
+   * Several at once.
    *
    * Results come back keyed as they were declared, not as they finished, and a
    * failure is reported in place rather than rejecting the lot: the point of

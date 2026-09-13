@@ -2,7 +2,7 @@
 export type Route = unknown
 
 /**
- * Something that can receive a notification — Laravel's `Notifiable`.
+ * Something that can receive a notification.
  *
  * A model satisfies it by having an `email`, which is the default `mail` route;
  * anything more specific is a `routeNotificationFor` of its own.
@@ -30,7 +30,7 @@ export interface Notifiable {
   id?: unknown
 
   /**
-   * The language this recipient reads — Laravel's `preferredLocale()`.
+   * The language this recipient reads.
    *
    * Read by the notification sender, which switches the translator for the
    * duration of the send. That is the only correct place: a notification is
@@ -78,7 +78,7 @@ export function identify(notifiable: Notifiable): { type: string; id: unknown } 
 }
 
 /**
- * A recipient with no model behind it — Laravel's `AnonymousNotifiable`.
+ * A recipient with no model behind it.
  *
  * `notify().route('mail', 'ada@example.com').send(new Welcome())` is the case this
  * exists for: a notification to an address that is not a user yet.

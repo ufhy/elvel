@@ -14,7 +14,7 @@ export type Pipe<T, R> = PipeFunction<T, R> | PipeObject<T, R> | string
 export type PipeResolver<T, R> = (name: string) => PipeFunction<T, R> | PipeObject<T, R>
 
 /**
- * A value through a series of stages — Laravel's `Pipeline`.
+ * A value through a series of stages.
  *
  * ```ts
  * const result = await new Pipeline<Request, Response>()
@@ -154,7 +154,7 @@ export class Pipeline<T, R = T> {
 }
 
 /**
- * Named pipelines — Laravel's `Hub`.
+ * Named pipelines.
  *
  * For a pipeline defined in one place and run from several, where passing the
  * stage list around would mean every caller knowing what they are.

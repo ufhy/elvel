@@ -71,7 +71,7 @@ function basename(path: string): string {
 }
 
 /**
- * Attach something a URL points at — Laravel's `Attachment::fromUrl`.
+ * Attach something a URL points at.
  *
  * The bytes are fetched now, for the reason `attachFromDisk` reads now: a message
  * is often queued, and a URL that resolved when it was written may not when a
@@ -106,7 +106,7 @@ export async function attachFromUrl(
 }
 
 /**
- * Attach a file somebody uploaded — Laravel's `Attachment::fromUploadedFile`.
+ * Attach a file somebody uploaded.
  *
  * A `File` is what a parsed multipart body hands you, and it already knows its own
  * name and type. Both are still overridable, because the name a browser sends is

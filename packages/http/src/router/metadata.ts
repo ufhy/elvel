@@ -47,7 +47,7 @@ export function mergeMetadata(old: Metadata, next: Metadata): Metadata {
 }
 
 /**
- * One value out of the tree, by a dotted path — Laravel's `Arr::get`.
+ * One value out of the tree, by a dotted path.
  *
  * `getMetadata()` answers everything, `getMetadata('head')` a branch, and
  * `getMetadata('head.title')` a leaf. The dotted form is the one worth having: a

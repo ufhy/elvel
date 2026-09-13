@@ -183,7 +183,7 @@ describe('on arrays', () => {
     expect(await passes('hello', 'doesnt_start_with:x,y')).toBe(true)
     expect(await passes('hello', 'doesnt_start_with:x,he')).toBe(false)
     expect(await passes('hello', 'doesnt_end_with:x,lo')).toBe(false)
-    // Numbers are stringified, as Laravel does.
+    // Numbers are stringified.
     expect(await passes(2026, 'doesnt_start_with:19')).toBe(true)
   })
 

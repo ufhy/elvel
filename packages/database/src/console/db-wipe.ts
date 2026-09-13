@@ -1,7 +1,7 @@
 import { MigrationCommand } from './base.ts'
 
 /**
- * Drop everything and stop — Laravel's `db:wipe`.
+ * Drop everything and stop.
  *
  * `migrate:fresh` is this plus a migrate; the difference matters when the schema
  * is about to arrive from somewhere else, a dump being loaded or a test suite

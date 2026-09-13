@@ -5,7 +5,7 @@ import { SchemaBuilder } from '../schema/builder.ts'
 import { MigrationCommand } from './base.ts'
 
 /**
- * What a model is, without opening the file — Laravel's `model:show`.
+ * What a model is, without opening the file.
  *
  * The useful part is that it reads both sides: the class says what it casts and
  * hides, the database says what columns are actually there. A property declared

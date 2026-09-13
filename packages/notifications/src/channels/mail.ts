@@ -40,7 +40,7 @@ class NotificationMail {
 }
 
 /**
- * Sends a notification as mail — Laravel's `MailChannel`.
+ * Sends a notification as mail.
  *
  * The `MailMessage` is turned into a mailable rather than being sent directly, so
  * everything the mail package already does — the configured sender, `alwaysTo`,

@@ -467,7 +467,7 @@ export class ModelBuilder<M extends Model> {
     }
   }
 
-  /** Exactly one result, or an error — Laravel's `sole`. */
+  /** Exactly one result, or an error. */
   async sole(): Promise<M> {
     const models = await this.clone().limit(2).get()
 
@@ -520,7 +520,7 @@ export class ModelBuilder<M extends Model> {
   // ---------------------------------------------------------- relation filters
 
   /**
-   * Restrict to models that have at least one related row — Laravel's `has`.
+   * Restrict to models that have at least one related row.
    *
    * Compiled as a correlated `exists` subquery rather than a join, so it never
    * multiplies the parent rows.
@@ -566,7 +566,7 @@ export class ModelBuilder<M extends Model> {
   }
 
   /**
-   * `whereRelation('posts', 'is_published', true)` — Laravel's `whereRelation`.
+   * `whereRelation('posts', 'is_published', true)`.
    *
    * The same as `whereHas` with a one-line callback, and worth having for the
    * reason Laravel added it: the callback form buries the condition inside a
@@ -609,7 +609,7 @@ export class ModelBuilder<M extends Model> {
   // ------------------------------------------------------------ morph filters
 
   /**
-   * `whereHasMorph('taggable', [Post, Video])` — Laravel's `whereHasMorph`.
+   * `whereHasMorph('taggable', [Post, Video])`.
    *
    * The method a morphTo needs, because `whereHas` cannot serve one: the rows
    * point at different tables and no single `exists` spans them. So this
@@ -995,7 +995,7 @@ export class ModelBuilder<M extends Model> {
   }
 
   /**
-   * The general form the `with*` aggregates are built on — Laravel's `withAggregate`.
+   * The general form the `with*` aggregates are built on.
    *
    * `withAggregate('posts', 'votes', 'sum')` is `withSum('posts', 'votes')`. Worth
    * exposing for the function this framework has no shorthand for — a database's
@@ -1097,7 +1097,7 @@ export class ModelBuilder<M extends Model> {
   }
 
   /**
-   * `withExists('posts')` adds a `posts_exists` column — Laravel's `withExists`.
+   * `withExists('posts')` adds a `posts_exists` column.
    *
    * Not `withCount(...) > 0`: counting makes the database walk every matching row
    * to answer a question that stops at the first one. On a parent with thousands
@@ -1404,7 +1404,7 @@ export class ModelBuilder<M extends Model> {
     return model
   }
 
-  /** Find the first match, or create it — Laravel's `firstOrCreate`. */
+  /** Find the first match, or create it. */
   async firstOrCreate(attributes: Row, values: Row = {}): Promise<M> {
     const query = this.clone()
     for (const [column, value] of Object.entries(attributes)) query.where(column, value)
@@ -1484,7 +1484,7 @@ export class ModelBuilder<M extends Model> {
     }
   }
 
-  /** Mass update, bypassing model events exactly as Laravel's does. */
+  /** Mass update, bypassing model events exactly. */
   async update(values: Row): Promise<number> {
     const query = await this.base()
 
@@ -1617,7 +1617,7 @@ export class ModelBuilder<M extends Model> {
   /**
    * One page, addressed by a cursor rather than a number — `cursorPaginate`.
    *
-   * The cursor carries the last row's key, base64url-encoded as Laravel's is, so
+   * The cursor carries the last row's key, base64url-encoded, so
    * it can travel in a URL. `previousCursor` points *backwards* from the first row
    * of this page, which is what makes paging back work without counting.
    */

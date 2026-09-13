@@ -3,7 +3,7 @@ import { MigrationCommand } from './base.ts'
 import { loadModels } from './model-show.ts'
 
 /**
- * Delete what a model says it no longer needs — Laravel's `model:prune`.
+ * Delete what a model says it no longer needs.
  *
  * A model opts in by defining `static prunable()`; one that does not is skipped
  * rather than guessed at. That is the whole safety property: a command that

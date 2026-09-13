@@ -690,7 +690,7 @@ describe('distinct', () => {
 
     // `orders.*.lines.*` covers every line of every order, so the two 1s in the
     // first order collide with the 1 in the second as well — the pattern is what
-    // decides the scope, exactly as Laravel does.
+    // decides the scope, exactly.
     expect(Object.keys(messages)).toEqual([
       'orders.0.lines.0',
       'orders.0.lines.1',

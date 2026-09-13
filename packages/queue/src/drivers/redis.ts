@@ -20,7 +20,7 @@ export type RedisQueueOptions = {
   /**
    * Seconds an idle worker will wait to be woken, instead of polling.
    *
-   * Off by default, as Laravel's `block_for` is. With it set, a worker with nothing
+   * Off by default. With it set, a worker with nothing
    * to do holds a `BLPOP` on the queue's notification list and starts the next job
    * the moment it is pushed, rather than up to `--sleep` seconds later. It costs a
    * connection held open per worker, which is why it is a choice rather than the
@@ -269,7 +269,7 @@ export class RedisQueue implements QueueDriver {
    * sweeping more than once a second cannot find anything a one-second sweep would
    * miss — it only asks sooner. A due job therefore waits up to `migrateEvery`
    * seconds longer than its own delay, and an abandoned reservation is recovered
-   * that much later; set it to `0` and every `pop` sweeps, as Laravel's does.
+   * that much later; set it to `0` and every `pop` sweeps.
    *
    * Called directly — by `queue:retry`, or a test — it always sweeps. The throttle
    * belongs to the polling path, not to the operation.
@@ -333,7 +333,7 @@ export class RedisQueue implements QueueDriver {
   }
 
   /**
-   * Wait to be woken rather than polling — Laravel's `block_for`.
+   * Wait to be woken rather than polling.
    *
    * `BLPOP` on the queue's notification list returns the moment a job is pushed or
    * a delayed one is swept back, so a worker starts it then instead of on its next

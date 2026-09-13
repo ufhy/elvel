@@ -53,7 +53,7 @@ export function currentRouteName(): string | undefined {
 /**
  * Is the current route one of these? — `Route::currentRouteNamed`.
  *
- * `*` matches any run of characters, as Laravel's `Str::is` does, which is what
+ * `*` matches any run of characters, which is what
  * makes `currentRouteNamed('photos.*')` the useful form: a section of the
  * navigation is lit by a prefix rather than by listing all seven resource names.
  */

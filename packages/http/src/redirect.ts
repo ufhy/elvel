@@ -18,7 +18,7 @@ export type ErrorsInput =
   | Record<string, string[] | string>
 
 /**
- * A redirect being built — Laravel's `RedirectResponse`.
+ * A redirect being built.
  *
  * The flashing is the point. A redirect that loses what the user typed and why it
  * was refused is a redirect to a blank form, which is how a validation failure

@@ -74,7 +74,7 @@ export class PendingBatch {
     return this
   }
 
-  /** Dispatched on the first failure — Laravel's `catch`. */
+  /** Dispatched on the first failure. */
   onFailure(...jobs: JobClass[]): this {
     this.options.onFailure = [...(this.options.onFailure ?? []), ...this.register(jobs)]
 
@@ -91,7 +91,7 @@ export class PendingBatch {
   /**
    * Keep going after a failure.
    *
-   * Off by default, as Laravel has it: a batch usually describes one piece of
+   * Off by default it: a batch usually describes one piece of
    * work, and continuing to import rows after the first one failed produces a
    * half-finished result nobody asked for.
    */

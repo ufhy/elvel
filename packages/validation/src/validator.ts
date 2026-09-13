@@ -92,7 +92,6 @@ export class Validator {
 
   /**
    * Which wildcard rule each expanded attribute came from —
-   * Laravel's `implicitAttributes`.
    *
    * Kept because the pattern is what the *developer* wrote: a message or a label
    * configured for `items.*.price` has to be found from `items.0.price`, and

@@ -83,6 +83,7 @@ export const BAR_STYLE = String.raw`
 .item.none .n { color: #4a5568; }
 .item.off { color: #4a5568; text-decoration: line-through; text-decoration-color: #2d3748; }
 .rule { height: 1px; margin: 5px 10px; background: #22293a; }
+.aside { padding: 6px 10px; color: #4a5568; line-height: 1.45; }
 
 .spacer { flex: 1 1 auto; }
 
@@ -478,6 +479,20 @@ export const BAR_SCRIPT = String.raw`
 
       menuPane.appendChild(row)
     }
+
+    /**
+     * What this bar cannot see.
+     *
+     * The queue worker and the scheduler are separate processes, and the ring
+     * is in this one's memory. Without storage their work is invisible, and an
+     * empty job list would otherwise read as "no jobs ran".
+     */
+    if (!crossProcess) {
+      menuPane.appendChild(node('div', 'rule'))
+      menuPane.appendChild(
+        node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.')
+      )
+    }
   }
 
   function problemsIn(held) {
@@ -599,6 +614,9 @@ export const BAR_SCRIPT = String.raw`
   }
 
   function show(next) {
+    // The filter belongs to the list it was typed on, not to the next one.
+    if (next !== view) find = ''
+
     view = next === null || view === next ? null : next
     picked = null
     entry = null

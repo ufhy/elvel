@@ -4,7 +4,7 @@ import { Dispatcher, eventName } from './dispatcher.ts'
 type Recorded = { event: string; payload: unknown }
 
 /**
- * A dispatcher that records instead of dispatching — Laravel's `Event::fake()`.
+ * A dispatcher that records instead of dispatching.
  *
  * Listeners stay registered (so `hasListeners` still tells the truth) but they
  * are never invoked, which is what lets a test assert an event fired without
@@ -76,7 +76,7 @@ export class EventFake extends Dispatcher {
 }
 
 /**
- * A dispatcher that swallows dispatches entirely — Laravel's `NullDispatcher`.
+ * A dispatcher that swallows dispatches entirely.
  *
  * Registration and inspection still work; only `dispatch`, `until` and `push`
  * become no-ops. Useful for seeders and imports that must not fire side effects.

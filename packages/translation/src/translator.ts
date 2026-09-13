@@ -6,7 +6,7 @@ import { choose } from './selector.ts'
 export type Messages = Record<string, unknown>
 
 /**
- * Messages in more than one language — Laravel's `Translator`.
+ * Messages in more than one language.
  *
  * A file per locale under `lang/`, read once at boot. `lang/en/validation.ts`
  * becomes the `validation.*` keys, so `__('validation.required')` reads the way

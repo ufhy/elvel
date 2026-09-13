@@ -7,7 +7,7 @@ export function trans(): Translator {
 }
 
 /**
- * A translated message — Laravel's `__()`.
+ * A translated message.
  *
  * ```tsx
  * <h1 safe>{__('orders.title')}</h1>

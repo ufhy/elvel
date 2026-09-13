@@ -3,7 +3,7 @@ import type { MailMessage } from './message.ts'
 import type { Notifiable } from './notifiable.ts'
 
 /**
- * Something worth telling someone — Laravel's `Notification`.
+ * Something worth telling someone.
  *
  * ```ts
  * export class ArticlePublished extends Notification<{ title: string }> {

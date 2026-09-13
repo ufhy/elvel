@@ -8,7 +8,7 @@ export type DatabaseChannelOptions = {
 }
 
 /**
- * Stores the notification — Laravel's `DatabaseChannel`.
+ * Stores the notification.
  *
  * This is what an in-app inbox reads. The payload comes from `toDatabase()` or
  * `toArray()`, and the row carries the notifiable's type and key so one table

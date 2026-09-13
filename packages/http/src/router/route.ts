@@ -174,7 +174,7 @@ export class RouteDefinition {
   }
 
   /**
-   * `can('update', 'post')` — Laravel's `->can()`.
+   * `can('update', 'post')`.
    *
    * Sugar over the `can` middleware `@elvel/auth` registers, spelt the way
    * Laravel spells it. Nothing new is authorised here; what it buys is that a
@@ -221,7 +221,7 @@ export class RouteDefinition {
   }
 
   /**
-   * What to answer when a bound model is not there — Laravel's `->missing()`.
+   * What to answer when a bound model is not there.
    *
    * Without it a missing binding is a 404, which is right for a page and wrong
    * for a form that should send somebody back to the index with a message.
@@ -233,7 +233,7 @@ export class RouteDefinition {
   }
 
   /**
-   * Let a soft-deleted model resolve — Laravel's `withTrashed`.
+   * Let a soft-deleted model resolve.
    *
    * A binding normally refuses one, which is right for a page and wrong for the
    * screen that restores it: `/posts/{post}/restore` cannot find the post it is
@@ -245,7 +245,7 @@ export class RouteDefinition {
     return this
   }
 
-  /** Resolve child bindings through their parent — Laravel's `scopeBindings`. */
+  /** Resolve child bindings through their parent. */
   scopeBindings(): this {
     this.scoped = true
 
@@ -258,7 +258,7 @@ export class RouteDefinition {
     return this
   }
 
-  /** A value for a parameter the URI does not carry — Laravel's `defaults`. */
+  /** A value for a parameter the URI does not carry. */
   defaults(name: string, value: unknown): this {
     this.defaultValues[name] = value
 

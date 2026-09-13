@@ -46,7 +46,7 @@ export class StackDriver implements LogDriver {
 }
 
 /**
- * Writes to stderr — Laravel's `errorlog`.
+ * Writes to stderr.
  *
  * The channel for a container: stderr is what a runtime collects, and a file
  * inside a container is a file nobody reads before it is destroyed. Distinct

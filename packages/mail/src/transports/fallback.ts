@@ -32,7 +32,7 @@ export class FailoverTransport implements Transport {
 }
 
 /**
- * Spread messages across transports — Laravel's `roundrobin`.
+ * Spread messages across transports.
  *
  * Sending starts from a random transport rather than the first, so several
  * processes do not all lean on the same provider; from there it advances in order.

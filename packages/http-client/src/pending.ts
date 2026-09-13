@@ -62,7 +62,7 @@ export type Attempt = { method: Method; url: string; headers: Headers; body?: Bo
 export type Responder = (attempt: Attempt) => HttpResponse | Promise<HttpResponse>
 
 /**
- * A request being configured — Laravel's `PendingRequest`.
+ * A request being configured.
  *
  * Immutable, like `PendingProcess` and `TestRequest` in this framework: every
  * option returns a new instance, so a configured base can be shared without one
@@ -225,12 +225,12 @@ export class PendingRequest {
     return this.derive({ maxRedirects: hops, redirect: 'manual' })
   }
 
-  /** Run before each attempt — Laravel's `beforeSending`. */
+  /** Run before each attempt. */
   beforeSending(hook: (attempt: Attempt) => void): PendingRequest {
     return this.derive({ beforeSending: [...(this.config.beforeSending ?? []), hook] })
   }
 
-  /** Run on each response, whatever its status — Laravel's `afterResponse`. */
+  /** Run on each response, whatever its status. */
   afterResponse(hook: (response: HttpResponse) => void): PendingRequest {
     return this.derive({ afterResponse: [...(this.config.afterResponse ?? []), hook] })
   }
@@ -240,7 +240,7 @@ export class PendingRequest {
     return this.withHeader('content-type', type)
   }
 
-  /** Replace the headers rather than adding to them — Laravel's `replaceHeaders`. */
+  /** Replace the headers rather than adding to them. */
   replaceHeaders(headers: Record<string, string>): PendingRequest {
     return this.derive({ headers })
   }

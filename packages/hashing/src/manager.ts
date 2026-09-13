@@ -12,7 +12,7 @@ import {
 export type HasherFactory = () => Hasher
 
 /**
- * Resolves hashers and forwards to the default one — Laravel's `HashManager`.
+ * Resolves hashers and forwards to the default one.
  *
  * The default is bcrypt, matching Laravel and better-auth's own choice, so a
  * password column written by one is readable by the other. `argon2id` is a

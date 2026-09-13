@@ -10,7 +10,7 @@ export type DiskConfig = { driver: string } & Record<string, unknown>
 export type DiskFactory = (name: string, config: DiskConfig, app: ApplicationContract) => Disk
 
 /**
- * Resolves disks — Laravel's `FilesystemManager`.
+ * Resolves disks.
  *
  * Disks are memoised per name so an S3 client is built once, and `fake()` swaps a
  * disk for one in memory without the calling code knowing.

@@ -20,7 +20,7 @@ type SessionTable = () => Promise<SessionQuery>
  * session and people are logged out at random — a failure that looks like a bug
  * in the auth code and is not.
  *
- * `last_activity` is a unix timestamp rather than a datetime, as Laravel's is:
+ * `last_activity` is a unix timestamp rather than a datetime:
  * expiry is arithmetic on an integer, which every dialect agrees about, and `gc`
  * is then one indexed comparison.
  */

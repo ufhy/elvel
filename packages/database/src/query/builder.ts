@@ -1037,7 +1037,7 @@ export class QueryBuilder<T extends Row = Row> {
   // ------------------------------------------------------------ paginating
 
   /**
-   * The page after a known id — Laravel's `forPageAfterId`.
+   * The page after a known id.
    *
    * Cheaper and steadier than `offset`: the database seeks the index rather than
    * counting past rows it will discard, and a row inserted mid-walk cannot shift
@@ -1213,7 +1213,7 @@ export class QueryBuilder<T extends Row = Row> {
   }
 
   /**
-   * Several counters in one statement — Laravel's `incrementEach`.
+   * Several counters in one statement.
    *
    * One `update` rather than one per column: two updates to the same row race
    * each other, and the second overwrites what the first read.

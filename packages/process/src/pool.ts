@@ -8,7 +8,7 @@ export type Builder = (process: PendingProcess) => PendingProcess
 type Step = { key: string; command: Command; configure?: Builder }
 
 /**
- * Several commands at once — Laravel's `Pool`.
+ * Several commands at once.
  *
  * Results come back keyed, in the order the steps were declared, not the order
  * they finished. A pool whose results arrived in completion order would be
@@ -92,7 +92,7 @@ export class PoolResults {
 }
 
 /**
- * One command's output into the next — Laravel's `Pipe`.
+ * One command's output into the next.
  *
  * Piped in the parent rather than through a shell `|`, so each step's exit code
  * and stderr survive. A shell pipeline reports only the last command's status,

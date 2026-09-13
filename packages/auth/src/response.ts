@@ -59,7 +59,7 @@ export class AuthorizationResponse {
     return this.isAllowed ? undefined : (this.httpStatus ?? 403)
   }
 
-  /** Throw unless the check passed, as Laravel's `Response::authorize()` does. */
+  /** Throw unless the check passed. */
   authorize(): this {
     if (this.denied()) {
       throw new AuthorizationError(this.message, this.status() ?? 403, this.code)

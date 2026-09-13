@@ -23,7 +23,7 @@ export type ConnectionConfig = {
   max?: number
   idleTimeout?: number
   connectionTimeout?: number
-  /** SQLite only: enforce foreign keys, as Laravel does by default. */
+  /** SQLite only: enforce foreign keys by default. */
   foreignKeys?: boolean
   /**
    * SQLite only: the journal mode. `wal` unless told otherwise.

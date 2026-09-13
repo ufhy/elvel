@@ -193,7 +193,7 @@ async function jpeg(file: File): Promise<SniffedImage> {
 }
 
 /**
- * A fluent builder for file rules — Laravel's `File::types(...)->max(...)`.
+ * A fluent builder for file rules.
  *
  * Sugar over the string rules, and honestly labelled as such: `toString()`
  * produces exactly what you would have written by hand. The reason to prefer it

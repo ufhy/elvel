@@ -126,7 +126,7 @@ describe('slicing', () => {
   test('split shares the remainder across the first groups', () => {
     const groups = collect([1, 2, 3, 4, 5]).split(3)
 
-    // Not [1,2] [3,4] [5]: the extra goes to the front, as Laravel does it.
+    // Not [1,2] [3,4] [5]: the extra goes to the front it.
     expect(groups.map((g) => g.all()).all()).toEqual([[1, 2], [3, 4], [5]])
   })
 

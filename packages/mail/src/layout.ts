@@ -39,13 +39,13 @@ export function button(text: string, url: string, tone: MailTone = 'info'): stri
   return `<p class="action"><a href="${escapeAttribute(safeUrl(url))}" class="button button--${tone}">${escapeHtml(text)}</a></p>`
 }
 
-/** A block set apart from the prose — Laravel's `mail::panel`. */
+/** A block set apart from the prose. */
 export function panel(text: string): string {
   return `<div class="panel">${escapeHtml(text)}</div>`
 }
 
 /**
- * The small print under the button — Laravel's `mail::subcopy`.
+ * The small print under the button.
  *
  * What it is usually for: repeating the action's URL as text, because a mail client
  * that will not render a button still has to let somebody reach the page.

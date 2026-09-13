@@ -24,7 +24,7 @@ export type ProcessOptions = {
 export type FakeHandler = (command: string) => ProcessResult | undefined
 
 /**
- * A command being configured — Laravel's `PendingProcess`.
+ * A command being configured.
  *
  * Immutable, like `TestRequest`: every option returns a new instance, so a
  * configured base (a working directory, an environment) can be reused without

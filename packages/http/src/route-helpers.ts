@@ -7,7 +7,7 @@ export function routes(): RouteRegistry {
 }
 
 /**
- * The URL for a named route — Laravel's `route()`.
+ * The URL for a named route.
  *
  * ```ts
  * route('articles.show', { id: article.id })   // /articles/12

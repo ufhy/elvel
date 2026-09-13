@@ -155,7 +155,7 @@ export class FileStore implements Store, LockProvider {
     if (!Number.isFinite(expires)) return null
 
     if (expires !== FOREVER && expires <= Math.floor(Date.now() / 1000)) {
-      // Reading is also when expired files get cleaned up, as Laravel does it.
+      // Reading is also when expired files get cleaned up.
       await this.forget(key)
       return null
     }

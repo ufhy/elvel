@@ -90,7 +90,7 @@ export class Model {
   /** Columns mass assignment accepts. Empty means "consult `guarded`". */
   static fillable: string[] = []
 
-  /** Columns mass assignment refuses. `['*']` blocks everything, as Laravel does. */
+  /** Columns mass assignment refuses. `['*']` blocks everything. */
   static guarded: string[] = ['*']
 
   static casts: Record<string, CastEntry> = {}
@@ -118,7 +118,7 @@ export class Model {
   /** Columns removed from `toObject()`/`toJSON()`. */
   static hidden: string[] = []
 
-  /** Accessor-backed keys added to `toObject()` — Laravel's `$appends`. */
+  /** Accessor-backed keys added to `toObject()`. */
   static appends: string[] = []
 
   /** Scopes applied to every query for this model. */
@@ -297,7 +297,7 @@ export class Model {
   private static muted = false
 
   /**
-   * Relations whose parents' `updated_at` this model bumps — Laravel's `touches`.
+   * Relations whose parents' `updated_at` this model bumps.
    *
    * `static touches = ['post']` on a Comment means saving or deleting a comment
    * touches its post: a cache keyed on the post's timestamp must expire when a
@@ -306,7 +306,7 @@ export class Model {
   static touches: string[] = []
 
   /**
-   * Send a notification to this model — Laravel's `$model->notify()`.
+   * Send a notification to this model.
    *
    * The model is the notifiable: `routeNotificationFor`, `getKey` and `email`
    * are what the notification package asks for, and a model has all three.
@@ -349,7 +349,7 @@ export class Model {
   }
 
   /**
-   * Touch every relation `static touches` names — Laravel's `touchOwners`.
+   * Touch every relation `static touches` names.
    *
    * One UPDATE per relation, not one per row. This used to fetch the relation and
    * call `touch()` on what came back, which meant a save per owner, and it did not
@@ -486,7 +486,7 @@ export class Model {
   }
 
   /**
-   * The column a route parameter matches — Laravel's `getRouteKeyName`.
+   * The column a route parameter matches.
    *
    * The primary key unless a model says otherwise. Override it to put slugs in
    * URLs without writing the column at every call site:
@@ -504,7 +504,7 @@ export class Model {
   }
 
   /**
-   * Find the row a route parameter names — Laravel's `resolveRouteBinding`.
+   * Find the row a route parameter names.
    *
    * `field` is the per-route override, as in `{article:slug}`, and beats the
    * model's own default. Answers `undefined` rather than throwing: what a missing
@@ -533,7 +533,7 @@ export class Model {
   }
 
   /**
-   * The same, scoped to a parent — Laravel's `resolveChildRouteBinding`.
+   * The same, scoped to a parent.
    *
    * `/users/{user}/posts/{post}` must find the post **among that user's posts**.
    * Resolving the child on its own would answer with somebody else's post for a
@@ -574,7 +574,7 @@ export class Model {
   }
 
   /**
-   * Delete rows by key — Laravel's `destroy()`.
+   * Delete rows by key.
    *
    * Each row is loaded and deleted individually, which looks wasteful next to one
    * `delete where id in (…)` and is the point: the model events fire, and
@@ -808,7 +808,7 @@ export class Model {
     return this
   }
 
-  /** Assign regardless of `fillable`/`guarded` — Laravel's `forceFill`. */
+  /** Assign regardless of `fillable`/`guarded`. */
   forceFill(attributes: Row): this {
     for (const [key, value] of Object.entries(attributes)) this.setAttribute(key, value)
 
@@ -867,7 +867,7 @@ export class Model {
     return !this.isDirty(...keys)
   }
 
-  /** What the last save actually changed — Laravel's `getChanges`. */
+  /** What the last save actually changed. */
   getChanges(): Row {
     return { ...this.changes }
   }
@@ -1058,7 +1058,7 @@ export class Model {
     }
   }
 
-  /** An unsaved copy without the key or timestamps — Laravel's `replicate`. */
+  /** An unsaved copy without the key or timestamps. */
   replicate(except: string[] = []): this {
     const skip = new Set([
       this.self.primaryKey,
@@ -1109,7 +1109,7 @@ export class Model {
   }
 
   /**
-   * Save, or throw — Laravel's `saveOrFail()`.
+   * Save, or throw.
    *
    * `save()` answers false when nothing was written, and a caller who forgets to
    * check carries on as though it worked. This is for the paths where carrying on
@@ -1392,7 +1392,7 @@ export class Model {
   }
 
   /**
-   * One child of many, chosen by an arbitrary ordering — Laravel's `ofMany()`.
+   * One child of many, chosen by an arbitrary ordering.
    *
    * `latestOfMany` is the one-column case. This takes several, applied in order,
    * so "the highest-priced order, and the newest of those if two tie" is
@@ -1514,7 +1514,7 @@ export class Model {
     return (method as () => Relation<Model>).call(this)
   }
 
-  /** Eager-load relations onto an existing instance — Laravel's `load()`. */
+  /** Eager-load relations onto an existing instance. */
   async load(...relations: string[]): Promise<this> {
     const query = await this.newQuery()
     await query.eagerLoadRelations([this], relations)

@@ -165,7 +165,7 @@ export class CronExpression {
     )
   }
 
-  /** Replace one field, as Laravel's `spliceIntoPosition` does. */
+  /** Replace one field. */
   spliceField(position: number, value: string | number): CronExpression {
     const parts = this.expression.split(/\s+/)
     parts[position] = String(value)

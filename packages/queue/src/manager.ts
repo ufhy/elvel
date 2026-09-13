@@ -398,7 +398,7 @@ export class QueueManager {
     const jobClass = job.constructor as JobClass
 
     /**
-     * Every link inherits the batch id — Laravel's `prepareBatchedChain`.
+     * Every link inherits the batch id.
      *
      * Without it only the first link would count against the batch, so a batch
      * containing a three-job chain would report itself finished after the first

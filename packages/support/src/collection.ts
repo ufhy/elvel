@@ -306,7 +306,7 @@ export class Collection<T> implements Iterable<T> {
   // ------------------------------------------------------------- selecting
 
   /**
-   * Exactly one, or an error — Laravel's `sole()`.
+   * Exactly one, or an error.
    *
    * The point is that "the only one" is an assumption, and `first()` hides it. A
    * lookup expected to be unique that silently returns the first of three is a
@@ -430,7 +430,7 @@ export class Collection<T> implements Iterable<T> {
   }
 
   /**
-   * Break where the callback says so — Laravel's `chunkWhile`.
+   * Break where the callback says so.
    *
    * The callback is asked about each item *after the first*, with the chunk so
    * far: returning false starts a new one. Grouping consecutive runs is what it

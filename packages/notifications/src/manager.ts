@@ -24,7 +24,7 @@ import { type NotificationChannel, NotificationSender } from './sender.ts'
 export type ChannelFactory = (app: ApplicationContract) => NotificationChannel
 
 /**
- * Resolves channels and sends — Laravel's `ChannelManager`.
+ * Resolves channels and sends.
  *
  * A channel is built on first use, so an application that never stores a
  * notification never touches the database for it.

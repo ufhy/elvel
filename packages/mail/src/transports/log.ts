@@ -5,7 +5,7 @@ import { type DeliveryResult, recipientsOf, type SentMessage, type Transport } f
 export type LogWriter = { info(message: string, context?: Record<string, unknown>): void }
 
 /**
- * Writes the message to the log instead of sending it — Laravel's `log`
+ * Writes the message to the log instead of sending it
  * transport, and the right default for local development.
  *
  * Headers and both bodies are written as readable text rather than as MIME: the

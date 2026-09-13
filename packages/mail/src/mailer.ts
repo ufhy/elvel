@@ -19,9 +19,9 @@ export type MailerOptions = {
    */
   alwaysTo?: Address
   /**
-   * Reply-To for any mailable that does not set one — Laravel's `alwaysReplyTo`.
+   * Reply-To for any mailable that does not set one.
    *
-   * A default rather than an override, as Laravel's is: it is applied where the
+   * A default rather than an override: it is applied where the
    * message is built, so a mailable that names its own address still wins. The
    * use for it is an application that sends from a no-reply address and wants
    * every answer to reach support anyway.
@@ -193,7 +193,7 @@ export class Mailer {
 }
 
 /**
- * A message being addressed — Laravel's `PendingMail`.
+ * A message being addressed.
  *
  * Recipients set here win over the mailable's envelope, which is what makes
  * `Mail.to(user.email).send(new Welcome(...))` read the way it does.

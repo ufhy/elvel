@@ -313,7 +313,7 @@ describe('view and redirect — Route::view, Route::redirect', () => {
    * the shell went out with no `cache-control` at all, because the handler that
    * used to set it went with the package.
    */
-  test('and takes a status and headers, as Laravel does', async () => {
+  test('and takes a status and headers', async () => {
     const app = boot()
 
     app.instance('view' as never, { render: () => '<p>gone</p>' } as never)

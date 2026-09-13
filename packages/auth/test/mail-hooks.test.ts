@@ -195,7 +195,7 @@ describe('merging into better-auth options', () => {
   })
 
   /**
-   * Writing the mail without taking over how it is sent — Laravel's `toMailUsing`.
+   * Writing the mail without taking over how it is sent.
    *
    * The only way in before this was to define `sendResetPassword` yourself in
    * `config/auth.ts`, which the framework leaves alone. That works and it is a lot:

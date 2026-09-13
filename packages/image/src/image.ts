@@ -8,7 +8,7 @@ import {
 import { type ImageInfo, probe } from './probe.ts'
 
 /**
- * An image and the steps queued against it — Laravel's `Image`.
+ * An image and the steps queued against it.
  *
  * Nothing happens until something asks for bytes. That is what lets a chain of
  * six transformations become one call to a backend instead of six, and it is why

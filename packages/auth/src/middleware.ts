@@ -155,7 +155,6 @@ export function canAccess(ability: string, ...args: string[]) {
  * The window is what makes this different from asking for a password inline: a
  * borrowed unlocked browser cannot change security settings, but somebody working
  * through several settings pages is not asked five times. Three hours, matching
- * Laravel's `auth.password_timeout`.
  *
  * 423 to JSON, not 403: the request was understood and the caller is
  * authenticated, but the resource is locked until they prove it again. Laravel

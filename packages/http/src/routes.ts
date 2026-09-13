@@ -1,5 +1,5 @@
 /**
- * Names for routes, and URLs built from them — Laravel's `route()`.
+ * Names for routes, and URLs built from them.
  *
  * Elysia declares routes as strings on a plugin, so there is no router object to
  * hang a name on. The registry is that missing table: a controller says which

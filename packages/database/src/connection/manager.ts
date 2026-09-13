@@ -6,7 +6,7 @@ import { type Connection, QueryExecuted, type Row } from './connection.ts'
 import { ReadWriteConnection } from './read-write.ts'
 
 /**
- * Resolves and caches connections — Laravel's `DatabaseManager`, and the object
+ * Resolves and caches connections, and the object
  * behind the `db()` helper.
  */
 export class ConnectionManager {

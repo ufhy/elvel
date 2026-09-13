@@ -2039,7 +2039,7 @@ if (redisAvailable) {
       data: {}
     })
 
-    /** Off unless asked for, as Laravel's `block_for` is. */
+    /** Off unless asked for. */
     test('but only when it was asked for', async () => {
       const driver = new RedisQueue('redis', { url: REDIS_URL, prefix: prefix() })
 

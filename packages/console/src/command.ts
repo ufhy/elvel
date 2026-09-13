@@ -135,7 +135,7 @@ export abstract class Command implements CommandContract {
     return typeof value === 'string' ? [value] : []
   }
 
-  /** Run another command from inside this one — Laravel's `$this->call()`. */
+  /** Run another command from inside this one. */
   protected call(command: string, argv: string[] = []): Promise<number> {
     return this.runner(command, argv)
   }

@@ -52,7 +52,7 @@ export default {
        * and starts the job in about two milliseconds.
        *
        * The cost is a second Redis connection per worker, held open for as long as
-       * it waits. Unset by default for that reason, as Laravel's `block_for` is.
+       * it waits. Unset by default for that reason.
        */
       blockFor: undefined as number | undefined
     }

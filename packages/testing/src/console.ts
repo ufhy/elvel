@@ -14,7 +14,7 @@ type Prompts = {
 }
 
 /**
- * An elvel command run under test — Laravel's `PendingCommand`.
+ * An elvel command run under test.
  *
  * Output is captured by replacing `console.log` and `console.error` for the
  * duration. That is blunt, and it is also the only thing that works: `Output`

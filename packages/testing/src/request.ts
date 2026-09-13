@@ -18,7 +18,7 @@ type Impersonator = {
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD'
 
 /**
- * A request being built — Laravel's `MakesHttpRequests`.
+ * A request being built.
  *
  * Every builder method returns a new instance rather than mutating, so a
  * configured base can be shared:

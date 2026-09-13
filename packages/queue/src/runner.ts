@@ -24,7 +24,7 @@ export type JobRunnerOptions = {
 }
 
 /**
- * Turns a payload back into a job and runs it — Laravel's `CallQueuedHandler`.
+ * Turns a payload back into a job and runs it.
  *
  * Kept apart from the worker on purpose: this half knows about jobs, middleware
  * and chains, and the worker half knows about reservations, retries and failures.

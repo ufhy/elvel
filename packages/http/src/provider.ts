@@ -88,7 +88,7 @@ export class HttpServiceProvider extends ServiceProvider {
     this.app.singleton('bindings', () => new BindingRegistry())
 
     /**
-     * The other half of `Route.validate()` — Laravel's `failedValidation`.
+     * The other half of `Route.validate()`.
      *
      * A `FormRequest` decides this for itself; a route schema is refused by Elysia
      * before any of ours runs, so the decision is made once here and the exception

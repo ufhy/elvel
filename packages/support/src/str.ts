@@ -328,7 +328,7 @@ export const Str = {
     return length < 0 ? characters.slice(length).join('') : characters.slice(0, length).join('')
   },
 
-  /** A window around the first match — Laravel's `excerpt`. */
+  /** A window around the first match. */
   excerpt(value: string, phrase: string, radius = 100, omission = '...'): string | undefined {
     const at = value.indexOf(phrase)
     if (at === -1) return undefined
@@ -370,7 +370,7 @@ export const Str = {
     )
   },
 
-  /** Replace each `?` with the next value — Laravel's `replaceArray`. */
+  /** Replace each `?` with the next value. */
   replaceArray(search: string, values: string[], value: string): string {
     let index = 0
 

@@ -24,7 +24,7 @@ export default new Elysia({ name: 'language' }).get('/check/lang/:locale', ({ pa
       locale: trans().getLocale(),
       // A dotted key, from lang/<locale>/orders.ts.
       title: __('orders.title'),
-      // The same key with a replacement, matching case as Laravel does.
+      // The same key with a replacement, matching case.
       greeting: __('orders.greeting', { name: 'ada' }),
       // Chosen by count; `:count` is filled in without being passed twice.
       count: choice('orders.count', count),

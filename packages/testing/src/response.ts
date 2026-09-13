@@ -33,7 +33,7 @@ function parseCookie(header: string): ResponseCookie {
 }
 
 /**
- * A response, already read, with assertions on it — Laravel's `TestResponse`.
+ * A response, already read, with assertions on it.
  *
  * The body is read once in `of()` and kept as text, because a `Response` body is
  * a stream that can only be consumed once and an assertion that consumed it

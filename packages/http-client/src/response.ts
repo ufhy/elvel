@@ -9,7 +9,7 @@ export class ConnectionError extends Error {
   }
 }
 
-/** A response that arrived and was a failure — Laravel's `RequestException`. */
+/** A response that arrived and was a failure. */
 export class RequestError extends Error {
   constructor(readonly response: HttpResponse) {
     /**
@@ -34,7 +34,7 @@ export class RequestError extends Error {
 }
 
 /**
- * A response, already read — Laravel's `Http\Client\Response`.
+ * A response, already read.
  *
  * The body is consumed once when the response is built, for the same reason
  * `TestResponse` does it: a `Response` body is a stream, and an assertion that

@@ -1065,3 +1065,21 @@ describe('the bar can get out of the way', () => {
     expect(BAR_SCRIPT).toContain("kept.get('open', '1') === '0'")
   })
 })
+
+describe('the panel keeps its own state straight', () => {
+  /**
+   * A filter typed on the query list made the cache list read "Nothing matches"
+   * with two entries in it.
+   */
+  test('a filter does not follow you to another kind', () => {
+    const show = BAR_SCRIPT.slice(BAR_SCRIPT.indexOf('function show(next)'))
+
+    expect(show.slice(0, 200)).toContain("find = ''")
+  })
+
+  /** The queue and the scheduler are invisible without storage; say so. */
+  test('the blind spot is named in the menu', () => {
+    expect(BAR_SCRIPT).toContain('Queue and scheduler run in other processes')
+    expect(BAR_SCRIPT).toContain('if (!crossProcess)')
+  })
+})

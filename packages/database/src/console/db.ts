@@ -1,7 +1,7 @@
 import { Command } from '@elvel/console'
 
 /**
- * Hand the connection over to the database's own client — Laravel's `db`.
+ * Hand the connection over to the database's own client.
  *
  * The point is not to write another REPL: `psql`, `mysql` and `sqlite3` already
  * exist and are better than anything this could be. What this saves is reading

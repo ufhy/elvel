@@ -2,7 +2,7 @@ import type { ConnectionManager } from '../connection/manager.ts'
 import { MigrationCommand } from './base.ts'
 
 /**
- * How many connections are open, against a threshold — Laravel's `db:monitor`.
+ * How many connections are open, against a threshold.
  *
  * Built for a scheduled run: it exits non-zero when a connection is over its
  * limit, so a cron wrapper or a healthcheck can act on it without parsing the

@@ -91,7 +91,7 @@ export class ResourceBuilder {
   }
 
   /**
-   * A nested resource whose own identifier is enough — Laravel's `shallow`.
+   * A nested resource whose own identifier is enough.
    *
    * `index`, `create` and `store` keep the parent, because they have no child to
    * identify; `show`, `edit`, `update` and `destroy` drop it, because an id

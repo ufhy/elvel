@@ -112,7 +112,7 @@ export interface Disk {
   directoryExists(path: string): Promise<boolean>
 
   /**
-   * A hash of the file's bytes — Laravel's `checksum`.
+   * A hash of the file's bytes.
    *
    * For telling whether an upload is the same file as one already stored, or
    * whether a transfer arrived intact. `md5` by default because that is what S3

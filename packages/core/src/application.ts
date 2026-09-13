@@ -242,7 +242,7 @@ export class Application implements ApplicationContract {
   }
 
   /**
-   * Run `callback` when the process is shutting down — Laravel's `terminating`.
+   * Run `callback` when the process is shutting down.
    *
    * For the work that has to happen once, at the end: closing a pool, flushing a
    * buffered writer, telling a supervisor it is leaving cleanly. Registered on

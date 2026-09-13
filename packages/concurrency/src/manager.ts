@@ -6,7 +6,7 @@ import { SyncDriver, WorkerDriver } from './drivers.ts'
 export type DriverFactory = () => ConcurrencyDriver
 
 /**
- * Resolves drivers and forwards to the default — Laravel's `ConcurrencyManager`.
+ * Resolves drivers and forwards to the default.
  *
  * Laravel ships `fork`, `process` and `sync`. `fork` exists because PHP cannot
  * await and is unusable in a web request; neither constraint applies here, so

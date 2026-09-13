@@ -8,7 +8,7 @@ import { Image } from './image.ts'
 export type ImageDriverFactory = () => ImageDriver
 
 /**
- * Opens images and picks a backend — Laravel's `ImageManager`.
+ * Opens images and picks a backend.
  *
  * The default is `auto`, which is not a Laravel idea and earns its place here:
  * Laravel can assume GD, because it ships with PHP. Nothing ships with Bun, so

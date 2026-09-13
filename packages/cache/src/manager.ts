@@ -37,7 +37,7 @@ export class CacheManager {
     return repository
   }
 
-  /** Register a driver of your own, as Laravel's `Cache::extend()` does. */
+  /** Register a driver of your own. */
   extend(driver: string, factory: StoreFactory): this {
     this.customDrivers.set(driver, factory)
     // A store already built on the old driver would otherwise be kept.

@@ -116,7 +116,7 @@ export class Schedule {
 
   /** Everything registered, in the order it was registered. */
   /**
-   * Apply the same settings to several tasks — Laravel's `group()`.
+   * Apply the same settings to several tasks.
    *
    * ```ts
    * schedule.group((event) => event.onOneServer().withoutOverlapping(), (s) => {

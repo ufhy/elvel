@@ -231,7 +231,7 @@ function guarded(hooks: unknown[], route: RouteDefinition) {
  * So the pair cannot coexist at all, let alone fall through — closing that gap
  * means replacing Elysia's router, and with it the typed context, the schema
  * validation and the speed that come from it. Every other use of `where` behaves
- * as Laravel's does.
+ *.
  */
 function constraintGuard(route: RouteDefinition) {
   const checks = Object.entries(route.wheres)

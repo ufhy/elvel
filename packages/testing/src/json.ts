@@ -1,7 +1,7 @@
 import { assert, contains, dataGet, dataHas, equals, fail, show } from './assert.ts'
 
 /**
- * A fluent walk over a decoded JSON body — Laravel's `AssertableJson`.
+ * A fluent walk over a decoded JSON body.
  *
  * What makes it worth having over a pile of `assertJsonPath` calls is the
  * interaction check: every key touched is remembered, and leaving a scope

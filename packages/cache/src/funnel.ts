@@ -4,7 +4,7 @@ import { type Lock, LockTimeoutError } from './store.ts'
 export type LockFactory = (name: string, seconds: number) => Lock
 
 /**
- * A semaphore over the cache — Laravel's `Redis::funnel()`.
+ * A semaphore over the cache.
  *
  * `withoutOverlapping()` is one at a time. This is *N* at a time, which is the
  * shape of nearly every real constraint: an API that allows three concurrent

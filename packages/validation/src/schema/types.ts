@@ -2,7 +2,7 @@
 export type JsonSchemaObject = Record<string, unknown>
 
 /**
- * A node in a schema being built — Laravel's `JsonSchema\Types\Type`.
+ * A node in a schema being built.
  *
  * `required()` sits on the child rather than the parent, which looks backwards
  * for one field and is right for every other case: a field carries its own

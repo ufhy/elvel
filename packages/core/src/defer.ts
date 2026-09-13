@@ -29,7 +29,7 @@ const slot = requestSlot<DeferredQueue>('deferred')
 const pending: DeferredQueue = []
 
 /**
- * Run `callback` after the response has been sent — Laravel's `defer()`.
+ * Run `callback` after the response has been sent.
  *
  * The request pays for nothing but the queueing. It is the right tool for work
  * that is too small to queue and too slow to make a client wait: refreshing a

@@ -443,7 +443,7 @@ export const RULES: Record<string, RuleHandler> = {
   /**
    * No two values under the same wildcard repeat.
    *
-   * The comparison is loose by default, as Laravel's is: `1` and `'1'` collide,
+   * The comparison is loose by default: `1` and `'1'` collide,
    * because a form sends numbers as text and "two of the same id" is what the
    * caller means. `strict` compares by type as well, `ignore_case` folds case.
    */
@@ -530,7 +530,7 @@ export const RULES: Record<string, RuleHandler> = {
    * else it is written: `Y m d H i s` plus `y n j G g A a`. Several formats may
    * be listed, and matching any of them passes.
    *
-   * Parsed rather than reformatted-and-compared as Laravel does: `Date` has no
+   * Parsed rather than reformatted-and-compared: `Date` has no
    * strict parser here, and building one is exactly what makes the difference
    * between rejecting `2026-02-31` and quietly rolling it into March.
    */
@@ -1210,7 +1210,7 @@ export function matchesDateFormat(value: string, format: string): boolean {
 }
 
 /**
- * Add a rule at runtime — Laravel's `Validator::extend`.
+ * Add a rule at runtime.
  *
  * For the rules a package can only answer in context: `current_password` needs
  * the signed-in user, which the standalone validator has no way to reach.

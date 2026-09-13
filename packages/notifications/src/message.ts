@@ -17,7 +17,7 @@ export type MailAttachment = {
 }
 
 /**
- * The mail a notification sends — Laravel's `MailMessage`.
+ * The mail a notification sends.
  *
  * The fluent form is the point: most notifications are a greeting, a line or two,
  * one button and a sign-off, and writing that as a template every time is worse
@@ -153,7 +153,7 @@ export class MailMessage {
   }
 
   /**
-   * A line only when the condition holds — Laravel's `lineIf`.
+   * A line only when the condition holds.
    *
    * Worth having for the reason `when` is: without it the fluent chain has to be
    * broken by an `if`, and the message is then built in two shapes that drift.
@@ -167,7 +167,7 @@ export class MailMessage {
   }
 
   /**
-   * Run `body` when the condition holds, and keep the chain — Laravel's `when`.
+   * Run `body` when the condition holds, and keep the chain.
    *
    * The callback may return the message or nothing; either way the chain continues
    * from this message, which is what Laravel's own test pins.
@@ -253,7 +253,7 @@ export class MailMessage {
   }
 
   /**
-   * Wrap the body in a document of your own — Laravel's `template()`.
+   * Wrap the body in a document of your own.
    *
    * The default is a card on a grey page, which is a safe answer and not every
    * brand's answer. A layout takes the rendered parts and the colours and returns

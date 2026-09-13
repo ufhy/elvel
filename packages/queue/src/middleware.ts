@@ -47,7 +47,7 @@ export class WithoutOverlapping implements JobMiddleware {
 }
 
 /**
- * Hold a job back when a limit has been reached — Laravel's `RateLimited`.
+ * Hold a job back when a limit has been reached.
  *
  * The job is released rather than dropped, so the work still happens; it happens
  * later. The delay comes from the limiter itself, which knows when the window

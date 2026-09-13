@@ -5,7 +5,7 @@ import { ProcessResult } from './result.ts'
 const FLUSH_GRACE_MS = 250
 
 /**
- * A command that is running — Laravel's `InvokedProcess`.
+ * A command that is running.
  *
  * Two things here are not obvious, and both were found by tests that hung.
  *

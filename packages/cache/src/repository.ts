@@ -184,7 +184,7 @@ export class Repository {
   }
 
   /**
-   * Serve a stale value while refreshing it — Laravel's `flexible()`.
+   * Serve a stale value while refreshing it.
    *
    * Two TTLs: within the first the value is fresh; between the first and the
    * second it is served *and* refreshed behind a lock, so one slow request
@@ -339,7 +339,7 @@ export class Repository {
   }
 
   /**
-   * A semaphore: at most N callers at a time — Laravel's `funnel()`.
+   * A semaphore: at most N callers at a time.
    *
    * `withoutOverlapping()` is the N=1 case. Anything else — three concurrent
    * calls to an API, four report generators that would exhaust memory — needs

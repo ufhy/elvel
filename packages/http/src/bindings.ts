@@ -113,7 +113,7 @@ export type RouteBindingHints = {
   trashed?: boolean
 
   /**
-   * Resolve each child through its parent — Laravel's `scopeBindings()`.
+   * Resolve each child through its parent.
    *
    * Keyed by the child parameter: `{ comment: { parent: 'photo', relation: 'comments' } }`
    * for `/photos/{photo}/comments/{comment}`. Derived from the URI by the router,

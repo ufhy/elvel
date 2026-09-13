@@ -360,15 +360,15 @@ export const Route = {
   delete: (uri: string, action: RouteAction) => declare(['DELETE'], uri, action),
   options: (uri: string, action: RouteAction) => declare(['OPTIONS'], uri, action),
 
-  /** Every verb — Laravel's `Route::any`. */
+  /** Every verb. */
   any: (uri: string, action: RouteAction) => declare(ALL_METHODS, uri, action),
 
-  /** `Route.match(['get', 'post'], …)`, case-insensitive as Laravel's is. */
+  /** `Route.match(['get', 'post'], …)`, case-insensitive. */
   match: (methods: string[], uri: string, action: RouteAction) =>
     declare(normaliseMethods(methods), uri, action),
 
   /**
-   * A route that only renders — Laravel's `Route::view`.
+   * A route that only renders.
    *
    * ```ts
    * Route.view('/', Welcome, { title: 'Home' })
@@ -408,7 +408,7 @@ export const Route = {
   ) => declare(['GET', 'HEAD'], uri, () => renderView(component, props, status, headers)),
 
   /**
-   * `Route.redirect('/here', '/there')` — 302, as Laravel's is.
+   * `Route.redirect('/here', '/there')` — 302.
    */
   redirect: (from: string, to: string, status = 302) =>
     declare(['GET', 'HEAD'], from, () => redirectResponse(to, status)),
@@ -418,7 +418,7 @@ export const Route = {
     declare(['GET', 'HEAD'], from, () => redirectResponse(to, 301)),
 
   /**
-   * Whatever nothing else answered — Laravel's `Route::fallback`.
+   * Whatever nothing else answered.
    *
    * Every verb, unlike a `/*` route written by hand: `Route::fallback` catches a
    * POST to a missing address too, and an application that only caught GET would

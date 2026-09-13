@@ -24,7 +24,6 @@ import ViewHelpersController from '../app/Http/Controllers/ViewHelpersController
 
 /**
  * Web routes. Mount controllers here — this file is the equivalent of
- * Laravel's `routes/web.php`.
  */
 export default new Elysia({ name: 'routes:web' })
   .use(PageController)

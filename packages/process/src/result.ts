@@ -25,7 +25,7 @@ export class ProcessFailedError extends Error {
   }
 }
 
-/** What a finished command left behind — Laravel's `ProcessResult`. */
+/** What a finished command left behind. */
 export class ProcessResult {
   constructor(
     readonly command: string,

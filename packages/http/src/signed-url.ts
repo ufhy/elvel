@@ -55,7 +55,7 @@ function sign(url: URL): string {
 }
 
 /**
- * A URL nobody can alter — Laravel's `URL::signedRoute`.
+ * A URL nobody can alter.
  *
  * ```ts
  * signedRoute('unsubscribe', { list: 7 })
