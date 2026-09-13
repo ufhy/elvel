@@ -57,6 +57,25 @@ export default {
   maxBodySizeExcept: [] as string[],
 
   /**
+   * Trim what came in, and turn an empty field into nothing.
+   *
+   * A field submitted with a trailing space is stored with it, and the
+   * `where('email', input)` that looks it up later misses the row. An empty text
+   * input arrives as `''`, so a nullable column gets an empty string and
+   * `nullable` validation passes something the schema meant to be absent.
+   *
+   * `password`, `password_confirmation` and `current_password` are always
+   * excepted: a password whose trailing space was trimmed is one nobody can type
+   * again.
+   */
+  normalise: {
+    enabled: env('HTTP_NORMALISE_INPUT', true),
+    trim: true,
+    emptyToNull: true,
+    except: [] as string[]
+  },
+
+  /**
    * What every cookie gets unless its call site says otherwise.
    *
    * `secure` empty follows the environment: on in production, off elsewhere, the

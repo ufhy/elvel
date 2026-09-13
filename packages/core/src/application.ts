@@ -66,6 +66,32 @@ export type RouteModule =
  */
 export type RouteLoader = () => Promise<{ default?: RouteModule }>
 
+/**
+ * What `withMiddleware` hands over.
+ *
+ * Structural rather than the registry's own type: the registry lives in
+ * `@elvel/http` and this file is `@elvel/core`, and the dependency runs one way.
+ */
+export type MiddlewareConfigurator = {
+  alias(name: string, factory: (...args: string[]) => unknown): unknown
+  group(name: string, names: string[]): unknown
+  priority(names: string[]): unknown
+  /** Mount a plugin after the framework's own stack. */
+  append(plugin: RouteModule): void
+}
+
+/** What `withExceptions` hands over — the bound handler, narrowed to its rules. */
+export type ExceptionRules = {
+  dontReport(...types: Array<new (...args: any[]) => Error>): unknown
+  stopIgnoring(...types: Array<new (...args: any[]) => Error>): unknown
+  reportable(callback: (error: unknown) => boolean | void): unknown
+  renderUsing(
+    type: new (...args: any[]) => Error,
+    render: (error: never, request: Request) => Response | undefined
+  ): unknown
+  renderable(render: (error: unknown, request: Request) => Response | undefined): unknown
+}
+
 /** `{ app: () => import('../config/app.ts') }` — see `withConfig`. */
 export type ConfigLoaders = Record<string, () => Promise<{ default?: unknown }>>
 
@@ -855,6 +881,8 @@ export class ApplicationBuilder {
   private readonly providers: ServiceProviderConstructor[] = []
   private readonly routeLoaders: RouteLoader[] = []
   private readonly consoleLoaders: Array<() => Promise<unknown>> = []
+  private readonly middlewareCallbacks: Array<(middleware: MiddlewareConfigurator) => void> = []
+  private readonly exceptionCallbacks: Array<(exceptions: ExceptionRules) => void> = []
   private configLoaders: ConfigLoaders | undefined
 
   constructor(private readonly basePath: string) {}
@@ -922,6 +950,52 @@ export class ApplicationBuilder {
     return this
   }
 
+  /**
+   * Shape the middleware stack from `bootstrap/app.ts` rather than from inside a
+   * provider.
+   *
+   * ```ts
+   * .withMiddleware((middleware) => {
+   *   middleware.alias('subscribed', () => requireSubscription())
+   *   middleware.group('dashboard', ['auth', 'verified', 'subscribed'])
+   *   middleware.append(auditPlugin())
+   * })
+   * ```
+   *
+   * `append` and no `prepend`: Elysia composes hooks in mount order, and the
+   * framework's own have to run first — the request scope is entered by the
+   * first of them, and anything mounted ahead of it would read a scope that does
+   * not exist yet. A middleware that must see a request before the framework
+   * does belongs in front of the application, not inside it.
+   *
+   * Run after the providers boot, because that is when the registry exists.
+   */
+  withMiddleware(callback: (middleware: MiddlewareConfigurator) => void): this {
+    this.middlewareCallbacks.push(callback)
+
+    return this
+  }
+
+  /**
+   * Say how exceptions are reported and rendered.
+   *
+   * ```ts
+   * .withExceptions((exceptions) => {
+   *   exceptions.dontReport(ThrottleException)
+   *   exceptions.render(PaymentRequired, () => Response.json({ upgrade: true }, { status: 402 }))
+   * })
+   * ```
+   *
+   * Customising one exception meant replacing the container binding, which is a
+   * subclass of the handler and a provider to bind it — for a rule that is two
+   * lines.
+   */
+  withExceptions(callback: (exceptions: ExceptionRules) => void): this {
+    this.exceptionCallbacks.push(callback)
+
+    return this
+  }
+
   async create(): Promise<Application> {
     const app = new Application(this.basePath)
 
@@ -955,6 +1029,35 @@ export class ApplicationBuilder {
 
     // 5. boot providers
     await app.boot()
+
+    /**
+     * 5a. the builder's own rules, after everything they configure exists.
+     *
+     * Exceptions before middleware, so a middleware appended here that throws is
+     * already covered by the rules the application declared for it.
+     */
+    for (const callback of this.exceptionCallbacks) {
+      callback(app.make('exception.handler') as unknown as ExceptionRules)
+    }
+
+    if (this.middlewareCallbacks.length > 0) {
+      if (!app.bound('middleware')) {
+        throw new Error(
+          'withMiddleware() needs the HTTP package. Register HttpServiceProvider in bootstrap/providers.ts, or drop the call.'
+        )
+      }
+
+      const registry = app.make('middleware' as never) as MiddlewareConfigurator
+
+      for (const callback of this.middlewareCallbacks) {
+        callback({
+          alias: (name, factory) => registry.alias(name, factory),
+          group: (name, names) => registry.group(name, names),
+          priority: (names) => registry.priority(names),
+          append: (plugin) => app.useRoutes(plugin)
+        })
+      }
+    }
 
     // 6. console registrations — schedules and commands, which are not routes
     //    and have nothing to mount, but do need the container populated.

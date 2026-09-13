@@ -765,51 +765,34 @@ Maintenance mode with a bypass cookie, deferred callbacks flushed after the
 response, trusted proxies with per-header control, the security headers, CSRF,
 CORS, and a `middleware:list` command upstream has no equivalent of.
 
-### Input is not normalised
+Input is normalised before anything reads it, so validation, a form request and
+a handler all see the same values — a rule that ran on the raw ones would
+disagree with the row that gets written. `password`,
+`password_confirmation` and `current_password` are excepted at every depth and
+not only at the top: a password whose trailing space was trimmed is one nobody
+can type again.
 
-`TrimStrings` and `ConvertEmptyStringsToNull` are in every upstream application's
-default stack. Neither exists here.
+Precognition is honoured. `Precognition-Validate-Only` narrows the rules, and a
+wildcard rule answers for the key it expands to — `items.*.price` for
+`items.0.price`, because the concrete key is ours and not something the client
+wrote down. The success is **thrown**, carrying its `204`: a precognitive POST
+to "create an order" validates the order and creates nothing, and a return value
+the caller could ignore would create it.
 
-Without the first, a form field submitted with a trailing space is stored with
-it, and `where('email', $input)` misses the row. Without the second, an empty
-text input arrives as `''` rather than `null`, so a `nullable` column gets an
-empty string and `nullable` validation passes something the schema meant to be
-absent.
+The builder has `withMiddleware` and `withExceptions`. `withMiddleware` offers
+`append` and no `prepend`: Elysia composes hooks in mount order and the
+framework's own must run first — the request scope is entered by the first of
+them, and anything ahead of it would read a scope that does not exist yet.
+`withExceptions` hands over the bound handler's rules, so customising how one
+exception renders is two lines rather than a handler subclass and a provider to
+bind it. The rule method is `renderUsing`, because `render()` is the method
+Elysia calls and a rule that shadowed it would replace the renderer instead of
+adding to it.
 
-**Done when** both exist as middleware, are in the scaffold's default stack, and
-can be excepted per field — a password must never be trimmed.
-
-### Precognition is missing
-
-`HandlePrecognitiveRequests` runs a request's validation and middleware and
-stops before the handler, answering `204` with the errors. It is what makes
-live, per-field validation work in an Inertia or Vue form without duplicating
-the rules in JavaScript.
-
-Elvel has form requests and the validator; nothing wires them into the
-precognitive protocol, so a front end wanting live validation posts the whole
-form and hopes, or the rules are written twice.
-
-**Done when** `Precognition` and `Precognition-Validate-Only` are honoured, the
-handler is not run, and the scaffolded kits use it.
-
-### The application builder configures five things, not nine
-
-`withProviders`, `withConfig`, `withRoutes`, `withRouting`, `withConsole`.
-
-Upstream's `ApplicationBuilder` also has `withMiddleware` — the one that matters,
-because it is where an application appends to, removes from, or reorders the
-global stack, and today that means reaching into providers. Then
-`withExceptions` for reporting and rendering rules, `withSchedule`, and
-`withEvents`.
-
-Exception handling in particular has no builder entry: `ExceptionHandler` is
-bound in the container, so customising how one exception renders means replacing
-the binding rather than declaring a rule.
-
-**Done when** the builder can shape the middleware stack and register exception
-reporting and rendering callbacks.
-
+`withSchedule` and `withEvents` are not here: a schedule is declared in
+`routes/console.ts`, which `withConsole` already loads, and listeners are
+registered by a provider. Both would be a second way to do something that has
+one.
 ---
 
 ## Http

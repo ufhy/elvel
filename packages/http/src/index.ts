@@ -116,6 +116,20 @@ export {
   type Negotiable,
   prefers
 } from './negotiation.ts'
+export {
+  type NormaliseOptions,
+  normalise,
+  normaliseInputPlugin
+} from './normalise-input.ts'
+export {
+  isPrecognitive,
+  narrowRules,
+  PRECOGNITION,
+  PrecognitionSuccess,
+  precognitiveSuccess,
+  VALIDATE_ONLY,
+  validateOnly
+} from './precognition.ts'
 export { HttpServiceProvider } from './provider.ts'
 export {
   AWS_ELB_HEADERS,

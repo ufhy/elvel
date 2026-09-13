@@ -36,6 +36,7 @@ import { maintenancePlugin } from './maintenance.ts'
 import { methodOverridePlugin } from './method-override.ts'
 import { MiddlewareRegistry } from './middleware.ts'
 import { expectsJson } from './negotiation.ts'
+import { type NormaliseOptions, normaliseInputPlugin } from './normalise-input.ts'
 import { PREVIOUS_URL_KEY, redirect } from './redirect.ts'
 import { compileRoutes } from './router/compile.ts'
 import { RouteRegistry } from './routes.ts'
@@ -408,6 +409,15 @@ export class HttpServiceProvider extends ServiceProvider {
         })
       )
     }
+
+    /**
+     * Before anything reads the body: validation, a form request and a handler
+     * all see the normalised values, and a rule that ran on the raw ones would
+     * disagree with the row that gets written.
+     */
+    const normalise = this.config<NormaliseOptions & { enabled?: boolean }>('http.normalise', {})
+
+    if (normalise.enabled !== false) this.use(normaliseInputPlugin(normalise))
 
     this.use(maintenancePlugin(this.app.make('maintenance'), this.config('session.path', '/')))
 

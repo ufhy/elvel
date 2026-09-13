@@ -11,6 +11,7 @@ import {
 } from '@elvel/validation'
 import { InputBag } from './input.ts'
 import { expectsJson } from './negotiation.ts'
+import { isPrecognitive, narrowRules, PrecognitionSuccess, validateOnly } from './precognition.ts'
 import { redirect } from './redirect.ts'
 import { RedirectException } from './redirect-exception.ts'
 
@@ -119,6 +120,15 @@ export abstract class FormRequest {
 
     if (await validator.fails()) await this.failedValidation(validator)
 
+    /**
+     * A precognitive request stops here.
+     *
+     * Everything before this point is the whole point — the rules ran, the
+     * authorisation ran — and the handler is what must not: a precognitive POST
+     * to "create an order" validates the order and creates nothing.
+     */
+    if (isPrecognitive(this.context.request)) throw new PrecognitionSuccess()
+
     this.validatedData = validator.validated()
 
     await this.passedValidation()
@@ -126,10 +136,24 @@ export abstract class FormRequest {
     return this.validatedData
   }
 
+  /**
+   * The rules this run applies.
+   *
+   * A precognitive request narrows them to the fields the client asked about,
+   * which is what keeps a half-filled form from lighting up red for everything
+   * the user has not reached yet.
+   */
+  protected activeRules(): Record<string, RuleDeclaration> {
+    const rules = this.rules()
+    const only = validateOnly(this.context.request)
+
+    return only === undefined ? rules : narrowRules(rules, only)
+  }
+
   protected makeValidator(): Validator {
     const self = this.constructor as typeof FormRequest
 
-    return new Validator(this.data, this.rules(), {
+    return new Validator(this.data, this.activeRules(), {
       messages: this.messages(),
       attributes: this.attributes(),
       stopOnFirstFailure: self.stopOnFirstFailure,

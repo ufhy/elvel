@@ -449,3 +449,77 @@ describe('an Elysia validation failure', () => {
     expect<string[]>(Object.keys(body.errors)).toEqual(['form'])
   })
 })
+
+describe('rules an application declares', () => {
+  class Throttled extends Error {}
+  class Payment extends Error {}
+
+  function handler(): ExceptionHandler {
+    const app = new Application(process.cwd())
+    app.config.set('app.env', 'local')
+
+    return new ExceptionHandler(app)
+  }
+
+  test('dontReport silences a type the status rule would report', () => {
+    const seen: unknown[] = []
+    const rules = handler()
+
+    rules.reportable((error) => {
+      seen.push(error)
+    })
+    rules.dontReport(Throttled)
+
+    rules.report(new Throttled('slow down'))
+
+    // The callback still saw it — a rule that hides an error from the
+    // application's own reporter would be surprising.
+    expect(seen).toHaveLength(1)
+  })
+
+  test('a reportable callback returning false stops the default', () => {
+    const rules = handler()
+    let asked = false
+
+    rules.reportable(() => {
+      asked = true
+
+      return false
+    })
+
+    rules.report(new Error('boom'))
+
+    expect(asked).toBe(true)
+  })
+
+  test('renderUsing answers for one type and falls through for others', async () => {
+    const rules = handler()
+
+    rules.renderUsing(Payment, () => Response.json({ upgrade: true }, { status: 402 }))
+
+    const answered = await rules.render(new Payment('pay up'), {
+      request: new Request('http://example.com/')
+    })
+
+    expect(answered.status).toBe(402)
+
+    const fellThrough = await rules.render(new Error('boom'), {
+      request: new Request('http://example.com/')
+    })
+
+    expect(fellThrough.status).toBe(500)
+  })
+
+  /** So one rule for one type is possible without replacing the renderer. */
+  test('a renderer answering nothing falls through to the default', async () => {
+    const rules = handler()
+
+    rules.renderable(() => undefined)
+
+    const answered = await rules.render(new Error('boom'), {
+      request: new Request('http://example.com/')
+    })
+
+    expect(answered.status).toBe(500)
+  })
+})

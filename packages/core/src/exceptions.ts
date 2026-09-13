@@ -70,6 +70,68 @@ export class UnauthorizedException extends HttpException {
 export class ExceptionHandler implements ExceptionHandlerContract {
   constructor(protected readonly app: ApplicationContract) {}
 
+  /** Types nothing reports, and types reported despite the status rule. */
+  private readonly ignored = new Set<Function>()
+  private readonly watched = new Set<Function>()
+
+  /** Callbacks asked first, in the order they were declared. */
+  private readonly reporters: Array<(error: unknown) => boolean | void> = []
+  private readonly renderers: Array<(error: unknown, request: Request) => Response | undefined> = []
+
+  /**
+   * Never report these, whatever their status says.
+   *
+   * A throttle exception, a payment webhook replaying, an upstream that is
+   * always flaky — each is a 5xx by the status rule and noise in the log.
+   */
+  dontReport(...types: Array<new (...args: any[]) => Error>): this {
+    for (const type of types) this.ignored.add(type)
+
+    return this
+  }
+
+  /** Report these even though the status rule would not — a 403 worth watching. */
+  stopIgnoring(...types: Array<new (...args: any[]) => Error>): this {
+    for (const type of types) this.watched.add(type)
+
+    return this
+  }
+
+  /**
+   * Look at an error before the default reporting does.
+   *
+   * Returning `false` stops it there; anything else lets the default run, so a
+   * callback that only adds context does not have to remember to return.
+   */
+  reportable(callback: (error: unknown) => boolean | void): this {
+    this.reporters.push(callback)
+
+    return this
+  }
+
+  /**
+   * Render one type your own way.
+   *
+   * `renderUsing` and not `render`: `render()` is the handler's own method, the
+   * one Elysia calls with the error it caught, and a rule that shadowed it would
+   * replace the whole renderer rather than add to it.
+   */
+  renderUsing<E extends Error>(
+    type: new (...args: any[]) => E,
+    render: (error: E, request: Request) => Response | undefined
+  ): this {
+    return this.renderable((error, request) =>
+      error instanceof type ? render(error, request) : undefined
+    )
+  }
+
+  /** Render anything your own way; return nothing to fall through. */
+  renderable(render: (error: unknown, request: Request) => Response | undefined): this {
+    this.renderers.push(render)
+
+    return this
+  }
+
   /**
    * Is this error worth a log line? Client mistakes are not.
    *
@@ -98,7 +160,16 @@ export class ExceptionHandler implements ExceptionHandlerContract {
 
   report(error: unknown): void {
     if (this.app.environment() === 'testing') return
-    if (!this.shouldReport(error)) return
+
+    for (const reporter of this.reporters) {
+      if (reporter(error) === false) return
+    }
+
+    if (this.ignored.size > 0 && [...this.ignored].some((type) => error instanceof type)) return
+
+    const watched = [...this.watched].some((type) => error instanceof type)
+
+    if (!watched && !this.shouldReport(error)) return
 
     // Prefer the log manager when the log package is installed, so reports obey
     // the configured channels. Core cannot depend on it, hence the duck test.
@@ -128,6 +199,17 @@ export class ExceptionHandler implements ExceptionHandlerContract {
    * already fine because the hook awaits.
    */
   render(error: unknown, _context: { request: Request }): Response | Promise<Response> {
+    /**
+     * The application's own renderers first, so a rule declared in
+     * `bootstrap/app.ts` beats every default below it. A renderer that answers
+     * nothing falls through, which is what makes one rule for one type possible.
+     */
+    for (const renderer of this.renderers) {
+      const answer = renderer(error, _context.request)
+
+      if (answer !== undefined) return answer
+    }
+
     /**
      * An exception may *be* the response — a redirect thrown from validation.
      *
