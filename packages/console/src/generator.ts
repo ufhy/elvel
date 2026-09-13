@@ -1,6 +1,5 @@
-import { mkdir } from 'node:fs/promises'
-import { dirname, join, relative } from 'node:path'
-import { Str } from '@elvel/support'
+import { join, relative } from 'node:path'
+import { Files, Str } from '@elvel/support'
 import { Command } from './command.ts'
 import type { CommandDefinition } from './signature.ts'
 
@@ -100,8 +99,7 @@ export abstract class GeneratorCommand extends Command {
       return 0
     }
 
-    await mkdir(dirname(destination), { recursive: true })
-    await Bun.write(destination, contents)
+    await Files.put(destination, contents)
 
     this.output.tag('INFO', `${this.type()} created: ${this.relative(destination)}`)
     return 0

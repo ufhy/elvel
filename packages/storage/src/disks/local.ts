@@ -1,4 +1,4 @@
-import { appendFile, chmod, mkdir, rename, rm, stat } from 'node:fs/promises'
+import { appendFile, chmod, mkdir, rename, rm, stat, unlink } from 'node:fs/promises'
 import { dirname, join, posix, sep } from 'node:path'
 import { Glob } from 'bun'
 import {
@@ -117,6 +117,19 @@ export class LocalDisk implements Disk {
     return file.stream()
   }
 
+  async readRange(
+    path: string,
+    start: number,
+    end: number
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    const file = Bun.file(this.path(path))
+
+    if (!(await file.exists())) return null
+
+    // `slice` is exclusive at the end and a range request is not.
+    return file.slice(start, end + 1).stream()
+  }
+
   async put(path: string, contents: Writable, options: WriteOptions = {}): Promise<boolean> {
     const target = this.path(path)
 
@@ -125,6 +138,39 @@ export class LocalDisk implements Disk {
     // `Bun.write` takes every shape a caller might have: text, bytes, a Blob from
     // an upload, or a stream.
     await Bun.write(target, contents as Parameters<typeof Bun.write>[1])
+
+    await this.applyVisibility(target, options.visibility ?? this.options.visibility ?? 'private')
+
+    return true
+  }
+
+  /**
+   * Chunk by chunk into a file handle, so the process holds one chunk and not
+   * the file.
+   */
+  async writeStream(
+    path: string,
+    contents: ReadableStream<Uint8Array>,
+    options: WriteOptions = {}
+  ): Promise<boolean> {
+    const target = this.path(path)
+
+    await mkdir(dirname(target), { recursive: true, mode: this.modes.directory })
+
+    const sink = Bun.file(target).writer()
+
+    try {
+      for await (const chunk of contents) sink.write(chunk)
+
+      await sink.end()
+    } catch (error) {
+      // A half-written file is worse than none: a reader cannot tell it apart
+      // from a complete one.
+      await sink.end()
+      await unlink(target).catch(() => {})
+
+      throw error
+    }
 
     await this.applyVisibility(target, options.visibility ?? this.options.visibility ?? 'private')
 

@@ -29,6 +29,8 @@ export async function fileResponse(
     name?: string
     disposition?: 'inline' | 'attachment'
     headers?: Record<string, string>
+    /** The request, when the caller wants `Range` honoured. */
+    request?: Request
   } = {}
 ): Promise<Response | null> {
   const stream = await disk.readStream(path)
@@ -41,12 +43,86 @@ export async function fileResponse(
     'content-type':
       (await disk.mimeType(path)) ?? guessContentType(path) ?? 'application/octet-stream',
     'content-disposition': contentDisposition(options.disposition ?? 'inline', name),
+    // Advertised always: a client that does not know it may ask will not ask, so
+    // a video served without this can never be seeked.
+    'accept-ranges': 'bytes',
     ...options.headers
   }
 
   if (size !== null) headers['content-length'] = String(size)
 
-  return new Response(stream, { headers })
+  const asked = options.request?.headers.get('range') ?? null
+
+  if (asked === null || size === null) return new Response(stream, { headers })
+
+  const range = parseRange(asked, size)
+
+  if (range === 'unsatisfiable') {
+    // The stream is opened before the range is known; an unread one holds a file
+    // handle until it is collected.
+    await stream.cancel().catch(() => {})
+
+    return new Response(null, {
+      status: 416,
+      headers: { 'content-range': `bytes */${size}`, 'accept-ranges': 'bytes' }
+    })
+  }
+
+  if (range === undefined) return new Response(stream, { headers })
+
+  await stream.cancel().catch(() => {})
+
+  const [start, end] = range
+  const slice = await disk.readRange(path, start, end)
+
+  if (slice === null) return new Response(null, { status: 416 })
+
+  return new Response(slice, {
+    status: 206,
+    headers: {
+      ...headers,
+      'content-length': String(end - start + 1),
+      'content-range': `bytes ${start}-${end}/${size}`
+    }
+  })
+}
+
+/**
+ * One byte range, or nothing.
+ *
+ * Only a single range: a multipart `206` is a `multipart/byteranges` body, and
+ * no client that matters sends more than one — a browser seeking a video sends
+ * `bytes=1000-`, and a resumed download sends `bytes=<n>-`. A header asking for
+ * several is served whole, which is allowed and is what every server does.
+ */
+export function parseRange(
+  header: string,
+  size: number
+): [number, number] | 'unsatisfiable' | undefined {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
+
+  if (match === null) return undefined
+
+  const [, from, to] = match
+
+  // `bytes=-500` is the *last* 500 bytes, not "from the start to 500".
+  if (from === '') {
+    const length = Number(to)
+
+    if (!Number.isFinite(length) || length <= 0) return 'unsatisfiable'
+
+    return [Math.max(0, size - length), size - 1]
+  }
+
+  const start = Number(from)
+
+  if (!Number.isFinite(start) || start >= size) return 'unsatisfiable'
+
+  const end = to === '' ? size - 1 : Math.min(Number(to), size - 1)
+
+  if (!Number.isFinite(end) || end < start) return 'unsatisfiable'
+
+  return [start, end]
 }
 
 /** The same, as an attachment. */

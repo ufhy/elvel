@@ -2,6 +2,7 @@ import type { ApplicationContract } from '@elvel/contracts'
 import type { Disk, Visibility } from './contracts.ts'
 import { LocalDisk } from './disks/local.ts'
 import { MemoryDisk } from './disks/memory.ts'
+import { ReadThroughDisk } from './disks/read-through.ts'
 import { S3Disk } from './disks/s3.ts'
 
 export type DiskConfig = { driver: string } & Record<string, unknown>
@@ -89,6 +90,31 @@ export class StorageManager {
             | { publicFile?: number; privateFile?: number; directory?: number }
             | undefined
         })
+
+      /**
+       * A local disk in front of a remote one.
+       *
+       * Both halves are ordinary disks resolved by name, so `memory` in a test
+       * and `local` in production is configuration rather than a second
+       * implementation.
+       */
+      case 'read-through': {
+        const origin = String(config.origin ?? '')
+        const cache = String(config.cache ?? '')
+
+        if (origin === '' || cache === '') {
+          throw new Error(`Disk [${name}] needs an [origin] and a [cache] disk to sit between.`)
+        }
+
+        if (origin === name || cache === name) {
+          throw new Error(`Disk [${name}] cannot be its own origin or cache.`)
+        }
+
+        return new ReadThroughDisk(name, this.disk(origin), this.disk(cache), {
+          ttl: Number(config.ttl ?? 0),
+          maxBytes: Number(config.maxBytes ?? 0)
+        })
+      }
 
       case 'memory':
         return new MemoryDisk(name, {

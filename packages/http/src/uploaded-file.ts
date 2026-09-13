@@ -8,6 +8,12 @@ type UploadDisk = {
     name: string,
     options?: { visibility?: string }
   ): Promise<string>
+
+  writeStream(
+    path: string,
+    contents: ReadableStream<Uint8Array>,
+    options?: { visibility?: string }
+  ): Promise<boolean>
 }
 
 /**
@@ -97,12 +103,20 @@ export class UploadedFile {
       throw new Error(`[${name}] is not a filename. Pass the directory separately.`)
     }
 
-    return this.disk(options.disk).putFileAs(
-      trim(directory),
-      this.file,
-      name,
-      options.visibility === undefined ? {} : { visibility: options.visibility }
-    )
+    const folder = trim(directory)
+    const path = folder === '' ? name : `${folder}/${name}`
+    const write = options.visibility === undefined ? {} : { visibility: options.visibility }
+
+    /**
+     * Streamed, so the process holds a chunk rather than the file.
+     *
+     * A 2 GB upload cost 2 GB of memory when the only way to store it was
+     * reading it whole first, which is the limit that decides whether large
+     * uploads are possible at all.
+     */
+    await this.disk(options.disk).writeStream(path, this.file.stream(), write)
+
+    return path
   }
 
   /** The same, readable by anybody who has the URL. */

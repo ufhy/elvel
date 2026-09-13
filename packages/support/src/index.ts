@@ -10,6 +10,7 @@ export {
   ItemNotFoundError,
   MultipleItemsFoundError
 } from './collection.ts'
+export { Files } from './files.ts'
 export {
   blank,
   classBasename,

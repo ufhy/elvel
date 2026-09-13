@@ -1,7 +1,6 @@
-import { mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { Command } from '@elvel/console'
-import { Str } from '@elvel/support'
+import { Files, Str } from '@elvel/support'
 
 /**
  * `make:migration create_users_table`
@@ -36,7 +35,7 @@ export class MakeMigrationCommand extends Command {
       name
     })
 
-    await mkdir(dirname(destination), { recursive: true })
+    await Files.ensureDirectoryExists(dirname(destination))
     await Bun.write(destination, contents)
 
     this.output.tag('INFO', `Migration created: ${relative(this.app.basePath(), destination)}`)

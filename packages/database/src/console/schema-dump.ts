@@ -1,6 +1,7 @@
-import { mkdir, readdir, unlink } from 'node:fs/promises'
+import { readdir, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { ProcessManager } from '@elvel/process'
+import { Files } from '@elvel/support'
 import type { ConnectionManager } from '../connection/manager.ts'
 import { MigrationCommand } from './base.ts'
 
@@ -42,7 +43,7 @@ export class SchemaDumpCommand extends MigrationCommand {
       return 1
     }
 
-    await mkdir(dirname(path), { recursive: true })
+    await Files.ensureDirectoryExists(dirname(path))
     await Bun.write(path, sql)
 
     this.output.tag('INFO', `Schema dumped to ${path.replace(`${this.app.basePath()}/`, '')}.`)

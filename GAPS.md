@@ -765,59 +765,30 @@ The `Disk` contract carries 32 of upstream's methods, the `memory` disk is
 RFC 6266 — stripping quotes rather than escaping them, because a filename that
 closes the quoted string early injects a header parameter.
 
-### There is no `writeStream`
+`writeStream` is on the contract: the local disk pipes into a file handle, S3
+uses a multipart upload, and the memory disk collects so a test exercises the
+same path. A failed local write removes what it wrote, because a half-written
+file is one a reader cannot tell from a complete one. `UploadedFile.store()`
+goes through it, so a 2 GB upload no longer costs 2 GB of the process.
 
-`readStream` exists; its opposite does not. Every write goes through
-`put(path, contents)`, so a file is fully in memory before it reaches the disk.
+`fileResponse` advertises `Accept-Ranges` always — a client that does not know it
+may ask will not ask — answers `206` with the slice, and `416` for a range it
+cannot satisfy. One range only: a multipart `206` is a `multipart/byteranges`
+body and nothing that matters sends more than one, so a header asking for
+several is served whole, which is allowed and is what every server does.
 
-An upload of a 2 GB video costs 2 GB of the process, on the S3 disk as much as
-the local one. This is the single limit that decides whether an application can
-accept large files at all, and it is not a configuration — there is no path
-through the contract that streams.
+The `read-through` driver puts a local disk in front of a remote one, with a TTL
+and a byte budget. A write goes to the origin and drops the cached copy, because
+a stale file served from local disk is worse than the latency it saved. Both
+halves are ordinary disks resolved by name, so `memory` in a test and `local` in
+production is configuration rather than a second implementation.
 
-**Done when** `writeStream(path, stream)` is on the contract, the local disk
-pipes to a file handle, and the S3 disk uses a multipart upload.
-
-### A file is always sent whole
-
-`fileResponse()` reads the stream and returns it. No `Accept-Ranges`, no
-`Range` parsing, no `206` — nowhere in `packages/storage` or `packages/http`.
-
-So a video or audio file served from a disk cannot be seeked: the browser asks
-for a byte range, gets the whole file with a `200`, and starts again from the
-beginning. An interrupted download cannot be resumed either. Upstream's
-`Storage::serve()` handles both.
-
-**Done when** a range request is answered with `206` and the requested slice,
-`Accept-Ranges` is advertised, and an unsatisfiable range is a `416`.
-
-### A remote disk is read remotely, every time
-
-Upstream added `ReadThroughFilesystem`: a local disk in front of a remote one,
-so a file fetched from S3 is served from local disk the next time and the
-round trip is paid once.
-
-Nothing like it here. An application serving user uploads from S3 pays the
-latency on every read, and the only workaround is to write the caching by hand
-around every call.
-
-**Done when** a disk can be configured with another disk in front of it, with a
-TTL and a size bound.
-
-### There is no file API outside a disk
-
-`Illuminate\Filesystem\Filesystem` — the `File` facade — is what code reaches
-for when the file is not on a configured disk: a generator writing a stub, a
-command reading a fixture, a deploy script. `glob`, `ensureDirectoryExists`,
-`cleanDirectory`, `copyDirectory`, `lines`, `replaceInFile`, `hash`,
-`sharedGet`, `isWritable`, `guessExtension`.
-
-Elvel has none of it, so every command that touches a file uses `node:fs`
-directly — `packages/console/src/generator.ts` and the migration generator both
-do — and each re-decides what "make the directory if it is missing" means.
-
-**Done when** the utilities exist in one place and the generators use them.
-
+`Files` is the file API outside a disk, and the generators use it. It lives in
+`@elvel/support` rather than here: the console is its largest caller and this
+package depends on the console, so putting it here would have built the cycle
+the layering exists to avoid. `sharedGet` is a plain read named the same way,
+with a comment saying so — there is no portable advisory lock, and a hopeful
+read pretending to be one would be worse than the honest name.
 ---
 
 ## Foundation

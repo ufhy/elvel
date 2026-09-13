@@ -98,6 +98,24 @@ export class S3Disk implements CloudDisk {
     }
   }
 
+  /** A ranged GET, so the bytes never cross the wire in the first place. */
+  async readRange(
+    path: string,
+    start: number,
+    end: number
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    try {
+      if (!(await this.exists(path))) return null
+
+      return this.client
+        .file(this.key(path))
+        .slice(start, end + 1)
+        .stream()
+    } catch {
+      return null
+    }
+  }
+
   async put(path: string, contents: Writable, options: WriteOptions = {}): Promise<boolean> {
     const visibility = options.visibility ?? this.options.visibility
 
@@ -107,6 +125,43 @@ export class S3Disk implements CloudDisk {
       // the bucket's own policy.
       acl: visibility === 'public' ? 'public-read' : undefined
     })
+
+    return true
+  }
+
+  /**
+   * A multipart upload, which is the only way S3 takes a file it cannot size.
+   *
+   * The sink starts parts as the chunks arrive and finishes the upload on
+   * `end()`; a throw aborts it, because an abandoned multipart upload is charged
+   * for until a lifecycle rule removes it.
+   */
+  async writeStream(
+    path: string,
+    contents: ReadableStream<Uint8Array>,
+    options: WriteOptions = {}
+  ): Promise<boolean> {
+    const visibility = options.visibility ?? this.options.visibility
+
+    const sink = this.client.file(this.key(path)).writer({
+      type: options.contentType ?? guessContentType(path),
+      acl: visibility === 'public' ? 'public-read' : undefined
+    })
+
+    try {
+      for await (const chunk of contents) sink.write(chunk)
+
+      await sink.end()
+    } catch (error) {
+      try {
+        await sink.end()
+      } catch {
+        // The upload is already failing; the reason it failed is the one worth
+        // raising, not whatever went wrong closing it.
+      }
+
+      throw error
+    }
 
     return true
   }

@@ -79,6 +79,18 @@ export class MemoryDisk implements Disk {
     return new Response(entry.bytes as unknown as BodyInit).body
   }
 
+  async readRange(
+    path: string,
+    start: number,
+    end: number
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    const entry = this.entries.get(normalisePath(path))
+
+    if (!entry) return null
+
+    return new Blob([entry.bytes.slice(start, end + 1) as BlobPart]).stream()
+  }
+
   async put(path: string, contents: Writable, options: WriteOptions = {}): Promise<boolean> {
     this.entries.set(normalisePath(path), {
       bytes: await toBytes(contents),
@@ -88,6 +100,36 @@ export class MemoryDisk implements Disk {
     })
 
     return true
+  }
+
+  /**
+   * Collected, because a memory disk has nowhere else to put it.
+   *
+   * Honest rather than clever: this exists so a test exercising the streaming
+   * path runs against the fake, not so the fake saves memory.
+   */
+  async writeStream(
+    path: string,
+    contents: ReadableStream<Uint8Array>,
+    options: WriteOptions = {}
+  ): Promise<boolean> {
+    const chunks: Uint8Array[] = []
+    let length = 0
+
+    for await (const chunk of contents) {
+      chunks.push(chunk)
+      length += chunk.length
+    }
+
+    const bytes = new Uint8Array(length)
+    let at = 0
+
+    for (const chunk of chunks) {
+      bytes.set(chunk, at)
+      at += chunk.length
+    }
+
+    return this.put(path, bytes, options)
   }
 
   async putFile(directory: string, file: Blob | File, options: WriteOptions = {}): Promise<string> {

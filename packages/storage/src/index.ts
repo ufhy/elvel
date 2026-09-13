@@ -10,6 +10,7 @@ export {
 } from './contracts.ts'
 export { LocalDisk, type LocalDiskOptions } from './disks/local.ts'
 export { MemoryDisk } from './disks/memory.ts'
+export { ReadThroughDisk, type ReadThroughOptions } from './disks/read-through.ts'
 export { grantsPublicRead, S3Disk, type S3DiskOptions } from './disks/s3.ts'
 export { disk, storage } from './helpers.ts'
 export { type DiskConfig, type DiskFactory, StorageManager } from './manager.ts'
@@ -21,4 +22,4 @@ export {
   withinRoot
 } from './paths.ts'
 export { StorageServiceProvider } from './provider.ts'
-export { contentDisposition, download, fileResponse } from './response.ts'
+export { contentDisposition, download, fileResponse, parseRange } from './response.ts'

@@ -1,7 +1,6 @@
-import { mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { Command } from '@elvel/console'
-import { Str } from '@elvel/support'
+import { Files, Str } from '@elvel/support'
 import { MakeMigrationCommand } from './make-migration.ts'
 
 /**
@@ -47,7 +46,7 @@ export abstract class MigrationGeneratorCommand extends Command {
 
     const contents = Str.replacePlaceholders(await this.stub(), { table })
 
-    await mkdir(dirname(destination), { recursive: true })
+    await Files.ensureDirectoryExists(dirname(destination))
     await Bun.write(destination, contents)
 
     this.output.tag('INFO', `Migration created: ${relative(this.app.basePath(), destination)}`)

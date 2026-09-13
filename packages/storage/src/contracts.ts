@@ -63,7 +63,28 @@ export interface Disk {
   /** A stream, for a file too large to hold in memory. */
   readStream(path: string): Promise<ReadableStream<Uint8Array> | null>
 
+  /**
+   * A byte range, inclusive at both ends — what a `Range` request asks for.
+   *
+   * Without it a browser seeking a video is sent the whole file with a `200` and
+   * starts again from the beginning, and an interrupted download cannot resume.
+   */
+  readRange(path: string, start: number, end: number): Promise<ReadableStream<Uint8Array> | null>
+
   put(path: string, contents: Writable, options?: WriteOptions): Promise<boolean>
+
+  /**
+   * Write without holding the file.
+   *
+   * `put()` has the whole thing in memory before it reaches the disk, so a 2 GB
+   * upload costs 2 GB of the process — on S3 as much as locally. This is the
+   * limit that decides whether an application can accept large files at all.
+   */
+  writeStream(
+    path: string,
+    contents: ReadableStream<Uint8Array>,
+    options?: WriteOptions
+  ): Promise<boolean>
 
   /** Write with a generated, unique name and return the path it was stored at. */
   putFile(directory: string, file: Blob | File, options?: WriteOptions): Promise<string>
