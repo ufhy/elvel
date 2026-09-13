@@ -6,9 +6,26 @@ export {
   migrationFor,
   schemaShape
 } from './adapter.ts'
+export { type BasicOptions, basicAuth, basicAuthOnce, parseBasic } from './basic.ts'
 export { AuthSchemaCommand } from './console/auth-schema.ts'
 export { AuthSecretCommand } from './console/auth-secret.ts'
 export { MakePolicyCommand } from './console/make-policy.ts'
+export {
+  Attempting,
+  Authenticated,
+  announce,
+  CurrentDeviceLogout,
+  Failed,
+  Lockout,
+  Login,
+  Logout,
+  OtherDeviceLogout,
+  PasswordReset,
+  PasswordResetLinkSent,
+  Registered,
+  Validated,
+  Verified
+} from './events.ts'
 export {
   type AbilityCallback,
   type AbilityOptions,

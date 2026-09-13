@@ -9,9 +9,21 @@ import {
 import { resolveGateUsing } from '@elvel/validation'
 import { Elysia } from 'elysia'
 import { type Dialect, elvelAdapter } from './adapter.ts'
+import { basicAuth, basicAuthOnce } from './basic.ts'
 import { AuthSchemaCommand } from './console/auth-schema.ts'
 import { AuthSecretCommand } from './console/auth-secret.ts'
 import { MakePolicyCommand } from './console/make-policy.ts'
+import {
+  Attempting,
+  announce,
+  Failed,
+  Lockout,
+  Login,
+  Logout,
+  PasswordReset,
+  Registered,
+  Verified
+} from './events.ts'
 import { Gate } from './gate.ts'
 import { authMailHooks, type Notifier, withAuthMail } from './mail-hooks.ts'
 import { type AuthInstance, AuthManager } from './manager.ts'
@@ -168,6 +180,8 @@ export class AuthServiceProvider extends ServiceProvider {
       .alias('verified', (notice?: string) => ensureVerified(notice))
       .alias('can', (ability: string, ...args: string[]) => canAccess(ability, ...args))
       .alias('password.confirm', (to?: string, seconds?: string) => requirePassword(to, seconds))
+      .alias('auth.basic', (realm?: string) => basicAuth({ realm }))
+      .alias('auth.basic.once', (realm?: string) => basicAuthOnce({ realm }))
   }
 
   register(): void {
@@ -280,6 +294,7 @@ export class AuthServiceProvider extends ServiceProvider {
       ...this.withRateLimit(options),
       ...this.withCookieCache(options),
       ...this.withClientAddress(options),
+      ...(await this.withEndpointHooks(options)),
       basePath: basePath ?? '/api/auth',
       database: elvelAdapter(db, { connection, dialect })
     }) as unknown as AuthInstance
@@ -336,7 +351,130 @@ export class AuthServiceProvider extends ServiceProvider {
               revocations.epoch(String((user as { id?: unknown })?.id ?? '')))
         }
       },
-      databaseHooks: this.withRevocationHooks(options, revocations)
+      databaseHooks: this.withEventHooks(this.withRevocationHooks(options, revocations))
+    }
+  }
+
+  /**
+   * better-auth's database hooks, bridged to named events.
+   *
+   * Hooks rather than endpoint middleware for the same reason the revocation
+   * hooks use them: these fire on the paths that never see an HTTP request — a
+   * console command creating a user, a worker verifying one.
+   *
+   * A session row is what a sign-in writes, and it carries `userId` and not the
+   * user, so `Login` and `Logout` carry the id. Loading the row to fill the
+   * event would put a query on every sign-in for the sake of listeners that may
+   * not exist.
+   */
+  private withEventHooks(hooks: Record<string, unknown>): Record<string, unknown> {
+    type Row = Record<string, unknown>
+    type Hook = { after?: (row: Row, context: unknown) => unknown; [key: string]: unknown }
+    type Hooks = Record<string, Record<string, Hook | undefined> | undefined>
+
+    const given = hooks as Hooks
+
+    const announcing = (hook: Hook | undefined, build: (row: Row) => object | undefined): Hook => ({
+      ...hook,
+      after: async (row: Row, context: unknown) => {
+        await hook?.after?.(row, context)
+
+        const event = build(row)
+
+        if (event !== undefined) announce(event)
+      }
+    })
+
+    const id = (row: Row) => String(row.userId ?? row.id ?? '')
+
+    return {
+      ...given,
+      user: {
+        ...given.user,
+        create: announcing(given.user?.create, (row) => new Registered(row as never)),
+        update: announcing(given.user?.update, (row) =>
+          row.emailVerified === true ? new Verified(row as never) : undefined
+        ),
+        delete: given.user?.delete
+      },
+      session: {
+        ...given.session,
+        create: announcing(given.session?.create, (row) => new Login(id(row))),
+        delete: announcing(given.session?.delete, (row) => new Logout(id(row)))
+      },
+      account: {
+        ...given.account,
+        update: announcing(given.account?.update, (row) =>
+          row.password === undefined ? undefined : new PasswordReset(id(row))
+        )
+      }
+    }
+  }
+
+  /**
+   * The endpoint hooks, for what a database write cannot see.
+   *
+   * A failed sign-in writes nothing, so "log every failed sign-in" — the reason
+   * this row existed — has to be read from the response. The application's own
+   * hooks run first and are not replaced.
+   */
+  private async withEndpointHooks(
+    options: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const given = (options.hooks ?? {}) as {
+      before?: (context: unknown) => unknown
+      after?: (context: unknown) => unknown
+    }
+
+    /**
+     * Imported here rather than at the top of the file.
+     *
+     * `createAuthMiddleware` tags a function with what the dispatcher reads off
+     * it, and importing it eagerly would evaluate better-auth the moment
+     * `@elvel/auth` is imported — 65ms and forty modules for an application that
+     * never reaches an auth route, which `lazy-imports.test.ts` refuses. The
+     * only caller is already async and already past that point.
+     */
+    const { createAuthMiddleware } = await import('better-auth/api')
+
+    return {
+      hooks: {
+        ...given,
+        before: createAuthMiddleware(async (context) => {
+          await given.before?.(context)
+
+          if (!isSignIn(context.path)) return
+
+          const body = (context.body ?? {}) as { email?: string; username?: string }
+
+          announce(new Attempting(String(body.email ?? body.username ?? '')))
+        }),
+        after: createAuthMiddleware(async (context) => {
+          await given.after?.(context)
+
+          if (!isSignIn(context.path)) return
+
+          const status = Number((context.context?.returned as { status?: unknown })?.status ?? 200)
+
+          // A sign-in that worked already announced itself through the session row
+          // it wrote; this is only the half that leaves no trace.
+          if (status < 400) return
+
+          const body = (context.body ?? {}) as { email?: string; username?: string }
+
+          announce(
+            new Failed(
+              String(body.email ?? body.username ?? ''),
+              'web',
+              status === 429 ? 'too many attempts' : 'invalid credentials'
+            )
+          )
+
+          if (status === 429) {
+            announce(new Lockout(String(body.email ?? body.username ?? ''), 0))
+          }
+        })
+      }
     }
   }
 
@@ -583,4 +721,9 @@ export class AuthServiceProvider extends ServiceProvider {
 
     return plugin
   }
+}
+
+/** Every path better-auth signs somebody in on, whatever the plugin. */
+function isSignIn(path: string | undefined): boolean {
+  return typeof path === 'string' && path.startsWith('/sign-in')
 }

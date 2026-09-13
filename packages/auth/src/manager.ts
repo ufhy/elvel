@@ -1,4 +1,5 @@
 import { requestSlot } from '@elvel/core'
+import { Authenticated, announce } from './events.ts'
 import type { AuthUser } from './gate.ts'
 
 /** The shape better-auth's `getSession` returns, narrowed to what we rely on. */
@@ -159,6 +160,10 @@ export class AuthManager {
    */
   enterScope(session: AuthSession | null, request?: Request): void {
     this.slot.set(request === undefined ? { session } : { session, request })
+
+    // Per request, not per sign-in: a session cookie resolves on every request
+    // and this is the moment an audit trail wants.
+    if (session?.user) announce(new Authenticated(session.user as never))
   }
 
   /** Run `callback` with a session already in hand. Used by tests and commands. */

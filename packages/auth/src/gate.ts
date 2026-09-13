@@ -57,6 +57,13 @@ export class Gate {
   private readonly abilities = new Map<string, { callback: AbilityCallback; guests: boolean }>()
   private readonly policies = new Map<Subject, PolicyLike>()
   private readonly resolved = new Map<PolicyLike, Policy>()
+
+  /** See `defaultDenialResponse`. */
+  private denialFactory: () => AuthorizationResponse = () => AuthorizationResponse.deny()
+
+  private denial(): AuthorizationResponse {
+    return this.denialFactory()
+  }
   private readonly beforeCallbacks: BeforeCallback[] = []
   private readonly afterCallbacks: AfterCallback[] = []
 
@@ -133,6 +140,43 @@ export class Gate {
    * Define `name.viewAny`, `name.view`, … against a policy. Handy when the ability is not reached through a
    * model instance.
    */
+  /**
+   * What a bare `false` becomes.
+   *
+   * An API that answers `404` everywhere rather than `403` — so a viewer cannot
+   * learn a record exists by being refused it — would otherwise mean writing
+   * `denyAsNotFound()` in every policy method, and one that was missed is the
+   * one that leaks.
+   *
+   * A factory, not a response: a response carries a message and a status and is
+   * handed to every caller, so sharing one instance would let the first caller
+   * that called `withStatus` change everybody else's.
+   */
+  defaultDenialResponse(build: () => AuthorizationResponse): this {
+    this.denialFactory = build
+
+    return this
+  }
+
+  /** Every ability defined, and whether guests may attempt it. */
+  registeredAbilities(): Array<{ ability: string; guests: boolean }> {
+    return [...this.abilities].map(([ability, entry]) => ({ ability, guests: entry.guests }))
+  }
+
+  /**
+   * Every policy registered, by the name of what it guards.
+   *
+   * What a `route:list` for authorisation is built on — and what says a policy
+   * you wrote was never discovered, which is otherwise a silent pass or a silent
+   * denial depending on the ability.
+   */
+  registeredPolicies(): Array<{ subject: string; policy: string }> {
+    return [...this.policies].map(([subject, policy]) => ({
+      subject: nameOf(subject),
+      policy: nameOf(policy)
+    }))
+  }
+
   resource(name: string, policy: PolicyLike, abilities?: Record<string, string>): this {
     const map = abilities ?? {
       viewAny: 'viewAny',
@@ -216,7 +260,7 @@ export class Gate {
 
       if (result instanceof AuthorizationResponse) return result
 
-      return result ? AuthorizationResponse.allow() : AuthorizationResponse.deny()
+      return result ? AuthorizationResponse.allow() : this.denial()
     } catch (error) {
       if (error instanceof AuthorizationError) return error.toResponse()
 
@@ -255,6 +299,8 @@ export class Gate {
 
     for (const [ability, entry] of this.abilities) gate.abilities.set(ability, entry)
     for (const [subject, policy] of this.policies) gate.policies.set(subject, policy)
+
+    gate.denialFactory = this.denialFactory
     gate.beforeCallbacks.push(...this.beforeCallbacks)
     gate.afterCallbacks.push(...this.afterCallbacks)
 
@@ -455,4 +501,12 @@ export class Gate {
       .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
       .join('')
   }
+}
+
+/** Whatever a subject or a policy answers to: a class, or the string itself. */
+function nameOf(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'function') return (value as { name?: string }).name ?? 'anonymous'
+
+  return String((value as { constructor?: { name?: string } })?.constructor?.name ?? value)
 }

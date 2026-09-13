@@ -25,68 +25,36 @@ measured separately.
 
 ## Auth
 
-### HTTP Basic authentication does not exist
+`auth.basic` and `auth.basic.once` put a username and password in front of a
+route — the thing every internal tool, staging environment and `/metrics`
+endpoint reaches for first, and there was no way to do it at all. The challenge
+carries `WWW-Authenticate`, without which a browser shows the 401 body and never
+prompts. The header is split on the **first** colon, because a password may
+contain one and a username may not. The credential comparison is better-auth's,
+which hashes before it compares; `once` signs straight back out rather than
+leaving a session row per poll.
 
-Upstream has three doors into it: the `auth.basic` middleware
-(`Illuminate/Auth/Middleware/AuthenticateWithBasicAuth.php`), `Auth::basic()`,
-and `Auth::onceBasic()` for a stateless check. `SessionGuard::basic()` reads the
-`Authorization: Basic` header, attempts against the user provider, and answers
-`401` with a `WWW-Authenticate` challenge.
+Fourteen events exist and `announce()` dispatches them when an events package is
+registered. Sign-in, sign-out, registration and verification come from
+better-auth's database hooks, so they fire on the paths that never see a request
+— a console command creating a user, a worker verifying one. A failed sign-in
+writes nothing, so `Failed` and `Lockout` are read from the endpoint hooks
+instead.
 
-Elvel has none of it. The only `Basic` in the repository is the **outgoing**
-client's `withBasicAuth` in `packages/http-client`. There is no way to put a
-username and password in front of a route — the thing every internal tool, every
-staging environment and every `/metrics` endpoint reaches for first.
+`Login` and `Logout` carry the user's **id**, not the row: a sign-in writes a
+session and a session carries `userId`, and loading the user to fill the event
+would put a query on every sign-in for the sake of listeners that may not exist.
 
-**Done when** an `auth.basic` middleware alias exists, it challenges with
-`WWW-Authenticate: Basic realm=…` on a missing or wrong credential, a stateless
-variant leaves no session behind, and the credential comparison is
-constant-time.
+`createAuthMiddleware` is imported inside the options builder rather than at the
+top of the provider — importing it eagerly evaluates better-auth on any import
+of `@elvel/auth`, which is 65ms and forty modules for an application that never
+reaches an auth route, and `lazy-imports.test.ts` refuses it.
 
-### Nothing is dispatched when somebody signs in
-
-Upstream dispatches fourteen events from `Illuminate/Auth/Events`: `Attempting`,
-`Validated`, `Login`, `Authenticated`, `Failed`, `Lockout`, `Logout`,
-`CurrentDeviceLogout`, `OtherDeviceLogout`, `Registered`, `Verified`,
-`PasswordReset`, `PasswordResetLinkSent`, and `GateEvaluated`.
-
-Elvel dispatches **one** — `gate.evaluated`, in `packages/auth/src/gate.ts`. A
-grep for `dispatch(` across `packages/auth/src` finds nothing else, and the
-provider's better-auth `databaseHooks` are wired only to bump the session
-revocation epoch.
-
-The consequence is not cosmetic. "Log every failed sign-in", "notify on a new
-device", "seed a workspace when a user registers", "audit password resets" are
-all listener-shaped problems in upstream and have no seam at all here. Lens
-cannot have an auth watcher for the same reason.
-
-better-auth already calls hooks at each of these moments, so the work is a
-bridge, not an implementation.
-
-**Done when** signing in, signing out, failing, registering, verifying and
-resetting each dispatch a named event carrying the user, an application can
-`listen('auth.login')`, and Lens records them.
-
-### The Gate cannot be asked what it knows
-
-`Gate::abilities()` and `Gate::policies()` return the registrations. Elvel keeps
-both as private `Map`s on the `Gate` class with no reader.
-
-Small, and it is what a `route:list`-style command for authorisation would be
-built on — and what tells you a policy you wrote is not being discovered.
-
-**Done when** both are readable and `lens` or a console command can print them.
-
-### `Gate::defaultDenialResponse()` is absent
-
-Upstream lets an application set the response every denial falls back to, so an
-API can answer `404` everywhere instead of `403` without writing
-`denyAsNotFound()` in forty policies. `AuthorizationResponse` supports the
-status; nothing configures the default.
-
-**Done when** the gate takes a default denial response and `authorize()` uses it
-where a policy returned a bare `false`.
-
+`registeredAbilities()` and `registeredPolicies()` read the gate back, which is
+what says a policy you wrote was never discovered.
+`defaultDenialResponse()` takes a factory rather than a response, because a
+response carries a status and is handed to every caller — one shared instance
+would let the first caller's `withStatus` change everybody else's.
 ---
 
 ## Broadcasting
