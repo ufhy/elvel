@@ -11,7 +11,7 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 94** — all 37 components measured.
+**Open: 92** — all 37 components measured.
 
 Eleven added none: Concurrency, Conditionable, Config, Contracts, Encryption,
 Hashing, JsonSchema, Notifications, Reflection, Scheduling and Support. Four are
@@ -1021,36 +1021,6 @@ do — and each re-decides what "make the directory if it is missing" means.
 Maintenance mode with a bypass cookie, deferred callbacks flushed after the
 response, trusted proxies with per-header control, the security headers, CSRF,
 CORS, and a `middleware:list` command upstream has no equivalent of.
-
-### The `Host` header is believed
-
-`clientHost()` in `packages/http/src/proxies.ts` honours `X-Forwarded-Host` only
-from a trusted proxy — correct, and its own comment says why. What it does when
-there is no proxy is fall back to the raw `Host` header, and nothing anywhere
-checks that header against a list of hosts the application answers for.
-
-Upstream's `TrustHosts` middleware exists for one attack: a request with
-`Host: attacker.example` produces a password-reset link pointing at
-`attacker.example`, which is mailed to the user, who clicks it and hands over
-the token. The same header decides every signed URL.
-
-The comment in `proxies.ts` names this exact consequence — "host is what URL
-generation and password-reset links are built on" — and the guard for the
-non-proxied case is not there.
-
-**Done when** an allow-list of hosts can be configured, a request whose `Host`
-is not on it is refused, and the list defaults to the host in `app.url`.
-
-### There is no limit on request size
-
-No `ValidatePostSize`, no `maxRequestBodySize`, nothing in `config/http.ts`
-about it. Bun's server has a default, but the framework neither sets it, exposes
-it, nor turns exceeding it into a `413` an application can render.
-
-One request with a large body is the cheapest denial of service there is.
-
-**Done when** a maximum body size is configurable, exceeding it is a `413`
-before the body is read, and a route can raise its own limit for uploads.
 
 ### Input is not normalised
 

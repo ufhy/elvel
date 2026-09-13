@@ -7,6 +7,7 @@ export {
   type RouteBindable,
   resolveBindings
 } from './bindings.ts'
+export { type BodySizeOptions, bodySizePlugin, PayloadTooLargeError } from './body-size.ts'
 export { MakeRequestCommand } from './console/make-request.ts'
 export { MakeResourceCommand } from './console/make-resource.ts'
 export { MiddlewareListCommand } from './console/middleware-list.ts'
@@ -71,6 +72,13 @@ export {
   registerCurrentPasswordRule,
   validateRequest
 } from './form-request.ts'
+export {
+  hostsFor,
+  hostWithoutPort,
+  type TrustHostsOptions,
+  trustHostsPlugin,
+  UntrustedHostError
+} from './hosts.ts'
 export { maintenancePlugin, ServiceUnavailableException } from './maintenance.ts'
 export {
   METHOD_FIELD,

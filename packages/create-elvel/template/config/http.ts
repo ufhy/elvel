@@ -27,5 +27,32 @@ export default {
   trustedProxies: env('TRUSTED_PROXIES', '')
     .split(',')
     .map((proxy) => proxy.trim())
-    .filter((proxy) => proxy !== '')
+    .filter((proxy) => proxy !== ''),
+
+  /**
+   * Hosts this application answers for.
+   *
+   * The `Host` header decides every generated URL — a password-reset link, a
+   * signed URL, an absolute `route()` — so a request carrying somebody else's
+   * host produces a reset link pointing there, mailed to the account's owner.
+   *
+   * Empty falls back to the host in `app.url`, plus localhost so a development
+   * machine is not locked out by its own default. `*.example.com` matches one
+   * level and not the apex.
+   */
+  trustedHosts: env('TRUSTED_HOSTS', '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter((host) => host !== ''),
+
+  /**
+   * Largest request body, in bytes. `0` turns the check off.
+   *
+   * A declared `Content-Length` over it is refused before a byte is read; a
+   * chunked body is counted and cut off the moment it passes.
+   */
+  maxBodySize: Number(process.env.HTTP_MAX_BODY_SIZE ?? 10 * 1024 * 1024),
+
+  /** Paths allowed to exceed it — an upload endpoint. A trailing `*` is a prefix. */
+  maxBodySizeExcept: [] as string[]
 }

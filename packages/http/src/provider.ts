@@ -11,6 +11,7 @@ import {
 } from '@elvel/core'
 import { Elysia } from 'elysia'
 import { BindingRegistry, resolveBindings } from './bindings.ts'
+import { bodySizePlugin } from './body-size.ts'
 import { MakeRequestCommand } from './console/make-request.ts'
 import { MakeResourceCommand } from './console/make-resource.ts'
 import { MiddlewareListCommand } from './console/middleware-list.ts'
@@ -29,6 +30,7 @@ import {
   preflightHeaders
 } from './cors.ts'
 import { isExempt, isReadRequest, TokenMismatchError, tokensMatch } from './csrf.ts'
+import { hostsFor, trustHostsPlugin } from './hosts.ts'
 import { maintenancePlugin } from './maintenance.ts'
 import { methodOverridePlugin } from './method-override.ts'
 import { MiddlewareRegistry } from './middleware.ts'
@@ -332,6 +334,27 @@ export class HttpServiceProvider extends ServiceProvider {
     this.use(
       new Elysia({ name: 'elvel:request-context' }).onRequest(() => {
         enterRequestContext()
+      })
+    )
+
+    /**
+     * Before everything: a request from a host we do not answer for, or with a
+     * body too large to hold, should cost a comparison rather than a session
+     * read and a query.
+     */
+    this.use(
+      trustHostsPlugin({
+        allow: hostsFor(
+          this.config<string | undefined>('app.url', undefined),
+          this.config<string[]>('http.trustedHosts', [])
+        )
+      })
+    )
+
+    this.use(
+      bodySizePlugin({
+        max: this.app.config.integer('http.maxBodySize', 10 * 1024 * 1024),
+        except: this.config<string[]>('http.maxBodySizeExcept', [])
       })
     )
 

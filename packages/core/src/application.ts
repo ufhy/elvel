@@ -435,9 +435,22 @@ export class Application implements ApplicationContract {
 
     bound.add(resolvedPort)
 
-    this.router.listen(
-      resolvedHost === '' ? resolvedPort : { port: resolvedPort, hostname: resolvedHost }
-    )
+    /**
+     * The limit on a request body, refused at the socket before a byte reaches
+     * the application.
+     *
+     * Measured through Elysia, all three cases: a declared `Content-Length`
+     * over the limit is 413 before the handler; a chunked body is 413 as soon
+     * as the handler reads it; a chunked body no handler reads is served, and
+     * costs nothing, because nothing buffered it.
+     */
+    const maxBodySize = this.config.integer('http.maxBodySize', 10 * 1024 * 1024)
+
+    this.router.listen({
+      port: resolvedPort,
+      ...(resolvedHost === '' ? {} : { hostname: resolvedHost }),
+      ...(maxBodySize > 0 ? { maxRequestBodySize: maxBodySize } : {})
+    })
 
     return this
   }
