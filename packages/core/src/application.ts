@@ -17,6 +17,7 @@ import { ExceptionHandler } from './exceptions.ts'
 import { RequestLifecycle } from './lifecycle.ts'
 import { MaintenanceMode } from './maintenance.ts'
 import { PortInUseError, portInUse, portInUseMessage } from './port.ts'
+import { inRequestContext, requestSlot } from './request-context.ts'
 
 declare module '@elvel/contracts' {
   interface ContainerBindings {
@@ -29,6 +30,25 @@ declare module '@elvel/contracts' {
 type Binding = {
   factory: Factory<unknown>
   shared: boolean
+  /** Shared, but only for the duration of one request. */
+  scoped?: boolean
+}
+
+/** A callback that sees a value on its way out of the container. */
+type ResolutionHook = (value: unknown, app: ApplicationContract) => void
+
+/** A callback that sees a key on its way in. */
+type ResolvingHook = (key: string, app: ApplicationContract) => void
+
+/** Anything asked for by no key in particular. */
+const ANY = '*'
+
+/** Scoped instances for the request that is running. */
+const scopedSlot = requestSlot<Map<string, unknown>>('container.scoped')
+
+/** What `when(...)` returns, so `needs().give()` reads as one sentence. */
+export type ContextualBuilder = {
+  needs(key: BindingKey): { give(implementation: Factory<unknown> | unknown): Application }
 }
 
 /** A route module: an Elysia plugin, or a factory that builds one. */
@@ -61,6 +81,21 @@ export class Application implements ApplicationContract {
 
   private readonly bindings = new Map<string, Binding>()
   private readonly resolvedInstances = new Map<string, unknown>()
+  private readonly resolvedKeys = new Set<string>()
+  private readonly extenders = new Map<
+    string,
+    Array<(value: unknown, app: ApplicationContract) => unknown>
+  >()
+  private readonly rebindingHooks = new Map<string, ResolutionHook[]>()
+  private readonly beforeHooks = new Map<string, ResolutionHook[]>()
+  private readonly resolvingHooks = new Map<string, ResolutionHook[]>()
+  private readonly afterHooks = new Map<string, ResolutionHook[]>()
+  private readonly tagged_ = new Map<string, string[]>()
+  private readonly contextual = new Map<string, Map<string, Factory<unknown>>>()
+  private readonly scopedOutsideRequest = new Map<string, unknown>()
+
+  /** The stack of keys currently being built — what makes `when()` work. */
+  private readonly building: string[] = []
   private readonly providers: ServiceProviderContract[] = []
   private readonly terminatingCallbacks: Array<(app: ApplicationContract) => void | Promise<void>> =
     []
@@ -116,24 +151,205 @@ export class Application implements ApplicationContract {
   // ---------------------------------------------------------------- container
 
   bind<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this {
-    this.bindings.set(key as string, { factory: factory as Factory<unknown>, shared: false })
-    this.resolvedInstances.delete(key as string)
-    return this
+    return this.record(key, factory, { shared: false })
   }
 
   singleton<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this {
-    this.bindings.set(key as string, { factory: factory as Factory<unknown>, shared: true })
-    this.resolvedInstances.delete(key as string)
-    return this
+    return this.record(key, factory, { shared: true })
+  }
+
+  /**
+   * A singleton for the length of one request, and gone with it.
+   *
+   * What every per-request service wants: one instance for the request, no
+   * leaking into the next, and no hand-rolled slot and lifecycle in each package
+   * that needs one. Outside a request it is an ordinary singleton, cleared by
+   * `forgetScopedInstances()` — which is what a worker between two jobs wants.
+   */
+  scoped<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this {
+    return this.record(key, factory, { shared: true, scoped: true })
   }
 
   instance<K extends BindingKey>(key: K, value: Resolved<K>): this {
-    this.resolvedInstances.set(key as string, value)
+    const name = key as string
+    const had = this.bound(key)
+    const previous = had ? this.resolvedInstances.get(name) : undefined
+    const finished = this.finish(name, value)
+
+    this.resolvedInstances.set(name, finished)
+
+    if (had && previous !== finished) this.announce(name, finished)
+
     return this
+  }
+
+  /** Bind only when nothing is bound — how a package offers a default. */
+  bindIf<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this {
+    return this.bound(key) ? this : this.bind(key, factory)
+  }
+
+  /** The same, shared. */
+  singletonIf<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this {
+    return this.bound(key) ? this : this.singleton(key, factory)
+  }
+
+  /** The same, per request. */
+  scopedIf<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this {
+    return this.bound(key) ? this : this.scoped(key, factory)
+  }
+
+  /**
+   * Wrap what is already bound.
+   *
+   * Decorating without re-binding: a package that wants to add to the logger
+   * keeps whatever anybody else did to it, instead of replacing the binding and
+   * silently undoing them.
+   */
+  extend<K extends BindingKey>(
+    key: K,
+    wrap: (value: Resolved<K>, app: ApplicationContract) => Resolved<K>
+  ): this {
+    const name = key as string
+    const wrapper = wrap as (value: unknown, app: ApplicationContract) => unknown
+    const existing = this.extenders.get(name)
+
+    if (existing) existing.push(wrapper)
+    else this.extenders.set(name, [wrapper])
+
+    // An instance is already built, so it is extended in place rather than on
+    // some next resolution that will never come.
+    if (this.resolvedInstances.has(name)) {
+      this.resolvedInstances.set(name, wrapper(this.resolvedInstances.get(name), this))
+    }
+
+    return this
+  }
+
+  /**
+   * Hear about it when a key is re-bound.
+   *
+   * An object that resolved a dependency at boot holds it for ever otherwise —
+   * so swapping an implementation at runtime reaches nothing already built.
+   */
+  rebinding<K extends BindingKey>(
+    key: K,
+    callback: (value: Resolved<K>, app: ApplicationContract) => void
+  ): this {
+    const name = key as string
+    const hook = callback as ResolutionHook
+    const existing = this.rebindingHooks.get(name)
+
+    if (existing) existing.push(hook)
+    else this.rebindingHooks.set(name, [hook])
+
+    return this
+  }
+
+  /** Resolve now and on every re-bind, handing the value to `holder[method]`. */
+  refresh<K extends BindingKey, T extends object>(
+    key: K,
+    holder: T,
+    method: keyof T & string
+  ): this {
+    const hand = (value: unknown): void => {
+      ;(holder[method] as (value: unknown) => void).call(holder, value)
+    }
+
+    this.rebinding(key, hand)
+
+    if (this.bound(key)) hand(this.make(key))
+
+    return this
+  }
+
+  /**
+   * Group keys under a name, so something can resolve a set it cannot enumerate.
+   *
+   * Every notification channel, every health check, every watcher: the framework
+   * has to collect them without knowing in advance what an application added.
+   */
+  tag(keys: BindingKey | BindingKey[], ...tags: string[]): this {
+    const names = (Array.isArray(keys) ? keys : [keys]).map((key) => key as string)
+
+    for (const tag of tags) {
+      const existing = this.tagged_.get(tag)
+
+      if (existing) existing.push(...names)
+      else this.tagged_.set(tag, [...names])
+    }
+
+    return this
+  }
+
+  /** Resolve everything under a tag. Unknown tag, empty list — not an error. */
+  tagged<T = unknown>(tag: string): T[] {
+    return (this.tagged_.get(tag) ?? []).map((name) => this.make(name as BindingKey) as T)
+  }
+
+  /**
+   * A binding that differs by who is asking.
+   *
+   * ```ts
+   * app.when('reports.mailer').needs('mail.transport').give(() => new SesTransport())
+   * ```
+   *
+   * The consumer is whichever key's factory is running, so this works without
+   * autowiring: the container knows what it is building while it builds it.
+   */
+  when(consumer: BindingKey | BindingKey[]): ContextualBuilder {
+    const consumers = (Array.isArray(consumer) ? consumer : [consumer]).map((key) => key as string)
+
+    return {
+      needs: (key: BindingKey) => ({
+        give: (implementation: Factory<unknown> | unknown) => {
+          for (const name of consumers) {
+            const forConsumer = this.contextual.get(name) ?? new Map<string, Factory<unknown>>()
+
+            forConsumer.set(
+              key as string,
+              typeof implementation === 'function'
+                ? (implementation as Factory<unknown>)
+                : () => implementation
+            )
+            this.contextual.set(name, forConsumer)
+          }
+
+          return this
+        }
+      })
+    }
+  }
+
+  /** Run before a key is resolved. `'*'` for every key. */
+  beforeResolving(key: BindingKey | typeof ANY, callback: ResolvingHook): this {
+    return this.hook(this.beforeHooks, key as string, callback as ResolutionHook)
+  }
+
+  /** Run on the value each time a key resolves, before the caller sees it. */
+  resolving<K extends BindingKey>(
+    key: K | typeof ANY,
+    callback: (value: Resolved<K>, app: ApplicationContract) => void
+  ): this {
+    return this.hook(this.resolvingHooks, key as string, callback as ResolutionHook)
+  }
+
+  /** The same, after the `resolving` callbacks have had it. */
+  afterResolving<K extends BindingKey>(
+    key: K | typeof ANY,
+    callback: (value: Resolved<K>, app: ApplicationContract) => void
+  ): this {
+    return this.hook(this.afterHooks, key as string, callback as ResolutionHook)
   }
 
   make<K extends BindingKey>(key: K): Resolved<K> {
     const name = key as string
+
+    for (const hook of this.beforeHooks.get(ANY) ?? []) hook(name, this)
+    for (const hook of this.beforeHooks.get(name) ?? []) hook(name, this)
+
+    const contextual = this.contextualFor(name)
+
+    if (contextual !== undefined) return this.fresh(name, contextual) as Resolved<K>
 
     if (this.resolvedInstances.has(name)) {
       return this.resolvedInstances.get(name) as Resolved<K>
@@ -144,14 +360,181 @@ export class Application implements ApplicationContract {
       throw new Error(`Target [${name}] is not bound in the container.`)
     }
 
-    const value = binding.factory(this)
-    if (binding.shared) this.resolvedInstances.set(name, value)
+    const scope = binding.scoped === true ? this.scope() : undefined
+
+    if (scope?.has(name)) return scope.get(name) as Resolved<K>
+
+    const value = this.fresh(name, binding.factory)
+
+    if (scope !== undefined) scope.set(name, value)
+    else if (binding.shared) this.resolvedInstances.set(name, value)
+
+    this.resolvedKeys.add(name)
 
     return value as Resolved<K>
   }
 
   bound(key: BindingKey): boolean {
     return this.bindings.has(key as string) || this.resolvedInstances.has(key as string)
+  }
+
+  /** Whether a key has ever been built — what `elvel about` reports as loaded. */
+  resolved(key: BindingKey): boolean {
+    return this.resolvedKeys.has(key as string) || this.resolvedInstances.has(key as string)
+  }
+
+  /** Whether resolving a key twice gives the same value. */
+  isShared(key: BindingKey): boolean {
+    return (
+      this.resolvedInstances.has(key as string) || this.bindings.get(key as string)?.shared === true
+    )
+  }
+
+  /** Every key, with how it is bound — for `elvel about` and for tests. */
+  getBindings(): Array<{ key: string; shared: boolean; scoped: boolean; resolved: boolean }> {
+    const keys = new Set([...this.bindings.keys(), ...this.resolvedInstances.keys()])
+
+    return [...keys].sort().map((key) => ({
+      key,
+      shared: this.isShared(key as BindingKey),
+      scoped: this.bindings.get(key)?.scoped === true,
+      resolved: this.resolved(key as BindingKey)
+    }))
+  }
+
+  /** Drop one built instance, keeping its binding, so the next `make` rebuilds. */
+  forgetInstance(key: BindingKey): this {
+    this.resolvedInstances.delete(key as string)
+    this.scope().delete(key as string)
+
+    return this
+  }
+
+  forgetInstances(): this {
+    this.resolvedInstances.clear()
+
+    return this
+  }
+
+  /** What a worker does between two jobs, and a request does when it ends. */
+  forgetScopedInstances(): this {
+    this.scope().clear()
+
+    return this
+  }
+
+  /** Empty the container. For a test that wants a clean one without a new app. */
+  flush(): this {
+    this.bindings.clear()
+    this.resolvedInstances.clear()
+    this.resolvedKeys.clear()
+    this.extenders.clear()
+    this.rebindingHooks.clear()
+    this.tagged_.clear()
+    this.contextual.clear()
+    this.beforeHooks.clear()
+    this.resolvingHooks.clear()
+    this.afterHooks.clear()
+    this.scopedOutsideRequest.clear()
+
+    return this
+  }
+
+  /** Bind, dropping whatever was built from the previous binding for that key. */
+  private record<K extends BindingKey>(
+    key: K,
+    factory: Factory<Resolved<K>>,
+    how: { shared: boolean; scoped?: boolean }
+  ): this {
+    const name = key as string
+    const had = this.bound(key)
+
+    this.bindings.set(name, { factory: factory as Factory<unknown>, ...how })
+    this.resolvedInstances.delete(name)
+    this.scope().delete(name)
+
+    if (had) this.announce(name, undefined)
+
+    return this
+  }
+
+  /** Build a value and run everything that wants to see it. */
+  private fresh(name: string, factory: Factory<unknown>): unknown {
+    this.building.push(name)
+
+    let value: unknown
+
+    try {
+      value = factory(this)
+    } finally {
+      this.building.pop()
+    }
+
+    return this.finish(name, value)
+  }
+
+  /**
+   * Everything that wants a say in a value, whether the container built it or
+   * was handed it — an `instance()` is a resolution too, and a hook that missed
+   * it would configure some objects of a type and not others.
+   */
+  private finish(name: string, built: unknown): unknown {
+    let value = built
+
+    for (const wrap of this.extenders.get(name) ?? []) value = wrap(value, this)
+
+    for (const hook of this.resolvingHooks.get(ANY) ?? []) hook(value, this)
+    for (const hook of this.resolvingHooks.get(name) ?? []) hook(value, this)
+    for (const hook of this.afterHooks.get(ANY) ?? []) hook(value, this)
+    for (const hook of this.afterHooks.get(name) ?? []) hook(value, this)
+
+    return value
+  }
+
+  /** The contextual factory for this key, given whatever is being built. */
+  private contextualFor(name: string): Factory<unknown> | undefined {
+    const consumer = this.building.at(-1)
+
+    return consumer === undefined ? undefined : this.contextual.get(consumer)?.get(name)
+  }
+
+  /** Tell everybody watching this key that it changed. */
+  private announce(name: string, value: unknown): void {
+    const hooks = this.rebindingHooks.get(name)
+
+    if (hooks === undefined || hooks.length === 0) return
+
+    const current =
+      value ?? (this.bound(name as BindingKey) ? this.make(name as BindingKey) : undefined)
+
+    for (const hook of hooks) hook(current, this)
+  }
+
+  private hook(into: Map<string, ResolutionHook[]>, key: string, callback: ResolutionHook): this {
+    const existing = into.get(key)
+
+    if (existing) existing.push(callback)
+    else into.set(key, [callback])
+
+    return this
+  }
+
+  /**
+   * Where scoped instances live: the request's context inside one, a map on the
+   * application outside — a worker or a command, where `forgetScopedInstances`
+   * is what ends the scope.
+   */
+  private scope(): Map<string, unknown> {
+    if (!inRequestContext()) return this.scopedOutsideRequest
+
+    let held = scopedSlot.get()
+
+    if (held === undefined) {
+      held = new Map<string, unknown>()
+      scopedSlot.set(held)
+    }
+
+    return held
   }
 
   // -------------------------------------------------------------------- paths

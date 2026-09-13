@@ -555,97 +555,19 @@ renamed command keeps working.
 
 ## Container
 
-The whole container is five methods:
+Complete but for the two pillars TypeScript cannot have: autowiring (`build()`)
+and method injection (`call()`) both need runtime type information, and types
+are erased. Everything else is here — `bind`, `singleton`, `scoped`, `instance`,
+the `…If` variants, `extend`, `rebinding`/`refresh`, `tag`/`tagged`,
+`when().needs().give()`, the three resolution hooks, and `flush`/`forget…`/
+`resolved`/`isShared`/`getBindings`, which `elvel about --bindings` prints.
 
-```ts
-bind(key, factory)      singleton(key, factory)   instance(key, value)
-make(key)               bound(key)
-```
-
-backed by two `Map`s. Upstream's has fifty-odd. Most of the difference is not
-convenience — each row below is a thing packages currently cannot do to each
-other, which is what a container is for.
-
-Two of upstream's pillars are **not** listed as gaps and are recorded at the
-bottom: autowiring (`build()`) and method injection (`call()`) both need runtime
-type information, and TypeScript erases types.
-
-### There are no scoped bindings
-
-`scoped()` and `scopedIf()` resolve once per request and are thrown away after
-it. Elvel has the primitive — `requestSlot()` in
-`packages/core/src/request-context.ts` — and no container-level way to use it,
-so every package that wants a per-request instance builds its own slot and its
-own lifecycle. `AuthManager` does exactly that, and its comment explains the
-whole mechanism because there was nowhere shared to put it.
-
-**Done when** `scoped()` exists, the instance is discarded when the request
-ends, and `AuthManager` uses it instead of hand-rolling one.
-
-### A binding cannot be decorated, or defaulted
-
-Four missing pieces of the same idea — how two packages share one key:
-
-- `extend(key, fn)` wraps what is already bound. Without it a package that wants
-  to decorate the logger has to re-bind it, throwing away whatever anybody else
-  had done.
-- `bindIf` / `singletonIf` bind only when nothing is bound — how a package
-  supplies a default the application may already have overridden. Today every
-  provider must write `if (!app.bound('x'))` by hand, and several do.
-- `rebinding` / `refresh` notify a holder when a key is re-bound. Nothing here
-  can react, so an object that captured a dependency at boot keeps the old one
-  for ever.
-
-**Done when** all four exist and the `if (!bound(...))` checks in the providers
-are replaced by `bindIf`.
-
-### There are no tags
-
-`tag(['a','b'], 'reports')` then `tagged('reports')` resolves the group. It is
-how a framework collects things it cannot name in advance: every notification
-channel, every health check, every Lens watcher.
-
-Lens registers its watchers through its own list; the queue registers job
-classes through its own registry; broadcasting keeps its own channel map. Three
-registries doing what one container feature does.
-
-**Done when** `tag`/`tagged` exist and at least one of those registries is
-built on them.
-
-### There is no contextual binding
-
-`when(ReportMailer::class)->needs(Transport::class)->give(SesTransport::class)`.
-Absent, and nothing approximates it: a key resolves to one thing for the whole
-application.
-
-The case is ordinary — one consumer of an interface needs a different
-implementation from everyone else. Today the only answer is a second key and a
-consumer that knows the name, which is the coupling the container exists to
-remove.
-
-**Done when** a binding can differ by the consumer asking for it.
-
-### Nothing can hook resolution
-
-`resolving`, `afterResolving`, `beforeResolving`. This is how a package
-configures instances of a type it does not own — set a default timeout on every
-HTTP client the application builds, tag every model with the current request.
-
-**Done when** callbacks can run before and after a key resolves, and they run
-for `instance()` bindings too.
-
-### The container cannot be reset or inspected
-
-No `flush`, `forgetInstance`, `forgetInstances`, `forgetScopedInstances`,
-`resolved`, `isShared`, or `getBindings`.
-
-Two costs. A test that wants a clean container has to build a whole new
-`Application`, and the dev server's reload cannot drop a stale singleton.
-And `elvel about` cannot list what is bound, which is the first thing anybody
-asks when a binding resolves to the wrong thing.
-
-**Done when** the container can be flushed, one key can be forgotten, and the
-bindings can be listed.
+Two adoptions the rows here used to ask for were measured and declined.
+`AuthManager`'s slot is not a container binding: the session is set from outside
+by middleware and nests through `run()`, which is not what a lazily built
+per-request instance is. And the watcher, job and channel registries are typed
+lists whose keys are known at compile time; rebuilding them on string tags would
+lose that for nothing.
 
 ---
 

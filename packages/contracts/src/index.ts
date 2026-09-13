@@ -62,9 +62,44 @@ export type Factory<T = unknown> = (app: ApplicationContract) => T
 export interface Container {
   bind<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this
   singleton<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this
+  /** Shared for one request, and discarded with it. */
+  scoped<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this
   instance<K extends BindingKey>(key: K, value: Resolved<K>): this
+
+  /** Bind only when nothing is bound — how a package offers a default. */
+  bindIf<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this
+  singletonIf<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this
+  scopedIf<K extends BindingKey>(key: K, factory: Factory<Resolved<K>>): this
+
+  /** Wrap what is already bound, rather than replacing it. */
+  extend<K extends BindingKey>(
+    key: K,
+    wrap: (value: Resolved<K>, app: ApplicationContract) => Resolved<K>
+  ): this
+
+  rebinding<K extends BindingKey>(
+    key: K,
+    callback: (value: Resolved<K>, app: ApplicationContract) => void
+  ): this
+
+  tag(keys: BindingKey | BindingKey[], ...tags: string[]): this
+  tagged<T = unknown>(tag: string): T[]
+
+  resolving<K extends BindingKey>(
+    key: K | '*',
+    callback: (value: Resolved<K>, app: ApplicationContract) => void
+  ): this
+  afterResolving<K extends BindingKey>(
+    key: K | '*',
+    callback: (value: Resolved<K>, app: ApplicationContract) => void
+  ): this
+
   make<K extends BindingKey>(key: K): Resolved<K>
   bound(key: BindingKey): boolean
+  resolved(key: BindingKey): boolean
+
+  forgetInstance(key: BindingKey): this
+  forgetScopedInstances(): this
 }
 
 export type AppEnvironment = 'local' | 'testing' | 'staging' | 'production' | (string & {})
