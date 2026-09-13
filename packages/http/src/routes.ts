@@ -26,6 +26,16 @@ export class RouteRegistry {
   private readonly methods = new Map<string, string[]>()
 
   /**
+   * Parameters a route may take without being handed them.
+   *
+   * An application with a locale segment knows the locale once, at the start of
+   * the request, and would otherwise have to pass it to every `route()` call in
+   * every template. Set it here and a `{locale}` placeholder fills itself; an
+   * explicit parameter still wins.
+   */
+  private readonly fallbacks: Record<string, unknown> = {}
+
+  /**
    * Name a path.
    *
    * ```ts
@@ -57,6 +67,18 @@ export class RouteRegistry {
     for (const [name, path] of Object.entries(entries)) this.name(name, path)
 
     return this
+  }
+
+  /** Set the parameters a route may take without being handed them. */
+  defaults(values: Record<string, unknown>): this {
+    Object.assign(this.fallbacks, values)
+
+    return this
+  }
+
+  /** What a placeholder falls back to. */
+  defaulted(): Record<string, unknown> {
+    return { ...this.fallbacks }
   }
 
   has(name: string): boolean {
@@ -112,7 +134,7 @@ export class RouteRegistry {
       /:([A-Za-z0-9_]+)\??|\{([A-Za-z0-9_]+)\??\}/g,
       (match, colon, brace) => {
         const key = (colon ?? brace) as string
-        const value = remaining[key]
+        const value = remaining[key] ?? this.fallbacks[key]
 
         if (value === undefined || value === null) {
           // An optional segment is allowed to vanish; a required one is a mistake

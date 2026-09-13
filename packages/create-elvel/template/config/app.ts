@@ -31,6 +31,14 @@ export default {
 
   url: env('APP_URL', 'http://localhost:3000'),
 
+  /**
+   * Where `asset()` points, when that is not the application itself.
+   *
+   * Set it to a CDN and every image, font and stylesheet not going through Vite
+   * moves with it. Empty means they are served from `public/`.
+   */
+  assetUrl: env('ASSET_URL', ''),
+
   port: Env.number('PORT', 3000),
 
   host: env('HOST', ''),

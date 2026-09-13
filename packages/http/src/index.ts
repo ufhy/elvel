@@ -188,3 +188,4 @@ export {
   TooManyRequestsError,
   throttle
 } from './throttle.ts'
+export { asset, secureAsset, secureUrl, Url, url } from './url.ts'

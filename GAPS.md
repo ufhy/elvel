@@ -1480,29 +1480,10 @@ domain and middleware; `fallback`; `redirect` and `permanentRedirect`; view
 routes; `resource`, `apiResource` and singleton resources; constraints
 (`where`, `whereNumber`, `whereAlpha`, `whereIn`, `whereUuid`, `whereUlid`,
 `whereEach`); implicit model binding with custom keys (`{post:slug}`), scoped
-bindings, `withTrashed` and `missing`; global patterns; middleware aliases,
+bindings, `withTrashed` and `missing`; global patterns; URL generation beyond
+named routes — `url`, `asset`, `secureUrl` and URL defaults; middleware aliases,
 groups **and priority**, with the priority sort deliberately stable so two
 middleware of your own keep the order you wrote them in.
-
-### URL generation stops at `route()`
-
-`route(name, parameters, absolute)` is the whole of it — and it defaults to
-relative, which is the better default and is argued for in the source.
-
-Missing: `url(path)` for a URL to an arbitrary path, `asset(path)` for a file in
-`public/`, `secureUrl`, `URL::forceScheme`, and `URL::defaults`.
-
-`asset()` is the one that bites. Every image, font and stylesheet not going
-through Vite has its path written by hand in a template, so moving static files
-to a CDN means editing every template instead of setting `ASSET_URL`.
-
-`URL::defaults` is the other: an application with a locale segment
-(`/{locale}/articles`) must pass the locale to every single `route()` call, or
-set it once as a URL default. Without defaults, a missing parameter is an error
-at the call site farthest from where the locale is known.
-
-**Done when** `url`, `asset` and `secureUrl` exist, honour a configured asset
-host and scheme, and URL defaults are applied to generated route URLs.
 
 ### There are no atomic route locks
 
