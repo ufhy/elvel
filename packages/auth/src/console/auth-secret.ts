@@ -6,8 +6,8 @@ import { Command } from '@elvel/console'
  *
  * Writes a fresh `AUTH_SECRET` into `.env`, or prints one with `--show`.
  *
- * Laravel has no equivalent because Fortify signs with `APP_KEY`. better-auth
- * wants its own, and that is the better arrangement — one key signing both the
+ * better-auth wants a signing key of its own rather than reusing `APP_KEY`, and
+ * that is the better arrangement — one key signing both the
  * framework's ciphertext and the session tokens means a leak of either is a leak
  * of both — but it does mean there is a second secret to forget, and forgetting
  * it is silent: better-auth signs with an empty string and nothing complains.

@@ -4,8 +4,7 @@ import { DEFAULT_THEME_CSS } from '../theme.ts'
 /**
  * Write a copy of the default mail stylesheet into the application.
  *
- * Laravel's `vendor:publish --tag=laravel-mail`, narrowed to the one file anybody
- * actually publishes. A theme is CSS, and CSS is edited with the file open — asking
+ * Narrowed to the one file anybody actually publishes. A theme is CSS, and CSS is edited with the file open — asking
  * somebody to paste a stylesheet into a config module would be the same mistake as
  * making them write `style` attributes by hand.
  *

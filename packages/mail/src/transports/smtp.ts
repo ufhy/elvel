@@ -34,8 +34,7 @@ export type SmtpOptions = {
  * state machine *and* a MIME encoder — dot-stuffing, header folding, RFC 2047
  * words for non-ASCII names, quoted-printable, multipart boundaries. Every one of
  * those is a place where a subtle bug means mail that silently lands in spam.
- * Laravel delegates the same work to Symfony Mailer for the same reason.
- *
+ *  *
  * What stays here is the translation: our resolved message in, nodemailer's shape
  * out, and one error type on the way back.
  */

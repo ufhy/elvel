@@ -7,8 +7,8 @@ import { handlePreview, previewable } from '../src/preview.ts'
 /**
  * Looking at a mail without sending one, and without a second service.
  *
- * Laravel gets the rendering from one interface — `Mailable implements Renderable`,
- * so a route returning a mailable renders it — and leaves the page to you. Catching
+ * Rendering a mailable from a route takes one interface, and leaves the index
+ * page to you. Catching
  * mail is Mailpit's job there, which is a container in `laravel/sail` rather than
  * anything the framework ships.
  *

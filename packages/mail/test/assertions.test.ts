@@ -209,7 +209,7 @@ describe('without sending', () => {
    *
    * `build()` resolves the view, the addresses and the subject without a
    * transport, so a mailable can be checked in isolation — which is what
-   * Laravel's assertions on `Mailable` itself are for.
+   * assertions on the built message are for.
    */
   test('build() then assert', async () => {
     const built = await manager.mailer().build(new Invoice({ customer: 'Ada' }))

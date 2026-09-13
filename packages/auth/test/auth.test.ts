@@ -102,8 +102,8 @@ describe('Gate', () => {
   })
 
   test('a class argument finds the policy and is not passed on', async () => {
-    // `create()` takes only the user: Laravel drops a leading class argument
-    // because the policy already knows what it authorizes.
+    // `create()` takes only the user: the policy already knows what it
+    // authorizes, so a leading class argument is dropped.
     expect(await gateFor(ada).allows('create', ArticleModel)).toBe(true)
   })
 

@@ -129,8 +129,7 @@ export type AuthConfig = {
  *
  * better-auth owns the credentials, sessions, providers and the endpoints that
  * go with them — that is a large, security-sensitive surface with a community
- * maintaining it. What the framework adds is the parts Laravel developers expect
- * around it: the auth tables live on our connection through our own adapter, the
+ * maintaining it. What the framework adds is everything around it: the auth tables live on our connection through our own adapter, the
  * current user is reachable anywhere in the request, and authorization goes
  * through a Gate with policies.
  */

@@ -825,8 +825,8 @@ describe('a default reply-to', () => {
       replyTo: 'support@example.com'
     }).build(new Answered({ name: 'Ada' }))
 
-    // A default, not an override — this is where Laravel's `alwaysReplyTo`
-    // differs from `alwaysTo`, which forces.
+    // A default, not an override — where `alwaysReplyTo` differs from
+    // `alwaysTo`, which forces.
     expect<number>(message.replyTo.length).toBe(1)
     expect<string | undefined>(message.replyTo[0]?.address).toBe('ada-team@example.com')
   })

@@ -617,7 +617,7 @@ export function diffMigrationFor(
     const present = indexes?.get(table.toLowerCase()) ?? []
 
     for (const entry of compoundFor(tables, table)) {
-      // The name the blueprint would give it, which is Laravel's and is what the
+      // The name the blueprint would give it, which is what the
       // database reports back: `account_issuer_accountid_unique`.
       const name = `${table}_${entry.columns.join('_')}_${entry.unique ? 'unique' : 'index'}`
         .toLowerCase()

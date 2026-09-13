@@ -1,8 +1,7 @@
 import type { DeliveryResult, SentMessage, Transport } from '../message.ts'
 
 /**
- * Try each transport in turn until one accepts the message — Laravel's
- * `failover`.
+ * Try each transport in turn until one accepts the message.
  *
  * The last error is thrown when none of them does, rather than the first: the
  * useful one is usually from the transport that was tried last.

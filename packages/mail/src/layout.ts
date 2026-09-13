@@ -1,10 +1,9 @@
 import { escapeAttribute, escapeHtml, safeUrl } from './markdown.ts'
 
 /**
- * The parts a transactional email is made of — Laravel's `mail::` components.
+ * The parts a transactional email is made of.
  *
- * They carry class names and nothing else, the way Laravel's Blade components do.
- * What styles them is the theme stylesheet, applied by `inlineTheme()` once the
+ * They carry class names and nothing else. What styles them is the theme stylesheet, applied by `inlineTheme()` once the
  * whole message is built. These used to interpolate a token object into `style`
  * attributes as they built, which put the inlining in the hand of whoever wrote the
  * markup and left anything the tokens did not name unchangeable.
@@ -33,7 +32,7 @@ export function paragraph(text: string): string {
  * The call to action, and there is one per message on purpose.
  *
  * A second button competes with the first, and a transactional mail that asks two
- * things gets neither done. Laravel's template takes the same position.
+ * things gets neither done.
  */
 export function button(text: string, url: string, tone: MailTone = 'info'): string {
   return `<p class="action"><a href="${escapeAttribute(safeUrl(url))}" class="button button--${tone}">${escapeHtml(text)}</a></p>`
@@ -63,8 +62,7 @@ export function salutation(text: string): string {
  * What wraps a rendered body — `emailLayout` is the one every mail gets by default.
  *
  * A type of its own so an application can supply another: the default is a card on
- * a tinted page, which is the safe answer and not every brand's answer. Laravel
- * calls the same swap `template()`.
+ * a tinted page, which is the safe answer and not every brand's answer.
  */
 export type MailLayout = (parts: string[]) => string
 
@@ -77,8 +75,7 @@ export type MailLayout = (parts: string[]) => string
  * matters.
  *
  * The `<style>` block holds the one rule that cannot become a `style` attribute.
- * Laravel's layout carries the same two media queries for the same reason, and a
- * client that drops the block loses only a width override.
+ * Two media queries, and a client that drops the block loses only a width override.
  *
  * `parts` are already-rendered strings rather than values to escape, because that is
  * what the components above hand back. Nothing here escapes anything a second time.

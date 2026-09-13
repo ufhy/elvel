@@ -14,7 +14,7 @@ export type MailerOptions = {
   /**
    * Deliver everything here instead, keeping the real recipients in a header.
    *
-   * Laravel's `Mail::alwaysTo`, and the reason it exists: on a staging copy of
+   * The reason it exists: on a staging copy of
    * production data, one careless send reaches real customers.
    */
   alwaysTo?: Address

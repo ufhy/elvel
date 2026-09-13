@@ -1,7 +1,7 @@
 import type { DeliveryResult, SentMessage, Transport } from '../message.ts'
 
 /**
- * Keeps messages in memory — Laravel's `array` transport.
+ * Keeps messages in memory.
  *
  * What tests assert against, and the reason `SentMessage` is a plain object: an
  * assertion reads the fields directly instead of parsing MIME.

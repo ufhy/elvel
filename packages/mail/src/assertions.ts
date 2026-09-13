@@ -22,8 +22,7 @@ function matches(list: Mailbox[], expected: ExpectedAddress, name?: string): boo
 }
 
 /**
- * Assertions on a message that was built — Laravel's `Mailable::assertHasTo` and
- * its twenty relatives.
+ * Assertions on a message that was built.
  *
  * The fake could already say *that* a mailable went out; this says *what was in
  * it*. The difference matters more than it sounds: a test that only checks a
@@ -56,7 +55,7 @@ export class MessageAssertions {
     return this
   }
 
-  /** Laravel keeps both spellings; so does this. */
+  /** Both spellings are accepted. */
   assertTo(address: ExpectedAddress, name?: string): this {
     return this.assertHasTo(address, name)
   }
@@ -253,8 +252,8 @@ export class MessageAssertions {
   /**
    * By filename, because that is all a built message remembers.
    *
-   * Laravel has `assertHasAttachmentFromStorageDisk`, which this cannot answer:
-   * a disk attachment is resolved to bytes while the message is built, precisely
+   * An attachment named by its disk path cannot be asserted on: a disk attachment
+   * is resolved to bytes while the message is built, precisely
    * so a queued message does not depend on the disk still holding the file. By
    * the time there is a message to assert on, where it came from is gone.
    */
@@ -268,10 +267,9 @@ export class MessageAssertions {
 
   /** The bytes as well as the name — for a file the application generated. */
   /**
-   * An attachment carrying the bytes a disk holds — Laravel's
-   * `assertHasAttachmentFromStorageDisk`.
+   * An attachment carrying the bytes a disk holds.
    *
-   * Laravel compares the path, because its attachment keeps one. `attachFromDisk`
+   * Comparing the path would need the attachment to keep one. `attachFromDisk`
    * reads the bytes when it is called — a queued message on S3 has no path a worker
    * could resolve, and a local path handed to another machine is a file that is not
    * there — so what there is to compare is the content, and this reads the disk to

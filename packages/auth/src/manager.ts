@@ -21,8 +21,8 @@ type Scope = { session: AuthSession | null; request?: Request }
 /**
  * The authenticated user for the request in flight.
  *
- * Laravel reaches the current user through a request-scoped container binding.
- * There is no such thing here, so the request scope is an `AsyncLocalStorage`:
+ * There is no request-scoped container binding here, so the request scope is an
+ * `AsyncLocalStorage`:
  * anything called from a handler — a policy, a model observer, a queued closure
  * resolved inline — can ask who the user is without that being threaded through
  * every signature. Outside a request there is simply no scope, and `user()`
@@ -172,7 +172,7 @@ export class AuthManager {
    * What `actingAs` needs, and the only honest way to give it: the alternative
    * is signing a user in for real on every test, which needs a user row, a
    * password, and a round trip — enough friction that tests stop covering
-   * authenticated routes. Laravel's `be()` makes the same trade.
+   * authenticated routes.
    *
    * Deliberately a method on the manager rather than a header the test sets: a
    * header would be a live authentication bypass shipped in the framework, and

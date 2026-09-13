@@ -20,8 +20,8 @@ export type PolicyResult =
  *
  * `before()` runs ahead of every method — the usual place for an admin override.
  *
- * Guests: Laravel decides from the reflected type of the `$user` parameter
- * whether an ability may run for a guest. TypeScript erases types, so an
+ * Guests: deciding from the reflected type of a `user` parameter is not available
+ * here, because TypeScript erases types, so an
  * ability that should be reachable without a user has to say so by listing its
  * name in the static `allowGuests`.
  */

@@ -51,7 +51,7 @@ type Dispatcher = { dispatch(event: string, payload?: unknown): unknown }
  * await gate.allows('update', article)
  * ```
  *
- * Every check is async: unlike Laravel's, a policy here may read the database.
+ * Every check is async, because a policy here may read the database.
  */
 export class Gate {
   private readonly abilities = new Map<string, { callback: AbilityCallback; guests: boolean }>()
@@ -84,12 +84,11 @@ export class Gate {
   }
 
   /**
-   * Find policies by name — Laravel's policy auto-discovery.
+   * Find policies by name.
    *
    * `ArticlePolicy` in the given directory is registered for the model called
    * `Article`, resolved from the model registry the application already keeps
-   * for queue payloads. Laravel guesses the *namespace*; here the guess is the
-   * class name, which is the part that carries the same meaning.
+   * for queue payloads. The guess is the class name.
    *
    * Explicit registration still wins: this only fills in what nobody named, so
    * `gate.policy(Article, SomethingElse)` is never overridden by a file that
@@ -131,8 +130,7 @@ export class Gate {
   }
 
   /**
-   * Define `name.viewAny`, `name.view`, … against a policy, as Laravel's
-   * `Gate::resource()` does. Handy when the ability is not reached through a
+   * Define `name.viewAny`, `name.view`, … against a policy. Handy when the ability is not reached through a
    * model instance.
    */
   resource(name: string, policy: PolicyLike, abilities?: Record<string, string>): this {
@@ -229,7 +227,7 @@ export class Gate {
   /**
    * The raw result: before callbacks, then the ability or policy, then the after
    * callbacks. An ability nobody defined denies, rather than throwing — the same
-   * empty callback Laravel falls back to.
+   * empty callback the default falls back to.
    */
   async raw(
     ability: string,

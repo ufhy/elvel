@@ -48,8 +48,7 @@ export function cannot(ability: string, args: unknown | unknown[] = []): Promise
 }
 
 /**
- * Authorize or throw — the handler equivalent of Laravel's
- * `$this->authorize()`. `AuthorizationError` carries its own status, so the
+ * Authorize or throw. `AuthorizationError` carries its own status, so the
  * framework's exception handler renders the 403 (or whatever the policy chose).
  */
 export async function authorize(ability: string, args: unknown | unknown[] = []): Promise<void> {

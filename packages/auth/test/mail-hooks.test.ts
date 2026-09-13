@@ -257,7 +257,7 @@ describe('merging into better-auth options', () => {
   })
 
   /**
-   * The same mail in another language, which is Laravel's `Lang::get` carried over.
+   * The same mail in another language.
    *
    * The English is both the default and the lookup key: `@elvel/translation` accepts
    * a sentence as a key and answers the key itself when nothing matches, so an

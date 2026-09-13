@@ -11,8 +11,7 @@ type Context = { request: Request; user?: unknown }
 /**
  * Where a middleware sends somebody: a path, or a function that decides.
  *
- * Laravel's `redirectTo()` takes either, and the callable is the half that
- * matters: an application with an admin area sends a guest to `/admin/login` from
+ * Either a string or a callable, and the callable is the half that matters: an application with an admin area sends a guest to `/admin/login` from
  * `/admin/*` and to `/sign-in` from everywhere else, which one fixed string
  * cannot express.
  */
@@ -31,8 +30,7 @@ function manager(): AuthManager {
 /**
  * Does the caller want JSON rather than a page?
  *
- * The whole redirect-or-401 decision hangs on this, and Laravel makes it the same
- * way: an `Accept` header asking for JSON, or a request that announced itself as
+ * The whole redirect-or-401 decision hangs on this: an `Accept` header asking for JSON, or a request that announced itself as
  * XHR. Getting it wrong sends a 302 to an API client, which follows it and
  * reports the sign-in page as a successful response.
  */
@@ -55,8 +53,7 @@ export function expectsJson(request: Request): boolean {
  * `Location`, because a client that follows redirects would otherwise treat the
  * sign-in page as the answer to its request.
  *
- * Where guests go is configuration, not a constant — Laravel's
- * `redirectGuestsTo`.
+ * Where guests go is configuration, not a constant.
  */
 export function authenticate(..._guards: string[]) {
   return (context: Context) => {
@@ -138,8 +135,8 @@ export function ensureVerified(notice?: string) {
  *
  * Arguments after the ability are passed through as strings, which is what a
  * route can carry. Anything needing a loaded model authorises inside the handler,
- * where the model exists — Laravel resolves it from route bindings, and those do
- * not exist here yet.
+ * where the model exists. Reading the resolved route binding here is recorded in
+ * `GAPS.md`.
  */
 export function canAccess(ability: string, ...args: string[]) {
   return async () => {
@@ -157,8 +154,7 @@ export function canAccess(ability: string, ...args: string[]) {
  * through several settings pages is not asked five times. Three hours, matching
  *
  * 423 to JSON, not 403: the request was understood and the caller is
- * authenticated, but the resource is locked until they prove it again. Laravel
- * chose that code and it is the honest one.
+ * authenticated, but the resource is locked until they prove it again.
  */
 export function requirePassword(redirectTo?: string, timeoutSeconds?: string) {
   return (context: Context) => {

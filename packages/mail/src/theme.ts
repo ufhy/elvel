@@ -4,8 +4,7 @@ import { isAbsolute, join } from 'node:path'
 /**
  * The stylesheet every mail is drawn with, and the inliner that applies it.
  *
- * Laravel's shape, and for Laravel's reason. Its components carry class names and
- * its themes are CSS files; `Markdown::render()` hands both to
+ * Components carry class names and themes are CSS files; rendering hands both to
  * `CssToInlineStyles::convert()` and what leaves is markup with `style` attributes.
  * The inlining is real and necessary — Gmail strips `<style>` blocks, so a mail
  * that relies on one looks right in a preview and unstyled in the inbox — but it
@@ -21,8 +20,8 @@ import { isAbsolute, join } from 'node:path'
 /**
  * The default theme.
  *
- * Deliberately small. Laravel's is 297 lines because it is a full responsive table
- * layout; this is a single centred column, which is the one case where a `div` with
+ * Deliberately small. A full responsive table layout runs to hundreds of lines;
+ * this is a single centred column, which is the one case where a `div` with
  * `max-width` holds together everywhere that matters.
  */
 export const DEFAULT_THEME_CSS = `
@@ -152,8 +151,7 @@ img { max-width: 100%; }
 /**
  * The theme an application named, or the default.
  *
- * `mail.theme` is a path rather than the CSS itself, the way Laravel's is a view
- * name: a stylesheet is a file somebody edits with a stylesheet editor open, not a
+ * `mail.theme` is a path rather than the CSS itself: a stylesheet is a file somebody edits with a stylesheet editor open, not a
  * string in a config module. Read once, at boot — a mail is rendered in a worker
  * thousands of times and the file will not have changed between two of them.
  */

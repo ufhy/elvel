@@ -4,8 +4,8 @@ import { MailMessage, Notification } from '@elvel/notifications'
 /**
  * A line of a mail, translated when the application has a translator.
  *
- * Laravel wraps every sentence in these mails with `Lang::get`, so an application
- * can ship `lang/id.json` and its password-reset mail arrives in Indonesian. The
+ * Every sentence goes through the translator, so an application can ship
+ * `lang/id.json` and its password-reset mail arrives in Indonesian. The
  * mechanism carries over exactly: `@elvel/translation`'s `get()` accepts a sentence
  * as the key and answers the key itself when nothing matches, so the English here is
  * both the default and the lookup.
@@ -41,19 +41,17 @@ function line(sentence: string, replace: Record<string, string> = {}): string {
 /**
  * The callback an application sets to write its own version of one of these.
  *
- * Laravel's shape, and for its reason: changing one sentence of the reset mail
- * should not mean taking over delivery. Before this, the only way in was to define
+ * Changing one sentence of the reset mail should not mean taking over delivery. Before this, the only way in was to define
  * `sendResetPassword` in `config/auth.ts` yourself — the framework leaves an
  * application's own hook alone — which meant writing the notifier call, the
  * recipient and the expiry read to change a greeting.
  *
- * Laravel pairs this with `createUrlUsing`, and there is deliberately no counterpart
- * here. Laravel builds the link itself, with `route('password.reset')` and
- * `URL::temporarySignedRoute`, so overriding it is a real need. better-auth builds
+ * There is deliberately no `createUrlUsing` counterpart. A framework that builds
+ * the link itself needs one; better-auth builds
  * ours and hands it over already signed; there is nothing left to override.
  *
- * Static, so it is set once at boot — `AppServiceProvider`, as Laravel sets it in
- * a provider — rather than per instance, which the hook constructing these does not
+ * Static, so it is set once at boot in `AppServiceProvider` rather than per
+ * instance, which the hook constructing these does not
  * offer a way to reach.
  */
 export type AuthMailCallback<TData> = (data: TData) => MailMessage
@@ -88,7 +86,7 @@ function greet(name: string | undefined): string {
 }
 
 /**
- * The password-reset link — Laravel's `ResetPassword` notification.
+ * The password-reset link.
  *
  * Sent from better-auth's `sendResetPassword` hook, which fires for a *request*
  * to reset rather than a reset. That is why the closing line matters: the person
@@ -153,7 +151,7 @@ export class ResetPasswordNotification extends Notification<AuthMailData> {
 }
 
 /**
- * The address-confirmation link — Laravel's `VerifyEmail` notification.
+ * The address-confirmation link.
  *
  * Verification is what stops somebody signing up with an address they do not own
  * and then receiving that person's mail from the application forever after.
@@ -204,7 +202,7 @@ export class VerifyEmailNotification extends Notification<AuthMailData> {
 /**
  * "Your password was changed" — sent after a reset succeeds.
  *
- * Laravel has no notification for this and it is the one worth adding: a reset
+ * The one worth adding beyond the usual set: a reset
  * that the account's owner did not perform is the moment they need to know, and
  * the only channel still reachable is the address that was just used.
  */

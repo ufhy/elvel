@@ -145,7 +145,7 @@ export type AnyMailable = Mailable<unknown>
 export type MailableClass = new (data: never) => AnyMailable
 
 /**
- * Content written as markdown — Laravel's markdown mailables.
+ * Content written as markdown.
  *
  * ```ts
  * content() {

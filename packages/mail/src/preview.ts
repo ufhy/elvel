@@ -5,12 +5,12 @@ import { escapeAttribute, escapeHtml } from './markdown.ts'
 /**
  * Looking at a mail without sending one, and without a second service.
  *
- * Laravel's answer is one interface — `Mailable implements Renderable` — so a route
- * returning a mailable renders it. Catching the mail is somebody else's job there:
+ * One interface is enough to render a mailable from a route. Catching the mail is
+ * usually somebody else's job:
  * Mailpit, which is a container in `laravel/sail` rather than anything the framework
  * ships.
  *
- * This is that, plus the page Laravel leaves you to write. `MailServiceProvider`
+ * This is that, plus the index page. `MailServiceProvider`
  * already discovers every mailable in `app/Mail`, so the index has a list to show
  * without anybody registering anything; a mailable joins it by saying what a sample
  * of itself looks like:

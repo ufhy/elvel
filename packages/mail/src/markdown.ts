@@ -1,5 +1,5 @@
 /**
- * A markdown renderer for mail — Laravel's markdown mailables, minus the parser.
+ * A markdown renderer for mail, minus a parser dependency.
  *
  * Deliberately a **subset**, and the subset is chosen by what survives in a mail
  * client: headings, paragraphs, emphasis, links, lists, blockquotes, rules,

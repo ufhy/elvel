@@ -227,7 +227,7 @@ describe('verified', () => {
   /**
    * `verified` alone must not fall open.
    *
-   * Laravel's version checks for a user first for exactly this reason: a route
+   * The user is checked first for one reason: a route
    * that lists only `verified` would otherwise let a guest straight through.
    */
   test('a guest is refused rather than let through', async () => {
