@@ -1,5 +1,5 @@
 /**
- * Arbitrary values attached to a route — Laravel 13's `Route::metadata`.
+ * Arbitrary values attached to a route.
  *
  * What it is for: the things a *page* knows about itself and a layout needs, with
  * nowhere else to live. A title, a `robots` directive, which section of the

@@ -10,8 +10,8 @@ import { resetRouter } from '../src/router/registrar.ts'
 /**
  * A routes file that exports nothing — `routes/web.php`, in TypeScript.
  *
- * This is the whole point of the layer: the file reads like Laravel's, and
- * `withRoutes` finds what it declared through the compiler `HttpServiceProvider`
+ * This is the whole point of the layer: the file declares and exports nothing,
+ * and `withRoutes` finds what it declared through the compiler `HttpServiceProvider`
  * binds. Written to disk and imported for real rather than faked, because what is
  * being tested is the import path itself.
  */

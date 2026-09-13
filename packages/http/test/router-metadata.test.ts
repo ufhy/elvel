@@ -6,9 +6,9 @@ import { drainRoutes, Route, resetRouter } from '../src/router/registrar.ts'
 import { RouteRegistry } from '../src/routes.ts'
 
 /**
- * `Route::metadata`, from Laravel 13.
+ * `Route.metadata`.
  *
- * Six tests in `Illuminate\Tests\Routing\RouteRegistrarTest` decide what this
+ * Six upstream tests in `RouteRegistrarTest` decide what this
  * means, and each one below names the test it came from. They are worth copying
  * rather than paraphrasing because two of the rules are not what a reader would
  * guess from the merge function: a list replaces a list, and an **empty** object

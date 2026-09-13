@@ -30,10 +30,10 @@ export type MiddlewareHook = (context: MiddlewareContext) => unknown
 export type MiddlewareFactory = (...parameters: string[]) => MiddlewareHook
 
 /**
- * Named middleware — Laravel's aliases, groups and priority.
+ * Named middleware: aliases, groups and priority.
  *
- * Laravel's `Middleware` configurator has 38 methods; this has the four that
- * carry the behaviour. The rest are conveniences for editing a global stack that
+ * Four methods, and they are the ones that carry behaviour. Anything else would
+ * be a convenience for editing a global stack that
  * does not exist here, because Elysia composes plugins instead of running a
  * global pipeline.
  */
@@ -61,8 +61,7 @@ export class MiddlewareRegistry {
    *
    * `auth` before `verified` is not a preference: `verified` reads the user that
    * `auth` guarantees, and reversed it reports "not verified" to a guest who
-   * should have been sent to sign in. Laravel keeps a priority list for exactly
-   * this, and route order alone does not solve it — a caller writing
+   * should have been sent to sign in. Route order alone does not solve it — a caller writing
    * `middleware('verified', 'auth')` should still get the working order.
    */
   priority(names: string[]): this {
@@ -152,7 +151,7 @@ export class MiddlewareRegistry {
     const bare = colon === -1 ? name : name.slice(0, colon)
 
     /**
-     * Split on commas after the first colon, like Laravel.
+     * Split on commas after the first colon.
      *
      * `can:update,post` is one alias with two parameters, not two aliases — so
      * the colon is found once and everything after it belongs to the parameters.

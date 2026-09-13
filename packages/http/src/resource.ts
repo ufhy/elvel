@@ -46,7 +46,7 @@ export abstract class JsonResource<T = unknown> {
 
   abstract toObject(): Attributes
 
-  /** Extra top-level keys, as Laravel's `additional()`. */
+  /** Extra top-level keys. */
   additional(data: Attributes): this {
     this.extra = { ...this.extra, ...data }
     return this

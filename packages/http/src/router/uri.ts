@@ -1,22 +1,20 @@
 /**
- * Laravel's route URI syntax, parsed and then compiled for Elysia.
+ * The route URI syntax, parsed and then compiled for Elysia.
  *
  * Two jobs that are worth keeping apart. Parsing answers what a URI *says* — its
  * parameters, which are optional, and which name a binding field. Compiling turns
- * that into the string Elysia's router wants. A route keeps its Laravel form for
+ * that into the string Elysia's router wants. A route keeps its declared form for
  * everything a human reads: `route:list`, the name table, error messages.
  *
- * The syntax is `Illuminate\Routing\RouteUri::parse`, and the cases in
- * `tests/Routing/RouteUriTest.php` are reproduced in the test beside this file —
- * including `{bar:slug}`, which is how Laravel says "bind this parameter by the
- * `slug` column rather than by the key".
+ * `{bar:slug}` binds that parameter by the `slug` column rather than by the
+ * key. The test beside this file covers every shape.
  */
 
 /**
  * A route parameter: `{name}`, `{name?}`, `{name:field}`, `{name:field?}`.
  *
- * No whitespace anywhere inside the braces, which is Laravel's rule too —
- * `RouteUri.php` matches `/\{([\w\:]+?)\??\}/` and nothing looser. Tolerating it
+ * No whitespace anywhere inside the braces: `/\{([\w\:]+?)\??\}/` and nothing
+ * looser. Tolerating it
  * cost more than it bought: the `\s*` runs were ambiguous with each other, so a
  * pattern like `{{0` followed by many spaces made the engine try every way of
  * splitting them between two of them. Polynomial backtracking, and CodeQL was right
@@ -39,11 +37,11 @@ export type ParsedUri = {
 }
 
 /**
- * Read a URI written the way Laravel writes them.
+ * Read a declared URI.
  *
- * A leading slash is added when it is missing, because `Route::get('users')` and
- * `Route::get('/users')` are the same route in Laravel and a framework that
- * treated them as two would be a framework nobody could copy an example into.
+ * A leading slash is added when it is missing: `Route.get('users')` and
+ * `Route.get('/users')` are one route, and a framework that treated them as two
+ * would be one nobody could copy an example into.
  */
 export function parseUri(uri: string): ParsedUri {
   const bindingFields: Record<string, string> = {}
@@ -78,8 +76,8 @@ export function parseUri(uri: string): ParsedUri {
  *
  * A parameter constrained to `.*` becomes a wildcard instead. That is the one
  * place a constraint changes *matching* rather than filtering, and it has to:
- * `Route::view('/{path}', 'main')->where('path', '.*')` is how a Laravel
- * application hands every address to a client-side router, and `:path` matches
+ * `Route.view('/{path}', 'main').where('path', '.*')` is how an application
+ * hands every address to a client-side router, and `:path` matches
  * one segment. Nothing else about `where` reaches this function — see
  * `patterns.ts` for why the rest cannot.
  */
@@ -114,7 +112,7 @@ export function compileUri(parsed: ParsedUri, wheres: Record<string, string> = {
  * ```
  *
  * So a wildcard at the root already matches the root, and needs nothing. A
- * prefixed one misses the prefix itself, while Laravel's `/admin/{rest?}` matches
+ * prefixed one misses the prefix itself, while `/admin/{rest?}` must match
  * `/admin` — and a panel whose own front page 404s is the kind of gap that gets
  * found in production. This returns that second path, and the registrar
  * registers it alongside.

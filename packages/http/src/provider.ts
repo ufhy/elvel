@@ -139,8 +139,8 @@ export class HttpServiceProvider extends ServiceProvider {
         /**
          * `bindings` — turn route parameters into models.
          *
-         * A middleware rather than something automatic, as Laravel's
-         * `SubstituteBindings` is: a route that takes an id and does not want it
+         * A middleware rather than something automatic: a route that takes an
+         * id and does not want it
          * loaded should not pay for a query, and an API that answers from a cache
          * may never touch the row at all.
          */
@@ -155,7 +155,8 @@ export class HttpServiceProvider extends ServiceProvider {
           return undefined
         })
         .alias('cache.headers', (...parts: string[]) => (context) => {
-          // `cache.headers:public;max_age=120` — Laravel's own separator is `;`.
+          // `cache.headers:public;max_age=120` — `;` separates, because `,`
+          // already separates a middleware's parameters.
           const value = parts.join(',').replace(/;/g, ', ').replace(/_/g, '-')
           const set = (context as unknown as { set: { headers: Record<string, string> } }).set
           set.headers['cache-control'] = value
@@ -207,8 +208,7 @@ export class HttpServiceProvider extends ServiceProvider {
         return new DatabaseSessionDriver(() => app.make('db').table(table, connection) as never)
       }
 
-      // `redis` is the cache driver by another name, exactly as in Laravel: any
-      // configured store will do, and the store's own expiry does the collecting.
+      // `redis` is the cache driver by another name: any configured store will do, and the store's own expiry does the collecting.
       if (driver === 'redis' || driver === 'cache') {
         if (!app.bound('cache')) {
           throw new Error(
@@ -261,7 +261,7 @@ export class HttpServiceProvider extends ServiceProvider {
      * What turns a bare `routes/web.ts` into a mounted plugin.
      *
      * ```ts
-     * // routes/web.ts — no export, as in Laravel
+     * // routes/web.ts — no export
      * Route.get('/', [PageController, 'index'])
      * ```
      *

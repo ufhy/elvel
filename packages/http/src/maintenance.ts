@@ -25,7 +25,7 @@ export class ServiceUnavailableException extends HttpException {
  * Registered before everything else, and reading the file per request, so
  * `elvel up` takes effect on the next request rather than the next deploy.
  *
- * The order inside is Laravel's, and each step exists for a reason worth keeping:
+ * The order inside matters, and each step exists for a reason:
  *
  * 1. `except` paths answer normally — a health check that fails during maintenance
  *    tells an orchestrator to replace a container that is deliberately down.

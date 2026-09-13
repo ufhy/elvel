@@ -7,8 +7,8 @@ export const OLD_INPUT_KEY = '_old_input'
 /**
  * Validation errors flashed by the *previous* request.
  *
- * Laravel's `$errors`, which is a `ViewErrorBag` shared into every template. Here
- * it is a function, because a JSX component has props rather than a scope — see
+ * A function rather than a bag shared into a template scope, because a JSX
+ * component has props rather than a scope — see
  * `scope.ts` for why that is not a workaround.
  *
  * Always answerable: with nothing flashed it is an empty bag, so a component can

@@ -21,8 +21,8 @@ const slot = requestSlot<RequestScope>('request-scope')
  * The current request's session, reachable without threading it through.
  *
  * This exists for one reason: a view here is a JSX component, not a template with
- * a scope somebody can share `$errors` into. Laravel's `ShareErrorsFromSession`
- * has a variable bag to write to; a component has props, and threading errors and
+ * a scope somebody can share errors into.
+ * A component has props, and threading errors and
  * old input through every component between the handler and the input that needs
  * them is exactly the plumbing that makes people give up and skip validation
  * feedback.

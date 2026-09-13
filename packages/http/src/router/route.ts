@@ -7,8 +7,7 @@ import { compileUri, isWildcard, type ParsedUri, parseUri, rootFor } from './uri
  * The fluent modifiers are `Illuminate\Routing\Route`'s: `name`, `where` and the
  * `where*` shorthands, `middleware`, `withoutMiddleware`, `domain`, `defaults`,
  * `missing`, `scopeBindings`. They return `this`, so a route reads as one
- * sentence — which is the whole reason Laravel's routing files are pleasant to
- * read and worth copying exactly.
+ * sentence, which is what makes a routing file readable.
  *
  * Nothing is registered here. A declaration is a value; the registrar collects
  * them and `compile.ts` turns the collection into Elysia routes at the end. That
@@ -58,8 +57,8 @@ export class RouteDefinition {
   /**
    * Elysia's own per-route validation, if this route wants any.
    *
-   * Laravel has no equivalent and needs none — a `FormRequest` is a class, and
-   * `@elvel/http` ships those too. This is here because Elysia's schemas do
+   * Beside `FormRequest`, not instead of it. This is here because Elysia's
+   * schemas do
    * something a FormRequest cannot: they type the handler's `body` and `query`,
    * so a typo in a field name is a compile error rather than an `undefined` two
    * layers later.
@@ -74,7 +73,7 @@ export class RouteDefinition {
     this.parsed = parseUri(uri)
   }
 
-  /** The URI as Laravel writes it — what `route:list` and error messages show. */
+  /** The URI as it was declared — what `route:list` and error messages show. */
   get uri(): string {
     return this.parsed.uri
   }
@@ -97,7 +96,7 @@ export class RouteDefinition {
 
   name(name: string): this {
     // Appended, because a group's `name('admin.')` is a prefix and the route
-    // adds to it. Laravel does the same, and it is why group names end in a dot.
+    // adds to it, which is why group names end in a dot.
     this.routeName = `${this.routeName ?? ''}${name}`
 
     return this
@@ -146,7 +145,7 @@ export class RouteDefinition {
     return this
   }
 
-  /** Names, or an array of them. Laravel takes both and so does this. */
+  /** Names, or an array of them. */
   middleware(...names: Array<string | string[]>): this {
     this.middlewareNames.push(...names.flat())
 
@@ -176,8 +175,8 @@ export class RouteDefinition {
   /**
    * `can('update', 'post')`.
    *
-   * Sugar over the `can` middleware `@elvel/auth` registers, spelt the way
-   * Laravel spells it. Nothing new is authorised here; what it buys is that a
+   * Sugar over the `can` middleware `@elvel/auth` registers. Nothing new is
+   * authorised here; what it buys is that a
    * route reads as one sentence instead of hiding the ability inside a string.
    */
   can(ability: string, ...args: string[]): this {
@@ -185,7 +184,7 @@ export class RouteDefinition {
   }
 
   /**
-   * `metadata({ head: { title: 'Users' } })` — Laravel 13's `Route::metadata`.
+   * `metadata({ head: { title: 'Users' } })`.
    *
    * Merged over whatever the group set, deeply. The rules are in `metadata.ts`,
    * with the two that surprise: a list replaces a list, and an empty object
@@ -195,10 +194,9 @@ export class RouteDefinition {
     /**
      * Guarded at run time as well as in the type.
      *
-     * TypeScript stops this for anyone compiling, and `Attribute [metadata]
-     * expects an array` is the error Laravel raises for the same mistake — worth
-     * keeping for a caller reaching this from JavaScript, where a string would
-     * otherwise be spread into characters.
+     * TypeScript stops this for anyone compiling. The check is for a caller
+     * reaching this from JavaScript, where a string would otherwise be spread
+     * into characters.
      */
     if (typeof values !== 'object' || values === null || Array.isArray(values)) {
       throw new TypeError('metadata() expects an object.')

@@ -3,9 +3,8 @@ import { app } from '@elvel/core'
 /**
  * The two routes that need no handler written for them.
  *
- * `Route::view` and `Route::redirect` are shorthands in Laravel because a
- * routing file is full of both, and every one of them written by hand is four
- * lines saying nothing.
+ * A routing file is full of both, and every one written by hand is four lines
+ * saying nothing.
  */
 
 /**
@@ -41,9 +40,9 @@ export async function renderView(
 /**
  * A bare redirect.
  *
- * Laravel's `Route::redirect` defaults to **302** and `permanentRedirect` is 301.
- * Worth stating because the docs describe the argument as optional and the
- * default matters: a 301 cached by a browser is very hard to take back.
+ * **302** by default; `permanentRedirect` is the 301. Worth stating because the
+ * status is an optional argument and the default matters: a 301 cached by a
+ * browser is very hard to take back.
  */
 export function redirectResponse(to: string, status = 302): Response {
   return new Response(null, { status, headers: { location: to } })

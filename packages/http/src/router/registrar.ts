@@ -10,8 +10,7 @@ import { type HttpMethod, type RouteAction, RouteDefinition } from './route.ts'
  * `Illuminate\Routing\Router` plus `RouteRegistrar`, with the same two halves:
  * methods that declare a route and methods that open a group. The group stack is
  * what makes `prefix`, `name`, `middleware`, `domain` and `controller` inherit
- * downwards and nest, which is the behaviour Laravel's own
- * `testNestedRouteGroupingPrefixing` pins down.
+ * downwards and nest.
  *
  * Declaring does not register. Every route lands in a collection this module
  * holds, and `compile()` in `compile.ts` turns the collection into Elysia routes
@@ -117,7 +116,7 @@ export class RouteGroupBuilder {
     return this.with({ prefix })
   }
 
-  /** A name prefix. Laravel's `as` is the same method under its other name. */
+  /** A name prefix. */
   name(name: string): RouteGroupBuilder {
     return this.with({ name: `${this.attributes.name ?? ''}${name}` })
   }
@@ -205,7 +204,7 @@ export class RouteGroupBuilder {
   }
 
   // Declaring a route on a group builder applies the group to that one route,
-  // which is how `Route.middleware('auth').get(…)` reads in Laravel.
+  // which is how `Route.middleware('auth').get(…)` reads.
   get(uri: string, action: RouteAction): RouteDefinition {
     return this.one(['GET', 'HEAD'], uri, action)
   }
@@ -375,12 +374,11 @@ export const Route = {
    * Route.view('/{path}', MainLayout, { title: 'Home' }).where('path', '.*')
    * ```
    *
-   * The second line is the whole reason this exists: it is how a Laravel
-   * application hands every address to a client-side router, and writing it by
-   * hand is four lines that say nothing.
+   * The second line is the whole reason this exists: it is how an application
+   * hands every address to a client-side router, and writing it by hand is four
+   * lines that say nothing.
    *
-   * `status` and `headers` are Laravel's fourth and fifth arguments, and the fifth
-   * is what a client-routed document needs: the shell every address answers with
+   * `headers` is what a client-routed document needs: the shell every address answers with
    * is the same bytes for everybody, and saying so — `cache-control` — is the
    * difference between a cache that may keep it and a browser guessing at
    * freshness. A route that renders is still the only place a response header can
@@ -524,8 +522,8 @@ export const Route = {
   /**
    * A default constraint for every parameter of that name — `Route::pattern`.
    *
-   * Declared before the routes that should inherit it, which in Laravel means
-   * in a service provider's `boot`. A route's own `where` always wins.
+   * Declared before the routes that should inherit it — a service provider's
+   * `boot` is the usual place. A route's own `where` always wins.
    */
   pattern: (name: string, pattern: string) => {
     patterns[name] = pattern

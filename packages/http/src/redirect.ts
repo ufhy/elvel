@@ -307,7 +307,7 @@ export function previousUrl(): string {
   if (stored) return stored
 
   // A Referer can be stripped by a proxy or withheld by the browser, which is why
-  // Laravel keeps its own copy — and why this prefers the stored one.
+  // the stored copy is preferred.
   const referer = scope?.request.headers.get('referer')
 
   return referer ?? '/'

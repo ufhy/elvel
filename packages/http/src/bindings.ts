@@ -17,7 +17,7 @@ export type RouteBindable = {
   name?: string
   routeKeyName(): string
   /**
-   * `trashed` is Laravel's `withTrashed()` on the route, passed through.
+   * `trashed` is the route's `withTrashed()`, passed through.
    *
    * Optional in the contract because most bound things are not soft-deletable — a
    * hand-written resolver that ignores it still satisfies this, and a model that
@@ -40,13 +40,11 @@ type Registration =
   | { kind: 'callback'; resolve: BindingResolver }
 
 /**
- * What `{post}` in a path means — Laravel's `Route::model` and `Route::bind`.
+ * What `{post}` in a path means.
  *
- * Laravel reads the handler's type hints and needs no registration at all. That
- * is not available here and cannot be: TypeScript erases the types, and Bun emits
- * no decorator metadata to put them back — the check is written down in
- * `BEHAVIOURS.md`. So a binding is declared, which is what Laravel's own
- * `Route::model()` is for anyway.
+ * Reading it off the handler's type hints is not available here and cannot be:
+ * TypeScript erases the types, and Bun emits no decorator metadata to put them
+ * back — the check is written down in `BEHAVIOURS.md`. So a binding is declared.
  *
  * ```ts
  * bindings().model('article', Article)

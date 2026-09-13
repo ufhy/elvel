@@ -15,7 +15,7 @@ export function routes(): RouteRegistry {
  * route('articles.show', { id: 12 }, true)     // https://example.com/articles/12
  * ```
  *
- * Relative by default, where Laravel is absolute. A relative URL is right for a
+ * Relative by default. A relative URL is right for a
  * link in a page and cannot point at the wrong host when the application is
  * behind a proxy; `absolute` is there for a mail, where a relative link is
  * useless.

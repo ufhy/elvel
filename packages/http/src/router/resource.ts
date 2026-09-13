@@ -131,9 +131,8 @@ export class ResourceBuilder {
   /**
    * Let the bindings on these routes resolve a soft-deleted row.
    *
-   * Laravel applies it to `show`, `edit` and `update` when no list is given —
-   * `$options['trashed']` in `ResourceRegistrar` — because those are the screens
-   * that act on a deleted record.
+   * Applied to `show`, `edit` and `update` when no list is given, because those
+   * are the screens that act on a deleted record.
    */
   withTrashed(trashed = true): this {
     this.options.trashed = trashed
@@ -241,7 +240,7 @@ export class ResourceBuilder {
    * Singular by default because `ResourceRegistrar::$singularParameters` is
    * `true`. The pluraliser is deliberately small: it handles the endings a
    * resource name actually has, and `parameters()` is there for anything it gets
-   * wrong — which is the same escape hatch Laravel provides.
+   * wrong.
    */
   private parameterFor(segment: string): string {
     const { parameters } = this.options
@@ -352,10 +351,9 @@ export function resourceBuilder(
 /**
  * Enough English to turn a resource name into a parameter.
  *
- * Not a general pluraliser and not trying to be. Laravel leans on `Str::singular`,
- * which carries a full inflector; this handles the endings a resource name has in
- * practice and leaves `parameters()` for the rest — the same escape hatch Laravel
- * gives for the words its inflector gets wrong.
+ * Not a general pluraliser and not trying to be. A full inflector is a large
+ * thing to carry for this; these are the endings a resource name has in
+ * practice, and `parameters()` is the escape hatch for the rest.
  */
 function singular(word: string): string {
   const irregular: Record<string, string> = {

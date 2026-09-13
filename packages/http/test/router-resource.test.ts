@@ -90,7 +90,7 @@ function names(app: Application): Record<string, string> {
 }
 
 describe('testCanRegisterResource', () => {
-  test('the seven routes, with Laravel’s URIs and verbs', async () => {
+  test('the seven routes, with their URIs and verbs', async () => {
     const app = boot()
 
     Route.resource('photos', PhotoController)

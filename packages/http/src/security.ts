@@ -61,8 +61,7 @@ export type SecurityConfig = {
  * What a framework-rendered page needs, and nothing it does not.
  *
  * `style-src` allows inline styles because a view is allowed to carry its own —
- * the scaffold's landing page does, for the reason Laravel's `welcome.blade.php`
- * does: a stylesheet request before the first paint is a flash of unstyled text.
+ * the scaffold's landing page does, and for a reason: a stylesheet request before the first paint is a flash of unstyled text.
  * Scripts get no such allowance; an inline script carries the request's nonce
  * instead, which is a per-response secret an injected script cannot guess.
  */

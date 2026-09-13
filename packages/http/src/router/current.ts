@@ -2,7 +2,7 @@ import { requestSlot } from '@elvel/core'
 import type { RouteDefinition } from './route.ts'
 
 /**
- * Which route is answering — Laravel's `Route::current()` and friends.
+ * Which route is answering.
  *
  * ```ts
  * currentRouteName()              // 'photos.show'

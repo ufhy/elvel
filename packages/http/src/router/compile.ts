@@ -27,7 +27,7 @@ export function compileRoutes(name = 'routes'): Elysia {
   /**
    * Which definition answers which compiled path, so `current()` can say.
    *
-   * Keyed by the path Elysia matched rather than by the Laravel URI, because the
+   * Keyed by the path Elysia matched rather than by the declared URI, because the
    * matched path is what the context reports back — measured: `context.route`
    * holds `/articles/:id`, the compiled form, not `/articles/{id}`.
    */
@@ -157,8 +157,8 @@ function bindingHints(route: RouteDefinition) {
  *
  * `/photos/{photo}/comments/{comment}` says two things: `comment`'s parent is
  * `photo`, and the relation to reach it by is `comments` — the segment in front
- * of it. Laravel derives both the same way, which is why `scopeBindings()` needs
- * no arguments.
+ * of it. Both are derived from the URI, which is why `scopeBindings()` needs no
+ * arguments.
  */
 function scopeFor(route: RouteDefinition): Record<string, { parent: string; relation: string }> {
   const segments = route.uri.split('/').filter((segment) => segment !== '')
@@ -216,9 +216,10 @@ function guarded(hooks: unknown[], route: RouteDefinition) {
 /**
  * Constraints, checked after matching rather than during it.
  *
- * Laravel treats `where` as part of matching: `/users/{id}` constrained to digits
- * and `/users/{slug}` can both exist, and a non-numeric id falls through to the
- * second. Here a failed constraint is a 404 instead.
+ * A router that treats `where` as part of matching can hold `/users/{id}`
+ * constrained to digits and `/users/{slug}` at once, and let a non-numeric id
+ * fall through to the second. Elysia matches once, so a failed constraint is a
+ * 404 instead.
  *
  * Not a choice, and measured rather than assumed. Registering those two routes
  * together and then handling a request answers:
@@ -243,9 +244,8 @@ function constraintGuard(route: RouteDefinition) {
     for (const [name, expression] of checks) {
       const value = context.params?.[name]
 
-      // An absent optional parameter is not a violation — Laravel's
-      // `RoutesDontMatchNonMatchingPathsWithLeadingOptionals` is about matching,
-      // and an optional that was not supplied has nothing to constrain.
+      // An absent optional parameter is not a violation: an optional that was
+      // not supplied has nothing to constrain.
       if (value === undefined || value === '') continue
 
       if (!expression.test(value)) throw new NotFoundException(`No route matched.`)
@@ -300,7 +300,7 @@ function domainGuard(pattern: string) {
     if (found === null) throw new NotFoundException(`No route matched ${host}.`)
 
     /**
-     * The host's own parameters join the path's, as Laravel's do.
+     * The host's own parameters join the path's.
      *
      * The object is created when the route has none of its own: Elysia leaves
      * `params` undefined for a path with no placeholders, and
@@ -323,9 +323,9 @@ function domainGuard(pattern: string) {
 /**
  * What the route runs: a closure, or a method on a controller class.
  *
- * A controller is built once and reused, not per request. Laravel resolves one
- * out of the container per request because a PHP process serves one request at a
- * time; here a per-request instance would be a new object on every hit for a
+ * A controller is built once and reused, not per request. Resolving one per
+ * request makes sense where a process serves one request at a time; here it
+ * would be a new object on every hit for a
  * class that almost never has state, and shared state on a controller is a bug
  * whichever way it is constructed.
  */

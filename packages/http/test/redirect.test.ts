@@ -26,8 +26,8 @@ describe('where back() goes', () => {
   })
 
   test('the Referer is the fallback', () => {
-    // A proxy can strip it and a browser can withhold it, which is why Laravel
-    // keeps its own copy and this prefers the stored one.
+    // A proxy can strip it and a browser can withhold it, which is why the
+    // stored copy is preferred.
     expect(inRequest(() => previousUrl(), { referer: '/from-header' })).toBe('/from-header')
   })
 

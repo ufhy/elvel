@@ -47,9 +47,9 @@ export class CookieJar {
    * Encrypt a value for a named cookie.
    *
    * The name is the context, not part of the plaintext: it is authenticated by the
-   * tag, costs no bytes, and there is nothing to strip on the way back. Laravel
-   * prefixes an HMAC of the name instead, because its payload format has nowhere
-   * else to put it.
+   * tag, costs no bytes, and there is nothing to strip on the way back — where a
+   * format with nowhere to put it has to prefix an HMAC of the name to the
+   * plaintext and cut it off again.
    */
   encrypt(name: string, value: string): string {
     if (!this.encrypter) {
@@ -160,8 +160,7 @@ export class CookieJar {
 /**
  * Constant-time string comparison.
  *
- * `===` on a signature leaks its length and prefix through timing, which is the
- * whole reason Laravel uses `hash_equals`.
+ * `===` on a signature leaks its length and prefix through timing.
  */
 export function timingSafeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left)

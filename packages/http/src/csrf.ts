@@ -22,8 +22,8 @@ export type CsrfOptions = {
 /**
  * Read the token a request presents.
  *
- * `_token` in the body, then `X-CSRF-TOKEN`. Laravel also accepts an encrypted
- * `X-XSRF-TOKEN`; that needs the encryption package, so it is not pretended
+ * `_token` in the body, then `X-CSRF-TOKEN`. An encrypted `X-XSRF-TOKEN` would
+ * need the encryption package, so it is not pretended
  * here — a caller sending only `X-XSRF-TOKEN` is rejected rather than waved
  * through.
  */

@@ -142,7 +142,7 @@ export async function enforceThrottle(
  *
  * The tightest window wins: with two limits in play, reporting the last one read
  * would tell a client it has 48 requests left while the minute window is one
- * away from refusing it. Laravel keeps whichever remaining count is lower.
+ * away from refusing it, so whichever remaining count is lower is the one kept.
  */
 export async function writeRateHeaders(context: {
   request: Request

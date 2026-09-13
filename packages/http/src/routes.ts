@@ -89,7 +89,8 @@ export class RouteRegistry {
    * Build the URL for a name.
    *
    * Parameters fill the placeholders — `:id` as Elysia writes them, `{id}` as
-   * Laravel does — and whatever is left over becomes the query string, which is
+   * a route declares them — and whatever is left over becomes the query string,
+   * which is
    * what makes `route('articles.index', { page: 2 })` read the way it does.
    *
    * A missing parameter throws and names both the route and the parameter. The

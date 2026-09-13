@@ -138,8 +138,7 @@ export abstract class FormRequest {
 
   /**
    * The application's presence verifier, so `unique`/`exists` work without every
-   * caller threading one in — Laravel gets this from the container's validator
-   * factory. Absent when the validation provider isn't registered, or when the
+   * caller threading one in. Absent when the validation provider isn't registered, or when the
    * app has no database; the rules themselves raise a clear error then.
    */
   private static containerVerifier(): PresenceVerifier | undefined {
@@ -170,8 +169,7 @@ export abstract class FormRequest {
    * What a failure looks like.
    *
    * A browser posting a form wants to be sent back to it, with the messages and
-   * what it typed; an API client wants the 422 with the bag. Laravel decides this
-   * in the exception handler with `expectsJson()`; here the request request itself
+   * what it typed; an API client wants the 422 with the bag. The request itself
    * decides, and the redirect is *thrown* so it travels the same path as the 422 —
    * a handler that never sees the difference cannot get it wrong.
    */
@@ -204,7 +202,7 @@ export abstract class FormRequest {
     return this.validatedData
   }
 
-  /** Subsets of the validated payload, as Laravel's `safe()` returns. */
+  /** Subsets of the validated payload. */
   safe(): {
     all(): Data
     only(...keys: string[]): Data

@@ -1,6 +1,6 @@
 import { requestPath } from '@elvel/core'
 /**
- * CORS, transcribed from `fruitcake/php-cors` — the service Laravel delegates to.
+ * CORS, transcribed from `fruitcake/php-cors`.
  *
  * Two rules in here are the ones people get wrong, and both are enforced rather
  * than documented:

@@ -32,8 +32,8 @@ export class DatabaseSessionDriver implements SessionDriver {
     if (!row) return undefined
 
     try {
-      // Base64 like Laravel's, so a payload with odd bytes cannot break the
-      // column's encoding on its way through.
+      // Base64, so a payload with odd bytes cannot break the column's encoding
+      // on its way through.
       return JSON.parse(Buffer.from(String(row.payload), 'base64').toString()) as SessionData
     } catch {
       // A truncated payload is a lost session, not a crash.
@@ -55,8 +55,8 @@ export class DatabaseSessionDriver implements SessionDriver {
     } catch {
       /**
        * Two requests for the same new session can race to insert it, and the
-       * loser hits the primary key. Updating instead is Laravel's recovery, and
-       * it is right: the row exists now, which is all the caller wanted.
+       * loser hits the primary key. Updating instead is the right recovery: the
+       * row exists now, which is all the caller wanted.
        */
       await (await this.table()).where('id', '=', id).update(payload)
     }

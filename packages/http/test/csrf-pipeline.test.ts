@@ -93,7 +93,7 @@ describe('the CSRF hook', () => {
 
   /**
    * The header lookup is now a single `Headers.get`, which is case-insensitive.
-   * `tokenFromRequest` accepts either spelling, so a client sending Laravel's
+   * `tokenFromRequest` accepts either spelling, so a client sending the
    * uppercase `X-CSRF-TOKEN` must still be understood.
    */
   test('accepting the token from either spelling of the header', async () => {

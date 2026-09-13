@@ -5,9 +5,8 @@ import { middlewareNamesOf, middlewares } from '../middleware.ts'
 /**
  * `middleware:list`
  *
- * Laravel has no equivalent — it shows middleware inside `route:list` and leaves
- * the alias map to whoever reads `bootstrap/app.php`. That is workable when the
- * aliases live in one file you wrote. Here they are registered by whichever
+ * Showing middleware inside `route:list` is workable when the aliases live in
+ * one file you wrote. Here they are registered by whichever
  * packages happen to be installed: `throttle` and `signed` come from this one,
  * five more from `@elvel/auth`, and an application adds its own. Asking "what
  * can I write on a route?" had no answer at all, which is why this exists.

@@ -40,11 +40,10 @@ export type MethodOverrideOptions = {
 /**
  * Let an HTML form reach a `PUT`, `PATCH` or `DELETE` route — Blade's `@method`.
  *
- * A browser form can only send `GET` or `POST`. Laravel's answer is a hidden
- * `_method` field that the framework reads before routing, and this is the same
- * thing: without it every route a form posts to has to be a `POST`, which is why
- * the auth kit here has `POST /settings/profile` where Laravel's starter kit has
- * `PATCH`.
+ * A browser form can only send `GET` or `POST`. A hidden `_method` field, read
+ * before routing, is what lets it reach the rest: without it every route a form
+ * posts to has to be a `POST`, which is why the auth kit here has
+ * `POST /settings/profile` rather than `PATCH`.
  *
  * **Before routing, which is the whole difficulty.** Elysia picks a handler from
  * the method, and a `beforeHandle` hook runs after that choice is made — too late

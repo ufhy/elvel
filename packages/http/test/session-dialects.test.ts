@@ -97,7 +97,7 @@ for (const { name, config } of available) {
      * Why the width had to change, asserted rather than claimed.
      *
      * Without this, nothing stops the column being narrowed back to `integer` by
-     * somebody matching Laravel more closely, and nothing records that SQLite is
+     * somebody copying the original 32-bit column, and nothing records that SQLite is
      * incapable of noticing. So: build the old column and watch each dialect
      * disagree — Postgres and MySQL cannot keep the value, SQLite can, because it
      * stores integers by magnitude and treats the declared width as a hint.

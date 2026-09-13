@@ -27,7 +27,7 @@ describe('a session can be given a new id', () => {
    * An attacker gets a victim's browser to hold an id they already know, the
    * victim signs in, and the id they know is now an authenticated session. Nothing
    * about the sign-in is broken; the id simply never changed. This is the call a
-   * login makes, and Laravel makes it in the same place.
+   * login has to make.
    */
   test('the data survives and the id does not', async () => {
     const driver = new MemorySessionDriver()
@@ -54,7 +54,7 @@ describe('a session can be given a new id', () => {
   })
 
   /**
-   * The old record is destroyed, which is where this differs from Laravel.
+   * The old record is destroyed rather than left to expire.
    *
    * What an attacker holds *is* that record. Leaving it to expire leaves it usable
    * until it does.

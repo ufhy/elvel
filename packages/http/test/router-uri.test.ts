@@ -2,15 +2,14 @@ import { describe, expect, test } from 'bun:test'
 import { compileUri, isWildcard, parseUri, rootFor } from '../src/router/uri.ts'
 
 /**
- * The parsing cases are `Illuminate\Tests\Routing\RouteUriTest::uriProvider`,
- * one for one, so a URI written from a Laravel example parses the same way here.
+ * The parsing cases are `RouteUriTest::uriProvider` upstream, one for one,
+ * rather than cases invented here.
  *
- * `{bar:slug}` is in that provider and is the reason this file reproduces it
- * rather than inventing its own cases: nothing in Laravel's *documentation* says
- * a parameter can name its binding field in the path, and a router that dropped
- * it would fail on a route somebody copied out of a real application.
+ * `{bar:slug}` is why. No documentation says a parameter can name its binding
+ * field in the path, and a router that dropped it would fail on a route somebody
+ * copied out of a real application.
  */
-describe('parsing a URI the way Laravel writes it', () => {
+describe('parsing a declared URI', () => {
   const cases: Array<[string, string, Record<string, string>]> = [
     ['/foo', '/foo', {}],
     ['/foo/{bar}', '/foo/{bar}', {}],
@@ -43,11 +42,11 @@ describe('parsing a URI the way Laravel writes it', () => {
   })
 
   /**
-   * `Route::get('users')` and `Route::get('/users')` are one route in Laravel.
+   * `Route.get('users')` and `Route.get('/users')` are one route.
    *
-   * Worth a test rather than an assumption: half the examples in Laravel's own
-   * documentation are written without the slash, and a framework that made those
-   * a different route would break on a copied example.
+   * Worth a test rather than an assumption: half the examples anybody copies are
+   * written without the slash, and a framework that made those a different route
+   * would break on them.
    */
   test('a missing leading slash is added', () => {
     expect<string>(parseUri('users').uri).toBe('/users')
@@ -69,8 +68,8 @@ describe('compiling a URI for Elysia', () => {
   /**
    * The one constraint that changes matching rather than filtering.
    *
-   * `Route::view('/{path}', 'main')->where('path', '.*')` is how a Laravel
-   * application hands every address to a client-side router, and it is the shape
+   * `Route.view('/{path}', 'main').where('path', '.*')` is how an application
+   * hands every address to a client-side router, and it is the shape
    * this whole layer has to get right.
    */
   describe('a parameter constrained to .* is a wildcard', () => {
@@ -135,8 +134,8 @@ describe('the parameter pattern', () => {
   })
 
   /**
-   * Whitespace inside the braces is not a parameter, which is Laravel's rule:
-   * `RouteUri.php` matches `/\{([\w\:]+?)\??\}/` and nothing looser.
+   * Whitespace inside the braces is not a parameter:
+   * `/\{([\w\:]+?)\??\}/` and nothing looser.
    */
   test('and a spaced brace is left alone rather than parsed', () => {
     expect<string[]>(parseUri('/users/{ id }').parameters).toEqual([])

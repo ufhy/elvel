@@ -138,7 +138,7 @@ describe('{post:slug} — a binding field named in the path', () => {
 
 describe('scopeBindings()', () => {
   /**
-   * The parent and the relation are read off the URI, as Laravel reads them.
+   * The parent and the relation are read off the URI.
    *
    * `/photos/{photo}/comments/{comment}` says the parent is `photo` and the
    * relation is `comments` — the segment in front of the child. That is why

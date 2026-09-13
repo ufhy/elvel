@@ -7,12 +7,12 @@ import { Route, resetRouter } from '../src/router/registrar.ts'
 import { RouteRegistry } from '../src/routes.ts'
 
 /**
- * The `Route` facade, checked against the behaviour Laravel's own tests pin down.
+ * The `Route` facade, checked against the upstream router's own tests.
  *
  * Each `describe` names the test in `Illuminate\Tests\Routing` it came from, so a
- * difference can be looked up rather than argued about. Where this framework
- * cannot match Laravel — constraints filter after matching rather than during it
- * — the test says so and asserts what does happen.
+ * difference can be looked up rather than argued about. Where this router cannot
+ * match it — constraints filter after matching rather than during it — the test
+ * says so and asserts what does happen.
  */
 afterEach(() => {
   resetRouter()
@@ -126,7 +126,7 @@ describe('parameters', () => {
 /**
  * `testWherePatternsProperlyFilter`, and the one place this framework differs.
  *
- * In Laravel a constraint is part of matching, so `/users/{id}` constrained to
+ * Upstream a constraint is part of matching, so `/users/{id}` constrained to
  * digits and `/users/{slug}` can coexist. Elysia's radix router matches once and
  * cannot fall through, so a failed constraint is a 404 here. Asserted rather than
  * hidden.
@@ -304,7 +304,7 @@ describe('view and redirect — Route::view, Route::redirect', () => {
   })
 
   /**
-   * Laravel's fourth and fifth arguments, and the fifth is the one with a job.
+   * The status and the headers, and the headers are the pair with a job.
    *
    * A view returns markup, not a response, so a route that renders is the only
    * place a header can be named — and a client-routed shell has one it must name.
@@ -354,7 +354,7 @@ describe('view and redirect — Route::view, Route::redirect', () => {
 /**
  * `testFallbackRoute`, and the reason it is not a `/*` route written by hand.
  *
- * Laravel's fallback answers any verb. A hand-written `Route.get('/{path}')`
+ * A fallback answers any verb. A hand-written `Route.get('/{path}')`
  * answers a form submission to a missing address with the framework's 404 page,
  * which is the wrong answer and a confusing one.
  */
@@ -521,8 +521,8 @@ describe('the current route — Route::currentRouteName', () => {
 /**
  * Elysia's per-route validation, kept reachable from the facade.
  *
- * Laravel has no `->validate()` on a route and needs none; this exists because
- * Elysia's schemas type the handler's `body`, so a mistyped field name is a
+ * `->validate()` sits beside `FormRequest` rather than replacing it: Elysia's
+ * schemas type the handler's `body`, so a mistyped field name is a
  * compile error rather than an `undefined` two layers later.
  */
 describe('validation', () => {

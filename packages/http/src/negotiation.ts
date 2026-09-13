@@ -24,7 +24,7 @@ export type Negotiable = {
  *    for that reading, via `whenSilent`.
  *
  * Otherwise: a caller that accepts HTML — or anything, `*&#47;*` — is treated as a
- * browser, which is Laravel's reading too.
+ * browser.
  *
  * Lives here rather than on `FormRequest`, where it started, because two callers
  * need the same answer: validation deciding between a 422 and a redirect, and
@@ -40,8 +40,7 @@ export function expectsJson(
    * header, so whatever did is a script, and answering it a 422 is kinder than a
    * redirect it cannot follow.
    *
-   * **A redirect** treats it as a browser, which is Laravel's own reading
-   * (`expectsJson()` there needs `X-Requested-With` before a wildcard counts).
+   * **A redirect** treats it as a browser.
    * The difference is what is at stake when the guess is wrong: mistaking silence
    * for a client turns every `Request` built without headers — a test, an internal
    * dispatch, a health probe — into one that receives JSON where a 302 was the

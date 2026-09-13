@@ -7,7 +7,7 @@ import { Migration, type MigrationContext } from '@elvel/database'
  * arithmetic on an integer, which every dialect agrees about, and the sweep is
  * one indexed comparison.
  *
- * 64-bit, unlike Laravel's. A 32-bit column holding seconds runs out in January
+ * 64-bit on purpose. A 32-bit column holding seconds runs out in January
  * 2038, and this table's whole job is to be swept by comparison against that
  * column — Postgres refuses the insert outright once the value passes 2^31, so
  * the failure would arrive as sessions that cannot be written rather than as a

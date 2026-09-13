@@ -11,8 +11,8 @@ export type QueuedCookie = {
 /**
  * The cookies of one request: what came in, and what is going out.
  *
- * Laravel splits this between the request bag and the `CookieJar` queue. Here it
- * is one object per request, because both halves are the same short-lived thing
+ * One object per request rather than a read bag and a write queue, because both
+ * halves are the same short-lived thing
  * and keeping them together is what lets `cookie('theme')` read a value that this
  * same request queued a moment ago — otherwise a handler that sets a preference
  * and then renders with it would render the old one.

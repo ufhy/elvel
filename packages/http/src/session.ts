@@ -46,7 +46,7 @@ export class MemorySessionDriver implements SessionDriver {
   }
 }
 
-/** One JSON file per session, as Laravel's `file` driver does. */
+/** One JSON file per session. */
 export class FileSessionDriver implements SessionDriver {
   /**
    * Directories this process has already created.
@@ -125,8 +125,8 @@ export class FileSessionDriver implements SessionDriver {
  *
  * Flash data is the part worth reading closely: `flash()` writes a value that
  * survives exactly one further request. That is what makes redirect-with-errors
- * work, and it is implemented the way Laravel does it — a `_flash.new` list that
- * becomes `_flash.old` on the next `save()`, and is then dropped.
+ * work: a `_flash.new` list becomes `_flash.old` on the next `save()`, and is then
+ * dropped.
  */
 export class Session {
   private data: SessionData = {}
@@ -422,15 +422,14 @@ export class Session {
    * Session fixation, concretely: an attacker gets a victim's browser to hold a
    * session id they already know, the victim signs in, and the id they know is now
    * an authenticated session. Nothing about the sign-in itself is broken; the id
-   * simply never changed. Laravel calls this from
-   * `AuthenticatedSessionController::store` for the same reason.
+   * simply never changed, which is why signing in must call this.
    *
    * The CSRF token is rotated with it. A token is bound to a session, so keeping
    * the old one across a privilege change means the value a page picked up while
    * signed out still authorises writes while signed in.
    *
-   * The old record is destroyed by default, which is where this differs from
-   * Laravel's `regenerate()`. What an attacker holds *is* that record — leaving it
+   * The old record is destroyed by default. What an attacker holds *is* that
+   * record — leaving it
    * to expire leaves it usable until it does. Pass `false` to keep it, for the
    * rare case where something else still reads it.
    */
