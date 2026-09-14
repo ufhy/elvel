@@ -174,7 +174,7 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
            * says so on an empty job list rather than implying nothing ran.
            */
           crossProcess: options.stored,
-          batches: [...options.ring.since(since), ...(await elsewhere(app, options, since))]
+          batches: [...options.ring.since(since), ...(await elsewhere(app, options))]
         }
       })
       /**
@@ -307,14 +307,17 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
  * Never throws: a bar that takes the page down because a table is missing would
  * be worse than a bar that shows only what it has.
  */
-async function elsewhere(
-  app: ApplicationContract,
-  options: LensBarOptions,
-  since: number
-): Promise<BarSummary[]> {
-  // A cursor is per-process, so a later page-load asking for "what is new" gets
-  // nothing from storage rather than the same rows again.
-  if (!options.stored || since > 0) return []
+async function elsewhere(app: ApplicationContract, options: LensBarOptions): Promise<BarSummary[]> {
+  /**
+   * Asked on every poll, not only at load.
+   *
+   * The cursor belongs to this process's ring, and storage has no counterpart —
+   * so gating on it meant a job flushed by the worker after the page opened
+   * could never appear, because every poll after the first carries a cursor.
+   * The list is capped and the client merges by `batchId`, so repeating a row
+   * costs one comparison rather than a duplicate.
+   */
+  if (!options.stored) return []
 
   try {
     const repository = app.make('lens.entries')

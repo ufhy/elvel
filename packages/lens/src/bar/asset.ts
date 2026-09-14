@@ -492,6 +492,32 @@ export const BAR_SCRIPT = String.raw`
       menuPane.appendChild(
         node('div', 'aside', 'Queue and scheduler run in other processes. Set LENS_ENABLED=true to see them.')
       )
+
+      return
+    }
+
+    /**
+     * What ran somewhere else, named rather than offered.
+     *
+     * These are jobs, scheduled tasks and console commands: storage has their
+     * summary and this process holds no detail, so they cannot be opened here.
+     * Saying how many there are is the honest half — the dashboard is where
+     * they are read.
+     */
+    const others = sets.filter((one) => one.source === 'storage')
+
+    if (others.length > 0) {
+      menuPane.appendChild(node('div', 'rule'))
+      menuPane.appendChild(
+        node(
+          'div',
+          'aside',
+          others.length +
+            ' unit' +
+            (others.length === 1 ? '' : 's') +
+            ' of work ran in another process. Open Lens to read them.'
+        )
+      )
     }
   }
 
@@ -547,17 +573,26 @@ export const BAR_SCRIPT = String.raw`
     select.className = 'sets'
     select.title = 'Requests'
 
-    for (const item of sets) {
+    /**
+     * Only what can actually be opened.
+     *
+     * Work from another process was listed here as a disabled option, which is
+     * close to invisible and cannot be selected anyway — the ring holds no
+     * detail for it. The menu says how much of it there is instead.
+     */
+    for (const item of sets.filter((one) => one.source !== 'storage')) {
       const option = document.createElement('option')
       option.value = item.batchId
-      const where = item.source === 'storage' ? item.path : item.method + ' ' + item.path
       option.textContent =
-        where +
+        item.method +
+        ' ' +
+        item.path +
         (item.kind === 'xhr' ? ' (ajax)' : '') +
         ' · ' +
-        (item.source === 'storage' ? 'elsewhere' : item.status + ' · ' + ms(item.durationMs)) +
+        item.status +
+        ' · ' +
+        ms(item.durationMs) +
         (item.problems > 0 ? ' · ' + item.problems + ' problem' : '')
-      option.disabled = item.source === 'storage'
       if (item.batchId === current) option.selected = true
       select.appendChild(option)
     }
@@ -617,7 +652,15 @@ export const BAR_SCRIPT = String.raw`
     // The filter belongs to the list it was typed on, not to the next one.
     if (next !== view) find = ''
 
-    view = next === null || view === next ? null : next
+    /**
+     * A repeat click keeps the panel open.
+     *
+     * It used to toggle, which is how a tab strip behaves and a trap in a
+     * sidebar: the pointer is already on the list, so clicking the row you are
+     * reading closes the whole panel. The strip and the mark are the toggles —
+     * both of those close it by asking for no view at all.
+     */
+    view = next === null ? null : next
     picked = null
     entry = null
     bar.classList.toggle('open', view !== null)
@@ -1233,7 +1276,6 @@ export const BAR_SCRIPT = String.raw`
   async function armAndReload(button) {
     button.disabled = true
     button.textContent = 'Recording\u2026'
-    kept.set('reopen', 'profile')
 
     try {
       const answer = await ask('/profile')
@@ -1243,6 +1285,10 @@ export const BAR_SCRIPT = String.raw`
         return
       }
 
+      // Set only once the server has agreed. Written before the ask, a refusal
+      // left the flag behind and the *next* ordinary reload opened the profile
+      // panel nobody asked for.
+      kept.set('reopen', 'profile')
       location.reload()
     } catch {
       button.textContent = 'The profiler could not start'
@@ -1340,11 +1386,22 @@ export const BAR_SCRIPT = String.raw`
         const fresh = payload.batches || []
         cursor = payload.cursor || cursor
         if (fresh.length === 0) return
-        sets = fresh.concat(sets).slice(0, 40)
-        // php-debugbar's autoShow, off unless asked for.
-        if (kept.get('follow', '1') === '1') {
+
+        // Merged by id: storage is asked on every poll now, so the same stored
+        // batch comes back until it falls out of the list.
+        const seen = new Set(fresh.map((one) => one.batchId))
+
+        sets = fresh.concat(sets.filter((one) => !seen.has(one.batchId))).slice(0, 40)
+        /**
+         * php-debugbar's autoShow, off unless asked for — and held while
+         * something is open.
+         *
+         * A page that polls every two seconds otherwise makes the panel
+         * unreadable: the switch clears the entry being read, mid-sentence. The
+         * new batch is still in the list, so following it is one click away.
+         */
+        if (kept.get('follow', '1') === '1' && entry === null) {
           current = fresh[0].batchId
-          entry = null
           picked = null
           return load(0)
         }

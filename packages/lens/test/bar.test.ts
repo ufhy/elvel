@@ -479,6 +479,32 @@ describe('the asset', () => {
     expect(BAR_SCRIPT).not.toContain('document.write')
   })
 
+  /**
+   * Three rules the client has to keep, asserted against its source.
+   *
+   * The script runs in a browser and nothing here provides one, so these read
+   * the decision rather than drive it — which is weaker than a click, and still
+   * enough to stop each one being undone by an edit that looks harmless. All
+   * three were found by driving the bar by hand.
+   */
+  describe('the rules the panel keeps', () => {
+    test('a repeat click on the open view does not close the panel', () => {
+      expect(BAR_SCRIPT).toContain('view = next === null ? null : next')
+      expect(BAR_SCRIPT).not.toContain('view === next ? null : next')
+    })
+
+    test('following a new request is held while an entry is open', () => {
+      expect(BAR_SCRIPT).toContain("kept.get('follow', '1') === '1' && entry === null")
+    })
+
+    test('the profiler flag is written only after the server agrees', () => {
+      const armed = BAR_SCRIPT.indexOf("kept.set('reopen', 'profile')")
+      const refused = BAR_SCRIPT.indexOf("button.textContent = 'The profiler refused'")
+
+      expect(armed).toBeGreaterThan(refused)
+    })
+  })
+
   test('the stylesheet is scoped to the shadow host', () => {
     expect(BAR_STYLE).toContain(':host')
     expect(BAR_SCRIPT).toContain('attachShadow')
@@ -741,6 +767,29 @@ describe('work from other processes', () => {
 
     expect(worker).toMatchObject({ source: 'storage', count: 5 })
     expect(worker?.path).toContain('job')
+  })
+
+  /**
+   * The cursor belongs to this process's ring, and storage has no counterpart.
+   * Gating storage on `since === 0` meant a job flushed by the worker after the
+   * page opened could never appear: the page asks with `since=0` once, at load,
+   * and every poll after that carries the cursor.
+   */
+  test('and it still appears on a poll that carries a cursor', async () => {
+    const { router, recorder } = withStorage([{ batchId: 'worker', types: { job: 1 } }])
+
+    await router.handle(new Request('http://localhost/page'))
+    await drained(recorder, 1)
+
+    const first = (await (
+      await router.handle(new Request('http://localhost/lens-api/bar?since=0'))
+    ).json()) as { cursor: number }
+
+    const later = (await (
+      await router.handle(new Request(`http://localhost/lens-api/bar?since=${first.cursor}`))
+    ).json()) as { batches: Array<{ batchId: string }> }
+
+    expect(later.batches.map((batch) => batch.batchId)).toContain('worker')
   })
 
   /**
