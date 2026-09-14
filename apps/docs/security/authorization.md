@@ -166,10 +166,23 @@ not reached through a model instance.
 ```
 
 It calls `authorize`, so a refusal becomes an `AuthorizationError` and the
-handler never runs. Anything after the ability is passed along as **plain
-strings** — `can:update,article` hands the ability the literal `'article'`, not a
-model. For a check against a loaded record, do it in the handler where the record
-exists:
+handler never runs.
+
+An argument naming a **route binding** is authorised against the model, not
+against its name:
+
+```ts
+Route.get('/articles/{article}/edit', handler)
+  .middleware('bindings', 'can:update,article')
+```
+
+The policy is handed the resolved `Article`. `bindings` has to run first — it is
+what resolves it — and anything that is not a bound parameter is passed along as
+the string it was, which is what a policy taking a plain argument expects.
+
+Without the binding middleware there is nothing to resolve, so the same route
+authorises against the word `'article'`. Do it in the handler instead when the
+record is loaded there:
 
 ```ts
 .get('/articles/:id/edit', async ({ params }) => {

@@ -1,13 +1,17 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { CacheServiceProvider } from '@elvel/cache'
 import { Application } from '@elvel/core'
 import { DatabaseServiceProvider } from '@elvel/database'
 import {
+  bindings,
+  compileRoutes,
   HttpServiceProvider,
   MiddlewareRegistry,
   middleware,
   middlewareNamesOf,
   middlewares,
+  Route,
+  resetRouter,
   signedRoute
 } from '@elvel/http'
 import { Elysia } from 'elysia'
@@ -460,5 +464,67 @@ describe('seeing what is registered', () => {
     // off the function rather than from the route table — which is what lets
     // `route:list` print a column instead of a shrug.
     expect<string[]>(middlewareNamesOf(route)).toEqual(['auth', 'throttle:6,1'])
+  })
+})
+
+/**
+ * `can:` against a route-bound model.
+ *
+ * The arguments after the ability are strings — that is all a route can carry —
+ * so a policy asked about the word `'article'` either ignores it or denies
+ * everything, and both read as the rule working. What the route actually bound
+ * is what the policy needs.
+ */
+describe('can, with a bound model', () => {
+  afterEach(() => {
+    resetRouter()
+  })
+
+  async function routed(ability: string, seen: unknown[][]) {
+    const app = await application()
+
+    // `allowGuests`, because this test is about what reaches the policy rather
+    // than about who is signed in — a guest is refused before the callback runs.
+    app.make('gate').define(
+      'update',
+      (_user: unknown, ...args: unknown[]) => {
+        seen.push(args)
+
+        return true
+      },
+      { allowGuests: true }
+    )
+
+    bindings().model('article', {
+      async resolveRouteBinding(value: string) {
+        return { id: Number(value), title: 'Bound' }
+      }
+    } as never)
+
+    Route.get('/articles/{article}', () => 'ok').middleware('bindings', ability)
+
+    app.useRoutes(compileRoutes('can-bindings'))
+
+    return app
+  }
+
+  test('the policy is handed the model, not its name', async () => {
+    const seen: unknown[][] = []
+    const app = await routed('can:update,article', seen)
+
+    const response = await app.handle(new Request('http://localhost/articles/7'))
+
+    expect<number>(response.status).toBe(200)
+    expect(seen[0]?.[0]).toMatchObject({ id: 7, title: 'Bound' })
+  })
+
+  /** A name the route never bound is the string it was — not a guess. */
+  test('anything that is not a binding stays a string', async () => {
+    const seen: unknown[][] = []
+    const app = await routed('can:update,draft', seen)
+
+    await app.handle(new Request('http://localhost/articles/7'))
+
+    expect(seen[0]?.[0]).toBe('draft')
   })
 })
