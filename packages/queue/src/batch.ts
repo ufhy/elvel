@@ -1,7 +1,11 @@
 import type { ApplicationContract } from '@elvel/contracts'
 import type { QueryBuilder, Row } from '@elvel/database'
+import type { AnyJob } from './job.ts'
 
 /** A batch as it sits in the table. */
+/** How a batch queues the jobs added to it — the manager supplies one. */
+export type BatchDispatch = (jobs: AnyJob[], batchId: string) => Promise<unknown>
+
 export type BatchRecord = {
   id: string
   name: string
@@ -109,6 +113,39 @@ export class Batch {
     return this.repository.find(this.id)
   }
 
+  /**
+   * Add work to a batch that is already running.
+   *
+   * How a fan-out grows: the first job discovers the work and adds it to the
+   * batch it is already in, and the totals move with it. Without this a batch
+   * has to know its full size before the first job runs, which rules out
+   * exactly the case batching is best at.
+   *
+   * The counts move **before** the jobs are queued, for the reason the initial
+   * dispatch gives: a worker fast enough to finish the new job before the count
+   * rose would drive the batch to zero pending and finish it early.
+   */
+  async add(jobs: AnyJob[], dispatcher: BatchDispatch): Promise<Batch> {
+    if (jobs.length === 0) return this
+
+    /**
+     * A finished or cancelled batch refuses.
+     *
+     * Its callbacks have already run — adding to it would queue work whose
+     * completion nothing is waiting for, and whose failure nothing would report.
+     */
+    if (this.finished) throw new Error(`Batch [${this.id}] has already finished.`)
+    if (this.cancelled) throw new Error(`Batch [${this.id}] was cancelled.`)
+
+    const grown = await this.repository.recordAdded(this.id, jobs.length)
+
+    if (grown === undefined) throw new Error(`Batch [${this.id}] no longer exists.`)
+
+    await dispatcher(jobs, this.id)
+
+    return grown
+  }
+
   toJSON(): Record<string, unknown> {
     return {
       id: this.id,
@@ -133,6 +170,9 @@ export interface BatchRepository {
   /** Increment the failure count and record the job id. */
   recordFailure(id: string, jobId: string): Promise<Batch | undefined>
   cancel(id: string): Promise<void>
+
+  /** Raise the totals for jobs added to a running batch. See `Batch.add`. */
+  recordAdded(id: string, count: number): Promise<Batch | undefined>
   /** Forget finished batches older than this many seconds. */
   prune(olderThanSeconds: number): Promise<number>
 
@@ -181,6 +221,16 @@ export class ArrayBatchRepository implements BatchRepository {
 
     record.pendingJobs = Math.max(0, record.pendingJobs - 1)
     if (record.pendingJobs === 0) record.finishedAt ??= now()
+
+    return new Batch({ ...record }, this)
+  }
+
+  async recordAdded(id: string, count: number): Promise<Batch | undefined> {
+    const record = this.batches.get(id)
+    if (!record) return undefined
+
+    record.totalJobs += count
+    record.pendingJobs += count
 
     return new Batch({ ...record }, this)
   }
@@ -284,6 +334,21 @@ export class DatabaseBatchRepository implements BatchRepository {
     await (await this.query()).where('id', id).decrement('pending_jobs')
 
     return this.finishIfDone(id)
+  }
+
+  /**
+   * Both counters in one statement.
+   *
+   * `increment` rather than read-then-write: two jobs adding to the same batch
+   * at once would each read the old total and write it back plus their own,
+   * losing one of the two.
+   */
+  async recordAdded(id: string, count: number): Promise<Batch | undefined> {
+    await (await this.query()).where('id', id).increment('total_jobs', count)
+
+    await (await this.query()).where('id', id).increment('pending_jobs', count)
+
+    return this.find(id)
   }
 
   async recordFailure(id: string, jobId: string): Promise<Batch | undefined> {

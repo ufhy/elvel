@@ -1,5 +1,5 @@
 import { Pipeline } from '@elvel/support'
-import type { BatchRepository } from './batch.ts'
+import type { Batch, BatchRepository } from './batch.ts'
 import type { JobPayload, QueuedJob } from './contracts.ts'
 import type { AnyJob, JobMiddleware, JobRegistry } from './job.ts'
 import { deserializeData, type ModelRegistry } from './serializer.ts'
@@ -21,6 +21,16 @@ export type JobRunnerOptions = {
   batches?: BatchRepository
   /** Dispatches a batch callback by name, once the batch reaches an outcome. */
   dispatchCallback?: (job: string, batchId: string) => Promise<unknown>
+
+  /**
+   * Announce a batch reaching an outcome.
+   *
+   * The application-facing case is covered better by `onFinished`, which takes a
+   * job class. This is for everything watching from outside: Lens filed a batch
+   * when it was created and could never show that it finished, failed or was
+   * cancelled, and neither could a metrics listener.
+   */
+  notify?: (event: string, payload: Record<string, unknown>) => void
 }
 
 /**
@@ -64,7 +74,7 @@ export class JobRunner {
 
     await this.releaseUniqueLock(queued.payload)
     await this.recordBatchSuccess(queued)
-    await this.dispatchChain(queued)
+    await this.dispatchChain(queued, instance)
   }
 
   private async batchWasCancelled(queued: QueuedJob): Promise<boolean> {
@@ -82,13 +92,20 @@ export class JobRunner {
     if (!id || !this.options.batches) return
 
     const batch = await this.options.batches.recordSuccess(id, queued.payload.uuid)
-    if (!batch || batch.pendingJobs > 0) return
+    if (!batch) return
+
+    // The first job to be counted is the batch starting, whatever its outcome.
+    if (batch.processedJobs === 1) this.announce('queue.batch.started', batch)
+
+    if (batch.pendingJobs > 0) return
 
     // Success only when nothing failed; finished either way, which is the whole
     // distinction between them.
     if (batch.failedJobs === 0) await this.fireCallbacks(batch.record.options.onSuccess, id)
 
     await this.fireCallbacks(batch.record.options.onFinished, id)
+
+    this.announce('queue.batch.finished', batch)
   }
 
   /**
@@ -97,6 +114,23 @@ export class JobRunner {
    * The first failure cancels the batch unless it allows failures — otherwise the
    * rest of the work carries on producing a half-finished result.
    */
+  /**
+   * Tell the chain's handlers that a link broke.
+   *
+   * Called by the worker once a job has failed for the last time. Without it the
+   * rest of the chain simply never runs and only that job's own `failed()`
+   * fires, so nothing knows the chain died.
+   */
+  async recordChainFailure(queued: QueuedJob): Promise<void> {
+    const handlers = queued.payload.chainCatch ?? []
+
+    if (handlers.length === 0 || !this.options.dispatchCallback) return
+
+    // Dispatched with the failed job's uuid rather than a batch id: a chain has
+    // no id of its own, and the job that broke is what a handler needs to name.
+    for (const job of handlers) await this.options.dispatchCallback(job, queued.payload.uuid)
+  }
+
   async recordBatchFailure(queued: QueuedJob): Promise<void> {
     const id = queued.payload.batchId
     if (!id || !this.options.batches) return
@@ -104,13 +138,34 @@ export class JobRunner {
     const batch = await this.options.batches.recordFailure(id, queued.payload.uuid)
     if (!batch) return
 
+    if (batch.processedJobs === 1) this.announce('queue.batch.started', batch)
+
     if (batch.failedJobs === 1) {
-      if (!batch.record.options.allowFailures) await this.options.batches.cancel(id)
+      if (!batch.record.options.allowFailures) {
+        await this.options.batches.cancel(id)
+        this.announce('queue.batch.cancelled', batch)
+      }
 
       await this.fireCallbacks(batch.record.options.onFailure, id)
     }
 
-    if (batch.pendingJobs === 0) await this.fireCallbacks(batch.record.options.onFinished, id)
+    if (batch.pendingJobs === 0) {
+      await this.fireCallbacks(batch.record.options.onFinished, id)
+      this.announce('queue.batch.finished', batch)
+    }
+  }
+
+  /** The batch's id and counts, which is what a watcher amends its entry with. */
+  private announce(event: string, batch: Batch): void {
+    this.options.notify?.(event, {
+      batchId: batch.id,
+      name: batch.name,
+      totalJobs: batch.totalJobs,
+      pendingJobs: batch.pendingJobs,
+      failedJobs: batch.failedJobs,
+      cancelled: batch.cancelled,
+      finished: batch.finished
+    })
   }
 
   private async fireCallbacks(jobs: string[] | undefined, batchId: string): Promise<void> {
@@ -220,8 +275,10 @@ export class JobRunner {
       .then(handle)
   }
 
-  private async dispatchChain(queued: QueuedJob): Promise<void> {
-    const [next, ...rest] = queued.payload.chain ?? []
+  private async dispatchChain(queued: QueuedJob, job?: AnyJob): Promise<void> {
+    // What the job says is left, so a `prependToChain` during the run is what
+    // actually goes out next — not the payload the worker reserved.
+    const [next, ...rest] = job?.remainingChain() ?? queued.payload.chain ?? []
     if (!next || !this.options.chain) return
 
     await this.options.chain(

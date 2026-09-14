@@ -24,6 +24,17 @@ export type JobPayload = {
   retryUntil?: number | undefined
   /** Jobs to dispatch once this one succeeds. */
   chain?: JobPayload[] | undefined
+
+  /**
+   * Job classes dispatched when a link of this chain fails.
+   *
+   * Without it a broken link stops the rest and only that job's own `failed()`
+   * fires — nothing is told the chain died, which is the one thing a chain's
+   * caller wants to know.
+   *
+   * Carried on every link so a failure five deep still knows who to tell.
+   */
+  chainCatch?: string[] | undefined
   /**
    * The batch this job belongs to, if any.
    *
@@ -87,6 +98,15 @@ export interface QueueDriver {
 
   /** Push, but not available until `delay` seconds have passed. */
   later(delay: number, payload: JobPayload, queue?: string): Promise<string>
+
+  /**
+   * Push many at once, where the driver can.
+   *
+   * A batch of a thousand rows was a thousand inserts, one at a time, inside the
+   * request that created it. Optional, because a driver that cannot do it in one
+   * step should not pretend to — the caller loops, which is what this replaces.
+   */
+  pushMany?(payloads: JobPayload[], queue?: string): Promise<string[]>
 
   /** Reserve the next available job, or null when the queue is empty. */
   pop(queue?: string): Promise<QueuedJob | null>

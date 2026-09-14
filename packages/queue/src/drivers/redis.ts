@@ -64,6 +64,19 @@ redis.call('rpush', KEYS[1], ARGV[1])
 redis.call('rpush', KEYS[2], 1)
 `
 
+/**
+ * Every payload in one `rpush`, and one notification per job.
+ *
+ * `unpack(ARGV)` rather than a loop: a thousand jobs is one command instead of a
+ * thousand round trips, which is the whole point. One notification per job
+ * because a waiting worker takes one job per wake-up, and a single notification
+ * would leave the rest of the batch sitting until the next poll.
+ */
+const PUSH_MANY = `
+redis.call('rpush', KEYS[1], unpack(ARGV))
+for _ = 1, #ARGV do redis.call('rpush', KEYS[2], 1) end
+`
+
 /** Move a reserved job onto the delayed set, so a retry waits its backoff. */
 const RELEASE = `
 redis.call('zrem', KEYS[2], ARGV[1])
@@ -191,6 +204,21 @@ export class RedisQueue implements QueueDriver {
     await this.run(PUSH, ['2', name, `${name}:notify`, JSON.stringify(payload)])
 
     return payload.uuid
+  }
+
+  async pushMany(payloads: JobPayload[], queue?: string): Promise<string[]> {
+    if (payloads.length === 0) return []
+
+    const name = this.key(queue)
+
+    await this.run(PUSH_MANY, [
+      '2',
+      name,
+      `${name}:notify`,
+      ...payloads.map((payload) => JSON.stringify(payload))
+    ])
+
+    return payloads.map((payload) => payload.uuid)
   }
 
   async later(delay: number, payload: JobPayload, queue?: string): Promise<string> {

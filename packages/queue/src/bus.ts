@@ -8,6 +8,15 @@ export type BatchDispatcher = {
     job: AnyJob,
     options: { queue?: string; connection?: string; batchId?: string; chain?: AnyJob[] }
   ): Promise<string>
+  /**
+   * Optional: a fake has no driver to push many into, and one round trip is not
+   * something a test needs. Absent, the batch dispatches one at a time.
+   */
+  bulk?(
+    jobs: AnyJob[],
+    options: { queue?: string; connection?: string; batchId?: string }
+  ): Promise<string[]>
+
   jobs: { has(name: string): boolean; register(...jobs: JobClass[]): unknown }
 
   /**
@@ -156,19 +165,54 @@ export class PendingBatch {
     // Stored before anything is queued, on purpose: a worker fast enough to
     // reserve the first job before the row exists would have nothing to count
     // against.
+    const shared = {
+      batchId: batch.id,
+      ...(this.options.queue ? { queue: this.options.queue } : {}),
+      ...(this.options.connection ? { connection: this.options.connection } : {})
+    }
+
+    /**
+     * Runs of plain jobs go out together; a chain interrupts the run.
+     *
+     * Only the head of a chain is queued — the rest travel in its payload and
+     * are dispatched as each predecessor succeeds — so a chain's head carries a
+     * payload of its own and cannot join a bulk push.
+     *
+     * The pending run is flushed *before* each chain rather than collected and
+     * pushed at the end, so the jobs reach the queue in the order they were
+     * declared. A batch makes no promise about order, but silently changing the
+     * one an application already sees is not this change's business.
+     */
+    let run: AnyJob[] = []
+
+    const flush = async (): Promise<void> => {
+      if (run.length === 0) return
+
+      if (this.dispatcher.bulk !== undefined) await this.dispatcher.bulk(run, shared)
+      else for (const job of run) await this.dispatcher.dispatch(job, shared)
+
+      run = []
+    }
+
     for (const entry of this.jobs) {
-      // Only the head of a chain is queued; the rest travel in its payload and
-      // are dispatched one at a time as each predecessor succeeds.
-      const [first, ...rest] = Array.isArray(entry) ? entry : [entry]
+      if (!Array.isArray(entry)) {
+        run.push(entry)
+
+        continue
+      }
+
+      const [first, ...rest] = entry
       if (!first) continue
 
+      await flush()
+
       await this.dispatcher.dispatch(first, {
-        batchId: batch.id,
-        ...(rest.length > 0 ? { chain: rest } : {}),
-        ...(this.options.queue ? { queue: this.options.queue } : {}),
-        ...(this.options.connection ? { connection: this.options.connection } : {})
+        ...shared,
+        ...(rest.length > 0 ? { chain: rest } : {})
       })
     }
+
+    await flush()
 
     return batch
   }

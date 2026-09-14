@@ -205,6 +205,44 @@ export abstract class Job<TData = Record<string, never>> {
   get payload(): JobPayload | undefined {
     return this.queuedJob?.payload
   }
+
+  /**
+   * The links still to run after this one.
+   *
+   * Mutated in place by `prependToChain`/`appendToChain`, and read by the runner
+   * when this job succeeds — so a job that changes it changes what actually runs
+   * next, rather than describing a chain nobody consults.
+   */
+  private extraChain: JobPayload[] | undefined
+
+  /**
+   * Put work in front of the remaining links.
+   *
+   * The case: a job discovers something that must happen before the rest of the
+   * chain, and cannot dispatch it separately because the ordering is the whole
+   * point of being a chain.
+   *
+   * Payloads rather than job instances, because that is what a chain already
+   * carries and building one needs the manager, which a running job does not
+   * hold.
+   */
+  prependToChain(...payloads: JobPayload[]): this {
+    this.extraChain = [...payloads, ...(this.extraChain ?? this.payload?.chain ?? [])]
+
+    return this
+  }
+
+  /** The same, behind them. */
+  appendToChain(...payloads: JobPayload[]): this {
+    this.extraChain = [...(this.extraChain ?? this.payload?.chain ?? []), ...payloads]
+
+    return this
+  }
+
+  /** What the runner should queue next, after any `prependToChain`. */
+  remainingChain(): JobPayload[] {
+    return this.extraChain ?? this.payload?.chain ?? []
+  }
 }
 
 /** A job class, as the registry holds it. */

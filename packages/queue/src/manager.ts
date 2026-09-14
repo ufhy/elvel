@@ -1,5 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
-import { Context } from '@elvel/core'
+import { Context, defer } from '@elvel/core'
 import { ArrayBatchRepository, type BatchRepository, DatabaseBatchRepository } from './batch.ts'
 import { type BatchEntry, PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
@@ -37,6 +37,8 @@ export type DispatchOptions = {
   delay?: number
   /** Jobs to run after this one succeeds, in order. */
   chain?: AnyJob[]
+  /** Job classes dispatched when any link of the chain fails. */
+  chainCatch?: JobClass[]
   /** Set by a batch; the worker counts the job against it. */
   batchId?: string
   /**
@@ -319,6 +321,111 @@ export class QueueManager {
   }
 
   /**
+   * Queue many jobs in one round trip, where the driver can.
+   *
+   * A batch of a thousand rows was a thousand inserts, one at a time, inside the
+   * request that created it. Falls back to a loop for a driver with no bulk
+   * path, so the caller never has to ask which it has.
+   *
+   * Delayed and unique jobs are not batched: a delay is per-payload and a unique
+   * lock has to be taken one at a time to mean anything. Both fall through to
+   * `dispatch()`, which is where those rules already live.
+   */
+  async bulk(jobs: AnyJob[], options: DispatchOptions = {}): Promise<string[]> {
+    if (jobs.length === 0) return []
+
+    if ((options.delay ?? 0) > 0 || options.afterCommit === true) {
+      return Promise.all(jobs.map((job) => this.dispatch(job, options)))
+    }
+
+    const connection = options.connection ?? this.defaultConnection()
+    const driver = this.connection(connection)
+    const queue = options.queue ?? driver.defaultQueue
+
+    if (driver.pushMany === undefined) {
+      return Promise.all(jobs.map((job) => this.dispatch(job, options)))
+    }
+
+    const batched: JobPayload[] = []
+    const ids: string[] = []
+
+    for (const job of jobs) {
+      const jobClass = job.constructor as JobClass
+
+      if (!this.jobs.has(jobClass.name)) this.jobs.register(jobClass)
+
+      // A unique job takes its lock one at a time, and a job that names its own
+      // connection or queue does not belong in this driver's push.
+      if (
+        jobClass.unique === true ||
+        (jobClass.connection !== undefined && jobClass.connection !== connection) ||
+        (jobClass.queue !== undefined && jobClass.queue !== queue)
+      ) {
+        ids.push(await this.dispatch(job, options))
+
+        continue
+      }
+
+      const payload = await this.payloadFor(job, options)
+
+      this.events()?.dispatch('queue.job.queued', {
+        job: payload.displayName,
+        uuid: payload.uuid,
+        connection,
+        queue,
+        delay: 0,
+        payload
+      })
+
+      batched.push(payload)
+    }
+
+    if (batched.length > 0) ids.push(...(await driver.pushMany(batched, queue)))
+
+    return ids
+  }
+
+  /**
+   * Run it in this process, once the response has gone out.
+   *
+   * The third dispatch mode, and the one a small side effect wants: write an
+   * audit row, warm a cache. A queue is more infrastructure than the work is
+   * worth, and `dispatchSync` would make the visitor wait for it.
+   *
+   * A failure is recorded rather than thrown. There is nothing left to throw
+   * into — the response has already been sent — so an exception here would
+   * surface as an unhandled rejection somewhere unrelated to the request that
+   * caused it.
+   *
+   * `defer()` is what runs it: outside a request there is nothing to be after,
+   * so the work happens on the next tick and the caller does not wait either.
+   */
+  async dispatchAfterResponse(job: AnyJob): Promise<string> {
+    const payload = await this.payloadFor(job, {})
+
+    this.events()?.dispatch('queue.job.after-response', {
+      job: payload.displayName,
+      uuid: payload.uuid,
+      payload
+    })
+
+    defer(
+      async () => {
+        const driver = new SyncQueue('after-response', (queued) => this.runner().run(queued))
+
+        try {
+          await driver.push(payload)
+        } catch (error) {
+          await this.failed.log('after-response', 'default', payload, error)
+        }
+      },
+      { key: `elvel:queue:after-response:${payload.uuid}` }
+    )
+
+    return payload.uuid
+  }
+
+  /**
    * Dispatch the first job with the rest queued behind it.
    *
    * Each link is only queued once its predecessor succeeded, which is the
@@ -331,6 +438,29 @@ export class QueueManager {
     return this.dispatch(first, { ...options, chain: rest })
   }
 
+  /**
+   * A chain that tells somebody when it breaks.
+   *
+   * ```ts
+   * await queue().chainCatching([new Extract(), new Load()], [AlertOncall])
+   * ```
+   *
+   * The handlers travel on every link, so a failure at the fifth still knows who
+   * to tell — a chain that only the head remembered would go quiet exactly where
+   * it matters most.
+   */
+  async chainCatching(
+    jobs: AnyJob[],
+    onFailure: JobClass[],
+    options: DispatchOptions = {}
+  ): Promise<string | null> {
+    for (const job of onFailure) {
+      if (!this.jobs.has(job.name)) this.jobs.register(job)
+    }
+
+    return this.chain(jobs, { ...options, chainCatch: onFailure })
+  }
+
   /** A runner wired to this manager's registries. */
   runner(): JobRunner {
     return new JobRunner(this.jobs, this.models, {
@@ -340,6 +470,7 @@ export class QueueManager {
       },
       locks: this.app.bound('cache') ? this.app.make('cache').store() : undefined,
       batches: this.batches(),
+      notify: (event, payload) => this.notify(event, payload),
       /**
        * A batch callback is dispatched like any other job, with the batch id in
        * its payload — so it can look the batch up and report on it, and so it gets
@@ -439,10 +570,12 @@ export class QueueManager {
     const chain: JobPayload[] = []
     for (const link of options.chain ?? []) {
       chain.push(
-        await this.payloadFor(
-          link,
-          options.batchId === undefined ? {} : { batchId: options.batchId }
-        )
+        await this.payloadFor(link, {
+          ...(options.batchId === undefined ? {} : { batchId: options.batchId }),
+          // Carried down every link, so a failure at the fifth still knows who
+          // to tell.
+          ...(options.chainCatch === undefined ? {} : { chainCatch: options.chainCatch })
+        })
       )
     }
 
@@ -513,6 +646,8 @@ export class QueueManager {
       failOnTimeout: jobClass.failOnTimeout === true ? true : undefined,
       retryUntil: jobClass.retryFor ? Math.floor(Date.now() / 1000) + jobClass.retryFor : undefined,
       chain: chain.length > 0 ? chain : undefined,
+      chainCatch:
+        options.chainCatch === undefined ? undefined : options.chainCatch.map((job) => job.name),
       encrypted: encrypted ? true : undefined,
       batchId: options.batchId,
       context: Context.dehydrate(),

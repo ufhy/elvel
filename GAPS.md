@@ -153,92 +153,44 @@ batch; a running job can reach its own batch and cancel it; and the callbacks ar
 job classes rather than serialised closures, which is the honest version of the
 same idea. `ShouldBeUnique` and `afterCommit` are both there.
 
-### `dispatchAfterResponse()` does not exist
+`dispatchAfterResponse()` runs the job in this process once the response has
+gone. A failure there is recorded rather than thrown — there is nothing left to
+throw into, and an exception would surface as an unhandled rejection somewhere
+unrelated to the request that caused it.
 
-Upstream's third dispatch mode: run the job in **this** process once the response
-has been sent, with no queue and no worker. It is what a small side effect wants
-— write an audit row, warm a cache — where queuing is more infrastructure than
-the work is worth and `dispatchSync` would make the visitor wait for it.
+`bulk()` takes many payloads at once; the database driver makes it one `insert`
+and Redis one `rpush`. It answers with the uuids rather than driver ids, because
+a multi-row insert cannot return every id on every dialect and a uuid is what a
+batch identifies its jobs by anyway. Delayed and unique jobs fall through to
+`dispatch()`, where a per-payload delay and a one-at-a-time lock already live. A
+batch flushes its pending run **before** each chain rather than collecting
+everything to the end, so jobs still reach the queue in the order they were
+declared.
 
-`QueueManager` has `dispatch`, `dispatchSync` and `chain`. Nothing in
-`packages/queue` mentions after-response at all; the `onAfterResponse` hooks in
-the repository belong to http, log and lens.
+`Batch.add()` grows a running batch, and the counts rise before the jobs are
+queued — a worker fast enough to finish the new job before the total moved would
+drive the batch to zero pending and finish it early. The database repository
+raises both counters with `increment`, because two jobs adding at once would
+each read the old total and write it back plus their own. A finished or
+cancelled batch refuses: its callbacks have already run, so the new work's
+completion would be waited on by nothing.
 
-**Done when** a job can be dispatched after the response, it runs in the same
-process, a failure there is recorded rather than crashing the response that has
-already gone, and tests can assert it.
+`chainCatching()` carries the handlers on **every** link, so a failure five deep
+still knows who to tell. `prependToChain`/`appendToChain` change what actually
+goes out next, because the runner reads the job's remaining chain rather than
+the payload the worker reserved.
 
-### Dispatching a thousand jobs is a thousand round trips
+`started`, `finished` and `cancelled` are dispatched with the batch id and
+counts, which is what a watcher amends its entry with.
 
-`Bus::bulk()` hands a whole array to the driver in one call. Elvel has no such
-path: `PendingBatch.dispatch()` loops and `await`s `dispatch()` per job, so a
-batch of a thousand rows is a thousand inserts, one at a time, inside the
-request that created it.
+The fake records chains and batches, so "this controller dispatches these three
+jobs in order" and "this import is batched" are assertable — the two things
+worth asserting about work that is not run inline.
 
-**Done when** the driver contract takes many payloads at once, the database and
-Redis drivers implement it as one statement and one pipeline, and batch dispatch
-uses it.
-
-### A batch cannot grow
-
-`$batch->add($jobs)` is how upstream fans work out progressively — the first job
-discovers the work and adds it to the batch it is already in, and the totals
-move with it. `Batch` has no `add`, and `BatchRepository` has no way to raise
-`totalJobs` and `pendingJobs` on a row that already exists.
-
-Without it a batch has to know its full size before the first job runs, which
-rules out exactly the case batching is best at.
-
-**Done when** `add()` exists, the counts move atomically, and a batch that is
-already finished refuses to be added to.
-
-### A chain has no failure handler and cannot be changed from inside
-
-Three pieces, all absent:
-
-- `Bus::chain([...])->catch(...)` — when a link fails the rest simply never run
-  and only that job's own `failed()` fires; nothing is told the chain died.
-- `$this->prependToChain()` / `appendToChain()` — a running job cannot put work
-  in front of or behind the remaining links.
-- `ChainedBatch` — a batch cannot be a link in a chain. The reverse works: a
-  chain can be an entry in a batch (`BatchEntry`).
-
-`QueueManager.chain()` is `dispatch(first, { chain: rest })` and
-`JobRunner.dispatchChain()` queues the next link. That is the whole
-implementation.
-
-**Done when** a chain carries a failure callback, a job can extend its own
-chain, and a batch can stand as a link.
-
-### A batch only announces that it was dispatched
-
-Upstream dispatches four: `BatchDispatched`, `BatchStarted`, `BatchFinished`,
-`BatchCanceled`. Elvel emits `queue.batch.dispatched` from
-`packages/queue/src/bus.ts` and nothing else.
-
-The application-facing case is covered better than by events — `onFinished`
-takes a job class. What is not covered is anything watching from outside:
-Lens files the batch when it is created and can never show that it finished,
-failed, or was cancelled, and neither can a metrics listener.
-
-**Done when** started, finished and cancelled are dispatched with the batch id
-and counts, and the Lens batch entry is amended when they arrive.
-
-### The fake cannot see chains or batches
-
-`QueueFake` asserts `assertPushed`, `assertNotPushed`, `assertPushedTimes`,
-`assertPushedOn`, `assertPushedWithDelay`, `assertNothingPushed`, `assertCount`.
-
-Upstream's bus fake also carries `assertChained`, `assertDispatchedWithoutChain`,
-`assertNothingChained`, `assertBatched`, `assertBatchCount`,
-`assertNothingBatched` and `assertDispatchedSync`. None have an equivalent, so
-"this controller dispatches these three jobs *in order*" and "this import is
-batched" are both untestable — and those are the two things worth asserting
-about work that is not run inline.
-
-**Done when** a chain and a batch are recorded by the fake with their contents,
-and both can be asserted on.
-
+`ChainedBatch` stays out: a batch is a set with no order and a chain is an order
+with no set, and a link that is a batch would need the chain to wait on a
+completion the queue has no way to block on. The reverse — a chain as one entry
+of a batch — is what `BatchEntry` already does.
 ---
 
 ## Cache

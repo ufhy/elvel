@@ -456,6 +456,7 @@ export class Worker {
     // Before the reservation is dropped: the batch bookkeeping reads the payload,
     // and a driver is free to forget it afterwards.
     await this.runner.recordBatchFailure(job)
+    await this.runner.recordChainFailure(job)
 
     // The job's own `failed()` hook runs before the reservation goes, so it can
     // still read the payload it was given.

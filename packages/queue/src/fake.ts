@@ -170,6 +170,117 @@ export class QueueFake {
     return this
   }
 
+  /**
+   * The chain a job carries, by class name and in order.
+   *
+   * "This controller dispatches these three jobs *in order*" was untestable —
+   * and ordering is the only reason to use a chain rather than three dispatches.
+   */
+  chained(job?: string): string[][] {
+    return this.pushed(job)
+      .filter((one) => (one.payload.chain?.length ?? 0) > 0)
+      .map((one) => [one.payload.job, ...(one.payload.chain ?? []).map((link) => link.job)])
+  }
+
+  /** `assertChained('Extract', ['Transform', 'Load'])` — the links after the head. */
+  assertChained(job: string, links: string[]): this {
+    const found = this.chained(job)
+    const wanted = [job, ...links]
+
+    if (
+      !found.some(
+        (chain) => chain.length === wanted.length && chain.every((name, at) => name === wanted[at])
+      )
+    ) {
+      throw new Error(
+        `Expected [${job}] to be chained with [${links.join(' -> ')}]. Saw: ${
+          found.map((chain) => chain.join(' -> ')).join('; ') || '(no chains)'
+        }`
+      )
+    }
+
+    return this
+  }
+
+  /** Pushed, and on its own — a chain somebody added by mistake fails this. */
+  assertDispatchedWithoutChain(job: string): this {
+    this.assertPushed(job)
+
+    const chained = this.chained(job)
+
+    if (chained.length > 0) {
+      throw new Error(
+        `Expected [${job}] to be pushed without a chain, but it carried [${chained[0]?.slice(1).join(' -> ')}].`
+      )
+    }
+
+    return this
+  }
+
+  assertNothingChained(): this {
+    const chains = this.chained()
+
+    if (chains.length > 0) {
+      throw new Error(
+        `Expected nothing to be chained, but found: ${chains.map((chain) => chain.join(' -> ')).join('; ')}`
+      )
+    }
+
+    return this
+  }
+
+  /** Everything pushed as part of a batch, by batch id. */
+  batched(): Map<string, PushedJob[]> {
+    const batches = new Map<string, PushedJob[]>()
+
+    for (const one of this.driver.pushed) {
+      const id = one.payload.batchId
+
+      if (id === undefined) continue
+
+      batches.set(id, [...(batches.get(id) ?? []), one])
+    }
+
+    return batches
+  }
+
+  /** `assertBatched(['ImportRow', 'ImportRow'])` — one batch holding these jobs. */
+  assertBatched(jobs: string[]): this {
+    const wanted = [...jobs].sort()
+
+    const found = [...this.batched().values()].some((batch) => {
+      const names = batch.map((one) => one.payload.job).sort()
+
+      return names.length === wanted.length && names.every((name, at) => name === wanted[at])
+    })
+
+    if (!found) {
+      throw new Error(
+        `Expected a batch of [${jobs.join(', ')}]. Saw: ${
+          [...this.batched().values()]
+            .map((batch) => batch.map((one) => one.payload.job).join(', '))
+            .join('; ') || '(no batches)'
+        }`
+      )
+    }
+
+    return this
+  }
+
+  assertBatchCount(count: number): this {
+    const actual = this.batched().size
+
+    if (actual !== count) {
+      throw new Error(`Expected ${count} batch(es), but ${actual} were dispatched.`)
+    }
+
+    return this
+  }
+
+  assertNothingBatched(): this {
+    return this.assertBatchCount(0)
+  }
+
   assertNothingPushed(): this {
     if (this.driver.pushed.length > 0) {
       throw new Error(`Expected nothing to have been pushed, but found: ${this.summary()}`)

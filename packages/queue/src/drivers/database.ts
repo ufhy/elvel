@@ -1,5 +1,6 @@
 import type { Connection, ConnectionManager } from '@elvel/database'
 import { QueryBuilder } from '@elvel/database'
+import { Clock } from '@elvel/support'
 import type { JobPayload, QueueDriver, QueuedJob } from '../contracts.ts'
 
 export type DatabaseQueueOptions = {
@@ -47,6 +48,32 @@ export class DatabaseQueue implements QueueDriver {
 
   async later(delay: number, payload: JobPayload, queue?: string): Promise<string> {
     return this.pushToDatabase(payload, delay, queue)
+  }
+
+  /**
+   * One `insert` for the lot.
+   *
+   * `insert` rather than `insertGetId`, because a multi-row insert cannot answer
+   * with every id on every dialect — so the uuids are handed back instead, which
+   * is what a batch identifies its jobs by anyway.
+   */
+  async pushMany(payloads: JobPayload[], queue?: string): Promise<string[]> {
+    if (payloads.length === 0) return []
+
+    const now = Math.floor(Clock.now() / 1000)
+
+    await (await this.query()).insert(
+      payloads.map((payload) => ({
+        queue: queue ?? this.defaultQueue,
+        payload: JSON.stringify({ ...payload, attempts: 0 }),
+        attempts: 0,
+        reserved_at: null,
+        available_at: now,
+        created_at: now
+      }))
+    )
+
+    return payloads.map((payload) => payload.uuid)
   }
 
   async pop(queue?: string): Promise<QueuedJob | null> {
