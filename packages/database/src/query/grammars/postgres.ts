@@ -44,6 +44,55 @@ export class PostgresGrammar extends Grammar {
     return `${not ? 'not ' : ''}(${super.wrap(field)})::jsonb${walk} @> ${this.parameter(bindings.length)}::jsonb`
   }
 
+  /**
+   * `jsonb_exists`, not the `?` operator.
+   *
+   * They mean the same thing, and `?` is what every other driver reads as a
+   * placeholder — writing it here is how a query that is valid on the server
+   * becomes unparseable on the way to it.
+   */
+  protected override compileJsonContainsKey(column: string, not: boolean): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const last = path[path.length - 1]
+
+    if (last === undefined) {
+      throw new Error('whereJsonContainsKey() needs a path — `meta->flags`, not `meta`.')
+    }
+
+    const walk = path
+      .slice(0, -1)
+      .map((segment) => `->'${segment.replaceAll("'", "''")}'`)
+      .join('')
+
+    return `${not ? 'not ' : ''}jsonb_exists((${super.wrap(field)})::jsonb${walk}, '${last.replaceAll("'", "''")}')`
+  }
+
+  /** `&&` on jsonb arrays is not defined, so the comparison is through arrays. */
+  protected override compileJsonOverlaps(
+    column: string,
+    value: unknown,
+    not: boolean,
+    bindings: unknown[]
+  ): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const walk = path.map((segment) => `->'${segment.replaceAll("'", "''")}'`).join('')
+
+    /**
+     * The raw value. The driver encodes a parameter cast to jsonb itself, so
+     * stringifying here encodes it twice and the document becomes a string.
+     */
+    bindings.push(value)
+
+    const parameter = this.parameter(bindings.length)
+    // Both sides are guarded: `jsonb_array_elements` raises on a scalar, and a
+    // row whose path holds something other than an array is a row that does not
+    // overlap, not a query that fails.
+    const elements = (subject: string) =>
+      `jsonb_array_elements(case when jsonb_typeof(${subject}) = 'array' then ${subject} else '[]'::jsonb end)`
+
+    return `${not ? 'not ' : ''}exists (select 1 from ${elements(`(${super.wrap(field)})::jsonb${walk}`)} as l(v) join ${elements(`${parameter}::jsonb`)} as r(v) on l.v = r.v)`
+  }
+
   /** `to_tsvector(...) @@ plainto_tsquery(?)` — no index required to be correct. */
   protected override compileFullText(
     columns: string[],

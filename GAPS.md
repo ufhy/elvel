@@ -11,7 +11,11 @@ documentation. That tag is the only place it is named: everywhere below it is
 "upstream", because a measurement needs a baseline and a gap row does not need a
 brand.
 
-**Open: 86** — all 37 components measured.
+**Open: 0** — all 37 components measured, and every row is closed.
+
+What is left in this file is the record of what each component was measured
+against and what was decided, including the things deliberately built otherwise
+and the things struck off with a reason.
 
 Thirteen added none: Concurrency, Conditionable, Config, Contracts, Encryption,
 Hashing, JsonSchema, Mail, Notifications, Reflection, Scheduling, Session and
@@ -433,38 +437,32 @@ so the portable form is to say it. And `{ stored: false }` is refused on
 Postgres, which has no virtual generated column — storing it anyway would make
 the same migration mean two different things.
 
-### Query builder: seven families missing
+The query builder's seven families are there: `whereAll`/`whereAny`/`whereNone`
+with their `or` forms; `whereJsonContainsKey`, `whereJsonOverlaps` and their
+negatives; `whereNotLike`; `orderByRaw`, `fromRaw`, `selectSub` and `rawValue`;
+`joinLateral`, `leftJoinLateral`, `joinWhere` and its two siblings, `rightJoinSub`
+and `straightJoin`; `whereBetweenColumns`, `whereValueBetween`,
+`whereRowValues` and `whereNullSafeEquals`; `updateFrom`, `insertOrIgnoreUsing`,
+`sole`/`soleValue`, `timeout`, the index hints and the `beforeQuery`/`afterQuery`
+hooks. Plus `toRawSql`, `dumpRawSql` and `dd`.
 
-136 methods against upstream's 232. Setting aside internals and pagination
-(recorded under Pagination), what is left:
+Three of them are a different statement on every engine, and each refusal is
+named rather than emitted: SQLite has no `lateral` join, MySQL has no
+`update … from`, and only MySQL can be given a timeout per statement — the others
+say where to set one instead. An index hint is the opposite case and is *dropped*
+elsewhere rather than refused: a hint is advice, so dropping it changes nothing
+about the answer.
 
-- **multi-column search** — `whereAll`, `whereAny`, `whereNone` and their `or`
-  forms: one search box against five columns, which is otherwise a nested
-  closure every time
-- **JSON** — `whereJsonContainsKey`, `whereJsonDoesntContain`,
-  `whereJsonOverlaps`, `whereJsonDoesntOverlap` and their negatives.
-  `whereJsonContains` and `whereJsonLength` are there
-- **`whereNotLike`** — `whereLike` is there and its negative is not
-- **raw and sub-select** — `orderByRaw`, `fromRaw`, `selectSub`,
-  `selectExpression`, `rawValue`
-- **joins** — `joinLateral`, `leftJoinLateral`, `joinWhere`, `leftJoinWhere`,
-  `rightJoinWhere`, `rightJoinSub`, `straightJoin`
-- **column comparisons** — `whereBetweenColumns`, `whereNotBetweenColumns`,
-  `whereRowValues`, `whereNullSafeEquals`, `whereValueBetween`
-- **operations** — `updateFrom`, `insertOrIgnoreUsing`, `insertOrIgnoreReturning`,
-  `soleValue`, `groupLimit`, `timeout`, index hints (`useIndex`, `forceIndex`,
-  `ignoreIndex`), and the `beforeQuery`/`afterQuery` hooks
+Two bindings bugs were found while writing this. A sub-select in the select list
+binds before the `from` and the `where`, so its values needed their own list —
+one flat list pairs them with the wrong placeholders and the query still runs.
+And `cloneQuery` never copied `unions`, so `clone()` silently dropped them.
 
-Plus the debugging ones: `toRawSql`, `dumpRawSql`, `dd`. `toRawSql` — the
-statement with its bindings inlined, ready to paste into a client — is the one
-that gets used most, and Lens's query panel would render it instead of the
-placeholder form.
-
-Upstream's vector search (`whereVectorSimilarTo`, `orderByVectorDistance`,
-`selectVectorDistance`) is absent too, and pairs with the missing
-`vectorIndex` above.
-
-**Done when** each family exists or is struck off with a reason.
+Struck off: `groupLimit`, which exists upstream to serve one relation loader and
+has no caller here; `insertOrIgnoreReturning`, because MySQL has no `returning`
+at all and the other two already have `insertGetId`; `selectExpression`, which is
+`selectRaw`; and the vector-search trio, which is `whereVectorDistance`,
+`orderByVector` and `selectRaw` under names this builder already had.
 
 ---
 

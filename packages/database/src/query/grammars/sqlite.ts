@@ -171,4 +171,56 @@ export class SQLiteGrammar extends Grammar {
 
     return `strftime('${format}', ${this.wrap(column)}) ${operator} cast(${parameter} as text)`
   }
+
+  protected override compileJsonContainsKey(column: string, not: boolean): string {
+    const { column: field, path } = this.jsonPathParts(column)
+
+    if (path.length === 0) {
+      throw new Error('whereJsonContainsKey() needs a path — `meta->flags`, not `meta`.')
+    }
+
+    // `json_type` is null for a path that is not there, and a type name — even
+    // for a stored null, which is `'null'` — for one that is.
+    return `json_type(${super.wrap(field)}, ${this.jsonPath(path)}) is ${not ? '' : 'not '}null`
+  }
+
+  /** Two `json_each` tables joined: SQLite has no array operators. */
+  protected override compileJsonOverlaps(
+    column: string,
+    value: unknown,
+    not: boolean,
+    bindings: unknown[]
+  ): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const target =
+      path.length > 0
+        ? `json_extract(${super.wrap(field)}, ${this.jsonPath(path)})`
+        : super.wrap(field)
+
+    bindings.push(JSON.stringify(value))
+
+    return `${not ? 'not ' : ''}exists (select 1 from json_each(${target}) as l join json_each(${this.parameter(bindings.length)}) as r on l.value = r.value)`
+  }
+
+  /** SQLite's `is` is already null-safe equality. */
+  protected override compileNullSafe(column: string, parameter: string, not: boolean): string {
+    return `${this.wrap(column)} is ${not ? 'not ' : ''}${parameter}`
+  }
+
+  protected override compileLateralJoin(): string {
+    throw new Error(
+      'sqlite has no lateral join. Use a correlated subquery in the select list, or a window function.'
+    )
+  }
+
+  /**
+   * `insert or ignore`, not `on conflict do nothing`.
+   *
+   * SQLite cannot tell where a `select` ends and an upsert clause begins, so the
+   * suffix form is a syntax error on exactly this statement — the prefix says
+   * the same thing and parses.
+   */
+  override compileIgnoreParts(): { prefix: string; suffix: string } {
+    return { prefix: 'insert or ignore into', suffix: '' }
+  }
 }

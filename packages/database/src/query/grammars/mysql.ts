@@ -163,6 +163,63 @@ export class MySqlGrammar extends Grammar {
 
     return `${wrapped} = json_set(${wrapped}, ${pairs.join(', ')})`
   }
+  protected override compileJsonContainsKey(column: string, not: boolean): string {
+    const { column: field, path } = this.jsonPathParts(column)
+
+    if (path.length === 0) {
+      throw new Error('whereJsonContainsKey() needs a path — `meta->flags`, not `meta`.')
+    }
+
+    return `${not ? 'not ' : ''}json_contains_path(${super.wrap(field)}, 'one', ${this.jsonPath(path)})`
+  }
+
+  protected override compileJsonOverlaps(
+    column: string,
+    value: unknown,
+    not: boolean,
+    bindings: unknown[]
+  ): string {
+    const { column: field, path } = this.jsonPathParts(column)
+    const target =
+      path.length > 0
+        ? `json_extract(${super.wrap(field)}, ${this.jsonPath(path)})`
+        : super.wrap(field)
+
+    bindings.push(JSON.stringify(value))
+
+    return `${not ? 'not ' : ''}json_overlaps(${target}, ${this.parameter(bindings.length)})`
+  }
+
+  protected override compileIndexHint(hint: { type: string; index: string }): string {
+    return `${hint.type} index (${this.wrap(hint.index)})`
+  }
+
+  protected override compileStraightJoin(): string {
+    return 'straight_join'
+  }
+
+  override compileIgnoreParts(): { prefix: string; suffix: string } {
+    return { prefix: 'insert ignore into', suffix: '' }
+  }
+
+  /** `update t join o on … set …` — MySQL's shape, which has no `from`. */
+  override compileUpdateFrom(): { sql: string; bindings: unknown[] } {
+    throw new Error(
+      'mysql has no `update … from`. Join the tables with join() and call update() instead.'
+    )
+  }
+
+  /** The optimizer hint, in milliseconds, and only a select honours it. */
+  protected override compileTimeout(seconds: number): string {
+    return `/*+ MAX_EXECUTION_TIME(${Math.round(seconds * 1000)}) */`
+  }
+
+  /** MySQL spells null-safe equality `<=>`, and negates it from outside. */
+  protected override compileNullSafe(column: string, parameter: string, not: boolean): string {
+    const comparison = `${this.wrap(column)} <=> ${parameter}`
+
+    return not ? `not (${comparison})` : comparison
+  }
 }
 
 export class MariaDbGrammar extends MySqlGrammar {

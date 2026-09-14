@@ -102,6 +102,103 @@ Every `where` and `having` has its `or` twin: `orWhereNull`, `orWhereBetween`,
 `orWhereColumn`, `orWhereRaw`, `orWhereLike`, `orHaving`, `orHavingBetween` and the
 rest.
 
+### One comparison, several columns
+
+```ts
+await users.whereAny(['name', 'email', 'company'], 'like', `%${term}%`)
+await users.whereAll(['name', 'email'], 'like', '%ada%')
+await users.whereNone(['name', 'email'], 'like', '%bot%')
+```
+
+The search box, which was otherwise a nested closure and five `orWhere`s at every
+call site. `whereNone` negates the group as a whole — not each comparison, which
+is a different question and a different set of rows.
+
+### Comparing with columns rather than values
+
+```ts
+await bookings.whereBetweenColumns(moment, ['starts_at', 'ends_at'])
+await orders.whereRowValues(['created_at', 'id'], '>', [cursor.at, cursor.id])
+await users.whereNullSafeEquals('deleted_by', maybeNull)
+```
+
+`whereRowValues` is lexicographic — `(a, b) > (1, 2)` is not `a > 1 and b > 2` —
+which is exactly what a keyset page over two columns needs.
+
+`whereNullSafeEquals` is the comparison that does not vanish: `where('x', null)`
+becomes `is null`, and a *bound* null matches nothing at all, so comparing
+against a value that might be null is silently empty. It is `<=>` on MySQL,
+`is not distinct from` on Postgres, and `is` on SQLite.
+
+### JSON
+
+```ts
+await users.whereJsonContains('meta->roles', 'admin')
+await users.whereJsonContainsKey('meta->beta')     // present, even holding null
+await users.whereJsonOverlaps('meta->tags', ['sale', 'new'])
+await users.whereJsonLength('meta->roles', '>', 1)
+```
+
+`whereJsonContainsKey` is not a comparison against null: a key holding `null` is
+present and one that was never written is not, and nothing else can tell them
+apart. Each has its `Doesnt` and `or` forms.
+
+### Sub-selects, raw pieces, and lateral joins
+
+```ts
+await users.selectSub(lastOrder, 'last_order_at').get()
+await users.fromRaw('(values (1), (2)) as t(n)').get()
+await users.orderByRaw('field(status, ?, ?)', ['open', 'done']).get()
+await users.rawValue<number>('count(*) filter (where paid)')
+
+await users.joinLateral(recentOrders, 'recent').get()
+await users.joinWhere('orders', 'orders.total', '>', 100).get()
+```
+
+A sub-select's bindings are kept apart from the wheres', because SQL reads the
+select list first — one flat list pairs values with the wrong placeholders and
+the query still runs. SQLite has no `lateral` and says so rather than emitting a
+join whose subquery cannot see the row it is joined to.
+
+### Writing from another query, and reading exactly one row
+
+```ts
+await totals.insertOrIgnoreUsing(['user_id', 'total'], orders.select('user_id', 'total'))
+await users.join('orders', 'orders.user_id', '=', 'users.id').updateFrom({ spend: 42 })
+
+await users.where('email', address).sole()          // exactly one, or an error
+await users.where('email', address).soleValue('id')
+```
+
+`insertUsing` is all-or-nothing: one duplicate loses the whole batch, which for a
+backfill run twice is the difference between a no-op and an error. `sole()` is
+`first()` for a lookup that is supposed to be unique — a query that matched three
+rows answers one of them and says nothing, which is how a column that turned out
+not to be unique goes unnoticed for months.
+
+MySQL has no `update … from` and says to join and update instead.
+
+### Reading the statement, and hooks
+
+```ts
+users.where('name', 'Ada').toRawSql()
+// select * from "users" where "name" = 'Ada'
+
+users.dumpRawSql()  // print it and carry on
+users.dd()          // print it and stop
+
+users.beforeQuery((query) => query.where('tenant_id', tenant))
+users.afterQuery((rows) => rows.filter(visible))
+
+users.forceIndex('users_email_index')   // MySQL's; ignored elsewhere
+users.timeout(5)                        // MySQL's hint; the others say where to set one
+```
+
+`toRawSql` is for reading, never for running: the values are quoted for display
+and it is not an escaping routine. An index hint is advice, so dropping it
+elsewhere changes nothing about the answer — a timeout is a promise, so an engine
+that cannot keep it per statement says so rather than ignoring it.
+
 ### Models
 
 The model layer has no brand name — it is `Model`, and the docs call them models.

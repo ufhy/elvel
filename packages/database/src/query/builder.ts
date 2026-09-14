@@ -47,6 +47,8 @@ function compileSub(query: Subqueryable): { sql: string; bindings: unknown[] } {
 
 export class QueryBuilder<T extends Row = Row> extends Macroable {
   private query: QueryComponents
+  private readonly beforeCallbacks: Array<(query: QueryBuilder<T>) => void> = []
+  private readonly afterCallbacks: Array<(rows: Collection<T>) => Collection<T> | void> = []
 
   constructor(
     readonly connection: Connection,
@@ -78,6 +80,35 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
     return this
   }
 
+  /**
+   * A subquery as one column — `selectSub(latest, 'last_order_at')`.
+   *
+   * Its bindings are kept apart from the wheres': SQL reads the select list
+   * first, so a placeholder there is filled before any that follow it, and one
+   * flat list silently pairs values with the wrong question marks.
+   */
+  selectSub(query: QueryBuilder<Row> | Subqueryable, alias: string): this {
+    const sub = compileSub(query)
+
+    this.query.columns.push(raw(`(${sub.sql}) as ${this.connection.grammar.wrapTable(alias)}`))
+    this.query.columnBindings = [...(this.query.columnBindings ?? []), ...sub.bindings]
+
+    return this
+  }
+
+  /**
+   * `from (…)` written out — for a table-valued function or a VALUES list.
+   *
+   * The SQL is emitted verbatim, so it is the caller's to trust. `fromSub` is
+   * the one to reach for when a query builder can say it.
+   */
+  fromRaw(sql: string, bindings: unknown[] = []): this {
+    this.query.fromRaw = raw(sql)
+    this.query.fromBindings = [...bindings]
+
+    return this
+  }
+
   distinct(): this {
     this.query.distinct = true
     return this
@@ -95,6 +126,84 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
 
   rightJoin(table: string, first: string, operator: Operator, second: string): this {
     return this.addJoin('right', table, first, operator, second)
+  }
+
+  /**
+   * A join whose subquery can see the row it is joined to.
+   *
+   * The three-most-recent-per-user query, without a window function: the
+   * subquery takes its own `limit` per outer row, which an ordinary join cannot
+   * express. SQLite has no `lateral` and says so.
+   */
+  joinLateral(
+    query: QueryBuilder<Row> | Subqueryable,
+    alias: string,
+    type: 'inner' | 'left' = 'inner'
+  ): this {
+    const sub = compileSub(query)
+
+    this.query.joins.push({
+      type,
+      lateral: true,
+      table: raw(`(${sub.sql}) as ${this.connection.grammar.wrapTable(alias)}`),
+      wheres: [],
+      bindings: sub.bindings
+    })
+
+    return this
+  }
+
+  leftJoinLateral(query: QueryBuilder<Row> | Subqueryable, alias: string): this {
+    return this.joinLateral(query, alias, 'left')
+  }
+
+  rightJoinSub(
+    query: QueryBuilder<Row> | Subqueryable,
+    alias: string,
+    first: string,
+    operator: Operator,
+    second: string
+  ): this {
+    return this.joinSub(query, alias, first, operator, second, 'right')
+  }
+
+  /**
+   * Join on a value rather than a column — `joinWhere('roles', 'roles.level', '>', 3)`.
+   *
+   * `join()` compares two columns, so a constant in the `on` clause had to be
+   * either a `where` — which changes what a left join returns — or raw SQL.
+   */
+  joinWhere(table: string, first: string, operator: Operator, value: Value): this {
+    return this.addJoinWhere('inner', table, first, operator, value)
+  }
+
+  leftJoinWhere(table: string, first: string, operator: Operator, value: Value): this {
+    return this.addJoinWhere('left', table, first, operator, value)
+  }
+
+  rightJoinWhere(table: string, first: string, operator: Operator, value: Value): this {
+    return this.addJoinWhere('right', table, first, operator, value)
+  }
+
+  /** MySQL's `straight_join` — read the left table first, whatever the planner thinks. */
+  straightJoin(table: string, first: string, operator: Operator, second: string): this {
+    return this.addJoin('straight', table, first, operator, second)
+  }
+
+  private addJoinWhere(
+    type: JoinClause['type'],
+    table: string,
+    first: string,
+    operator: Operator,
+    value: Value
+  ): this {
+    this.query.joins.push({
+      type,
+      table,
+      wheres: [{ type: 'basic', column: first, operator: String(operator), value, boolean: 'and' }]
+    })
+
+    return this
   }
 
   crossJoin(table: string): this {
@@ -547,6 +656,233 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
     return this.orWhere(column, 'like', value)
   }
 
+  /**
+   * Is the key there at all?
+   *
+   * Not the same question as whether it is null: a key holding null is present
+   * and one that was never written is not, and `where('meta->beta', null)`
+   * cannot tell them apart.
+   */
+  whereJsonContainsKey(column: string, boolean: Boolean_ = 'and', not = false): this {
+    this.query.wheres.push({ type: 'jsonContainsKey', column, not, boolean })
+
+    return this
+  }
+
+  whereJsonDoesntContainKey(column: string): this {
+    return this.whereJsonContainsKey(column, 'and', true)
+  }
+
+  orWhereJsonContainsKey(column: string): this {
+    return this.whereJsonContainsKey(column, 'or')
+  }
+
+  orWhereJsonDoesntContainKey(column: string): this {
+    return this.whereJsonContainsKey(column, 'or', true)
+  }
+
+  /** Do the stored array and this one share a member? */
+  whereJsonOverlaps(column: string, value: unknown, boolean: Boolean_ = 'and', not = false): this {
+    this.query.wheres.push({ type: 'jsonOverlaps', column, value, not, boolean })
+
+    return this
+  }
+
+  whereJsonDoesntOverlap(column: string, value: unknown): this {
+    return this.whereJsonOverlaps(column, value, 'and', true)
+  }
+
+  orWhereJsonOverlaps(column: string, value: unknown): this {
+    return this.whereJsonOverlaps(column, value, 'or')
+  }
+
+  orWhereJsonDoesntOverlap(column: string, value: unknown): this {
+    return this.whereJsonOverlaps(column, value, 'or', true)
+  }
+
+  whereNotLike(column: string, value: string): this {
+    return this.where(column, 'not like', value)
+  }
+
+  orWhereNotLike(column: string, value: string): this {
+    return this.orWhere(column, 'not like', value)
+  }
+
+  // ------------------------------------------------------ many columns, once
+
+  /**
+   * One comparison against several columns — `whereAny`, the search box.
+   *
+   * A search across five columns was a nested closure and five `orWhere`s at
+   * every call site. These are that closure: `whereAny` joins them with `or`,
+   * `whereAll` with `and`, and `whereNone` is `whereAny` negated as a whole,
+   * which is not the same as comparing each column with `not`.
+   */
+  whereAny(columns: string[], operator: Operator, value?: Value): this
+  whereAny(columns: string[], value: Value): this
+  whereAny(columns: string[], operatorOrValue?: Operator | Value, value?: Value): this {
+    // biome-ignore lint/complexity/noArguments: the arity says whether an operator was given.
+    return this.whereMany(columns, operatorOrValue, value, arguments.length, 'or', 'and', false)
+  }
+
+  orWhereAny(columns: string[], operator: Operator, value?: Value): this
+  orWhereAny(columns: string[], value: Value): this
+  orWhereAny(columns: string[], operatorOrValue?: Operator | Value, value?: Value): this {
+    // biome-ignore lint/complexity/noArguments: the arity says whether an operator was given.
+    return this.whereMany(columns, operatorOrValue, value, arguments.length, 'or', 'or', false)
+  }
+
+  whereAll(columns: string[], operator: Operator, value?: Value): this
+  whereAll(columns: string[], value: Value): this
+  whereAll(columns: string[], operatorOrValue?: Operator | Value, value?: Value): this {
+    // biome-ignore lint/complexity/noArguments: the arity says whether an operator was given.
+    return this.whereMany(columns, operatorOrValue, value, arguments.length, 'and', 'and', false)
+  }
+
+  orWhereAll(columns: string[], operator: Operator, value?: Value): this
+  orWhereAll(columns: string[], value: Value): this
+  orWhereAll(columns: string[], operatorOrValue?: Operator | Value, value?: Value): this {
+    // biome-ignore lint/complexity/noArguments: the arity says whether an operator was given.
+    return this.whereMany(columns, operatorOrValue, value, arguments.length, 'and', 'or', false)
+  }
+
+  whereNone(columns: string[], operator: Operator, value?: Value): this
+  whereNone(columns: string[], value: Value): this
+  whereNone(columns: string[], operatorOrValue?: Operator | Value, value?: Value): this {
+    // biome-ignore lint/complexity/noArguments: the arity says whether an operator was given.
+    return this.whereMany(columns, operatorOrValue, value, arguments.length, 'or', 'and', true)
+  }
+
+  orWhereNone(columns: string[], operator: Operator, value?: Value): this
+  orWhereNone(columns: string[], value: Value): this
+  orWhereNone(columns: string[], operatorOrValue?: Operator | Value, value?: Value): this {
+    // biome-ignore lint/complexity/noArguments: the arity says whether an operator was given.
+    return this.whereMany(columns, operatorOrValue, value, arguments.length, 'or', 'or', true)
+  }
+
+  private whereMany(
+    columns: string[],
+    operatorOrValue: Operator | Value,
+    value: Value,
+    argumentCount: number,
+    inner: Boolean_,
+    boolean: Boolean_,
+    not: boolean
+  ): this {
+    const [operator, resolved] = this.normaliseOperator(operatorOrValue, value, argumentCount)
+
+    if (columns.length === 0) return this
+
+    this.query.wheres.push({
+      type: 'nested',
+      not,
+      boolean,
+      wheres: columns.map((column, index) => ({
+        type: 'basic' as const,
+        column,
+        operator,
+        value: resolved,
+        boolean: index === 0 ? ('and' as Boolean_) : inner
+      }))
+    })
+
+    return this
+  }
+
+  // -------------------------------------------------- comparing with columns
+
+  /**
+   * Is this value inside the window two columns describe?
+   *
+   * `whereBetweenColumns('2026-01-01', ['starts_at', 'ends_at'])` — the bounds
+   * are columns, so a row whose own two dates bracket the value matches.
+   */
+  whereBetweenColumns(
+    value: Value | Expression,
+    columns: [string, string],
+    boolean: Boolean_ = 'and',
+    not = false
+  ): this {
+    this.query.wheres.push({
+      type: 'betweenColumns',
+      column: isExpression(value) ? value : (value as string),
+      columns,
+      not,
+      boolean
+    })
+
+    return this
+  }
+
+  whereNotBetweenColumns(value: Value | Expression, columns: [string, string]): this {
+    return this.whereBetweenColumns(value, columns, 'and', true)
+  }
+
+  orWhereBetweenColumns(value: Value | Expression, columns: [string, string]): this {
+    return this.whereBetweenColumns(value, columns, 'or')
+  }
+
+  orWhereNotBetweenColumns(value: Value | Expression, columns: [string, string]): this {
+    return this.whereBetweenColumns(value, columns, 'or', true)
+  }
+
+  /** `whereValueBetween` reads the other way round, and means the same thing. */
+  whereValueBetween(value: Value | Expression, columns: [string, string]): this {
+    return this.whereBetweenColumns(value, columns)
+  }
+
+  /**
+   * Compare several columns as one tuple — `(a, b) > (1, 2)`.
+   *
+   * Lexicographic, not column by column: that is the difference between a keyset
+   * page that skips rows and one that does not.
+   */
+  whereRowValues(
+    columns: string[],
+    operator: Operator,
+    values: Value[],
+    boolean: Boolean_ = 'and'
+  ): this {
+    if (columns.length !== values.length) {
+      throw new Error('whereRowValues needs as many values as columns.')
+    }
+
+    this.query.wheres.push({
+      type: 'rowValues',
+      columns,
+      operator: String(operator),
+      values,
+      boolean
+    })
+
+    return this
+  }
+
+  orWhereRowValues(columns: string[], operator: Operator, values: Value[]): this {
+    return this.whereRowValues(columns, operator, values, 'or')
+  }
+
+  /**
+   * Equal, counting two nulls as equal.
+   *
+   * `where('deleted_by', null)` becomes `is null` and a bound null matches
+   * nothing at all, so a comparison against a value that *might* be null is
+   * silently empty. This is the comparison that is not.
+   */
+  whereNullSafeEquals(column: string, value: Value, boolean: Boolean_ = 'and', not = false): this {
+    this.query.wheres.push({ type: 'nullSafe', column, value, not, boolean })
+
+    return this
+  }
+
+  orWhereNullSafeEquals(column: string, value: Value): this {
+    return this.whereNullSafeEquals(column, value, 'or')
+  }
+
+  whereNotNullSafeEquals(column: string, value: Value): this {
+    return this.whereNullSafeEquals(column, value, 'and', true)
+  }
+
   orWhereNull(column: string): this {
     return this.whereNull(column, 'or')
   }
@@ -677,6 +1013,19 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
     }
 
     this.query.orders.push({ column, direction: wanted })
+
+    return this
+  }
+
+  /**
+   * Order by an expression — `orderByRaw('field(status, ?, ?)', ['open', 'done'])`.
+   *
+   * `orderBy` refuses a string it cannot quote as a column, deliberately: that
+   * is the blind-oracle injection this name exists to make visible at the call
+   * site.
+   */
+  orderByRaw(sql: string, bindings: unknown[] = []): this {
+    this.query.orders.push({ column: raw(sql), bindings: [...bindings] })
 
     return this
   }
@@ -875,6 +1224,8 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
   }
 
   compile(): { sql: string; bindings: unknown[] } {
+    this.applyBeforeQuery()
+
     return this.connection.grammar.compileSelect(this.query)
   }
 
@@ -886,12 +1237,138 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
     return this.compile().bindings
   }
 
+  /**
+   * The statement with its bindings written in — ready to paste into a client.
+   *
+   * For reading, never for running: the values are quoted for display and this
+   * is not an escaping routine. Every placeholder is filled in order, which is
+   * also how a mispaired binding becomes visible.
+   */
+  toRawSql(): string {
+    const { sql, bindings } = this.compile()
+    const values = [...bindings]
+
+    return sql.replace(/\?|\$\d+/g, (token) => {
+      const index = token.startsWith('$') ? Number(token.slice(1)) - 1 : 0
+      const value = token.startsWith('$') ? bindings[index] : values.shift()
+
+      return literal(value)
+    })
+  }
+
+  /** Print the statement with its bindings written in, and carry on. */
+  dumpRawSql(): this {
+    console.log(this.toRawSql())
+
+    return this
+  }
+
+  /** Print it and stop — the one that is meant to be deleted again. */
+  dd(): never {
+    console.log(this.toRawSql())
+
+    throw new Error('Query dumped.')
+  }
+
+  /**
+   * Run something over the query before it is compiled.
+   *
+   * A scope applied from outside the call site — a tenant filter, a soft-delete
+   * condition — without the caller having to remember it.
+   */
+  beforeQuery(callback: (query: QueryBuilder<T>) => void): this {
+    this.beforeCallbacks.push(callback)
+
+    return this
+  }
+
+  /** Run something over the rows before they are handed back. */
+  afterQuery(callback: (rows: Collection<T>) => Collection<T> | void): this {
+    this.afterCallbacks.push(callback)
+
+    return this
+  }
+
+  private applyBeforeQuery(): void {
+    if (this.beforeCallbacks.length === 0) return
+
+    // Taken and cleared first: compiling twice must not apply them twice, and a
+    // callback that adds another must not make this endless.
+    const callbacks = [...this.beforeCallbacks]
+    this.beforeCallbacks.length = 0
+
+    for (const callback of callbacks) callback(this)
+  }
+
+  private applyAfterQuery(rows: Collection<T>): Collection<T> {
+    let result = rows
+
+    for (const callback of this.afterCallbacks) {
+      const returned = callback(result)
+
+      if (returned !== undefined) result = returned
+    }
+
+    return result
+  }
+
+  // ------------------------------------------------------------- index hints
+
+  /**
+   * `use index (…)` — advice for the planner, MySQL's alone.
+   *
+   * Postgres has no hints by design and SQLite's `indexed by` is a different
+   * promise: it fails when the index cannot be used, where a hint is ignored.
+   * So the others drop it rather than refusing — a hint changes nothing about
+   * the answer.
+   */
+  useIndex(index: string): this {
+    this.query.indexHint = { type: 'use', index }
+
+    return this
+  }
+
+  forceIndex(index: string): this {
+    this.query.indexHint = { type: 'force', index }
+
+    return this
+  }
+
+  ignoreIndex(index: string): this {
+    this.query.indexHint = { type: 'ignore', index }
+
+    return this
+  }
+
   // ----------------------------------------------------------------- reading
 
   async get(): Promise<Collection<T>> {
-    const { sql, bindings } = this.connection.grammar.compileSelect(this.query)
+    const { sql, bindings } = this.compile()
 
-    return new Collection(await this.connection.select<T>(sql, bindings))
+    return this.applyAfterQuery(new Collection(await this.connection.select<T>(sql, bindings)))
+  }
+
+  /**
+   * Exactly one row, or an error naming which of the two happened.
+   *
+   * `first()` on a query that matched three rows answers one of them and says
+   * nothing, which is how a lookup by a column that turned out not to be unique
+   * goes unnoticed for months.
+   */
+  async sole(): Promise<T> {
+    const rows = await this.clone().limit(2).get()
+
+    if (rows.count() === 0) throw new Error(`No rows found in [${this.query.from}].`)
+    if (rows.count() > 1) throw new Error(`More than one row found in [${this.query.from}].`)
+
+    return rows.first() as T
+  }
+
+  /** The one value of the one row, with the same two errors. */
+  async soleValue<V = unknown>(column: string): Promise<V> {
+    const row = await this.clone().select(column).sole()
+
+    return row[column] as V
   }
 
   async first(): Promise<T | undefined> {
@@ -1352,6 +1829,65 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
   }
 
   /**
+   * The rows another query selects, skipping the ones that collide.
+   *
+   * `insertUsing` with a unique index is all-or-nothing: one duplicate loses the
+   * whole batch, which for a backfill run twice is the difference between a
+   * no-op and an error.
+   */
+  async insertOrIgnoreUsing(
+    columns: string[],
+    query: QueryBuilder<Row> | Subqueryable
+  ): Promise<number> {
+    const sub = compileSub(query)
+    const grammar = this.connection.grammar
+    const { prefix, suffix } = grammar.compileIgnoreParts()
+    const wrapped = columns.map((column) => grammar.wrap(column)).join(', ')
+
+    return this.connection.affectingStatement(
+      `${prefix} ${grammar.wrapTable(this.query.from)} (${wrapped}) ${sub.sql}${suffix}`,
+      sub.bindings
+    )
+  }
+
+  /**
+   * Update from another table — `update … from …`.
+   *
+   * The joins added with `join()` become the `from` list and their conditions
+   * become part of the `where`, because an `update … from` has no `on` clause to
+   * put them in. MySQL has no such statement and says so.
+   */
+  async updateFrom(values: Record<string, unknown>): Promise<number> {
+    const { sql, bindings } = this.connection.grammar.compileUpdateFrom(this.query, values)
+
+    return this.connection.affectingStatement(sql, bindings)
+  }
+
+  /** Seconds the server may spend on this statement, where it can be told. */
+  timeout(seconds: number): this {
+    this.query.timeout = seconds
+
+    return this
+  }
+
+  /**
+   * The value of one expression — `rawValue('count(*) filter (where paid)')`.
+   *
+   * A single answer out of SQL the builder has no word for, without a column
+   * name to read it back by.
+   */
+  async rawValue<V = unknown>(sql: string, bindings: unknown[] = []): Promise<V | undefined> {
+    const query = this.clone()
+
+    query.query.columns = [raw(`${sql} as ${this.connection.grammar.wrap('raw_value')}`)]
+    query.query.columnBindings = [...bindings]
+
+    const row = await query.limit(1).get()
+
+    return row.first()?.raw_value as V | undefined
+  }
+
+  /**
    * Select from a subquery — `from (select …) as alias`.
    *
    * For anything that has to aggregate and then filter on the aggregate, which a
@@ -1417,6 +1953,8 @@ export { isExpression }
 function literal(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   if (value === null || value === undefined) return 'null'
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  if (value instanceof Date) return `'${value.toISOString()}'`
 
   return `'${String(value).replace(/'/g, "''")}'`
 }

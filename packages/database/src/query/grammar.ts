@@ -24,7 +24,7 @@ import type { QueryComponents, WhereClause } from './types.ts'
  * backstop and the call site throws. A grammar failing loudly here would turn a bug
  * three layers up into an exception with no useful stack.
  */
-const JOIN_TYPES = new Set(['inner', 'left', 'right', 'cross'])
+const JOIN_TYPES = new Set(['inner', 'left', 'right', 'cross', 'straight'])
 
 export abstract class Grammar {
   /** Identifier quote character. MySQL overrides this with a backtick. */
@@ -206,7 +206,22 @@ export abstract class Grammar {
       parts.push(`select ${query.distinct ? 'distinct ' : ''}${columns}`)
     }
 
+    if (query.timeout !== undefined) {
+      const hint = this.compileTimeout(query.timeout)
+
+      if (hint !== '') parts[0] = `${parts[0]?.replace('select', `select ${hint}`)}`
+    }
+
+    // The select list is read first, so a sub-select's placeholders bind first.
+    if (query.columnBindings) bindings.push(...query.columnBindings)
+
     parts.push(`from ${query.fromRaw ? query.fromRaw.value : this.wrapTable(query.from)}`)
+
+    if (query.indexHint) {
+      const hint = this.compileIndexHint(query.indexHint)
+
+      if (hint !== '') parts.push(hint)
+    }
 
     // Before the joins, because the subquery is written before them.
     if (query.fromBindings) bindings.push(...query.fromBindings)
@@ -218,6 +233,20 @@ export abstract class Grammar {
 
       const on = this.compileWheres(join.wheres, bindings, 'on')
       const type = JOIN_TYPES.has(join.type) ? join.type : 'inner'
+
+      if (join.lateral) {
+        parts.push(this.compileLateralJoin(type, this.wrapTable(join.table), on))
+
+        continue
+      }
+
+      if (type === 'straight') {
+        parts.push(
+          `${this.compileStraightJoin()} ${this.wrapTable(join.table)}${on ? ` on ${on}` : ''}`
+        )
+
+        continue
+      }
 
       parts.push(`${type} join ${this.wrapTable(join.table)}${on ? ` on ${on}` : ''}`)
     }
@@ -242,6 +271,8 @@ export abstract class Grammar {
           }
 
           if (order.column === undefined) return ''
+
+          if (order.bindings) bindings.push(...order.bindings)
 
           return isExpression(order.column)
             ? order.column.value
@@ -281,6 +312,33 @@ export abstract class Grammar {
     return { sql: parts.join(' '), bindings }
   }
 
+  /**
+   * `use index`, `force index`, `ignore index` — MySQL's, and nobody else's.
+   *
+   * Postgres has no hints at all by design and SQLite has `indexed by`, which is
+   * a different promise: it *fails* when the index cannot be used, where a hint
+   * is advice. Ignored rather than refused elsewhere, because a hint is a
+   * performance note and dropping it changes nothing about the answer.
+   */
+  protected compileIndexHint(_hint: { type: string; index: string }): string {
+    return ''
+  }
+
+  /**
+   * A lateral join, which two of these three can do.
+   *
+   * SQLite has no `lateral` at all, so its grammar says so rather than emitting
+   * a join whose subquery cannot see the row it is joined to.
+   */
+  protected compileLateralJoin(type: string, table: string, on: string): string {
+    return `${type === 'left' ? 'left' : 'inner'} join lateral ${table} on ${on === '' ? 'true' : on}`
+  }
+
+  /** MySQL's `straight_join`, which forces the left table to be read first. */
+  protected compileStraightJoin(): string {
+    throw new Error('This database engine does not support straight joins.')
+  }
+
   protected compileJsonContains(
     _column: string,
     _value: unknown,
@@ -290,6 +348,27 @@ export abstract class Grammar {
     throw new Error('This database engine does not support JSON contains operations.')
   }
 
+  /**
+   * Does the document have this key at all?
+   *
+   * Different from a comparison against null: a key holding `null` is present,
+   * and a key that was never written is not — which is the whole question when
+   * a JSON column carries optional settings.
+   */
+  protected compileJsonContainsKey(_column: string, _not: boolean): string {
+    throw new Error('This database engine does not support whereJsonContainsKey().')
+  }
+
+  /** Do these two arrays share at least one member? */
+  protected compileJsonOverlaps(
+    _column: string,
+    _value: unknown,
+    _not: boolean,
+    _bindings: unknown[]
+  ): string {
+    throw new Error('This database engine does not support whereJsonOverlaps().')
+  }
+
   protected compileFullText(_columns: string[], _value: string, _bindings: unknown[]): string {
     throw new Error('This database engine does not support full-text search.')
   }
@@ -297,6 +376,17 @@ export abstract class Grammar {
   /** `for update` / `lock in share mode`. SQLite has no row locks. */
   protected compileLock(_lock: 'update' | 'share'): string {
     return ''
+  }
+
+  /**
+   * `=`, except that two nulls are equal.
+   *
+   * MySQL has an operator for it, Postgres a phrase, and SQLite's `is` does the
+   * same thing. Without it, comparing a nullable column to a value that might be
+   * null matches nothing and says nothing about why.
+   */
+  protected compileNullSafe(column: string, parameter: string, not: boolean): string {
+    return `${this.wrap(column)} is ${not ? '' : 'not '}distinct from ${parameter}`
   }
 
   // ------------------------------------------------------------------ wheres
@@ -372,6 +462,14 @@ export abstract class Grammar {
         return this.compileJsonContains(where.column, where.value, where.not, bindings)
       }
 
+      case 'jsonContainsKey': {
+        return this.compileJsonContainsKey(where.column, where.not)
+      }
+
+      case 'jsonOverlaps': {
+        return this.compileJsonOverlaps(where.column, where.value, where.not, bindings)
+      }
+
       case 'vectorDistance': {
         bindings.push(this.vectorLiteral(where.vector))
         const distance = this.compileVectorDistance(
@@ -403,7 +501,44 @@ export abstract class Grammar {
 
       case 'nested': {
         const inner = this.compileWheres(where.wheres, bindings, context)
-        return `(${inner})`
+
+        return where.not === true ? `not (${inner})` : `(${inner})`
+      }
+
+      case 'betweenColumns': {
+        const subject = isExpression(where.column)
+          ? where.column.value
+          : (() => {
+              bindings.push(where.column)
+
+              return this.parameter(bindings.length)
+            })()
+
+        return `${subject} ${where.not ? 'not between' : 'between'} ${this.wrap(where.columns[0])} and ${this.wrap(where.columns[1])}`
+      }
+
+      /**
+       * A tuple comparison, which every one of these engines supports.
+       *
+       * `(a, b) > (1, 2)` is not `a > 1 and b > 2` — it is the lexicographic
+       * order, which is what a keyset page over two columns actually needs.
+       */
+      case 'rowValues': {
+        const placeholders = where.values
+          .map((value) => {
+            bindings.push(value)
+
+            return this.parameter(bindings.length)
+          })
+          .join(', ')
+
+        return `(${this.columnize(where.columns)}) ${where.operator} (${placeholders})`
+      }
+
+      case 'nullSafe': {
+        bindings.push(where.value)
+
+        return this.compileNullSafe(where.column, this.parameter(bindings.length), where.not)
       }
 
       case 'raw': {
@@ -541,6 +676,69 @@ export abstract class Grammar {
     uniqueBy: string[],
     update: string[]
   ): { sql: string; bindings: unknown[] }
+
+  /**
+   * How this dialect says "skip a row that collides".
+   *
+   * MySQL prefixes the statement, Postgres and SQLite suffix it, which is why
+   * `insertUsing` could not simply reuse `compileInsertOrIgnore` — that one
+   * builds the whole statement from rows it has.
+   */
+  compileIgnoreParts(): { prefix: string; suffix: string } {
+    return { prefix: 'insert into', suffix: ' on conflict do nothing' }
+  }
+
+  /**
+   * `update … from …` — an update whose values come from another table.
+   *
+   * Postgres and SQLite both have it; MySQL updates through a join instead, and
+   * says so rather than emitting one engine's syntax for another.
+   */
+  compileUpdateFrom(
+    query: QueryComponents,
+    values: Record<string, unknown>
+  ): { sql: string; bindings: unknown[] } {
+    const bindings: unknown[] = []
+    const assignments: string[] = []
+
+    for (const [column, value] of Object.entries(values)) {
+      if (isExpression(value)) {
+        assignments.push(`${this.wrap(column)} = ${value.value}`)
+
+        continue
+      }
+
+      bindings.push(value ?? null)
+      assignments.push(`${this.wrap(column)} = ${this.parameter(bindings.length)}`)
+    }
+
+    const parts = [`update ${this.wrapTable(query.from)} set ${assignments.join(', ')}`]
+
+    if (query.joins.length > 0) {
+      parts.push(`from ${query.joins.map((join) => this.wrapTable(join.table)).join(', ')}`)
+    }
+
+    // The joins' own conditions become part of the where: `update … from` has no
+    // `on` clause to put them in.
+    const conditions = [...query.joins.flatMap((join) => join.wheres), ...query.wheres]
+    const wheres = this.compileWheres(
+      conditions.map((where, index) =>
+        index === 0 ? { ...where, boolean: 'and' as const } : where
+      ),
+      bindings
+    )
+
+    if (wheres) parts.push(`where ${wheres}`)
+
+    return { sql: parts.join(' '), bindings }
+  }
+
+  /** Seconds the server may spend, where the dialect can be told per statement. */
+  protected compileTimeout(_seconds: number): string {
+    throw new Error(
+      'This database engine has no per-statement timeout. Set one on the connection or the session instead.'
+    )
+  }
 
   abstract compileInsertOrIgnore(
     table: string,

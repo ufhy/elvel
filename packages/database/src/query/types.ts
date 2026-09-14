@@ -34,9 +34,38 @@ export type WhereClause =
       value: unknown
       boolean: Boolean_
     }
-  | { type: 'nested'; wheres: WhereClause[]; boolean: Boolean_ }
+  | { type: 'nested'; wheres: WhereClause[]; not?: boolean; boolean: Boolean_ }
+  /**
+   * `whereBetweenColumns` — a value, or a column, between two columns.
+   *
+   * The bounds are columns rather than values, which is what a date range stored
+   * as two columns needs: `? between starts_at and ends_at` asks whether a
+   * moment falls inside a row's window, and nothing else in the builder can say
+   * that without raw SQL.
+   */
+  | {
+      type: 'betweenColumns'
+      column: string | Expression
+      columns: [string, string]
+      not: boolean
+      boolean: Boolean_
+    }
+  /** `(a, b) >= (?, ?)` — a keyset page, compared as a tuple. */
+  | {
+      type: 'rowValues'
+      columns: string[]
+      operator: string
+      values: unknown[]
+      boolean: Boolean_
+    }
+  /** `a <=> ?` — equal, and two nulls are equal. */
+  | { type: 'nullSafe'; column: string; value: unknown; not: boolean; boolean: Boolean_ }
   | { type: 'raw'; sql: string; bindings: unknown[]; boolean: Boolean_ }
   | { type: 'jsonContains'; column: string; value: unknown; not: boolean; boolean: Boolean_ }
+  /** `whereJsonContainsKey('meta->flags')` — is the key there at all? */
+  | { type: 'jsonContainsKey'; column: string; not: boolean; boolean: Boolean_ }
+  /** `whereJsonOverlaps('tags', ['a', 'b'])` — do the two arrays share anything? */
+  | { type: 'jsonOverlaps'; column: string; value: unknown; not: boolean; boolean: Boolean_ }
   | {
       type: 'jsonLength'
       column: string
@@ -56,8 +85,16 @@ export type WhereClause =
   | { type: 'fullText'; columns: string[]; value: string; boolean: Boolean_ }
 
 export type JoinClause = {
-  type: 'inner' | 'left' | 'right' | 'cross'
+  type: 'inner' | 'left' | 'right' | 'cross' | 'straight'
   table: string | Expression
+  /**
+   * A join whose subquery may refer to the row being joined to.
+   *
+   * `on true` rather than a condition: a lateral join's correlation lives inside
+   * the subquery, which is the whole point of it — the three-most-recent-per-user
+   * query that otherwise needs a window function.
+   */
+  lateral?: boolean
   wheres: WhereClause[]
   /**
    * Bindings belonging to the joined table itself.
@@ -71,6 +108,8 @@ export type JoinClause = {
 export type OrderClause = {
   column?: string | Expression
   direction?: 'asc' | 'desc'
+  /** Bindings belonging to a raw order — `orderByRaw('field(id, ?, ?)', …)`. */
+  bindings?: unknown[]
   /** Set by `orderByVector`: order by distance from this vector. */
   vector?: { column: string; metric: VectorMetric; values: number[] }
 }
@@ -117,6 +156,13 @@ export type QueryComponents = {
    */
   fromBindings?: unknown[]
   columns: Array<string | Expression>
+  /**
+   * Bindings belonging to a sub-select in the column list.
+   *
+   * Separate because SQL reads the select list first: a placeholder there is
+   * filled before any in the `from` or the `where` that follow it.
+   */
+  columnBindings?: unknown[]
   distinct: boolean
   aggregate?: AggregateClause
   joins: JoinClause[]
@@ -127,6 +173,10 @@ export type QueryComponents = {
   limit?: number
   offset?: number
   lock?: 'update' | 'share'
+  /** `use index (…)`, `force index (…)`, `ignore index (…)` — MySQL's hints. */
+  indexHint?: { type: 'use' | 'force' | 'ignore'; index: string }
+  /** Seconds the server is allowed to spend on this statement. */
+  timeout?: number
 }
 
 /**
@@ -143,6 +193,7 @@ export function cloneQuery(query: QueryComponents): QueryComponents {
     fromRaw: query.fromRaw,
     fromBindings: query.fromBindings ? [...query.fromBindings] : undefined,
     columns: [...query.columns],
+    columnBindings: query.columnBindings ? [...query.columnBindings] : undefined,
     distinct: query.distinct,
     aggregate: query.aggregate ? { ...query.aggregate } : undefined,
     joins: query.joins.map((join) => ({ ...join, wheres: cloneWheres(join.wheres) })),
@@ -152,7 +203,10 @@ export function cloneQuery(query: QueryComponents): QueryComponents {
     orders: query.orders.map((order) => ({ ...order })),
     limit: query.limit,
     offset: query.offset,
-    lock: query.lock
+    lock: query.lock,
+    indexHint: query.indexHint ? { ...query.indexHint } : undefined,
+    timeout: query.timeout,
+    unions: query.unions?.map((union) => ({ query: cloneQuery(union.query), all: union.all }))
   }
 }
 

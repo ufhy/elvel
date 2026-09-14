@@ -314,6 +314,117 @@ for (const { name, config } of available) {
       })
     })
 
+    /**
+     * The query families whose SQL is not the same on two of these servers.
+     *
+     * A lateral join, an ignored insert from a select, an `update … from` and
+     * the two JSON predicates each have three answers — and one of them is "this
+     * engine cannot", which only a server can confirm is the right refusal.
+     */
+    describe('the dialect-specific families', () => {
+      test('a lateral join, or a refusal that names the alternative', async () => {
+        const query = table().joinLateral(
+          new QueryBuilder(connection, posts)
+            .selectRaw('*')
+            .whereColumn(`${posts}.user_id`, '=', `${users}.id`)
+            .limit(1),
+          'recent'
+        )
+
+        if (name === 'sqlite') {
+          expect(() => query.toSql()).toThrow('no lateral join')
+
+          return
+        }
+
+        await truncate()
+        const id = await table().insertGetId({ name: 'Ada' })
+        await table(posts).insert({ user_id: id, title: 'First' })
+
+        expect(await query.count()).toBe(1)
+      })
+
+      test('insertOrIgnoreUsing skips what collides, whichever way it is spelled', async () => {
+        await truncate()
+        await table().insert([{ name: 'Ada' }, { name: 'Grace' }])
+
+        const copy = `${PREFIX}_names`
+
+        await schema.dropIfExists(copy)
+        await schema.create(copy, (table) => table.string('name').unique())
+
+        try {
+          const target = new QueryBuilder(connection, copy)
+
+          await target.insertOrIgnoreUsing(['name'], table().select('name'))
+          await target.insertOrIgnoreUsing(['name'], table().select('name'))
+
+          expect(await target.count()).toBe(2)
+        } finally {
+          await schema.dropIfExists(copy)
+        }
+      })
+
+      test('updateFrom, or the refusal that names the join', async () => {
+        await truncate()
+        const id = await table().insertGetId({ name: 'Ada', votes: 0 })
+        await table(posts).insert({ user_id: id, title: 'First', votes: 7 })
+
+        const query = table().join(posts, `${posts}.user_id`, '=', `${users}.id`)
+
+        if (name === 'mysql') {
+          expect(query.updateFrom({ votes: 7 })).rejects.toThrow('no `update … from`')
+
+          return
+        }
+
+        await query.updateFrom({ votes: 7 })
+
+        expect(await table().where('votes', 7).count()).toBe(1)
+      })
+
+      test('a JSON key that holds null is present, and arrays overlap', async () => {
+        await truncate()
+
+        // The column is text on every dialect here, so the document is text —
+        // Postgres casts it on the way into the predicate.
+        const document = (value: unknown) => JSON.stringify(value)
+
+        await table().insert([
+          { name: 'Ada', meta: document({ tags: ['a', 'b'], beta: null }) },
+          { name: 'Grace', meta: document({ tags: ['c'] }) }
+        ])
+
+        expect(await table().whereJsonContainsKey('meta->beta').count()).toBe(1)
+        expect(await table().whereJsonDoesntContainKey('meta->beta').count()).toBe(1)
+        expect(await table().whereJsonOverlaps('meta->tags', ['b', 'z']).count()).toBe(1)
+        expect(await table().whereJsonDoesntOverlap('meta->tags', ['z']).count()).toBe(2)
+      })
+
+      test('a tuple comparison is lexicographic everywhere', async () => {
+        await truncate()
+        await table().insert([
+          { name: 'Ada', votes: 50 },
+          { name: 'Bee', votes: 10 }
+        ])
+
+        const rows = await table().whereRowValues(['name', 'votes'], '>', ['Ada', 20]).pluck('name')
+
+        expect(rows.all()).toEqual(['Ada', 'Bee'])
+      })
+
+      test('null-safe equality matches two nulls', async () => {
+        await truncate()
+        await table().insert([
+          { name: 'Ada', email: null },
+          { name: 'Grace', email: 'g@example.test' }
+        ])
+
+        expect(await table().whereNullSafeEquals('email', null).count()).toBe(1)
+        expect(await table().whereNotNullSafeEquals('email', null).count()).toBe(1)
+      })
+    })
+
     describe('writes', () => {
       test('insertGetId returns a usable key', async () => {
         await truncate()
