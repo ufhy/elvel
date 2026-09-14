@@ -18,8 +18,35 @@ export type TaskDescriptor = {
   args?: unknown[]
 }
 
-/** A task: a function, or a module and export to call. */
-export type Task<T = unknown> = (() => T | Promise<T>) | TaskDescriptor
+/**
+ * A task is a module and an export, on every driver.
+ *
+ * A function was accepted under `sync` and refused under `worker`, so a task
+ * written and tested against the fallback driver stopped working the moment the
+ * real one ran it — which is the failure `sync` exists to prevent. A caller who
+ * wants to run a local closure has `await fn()`; this is for work that has to be
+ * nameable because it may not run here.
+ */
+// biome-ignore lint/correctness/noUnusedVariables: T documents the result type at the call site.
+export type Task<T = unknown> = TaskDescriptor
+
+/**
+ * Why a function is refused, wherever it is passed.
+ *
+ * Said the same way by both drivers on purpose: `sync` used to accept one, so a
+ * task proved under the fallback driver failed under the real one — and the
+ * reason it fails is worth carrying to the caller who reached for the fallback.
+ */
+export function functionTaskMessage(key: string): string {
+  return (
+    `Task [${key}] is a function, and a function cannot cross into a worker. ` +
+    `Its closure does not travel, and Bun inlines a captured const primitive into ` +
+    `the source, so whether the value arrives depends on whether it was declared ` +
+    `const or let. Use { module, export, args } instead — the worker imports the ` +
+    `code itself and args are cloned. Refused under every driver, so that a task ` +
+    `proved under sync is one worker can run.`
+  )
+}
 
 /** Tasks given as a list keep their order; given as a record, their keys. */
 export type Tasks<T = unknown> = Array<Task<T>> | Record<string, Task<T>>
@@ -50,8 +77,13 @@ export interface ConcurrencyDriver {
   run<T>(tasks: Tasks<T>, options?: RunOptions): Promise<T[] | Record<string, T>>
 }
 
-/** Is this a descriptor rather than a function? */
-export function isDescriptor(task: Task): task is TaskDescriptor {
+/**
+ * Is this a descriptor rather than a function?
+ *
+ * The type says it must be, and this is what holds the line for a caller
+ * without types — a JavaScript application, or one that cast.
+ */
+export function isDescriptor(task: unknown): task is TaskDescriptor {
   return (
     typeof task === 'object' && task !== null && typeof (task as TaskDescriptor).module === 'string'
   )

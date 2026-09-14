@@ -44,3 +44,10 @@ export function forever(): number {
 export function uncloneable(): () => string {
   return () => 'a function cannot cross a postMessage'
 }
+
+/** Sleeps, so a timeout can be proved without a busy loop. */
+export async function sleep(ms: number): Promise<string> {
+  await Bun.sleep(ms)
+
+  return 'awake'
+}

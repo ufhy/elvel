@@ -6,6 +6,7 @@ import {
   ConcurrencyManager,
   ConcurrencyServiceProvider,
   SyncDriver,
+  type Task,
   type TaskResult,
   WorkerDriver
 } from '../src/index.ts'
@@ -90,18 +91,27 @@ for (const [name, make] of drivers) {
 }
 
 describe('the sync driver only', () => {
-  test('runs a plain function, closure and all', async () => {
+  /**
+   * It used to run one, closure and all, which made it a rehearsal that proved
+   * nothing: the same task refused the moment the driver was `worker`.
+   */
+  test('refuses a function too, for the same reason a worker does', async () => {
     const captured = 'from the enclosing scope'
 
-    // Nothing crosses a boundary here, so a closure is safe — which is exactly
-    // what makes sync a poor rehearsal for worker.
-    expect<unknown>(await new SyncDriver().run([() => captured])).toEqual([captured])
+    const results = (await new SyncDriver().settle([
+      (() => captured) as unknown as Task
+    ])) as TaskResult<unknown>[]
+
+    expect(results[0]?.ok).toBe(false)
+    expect((results[0] as { error: Error }).error.message).toMatch(/cannot cross into a worker/)
+    expect((results[0] as { error: Error }).error.message).toMatch(/proved under sync/)
   })
 
   test('a timeout bounds the wait, and says it timed out', async () => {
-    const results = (await new SyncDriver().settle([() => Bun.sleep(5000)], {
-      timeout: 100
-    })) as TaskResult<unknown>[]
+    const results = (await new SyncDriver(import.meta.dir).settle(
+      [{ module: fixtures, export: 'sleep', args: [5000] }],
+      { timeout: 100 }
+    )) as TaskResult<unknown>[]
 
     expect(results[0]).toMatchObject({ ok: false, timedOut: true })
     expect((results[0] as { error: Error }).error.message).toMatch(/within 100ms/)
@@ -170,7 +180,7 @@ describe('the worker driver only', () => {
     const captured = 'never arrives'
 
     const results = (await new WorkerDriver(import.meta.dir).settle([
-      () => captured.toUpperCase()
+      (() => captured.toUpperCase()) as unknown as Task
     ])) as TaskResult<unknown>[]
 
     expect(results[0]?.ok).toBe(false)
@@ -182,7 +192,7 @@ describe('the worker driver only', () => {
     // This would work. Accepting it would mean the rule is "sometimes", and a
     // caller cannot tell which case they have without reading the transpiler.
     const results = (await new WorkerDriver(import.meta.dir).settle([
-      () => 6 * 7
+      (() => 6 * 7) as unknown as Task
     ])) as TaskResult<unknown>[]
 
     expect(results[0]?.ok).toBe(false)

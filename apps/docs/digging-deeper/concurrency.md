@@ -5,8 +5,10 @@ Run several tasks at once, on more than one core.
 ```ts
 import { concurrency } from '@elvel/concurrency'
 
-const [sum, label] = await concurrency().run([() => 1 + 1, async () => 'two'])
-// [2, 'two']
+const [total, report] = await concurrency().run([
+  { module: './app/Reports/build.ts', export: 'total', args: [2026] },
+  { module: './app/Reports/build.ts', export: 'summary', args: [2026] }
+])
 ```
 
 ## Reach for it only when the work computes
@@ -24,16 +26,12 @@ anything.
 driver: process.env.CONCURRENCY_DRIVER ?? 'worker'   // worker | sync
 ```
 
-## `sync` accepts a closure; `worker` does not
+## A task is a module and an export, on every driver
 
 ```ts
-// sync — this process, one after another
-await concurrency('sync').run([() => 1 + 1, async () => 'two'])
-
-// worker — another core, so the task has to be nameable
-await concurrency('worker').run([
-  { module: './app/Reports/build.ts', export: 'build', args: [2026] }
-])
+// The same tasks, whichever driver runs them
+await concurrency('sync').run([{ module: './app/Reports/build.ts', export: 'build' }])
+await concurrency('worker').run([{ module: './app/Reports/build.ts', export: 'build' }])
 ```
 
 ::: warning A function cannot be sent to a worker, and the reason is worse than "closures do not travel"
@@ -45,13 +43,14 @@ a worker, while the identical code written with `let` stringifies as
 `() => name.toUpperCase()` and throws `ReferenceError`.
 
 A feature whose success depends on which keyword declared a variable is a trap,
-so `WorkerDriver` refuses a function outright and asks for
-`{ module, export, args }`.
+so a function is refused outright and `{ module, export, args }` is asked for.
 :::
 
-That also makes `sync` a **poor rehearsal** for `worker`: a suite that passes on
-`sync` proves nothing about whether the same tasks can cross a thread boundary.
-Test with the driver you deploy with.
+**`sync` refuses one too**, and that is the point of it. It used to accept a
+closure, so a task written and proved against the fallback driver stopped working
+the moment the real one ran it — the exact failure `sync` exists to rehearse
+against. A caller who wants to run a local closure has `await fn()`; this is for
+work that has to be nameable because it may not run here.
 
 ## What crosses the boundary
 

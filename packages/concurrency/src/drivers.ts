@@ -1,6 +1,7 @@
 import {
   type ConcurrencyDriver,
   entriesOf,
+  functionTaskMessage,
   isDescriptor,
   type RunOptions,
   shapeLike,
@@ -81,26 +82,26 @@ export class SyncDriver extends BaseDriver {
 
   private async one<T>(key: string, task: Task<T>, options: RunOptions): Promise<TaskResult<T>> {
     try {
-      if (isDescriptor(task)) {
-        const module = (await import(specifierFor(task.module, this.basePath))) as Record<
-          string,
-          unknown
-        >
-        const fn = module[task.export ?? 'default']
+      // The same refusal as the worker driver, so that a task proved here is one
+      // a worker can run. It used to accept a function, which made this driver a
+      // rehearsal that proved nothing.
+      if (!isDescriptor(task)) throw new TaskError(functionTaskMessage(key), key)
 
-        if (typeof fn !== 'function') {
-          throw new Error(`[${task.module}] has no callable export [${task.export ?? 'default'}].`)
-        }
+      const module = (await import(specifierFor(task.module, this.basePath))) as Record<
+        string,
+        unknown
+      >
+      const fn = module[task.export ?? 'default']
 
-        return {
-          ok: true,
-          value: (await (fn as (...args: unknown[]) => T)(...(task.args ?? []))) as T
-        }
+      if (typeof fn !== 'function') {
+        throw new Error(`[${task.module}] has no callable export [${task.export ?? 'default'}].`)
       }
 
+      const call = () => (fn as (...args: unknown[]) => T)(...(task.args ?? []))
+
       const value = options.timeout
-        ? await withTimeout(Promise.resolve(task()), options.timeout, key)
-        : await task()
+        ? await withTimeout(Promise.resolve(call()), options.timeout, key)
+        : await call()
 
       return { ok: true, value: value as T }
     } catch (error) {
@@ -241,18 +242,7 @@ export class WorkerDriver extends BaseDriver {
       }
 
       if (!isDescriptor(task)) {
-        finish({
-          ok: false,
-          error: new TaskError(
-            `Task [${key}] is a function, and a function cannot cross into a worker. ` +
-              `Its closure does not travel, and Bun inlines a captured const primitive into ` +
-              `the source, so whether the value arrives depends on whether it was declared ` +
-              `const or let. Use { module, export, args } instead — the worker imports the ` +
-              `code itself and args are cloned.`,
-            key
-          ),
-          timedOut: false
-        })
+        finish({ ok: false, error: new TaskError(functionTaskMessage(key), key), timedOut: false })
 
         return
       }
