@@ -29,6 +29,14 @@ const FRAMEWORK = [
   'mail.*',
   'notification.*',
   'maintenance.*',
+  // Each of these has a watcher of its own, and each was being filed twice: on a
+  // page that runs no application event, the event menu showed nothing but the
+  // duplicates.
+  'http.client.*',
+  'view.rendered',
+  'dump.captured',
+  'command.*',
+  'redis.command*',
   '*.created',
   '*.creating',
   '*.updated',

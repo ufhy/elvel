@@ -21,6 +21,12 @@ const ACTIONS = ['created', 'updated', 'deleted', 'restored']
  * into one entry by mutating an entry already sitting in the queue. Elvel fires
  * no `retrieved` event, so there is nothing to count — see the note in
  * `BEHAVIOURS.md` territory rather than a silent absence here.
+ *
+ * **What a cast kept out of storage stays out of here.** An `encrypted` column
+ * holds ciphertext precisely so the value is not readable at rest, and this
+ * watcher was writing the plaintext into an entry anyone who can open the
+ * dashboard could read. `QueryWatcher` already refuses to record bindings for
+ * the same reason; this is that rule applied to the values it declined.
  */
 export class ModelWatcher extends Watcher {
   register(app: ApplicationContract): void {
@@ -44,7 +50,7 @@ export class ModelWatcher extends Watcher {
     if (!(event instanceof ModelEvent)) return
 
     const model = event.model as unknown as {
-      constructor?: { name?: string }
+      constructor?: { name?: string; casts?: Record<string, unknown>; hidden?: string[] }
       id?: unknown
       getChanges?(): Record<string, unknown>
     }
@@ -54,15 +60,43 @@ export class ModelWatcher extends Watcher {
     if (this.ignored(name)) return
 
     const changes = typeof model.getChanges === 'function' ? model.getChanges() : undefined
+    const masked = changes === undefined ? undefined : this.mask(changes, model.constructor ?? {})
 
     lens.record(
       EntryType.MODEL,
       IncomingEntry.make({
         action,
         model: model.id === undefined ? name : `${name}:${String(model.id)}`,
-        changes: changes === undefined || Object.keys(changes).length === 0 ? null : changes
+        changes: masked === undefined || Object.keys(masked).length === 0 ? null : masked
       }).withTags([name])
     )
+  }
+
+  /**
+   * The changes, with the values that are nobody's business replaced.
+   *
+   * Three sources, and none of them has to be maintained here: a cast that
+   * encrypts or hashes says the value is not to be stored readable, the model's
+   * own `hidden` says it is not to be shown, and `hidden` on this watcher is for
+   * the column that is neither but is still a secret. The key is kept — that an
+   * attribute changed is the useful half, and it is not the sensitive half.
+   */
+  private mask(
+    changes: Record<string, unknown>,
+    model: { casts?: Record<string, unknown>; hidden?: string[] }
+  ): Record<string, unknown> {
+    const casts = model.casts ?? {}
+    const hidden = new Set([...(model.hidden ?? []), ...this.option<string[]>('hidden', [])])
+    const result: Record<string, unknown> = {}
+
+    for (const [attribute, value] of Object.entries(changes)) {
+      const cast = String(casts[attribute] ?? '')
+      const secret = cast.startsWith('encrypted') || cast === 'hashed' || hidden.has(attribute)
+
+      result[attribute] = secret ? '********' : value
+    }
+
+    return result
   }
 
   private ignored(name: string): boolean {

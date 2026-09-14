@@ -54,6 +54,28 @@ describe('the recorder stamps an offset', () => {
     expect(Number(later.content.offsetMs)).toBeGreaterThan(Number(first.content.offsetMs))
   })
 
+  /**
+   * Rounded to whole milliseconds, thirty-five entries on one page collapsed
+   * into eight offsets: rows that ran in a definite order sorted into ties, and
+   * neither the timeline nor this file could order them.
+   */
+  test('two entries in the same millisecond still order', () => {
+    const lens = new Recorder()
+
+    lens.enable(true)
+    enterWorkContext()
+    lens.start()
+
+    const offsets = Array.from({ length: 8 }, () => {
+      const entry = IncomingEntry.make({ sql: 'a' })
+      lens.record(EntryType.QUERY, entry)
+
+      return Number(entry.content.offsetMs)
+    })
+
+    expect(new Set(offsets).size).toBeGreaterThan(1)
+  })
+
   test('an offset is never negative', () => {
     const lens = new Recorder()
 

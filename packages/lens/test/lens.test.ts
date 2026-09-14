@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { resolve } from 'node:path'
 import { Application, enterWorkContext } from '@elvel/core'
 import { ConnectionManager } from '@elvel/database'
 import { callerFrom } from '../src/caller.ts'
@@ -418,16 +419,38 @@ describe('recorder', () => {
 })
 
 describe('caller', () => {
+  /** The framework's own source is resolved, so the frame here is a real path. */
+  const frameworkFrame = resolve(import.meta.dir, '..', 'src', 'watchers', 'query.ts')
+
   test('skips framework frames and returns the first application one', () => {
     const stack = [
       'Error',
       '    at query (/app/node_modules/pg/lib/client.js:12:3)',
-      '    at run (/app/packages/lens/src/watchers/query.ts:40:9)',
+      `    at run (${frameworkFrame}:40:9)`,
       '    at handler (/app/routes/web.ts:17:5)',
       '    at serve (/app/node_modules/elysia/dist/index.js:9:1)'
     ].join('\n')
 
     expect(callerFrom(stack)).toEqual({ file: '/app/routes/web.ts', line: 17 })
+  })
+
+  /**
+   * The reason the rule resolves a directory instead of matching `packages/`.
+   *
+   * An application with its own monorepo has frames under its own `packages/`,
+   * and those are exactly the ones worth reporting.
+   */
+  test("but an application's own packages are not framework frames", () => {
+    const stack = 'Error\n    at h (/app/packages/web/src/routes.ts:12:1)'
+
+    expect(callerFrom(stack)).toEqual({ file: '/app/packages/web/src/routes.ts', line: 12 })
+  })
+
+  /** A watcher's own test is the caller asking, not the framework answering. */
+  test('and a frame in the framework tests is kept', () => {
+    const inTest = resolve(import.meta.dir, 'lens.test.ts')
+
+    expect(callerFrom(`Error\n    at t (${inTest}:1:1)`)).toEqual({ file: inTest, line: 1 })
   })
 
   test('reads a frame with no function name', () => {

@@ -310,7 +310,10 @@ export class Recorder {
      */
     entry.content = {
       ...entry.content,
-      offsetMs: Math.max(0, Math.round(performance.now() - batch.startedAt))
+      // Three decimals, not whole milliseconds: thirty-five entries on one page
+      // collapsed into eight offsets, so rows that ran in a definite order sorted
+      // into ties and neither the timeline nor the waterfall could order them.
+      offsetMs: Math.max(0, Math.round((performance.now() - batch.startedAt) * 1000) / 1000)
     }
 
     entry.withType(type).withBatch(batch.batchId).withMonitored(this.monitored)

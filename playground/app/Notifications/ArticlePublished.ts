@@ -1,5 +1,5 @@
 import type { Notifiable } from '@elvel/notifications'
-import { MailMessage, Notification } from '@elvel/notifications'
+import { MailMessage, Notification, routeFor } from '@elvel/notifications'
 import { __ } from '@elvel/translation'
 
 /**
@@ -22,10 +22,14 @@ export class ArticlePublished extends Notification<{
   static override queue = 'notifications'
 
   via(notifiable: Notifiable): string[] {
-    // Everyone gets a stored row; only a recipient with an address is mailed.
+    // Everyone gets a stored row; only a recipient that can be reached by mail
+    // is mailed. Asked through `routeFor` rather than by reading `.email`: an
+    // on-demand recipient — `route('mail', 'someone@example.com')` — carries the
+    // address as a route and has no such property, so reading it sent nothing
+    // and said nothing about why.
     const channels = ['database', 'log']
 
-    if (notifiable.email) channels.unshift('mail')
+    if (routeFor(notifiable, 'mail')) channels.unshift('mail')
 
     return channels
   }

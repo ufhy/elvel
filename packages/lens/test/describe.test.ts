@@ -147,4 +147,13 @@ group('the one-line summary', () => {
 
     expect(summary.title).toBe('{ id: 1 }')
   })
+
+  /** Both the bar and the dashboard put this in a one-line column. */
+  test('and a dumped object is flattened onto one line', () => {
+    const summary = summarise(EntryType.DUMP, {
+      values: [{ text: '{\n  articles: 8,\n}' }]
+    })
+
+    expect(summary.title).toBe('{ articles: 8, }')
+  })
 })

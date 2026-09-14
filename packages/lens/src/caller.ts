@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 /** Where in the application something happened. */
 export type CallerFrame = {
   file: string
@@ -11,13 +13,34 @@ export type CallerFrame = {
  * the frames between the application and here come from: a gate check reaches
  * this through `@elvel/auth` and `@elvel/events`, and reporting the dispatcher
  * as the place somebody authorised is worse than reporting nothing.
- *
- * It does not cover the framework as *this repository* sees it, where the same
- * code is `packages/events/src/`. Watchers pass those through `ignorePaths` in
- * their own tests rather than this list carrying a rule that would also skip an
- * application's own `packages/` in a monorepo.
  */
-const ALWAYS_IGNORED = ['node_modules/', 'packages/lens/src/', '/bun:', 'node:internal']
+const ALWAYS_IGNORED = ['node_modules/', '/bun:', 'node:internal']
+
+/**
+ * The framework's own source, wherever this copy of it is installed.
+ *
+ * `node_modules/` is not enough when the framework is the repository being
+ * worked in: there its frames are `packages/events/src/…`, so every query on a
+ * page reported the event dispatcher as its caller — the same file and line for
+ * all thirty-five of them, which is the one field a query entry is read for.
+ *
+ * Resolved at runtime rather than matched by name, because a rule spelled
+ * `packages/` would also hide an application's own packages in its monorepo.
+ * From `<root>/packages/lens/src` that is `<root>/packages`; installed, it is
+ * `node_modules/@elvel`, which the list above already covers.
+ *
+ * Only `src` is hidden. A frame in a package's `test` directory is the caller
+ * asking, not the framework answering — which is what the watchers' own tests
+ * assert against.
+ */
+const FRAMEWORK_SOURCE = resolve(import.meta.dir, '..', '..')
+
+function insideFramework(file: string): boolean {
+  const normalised = file.replaceAll('\\', '/')
+  const root = FRAMEWORK_SOURCE.replaceAll('\\', '/')
+
+  return normalised.startsWith(`${root}/`) && normalised.includes('/src/')
+}
 
 /**
  * Walk a stack and return the first frame that belongs to the application.
@@ -44,6 +67,7 @@ export function callerFrom(
 
     if (frame === undefined) continue
     if (ignored.some((path) => frame.file.includes(path))) continue
+    if (insideFramework(frame.file)) continue
 
     return frame
   }

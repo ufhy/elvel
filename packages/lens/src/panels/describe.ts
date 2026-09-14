@@ -183,7 +183,13 @@ function summaryFor(type: EntryTypeName, content: EntryContent): Draft {
   }
 }
 
-/** The first dumped value's text, which is what a one-line summary can hold. */
+/**
+ * The first dumped value's text, flattened.
+ *
+ * A dumped object is formatted across several lines, and both the bar and the
+ * dashboard put this in a one-line column — so the row rendered broken. The
+ * formatting is kept: it is what the detail panel shows.
+ */
 /**
  * `select count(*) as n from "comments" where …` becomes `select comments`.
  *
@@ -217,7 +223,11 @@ function firstDump(content: EntryContent): string {
   const values = Array.isArray(content.values) ? content.values : []
   const first = values[0] as { text?: unknown } | undefined
 
-  return first === undefined ? '' : str(first.text)
+  if (first === undefined) return ''
+
+  return str(first.text)
+    .replace(/\s*\n\s*/g, ' ')
+    .trim()
 }
 
 function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {

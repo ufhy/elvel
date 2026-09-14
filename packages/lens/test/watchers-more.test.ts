@@ -216,6 +216,59 @@ describe('the model watcher', () => {
 
     expect(recorded).toHaveLength(0)
   })
+
+  /**
+   * An encrypted column holds ciphertext so the value is not readable at rest.
+   * Writing the plaintext into an entry hands it to anyone who can open the
+   * dashboard, which is the opposite of what the cast was for.
+   */
+  describe('values a cast kept out of storage', () => {
+    class Article {
+      static casts: Record<string, string> = { editor_note: 'encrypted', secret: 'hashed' }
+      static hidden = ['api_token']
+
+      id = 7
+      getChanges(): Record<string, unknown> {
+        return {
+          title: 'A title',
+          editor_note: 'the plaintext',
+          secret: 'hunter2',
+          api_token: 'tok_live_1',
+          internal: 'also private'
+        }
+      }
+    }
+
+    const changesFor = async (watcher: ModelWatcher) => {
+      const { events, recorded } = bench(watcher)
+
+      await events.dispatch(
+        'article.updated',
+        new ModelEvent('article.updated', new Article() as never)
+      )
+
+      return content(recorded[0]?.entry as IncomingEntry).changes as Record<string, unknown>
+    }
+
+    test('are masked, and the key is kept', async () => {
+      const changes = await changesFor(new ModelWatcher({}))
+
+      expect(changes.editor_note).toBe('********')
+      expect(changes.secret).toBe('********')
+      expect(changes.title).toBe('A title')
+    })
+
+    test("so is anything the model's own hidden list names", async () => {
+      expect((await changesFor(new ModelWatcher({}))).api_token).toBe('********')
+    })
+
+    test('and the watcher takes names of its own', async () => {
+      const changes = await changesFor(new ModelWatcher({ hidden: ['internal'] }))
+
+      expect(changes.internal).toBe('********')
+      expect(changes.title).toBe('A title')
+    })
+  })
 })
 
 describe('the schedule watcher', () => {

@@ -199,7 +199,15 @@ export default {
     model: {
       enabled: env('LENS_MODEL_WATCHER', true),
       /** Model class names never recorded. */
-      ignore: [] as string[]
+      ignore: [] as string[],
+      /**
+       * Attribute names whose value is masked, the key still recorded.
+       *
+       * An `encrypted` or `hashed` cast is masked already, and so is anything in
+       * the model's own `hidden` — this is for the column that is neither and is
+       * still nobody's business.
+       */
+      hidden: [] as string[]
     },
 
     notification: {
