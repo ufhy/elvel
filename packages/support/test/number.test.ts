@@ -46,9 +46,21 @@ describe('currency', () => {
     useLocale('id-ID')
     useCurrency('IDR')
 
-    // Whatever ICU says for the locale, including whether there is a space
-    // after the symbol — `id-ID` has none, and taking its answer is the point.
-    expect(N.currency(1_250_000)).toBe('Rp1.250.000,00')
+    /**
+     * Whatever ICU says for the locale — and that is what is asserted, rather
+     * than one platform's rendering of it.
+     *
+     * Pinning the exact string failed on Linux and Windows and passed on macOS:
+     * their ICU puts a no-break space after `Rp` and macOS's does not. Both are
+     * ICU's answer, which is the thing this test says it is taking.
+     */
+    const formatted = N.currency(1_250_000)
+
+    expect(formatted.startsWith('Rp')).toBe(true)
+    // The separators are the locale's, and they are the opposite way round from
+    // English: `.` groups and `,` is the decimal point.
+    expect(formatted).toContain('1.250.000')
+    expect(formatted.endsWith(',00')).toBe(true)
   })
 
   test('a currency argument beats the default', () => {

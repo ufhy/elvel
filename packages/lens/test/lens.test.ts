@@ -446,6 +446,28 @@ describe('caller', () => {
     expect(callerFrom(stack)).toEqual({ file: '/app/packages/web/src/routes.ts', line: 12 })
   })
 
+  /**
+   * Windows frames, which are the same rule written the other way round.
+   *
+   * A separator test that only knows `/` is how `dump()` came to report itself
+   * as every caller on Windows — found by CI, not here, so this asserts the
+   * shape rather than trusting the platform the suite happens to run on.
+   */
+  test('a backslash path is still a framework frame', () => {
+    const windows = `${resolve(import.meta.dir, '..', 'src', 'watchers', 'query.ts')}`.replaceAll(
+      '/',
+      '\\'
+    )
+
+    // Only meaningful when the resolved root is POSIX-shaped, which is every
+    // machine but Windows — there the two spellings are already the same.
+    if (!windows.includes('\\')) return
+
+    expect(
+      callerFrom(`Error\n    at q (${windows}:4:1)\n    at h (/app/routes/web.ts:9:1)`)
+    ).toEqual({ file: '/app/routes/web.ts', line: 9 })
+  })
+
   /** A watcher's own test is the caller asking, not the framework answering. */
   test('and a frame in the framework tests is kept', () => {
     const inTest = resolve(import.meta.dir, 'lens.test.ts')

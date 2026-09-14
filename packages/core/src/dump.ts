@@ -168,7 +168,12 @@ function originOf(stack: string | undefined): DumpOrigin {
     const [, file, number] = match
 
     if (file === undefined || number === undefined) continue
-    if (file.includes('/core/src/dump.ts') || file.includes('node:')) continue
+
+    // Separators normalised first: on Windows the frame reads
+    // `D:\a\elvel\packages\core\src\dump.ts`, which the forward-slash test
+    // never matched — so every dump there reported this file as its own caller.
+    if (file.replaceAll('\\', '/').includes('/core/src/dump.ts')) continue
+    if (file.includes('node:')) continue
 
     return { file, line: Number(number) }
   }
