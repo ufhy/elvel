@@ -47,6 +47,7 @@ export {
   setAttributeEncrypter,
   setAttributeHasher
 } from './model/casts.ts'
+export { ModelCollection } from './model/collection.ts'
 export {
   type ConnectionResolver,
   Model,

@@ -14,6 +14,7 @@ import { QueryBuilder } from '../query/builder.ts'
 import { raw } from '../query/expression.ts'
 import type { VectorMetric } from '../query/types.ts'
 import { attributeEncrypter, formatDateTime } from './casts.ts'
+import { ModelCollection } from './collection.ts'
 import { Model, type ModelClass } from './model.ts'
 import type { EagerConstraint } from './relations.ts'
 
@@ -1373,7 +1374,7 @@ export class ModelBuilder<M extends Model> extends Macroable {
 
   // ---------------------------------------------------------------- retrieval
 
-  async get(): Promise<Collection<M>> {
+  async get(): Promise<ModelCollection<M>> {
     const query = await this.base()
     const rows = await query.get()
 
@@ -1385,7 +1386,7 @@ export class ModelBuilder<M extends Model> extends Macroable {
     // by the strict-mode guard that reads this.
     Model.markFromCollection(models)
 
-    return new Collection(models)
+    return new ModelCollection(models)
   }
 
   async first(): Promise<M | undefined> {

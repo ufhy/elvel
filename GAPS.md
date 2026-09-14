@@ -312,6 +312,17 @@ first and reads back when it loses, so the unique index is the arbiter rather
 than a read-then-write race. A violation with nothing to read back is rethrown —
 some *other* index was hit, and swallowing it would answer with the wrong row.
 
+`get()` returns a `ModelCollection` — `load()`, `loadMissing()`, `modelKeys()`,
+`fresh()`, `toQuery()`, `makeVisible`/`makeHidden`/`append`, and `onlyKeys`,
+`exceptKeys` and `diffKeys` that compare by **key**. Comparing by identity was
+always wrong for models: two reads of the same row are two objects, so the plain
+collection's `only`/`except`/`diff` answered wrongly for every one of them.
+`load()` is the one that costs — having fetched a set and then found you need a
+relation, the answer was a query per model.
+
+A subclass rather than a second type, so `map` and `filter` keep returning what
+they always did and `@elvel/support`'s `Collection` stays what it is.
+
 A factory can build a graph: `has()`, `for()`, `hasAttached()`, `recycle()`,
 `sequence()`, `crossJoinSequence()`, `afterMaking`/`afterCreating`,
 `createMany`, `makeOne` and `createQuietly`. `for()` creates one parent for the
@@ -365,28 +376,6 @@ with nothing failing. The enum cast is `asEnum(Status)` — a helper that builds
 typed `CastsAttributes` rather than another name in the string union, because a
 string cast cannot narrow the attribute's type, which is the one thing
 TypeScript could have checked.
-
-### `get()` returns a plain collection
-
-```ts
-async get(): Promise<Collection<M>> {
-  ...
-  return new Collection(models)
-}
-```
-
-That is `@elvel/support`'s `Collection`, not an Eloquent one. So the methods
-that only make sense over models are all absent: `load()` and `loadMissing()`
-to eager-load after the fact, `modelKeys()`, `fresh()`, `toQuery()`,
-`makeVisible()`/`makeHidden()`, `append()`, `except()`/`only()` by key,
-and a `diff` that compares by key rather than by identity.
-
-`load()` is the one that costs: having fetched a set of models and then found
-you need a relation, the answer here is a second query per model — the N+1 the
-eager loader exists to prevent.
-
-**Done when** the model builder returns a collection that can load relations,
-and `@elvel/support`'s `Collection` stays what it is.
 
 ### The schema cannot be inspected
 

@@ -273,6 +273,7 @@ export class Model {
   private shownKeys: string[] = []
   private hiddenKeys: string[] = []
   private visibleKeys: string[] | undefined
+  private appendedKeys: string[] = []
 
   constructor(attributes: Row = {}) {
     this.fill(attributes)
@@ -1712,6 +1713,18 @@ export class Model {
    * may see a field the rest may not — and changing the static would change it
    * for every request in the process.
    */
+  /**
+   * Serialise these accessors as well, for this model only.
+   *
+   * `static appends` is the class-wide answer; this is the one a caller reaches
+   * for when a single response needs a computed field the rest do not pay for.
+   */
+  append(...keys: Array<string | string[]>): this {
+    this.appendedKeys = [...this.appendedKeys, ...keys.flat()]
+
+    return this
+  }
+
   makeVisible(...keys: Array<string | string[]>): this {
     const named = keys.flat()
 
@@ -1765,7 +1778,7 @@ export class Model {
     }
 
     // Accessor-backed values that have no column of their own.
-    for (const key of this.self.appends) {
+    for (const key of [...this.self.appends, ...this.appendedKeys]) {
       if (!this.serialises(key)) continue
       result[key] = this.getAttribute(key)
     }
