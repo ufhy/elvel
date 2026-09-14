@@ -58,7 +58,16 @@ ${body}
       throw new Error(`The probe exited ${code} instead of answering:\n${err.trim() || out.trim()}`)
     }
 
-    return out.trim()
+    /**
+     * Stripped, because the probe's `console.log(false)` is coloured.
+     *
+     * Bun colourises a boolean even into a pipe when `FORCE_COLOR` is set, which
+     * it is inside an editor's integrated terminal — so the answer arrives as
+     * `\x1b[33mfalse\x1b[0m` and `trim()` leaves the escapes on. The comparison
+     * then fails against a diff that renders as `false` on both sides, because
+     * the terminal interprets the codes it is being shown.
+     */
+    return out.replace(/\u001b\[[0-9;]*m/g, '').trim()
   } finally {
     await Bun.file(file).delete()
   }

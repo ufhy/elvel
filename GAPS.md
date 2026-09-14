@@ -962,44 +962,30 @@ model serialisation by identifier, unique jobs, encrypted payloads, job
 middleware sharing the pipeline, and `queue:flush --hours` covering
 `queue:prune-failed`. Batching is recorded under Bus.
 
-### There is no circuit breaker
+`ThrottlesExceptions` is the circuit breaker: after N failures every further job
+is **released** rather than attempted, so a service that has gone down stops
+being hammered by the backlog and nothing is lost. The circuit lives in the
+cache, so it is shared across workers — a per-process breaker would open N times
+and let N jobs through per failure. The failure count carries the decay too, or
+ten failures spread over a week would eventually trip it whatever the service is
+doing. `FailOnException`, `Release` and `SkipIfBatchCancelled` are here as well.
 
-Job middleware is `WithoutOverlapping`, `RateLimited` and `Skip`. Upstream also
-has `ThrottlesExceptions`, `FailOnException`, `Release` and
-`SkipIfBatchCancelled`.
+`null` discards everything, for an environment that must not run background work
+— `sync` is the wrong answer there because it runs the job. `failover` tries the
+next connection on a **push** only: a worker polling a dead connection should say
+so, not quietly drain a different queue and leave the first one's backlog
+unattended. It reports the *last* error rather than the first, because the first
+is "Redis is down" and the one worth showing is why the fallback did not work
+either.
 
-`ThrottlesExceptions` is the one that matters. A job calling a third-party API
-that has gone down fails, retries, fails, retries — for every job in the queue,
-against a service that is already struggling, until the attempts run out and
-the whole backlog is in `failed_jobs`. The middleware opens a circuit after N
-failures and releases the rest of the jobs untouched until it closes.
+Failures can be recorded without a database: `file` writes a line per failure and
+skips a torn one on read, because a half-written line from a killed process must
+not make every earlier failure unreadable.
 
-This is the first thing anybody adds after their first outage, and there is
-nothing to add.
-
-**Done when** a job can declare an exception threshold and a decay, jobs are
-released rather than attempted while the circuit is open, and the circuit is
-shared across workers through the cache.
-
-### There is no way to turn the queue off, and no failover
-
-Connections are `sync`, `database`, `redis` and `sqs`. Upstream also ships
-`null` — discard everything, for an environment that must not run background
-work — and, since 13, `FailoverQueue`, which tries the next connection when one
-is unreachable.
-
-Without failover, a Redis that stops answering turns every `dispatch()` in every
-request into an exception. That is the same failure shape recorded under Cache,
-and it is worse here: the dispatch usually happens after the work that mattered
-has already been done.
-
-The failed-job stores have the same shape — `array` and `database` only, where
-Upstream also has `file`, `dynamodb` and `null`, so a service with a queue and no
-database has nowhere to record a failure.
-
-**Done when** `null` and a failover connection exist, and a failed job can be
-recorded without a database.
-
+Writing this found a small lie: `config/queue.ts` said `failed.driver: 'null'`
+discards failures, and `null` fell through to the in-memory store. `null` now
+does what the config said, and the default is written `array`, which is what it
+always actually was.
 ---
 
 ## Redis

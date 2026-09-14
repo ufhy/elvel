@@ -4,10 +4,17 @@ import { ArrayBatchRepository, type BatchRepository, DatabaseBatchRepository } f
 import { type BatchEntry, PendingBatch } from './bus.ts'
 import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
 import { DatabaseQueue } from './drivers/database.ts'
+import { FailoverQueue } from './drivers/failover.ts'
+import { NullQueue } from './drivers/null.ts'
 import { RedisQueue } from './drivers/redis.ts'
 import { SqsQueue } from './drivers/sqs.ts'
 import { SyncQueue } from './drivers/sync.ts'
-import { ArrayFailedJobStore, DatabaseFailedJobStore } from './failed.ts'
+import {
+  ArrayFailedJobStore,
+  DatabaseFailedJobStore,
+  FileFailedJobStore,
+  NullFailedJobStore
+} from './failed.ts'
 import { FakeQueue, QueueFake } from './fake.ts'
 import { type AnyJob, type JobClass, JobRegistry } from './job.ts'
 import { JobRunner } from './runner.ts'
@@ -174,16 +181,40 @@ export class QueueManager {
     if (!this.failedStore) {
       const driver = this.app.config.get<string>('queue.failed.driver', 'database')
 
-      this.failedStore =
-        driver === 'database' && this.app.bound('db')
-          ? new DatabaseFailedJobStore(this.app.make('db'), {
-              connection: this.app.config.get<string | undefined>('queue.failed.connection'),
-              table: this.app.config.get<string>('queue.failed.table', 'failed_jobs')
-            })
-          : new ArrayFailedJobStore()
+      this.failedStore = this.buildFailedStore(driver)
     }
 
     return this.failedStore
+  }
+
+  /**
+   * The store a driver name asks for, falling back rather than throwing.
+   *
+   * `database` without a database bound is the ordinary case for a worker that
+   * only calls APIs — it falls through to `array` the way it always did, because
+   * a queue that refuses to boot over where failures are written is worse than
+   * one that keeps them in memory.
+   */
+  private buildFailedStore(driver: string): FailedJobStore {
+    if (driver === 'null') return new NullFailedJobStore()
+
+    if (driver === 'file') {
+      return new FileFailedJobStore(
+        this.app.config.get<string>(
+          'queue.failed.path',
+          this.app.storagePath('framework', 'failed-jobs.jsonl')
+        )
+      )
+    }
+
+    if (driver === 'database' && this.app.bound('db')) {
+      return new DatabaseFailedJobStore(this.app.make('db'), {
+        connection: this.app.config.get<string | undefined>('queue.failed.connection'),
+        table: this.app.config.get<string>('queue.failed.table', 'failed_jobs')
+      })
+    }
+
+    return new ArrayFailedJobStore()
   }
 
   /** Replace the failed-job store, e.g. in a test. */
@@ -529,6 +560,39 @@ export class QueueManager {
           migrateEvery: config.migrateEvery as number | undefined,
           blockFor: config.blockFor as number | undefined
         })
+
+      case 'null':
+        return new NullQueue(name)
+
+      /**
+       * Try the next connection when one is unreachable.
+       *
+       * The members are ordinary connections resolved by name, so `redis` then
+       * `database` is configuration rather than a second implementation.
+       */
+      case 'failover': {
+        const members = (config.connections ?? []) as string[]
+
+        if (members.length === 0) {
+          throw new Error(`Failover connection [${name}] needs a [connections] list to try.`)
+        }
+
+        if (members.includes(name)) {
+          throw new Error(`Failover connection [${name}] cannot fail over to itself.`)
+        }
+
+        return new FailoverQueue(
+          name,
+          members.map((member) => this.connection(member)),
+          (connection, error) => {
+            // Straight to stderr: reporting a queue failure through a queued job
+            // is how a broken connection becomes an infinite loop.
+            process.stderr.write(
+              `[queue] connection [${connection}] failed, trying the next: ${error instanceof Error ? error.message : String(error)}\n`
+            )
+          }
+        )
+      }
 
       case 'sqs':
         return new SqsQueue(name, {

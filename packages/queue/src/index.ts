@@ -26,6 +26,8 @@ export type {
   QueuedJob
 } from './contracts.ts'
 export { DatabaseQueue, type DatabaseQueueOptions } from './drivers/database.ts'
+export { FailoverQueue } from './drivers/failover.ts'
+export { NullQueue } from './drivers/null.ts'
 export { RedisQueue, type RedisQueueOptions } from './drivers/redis.ts'
 export { SqsQueue, type SqsQueueOptions } from './drivers/sqs.ts'
 export { SyncQueue, type SyncRunner } from './drivers/sync.ts'
@@ -33,7 +35,9 @@ export {
   ArrayFailedJobStore,
   DatabaseFailedJobStore,
   type DatabaseFailedJobStoreOptions,
-  describeError
+  describeError,
+  FileFailedJobStore,
+  NullFailedJobStore
 } from './failed.ts'
 export { FakeQueue, type PushedJob, QueueFake } from './fake.ts'
 export { chain, dispatch, dispatchSync, queue } from './helpers.ts'
@@ -49,7 +53,15 @@ export {
   type DriverFactory,
   QueueManager
 } from './manager.ts'
-export { RateLimited, Skip, WithoutOverlapping } from './middleware.ts'
+export {
+  FailOnException,
+  RateLimited,
+  Release,
+  Skip,
+  SkipIfBatchCancelled,
+  ThrottlesExceptions,
+  WithoutOverlapping
+} from './middleware.ts'
 export { QueueServiceProvider } from './provider.ts'
 export { type ChainDispatcher, JobRunner, type JobRunnerOptions, uniqueKeyOf } from './runner.ts'
 export { deserializeData, ModelRegistry, serializeData } from './serializer.ts'

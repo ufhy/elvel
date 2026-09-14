@@ -1,4 +1,7 @@
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type { ConnectionManager } from '@elvel/database'
+import { Clock } from '@elvel/support'
 import type { FailedJobRecord, FailedJobStore, JobPayload } from './contracts.ts'
 
 export type DatabaseFailedJobStoreOptions = {
@@ -170,5 +173,155 @@ export class ArrayFailedJobStore implements FailedJobStore {
     this.records.push(...keep)
 
     return removed
+  }
+}
+
+/**
+ * Failures written to a JSON file, one per line.
+ *
+ * For a service with a queue and no database — a worker that only calls APIs, a
+ * scheduled process on a box with nothing else on it. `array` loses them when
+ * the process ends, which is the one thing a failure record must not do.
+ *
+ * A line per record rather than one JSON document, because appending is the hot
+ * path and rewriting a growing array on every failure is how the file becomes
+ * the outage. Reading parses the lines back and skips any that will not parse:
+ * a half-written line from a killed process must not make every earlier failure
+ * unreadable.
+ */
+export class FileFailedJobStore implements FailedJobStore {
+  private queue: Promise<unknown> = Promise.resolve()
+
+  constructor(private readonly path: string) {}
+
+  async log(
+    connection: string,
+    queue: string,
+    payload: JobPayload,
+    error: unknown
+  ): Promise<string | number> {
+    const record: FailedJobRecord = {
+      id: crypto.randomUUID(),
+      uuid: payload.uuid,
+      connection,
+      queue,
+      payload,
+      exception: describeError(error),
+      failedAt: new Date()
+    }
+
+    // Serialised through a promise chain: two appends racing to the same file
+    // can interleave mid-line, and a torn line is a lost failure.
+    this.queue = this.queue.then(async () => {
+      await mkdir(dirname(this.path), { recursive: true })
+      await appendFile(this.path, `${JSON.stringify(record)}\n`)
+    })
+
+    await this.queue
+
+    return record.id
+  }
+
+  async all(): Promise<FailedJobRecord[]> {
+    let contents: string
+
+    try {
+      contents = await readFile(this.path, 'utf8')
+    } catch {
+      return []
+    }
+
+    const records: FailedJobRecord[] = []
+
+    for (const line of contents.split('\n')) {
+      if (line.trim() === '') continue
+
+      try {
+        const parsed = JSON.parse(line) as FailedJobRecord
+
+        records.push({ ...parsed, failedAt: new Date(parsed.failedAt) })
+      } catch {
+        // A half-written line from a killed process. Skipped rather than fatal:
+        // every other failure in the file is still readable.
+      }
+    }
+
+    return records
+  }
+
+  async find(id: string | number): Promise<FailedJobRecord | null> {
+    return (await this.all()).find((record) => String(record.id) === String(id)) ?? null
+  }
+
+  async forget(id: string | number): Promise<boolean> {
+    const records = await this.all()
+    const kept = records.filter((record) => String(record.id) !== String(id))
+
+    if (kept.length === records.length) return false
+
+    await this.rewrite(kept)
+
+    return true
+  }
+
+  async flush(hours?: number): Promise<number> {
+    const records = await this.all()
+
+    if (hours === undefined) {
+      await this.rewrite([])
+
+      return records.length
+    }
+
+    const cutoff = Clock.now() - hours * 3_600_000
+    const kept = records.filter((record) => record.failedAt.getTime() > cutoff)
+
+    await this.rewrite(kept)
+
+    return records.length - kept.length
+  }
+
+  private async rewrite(records: FailedJobRecord[]): Promise<void> {
+    this.queue = this.queue.then(async () => {
+      await mkdir(dirname(this.path), { recursive: true })
+      await writeFile(this.path, records.map((record) => `${JSON.stringify(record)}\n`).join(''))
+    })
+
+    await this.queue
+  }
+}
+
+/**
+ * Failures nobody records.
+ *
+ * The honest counterpart to the `null` queue: an environment that must not run
+ * background work has no failures to keep either. Deliberate, and never a
+ * fallback — `array` is what an unconfigured application gets, because a failure
+ * that vanishes at process exit still beats one that was never written.
+ */
+export class NullFailedJobStore implements FailedJobStore {
+  async log(
+    _connection: string,
+    _queue: string,
+    payload: JobPayload,
+    _error: unknown
+  ): Promise<string | number> {
+    return payload.uuid
+  }
+
+  async all(): Promise<FailedJobRecord[]> {
+    return []
+  }
+
+  async find(_id: string | number): Promise<FailedJobRecord | null> {
+    return null
+  }
+
+  async forget(_id: string | number): Promise<boolean> {
+    return false
+  }
+
+  async flush(_hours?: number): Promise<number> {
+    return 0
   }
 }

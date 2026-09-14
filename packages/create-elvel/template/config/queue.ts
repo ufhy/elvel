@@ -25,6 +25,28 @@ export default {
       retryAfter: 90
     },
 
+    /**
+     * Discard everything.
+     *
+     * For an environment that must not run background work — a read-only
+     * replica, a CI boot check, a maintenance process. `sync` is the wrong
+     * answer there, because it runs the job.
+     */
+    null: { driver: 'null' },
+
+    /**
+     * Try the next connection when one is unreachable.
+     *
+     * A Redis that stops answering turns every `dispatch()` into an exception,
+     * and the dispatch usually happens after the work that mattered is already
+     * done. Only pushes fail over: a worker polling a dead connection should say
+     * so, not quietly drain a different queue.
+     */
+    failover: {
+      driver: 'failover',
+      connections: ['redis', 'database']
+    },
+
     redis: {
       driver: 'redis',
       url: env('REDIS_URL', 'redis://127.0.0.1:6379'),
@@ -61,10 +83,17 @@ export default {
   /**
    * Where failures are recorded, so `queue:retry` has something to work from.
    *
-   * `null` discards them; `database` needs `elvel queue:failed-table`.
+   * `array` keeps them for the life of the process, `file` writes a line per
+   * failure — for a worker with no database — `database` needs
+   * `elvel queue:failed-table`, and `null` genuinely discards them.
+   *
+   * The default is `array` and used to be written `null` while behaving as
+   * `array`, which meant the config promised something it did not do.
    */
   failed: {
-    driver: env('QUEUE_FAILED_DRIVER', 'null'),
-    table: 'failed_jobs'
+    driver: env('QUEUE_FAILED_DRIVER', 'array'),
+    table: 'failed_jobs',
+    /** Where the `file` driver writes. Defaults to storage/framework. */
+    path: undefined as string | undefined
   }
 }
