@@ -7,14 +7,19 @@ Everything below is behaviour that already exists and would otherwise have to be
 rediscovered — through a bug, usually, since none of it can be read back off the
 code. The code says what happens; this says why.
 
-It had a companion, `GAPS.md`, holding what was still missing. Four of them have
+It had a companion, `GAPS.md`, holding what was still missing. Five of them have
 now counted down to zero and been deleted, which is the only way their length ever
 meant anything — the third because the second measured the wrong thing: it
 compared the upstream framework *component by component* and found 30 of 38 covered, while the
 real distance was inside them. Measured at method level against 13.25.0, that
-distance is closed as well; the `gh api` recipe for re-measuring is in the git
-history, and a fourth list belongs there only when there is real debt to count
-again.
+distance is closed as well.
+
+The fifth went back to component level against 13.31.0 and opened 86 rows, which
+is the answer to why a list that measured nothing was worth writing again: the
+components had moved. It closed on the Redis manager, schema introspection, the
+Blueprint columns only one engine has, and the query builder's seven families.
+The `gh api` recipe for re-measuring is in the git history, and a sixth list
+belongs there only when there is real debt to count again.
 
 The limits that outlive any such list — the places this framework simply stops —
 are at the bottom of this file.

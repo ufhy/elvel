@@ -135,8 +135,7 @@ export function ensureVerified(notice?: string) {
  *
  * Arguments after the ability are passed through as strings, which is what a
  * route can carry. Anything needing a loaded model authorises inside the handler,
- * where the model exists. Reading the resolved route binding here is recorded in
- * `GAPS.md`.
+ * where the model exists. Reading the resolved route binding here is issue #19.
  */
 export function canAccess(ability: string, ...args: string[]) {
   return async () => {
