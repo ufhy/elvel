@@ -245,7 +245,27 @@ export class BunSqlConnection implements Connection {
         count?: number | null
       }
 
-      return result.affectedRows ?? result.count ?? 0
+      const reported = result.affectedRows ?? result.count ?? 0
+
+      if (reported !== 0 || this.grammar.dialect !== 'sqlite') return reported
+
+      /**
+       * SQLite reports nothing for `insert … select`.
+       *
+       * Measured on Bun 1.4.0: a `values` insert and an update both report the
+       * real number, and the select form reports 0 while writing the rows
+       * perfectly well — so a caller checking the return value read a backfill
+       * as a no-op. `changes()` is the same connection's own counter and
+       * answers correctly, including for several statements in flight at once.
+       *
+       * Asked only when the report was 0, so a statement that really affected
+       * nothing costs one extra query and everything else costs none.
+       */
+      const [changed] = (await this.sql.unsafe('select changes() as n')) as unknown as Array<{
+        n?: number
+      }>
+
+      return Number(changed?.n ?? 0)
     })
   }
 

@@ -291,9 +291,25 @@ describe('writing from another query', () => {
 
     const totals = new QueryBuilder(connection, 'totals')
 
-    await totals.insertOrIgnoreUsing(['user_id', 'total'], orders().select('user_id', 'total'))
+    const written = await totals.insertOrIgnoreUsing(
+      ['user_id', 'total'],
+      orders().select('user_id', 'total')
+    )
 
     expect((await totals.pluck('user_id')).all()).toEqual([1, 2])
+    /**
+     * And it says how many.
+     *
+     * Bun's SQLite adapter reports nothing for an `insert … select` — measured
+     * on 1.4.0, where a `values` insert and an update both report correctly —
+     * so this answered 0 while writing the rows, and a caller checking the
+     * return value read a backfill as a no-op.
+     */
+    expect(written).toBe(2)
+  })
+
+  test('and a statement that really changed nothing still says 0', async () => {
+    expect(await orders().where('total', 99_999).delete()).toBe(0)
   })
 
   test('updateFrom takes its values from the joined table', async () => {
