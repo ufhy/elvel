@@ -75,9 +75,8 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
               switched on until you do.
             </p>
 
-            {/* `renderSVG` returns markup, which is what belongs here. */}
             <div class="inline-block rounded-md border bg-white p-3 [&_svg]:size-44">
-              {renderSVG(pending.uri, { border: 1 })}
+              {qrCode(pending.uri)}
             </div>
 
             <p class="text-sm text-muted-foreground">
@@ -174,4 +173,15 @@ export function TwoFactor({ title, enabled, pending, error }: TwoFactorProps) {
       </div>
     </SettingsLayout>
   )
+}
+
+/**
+ * The setup QR, as markup.
+ *
+ * `uqr` returns a string of SVG, which is markup rather than a value: escaping it
+ * would print the drawing instead of showing it. Typed here so that is stated
+ * once rather than asserted at the element.
+ */
+function qrCode(uri: string): JSX.Element {
+  return renderSVG(uri, { border: 1 })
 }

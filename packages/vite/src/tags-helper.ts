@@ -9,7 +9,7 @@ let instance: Vite | undefined
  * Memoised, because the manifest cannot change while the process runs and the
  * alternative is reading a file on every render.
  */
-export function vite(entrypoints: string | string[]): string {
+export function vite(entrypoints: string | string[]): JSX.Element {
   instance ??= new Vite({
     publicPath: app().basePath('public'),
     buildDirectory: config<string>('vite.buildDirectory', 'build'),

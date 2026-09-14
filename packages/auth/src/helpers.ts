@@ -74,14 +74,14 @@ export async function authorize(ability: string, args: unknown | unknown[] = [])
  * playground by `@kitajs/ts-html-plugin`, which is the one place a reviewer's eye
  * slides off: the flaw is inside a literal inside a callback.
  */
-export function whenAuth(render: (signedIn: AuthUser) => string): string {
+export function whenAuth(render: (signedIn: AuthUser) => string): JSX.Element {
   const signedIn = user()
 
   return signedIn === null ? '' : render(signedIn)
 }
 
 /** The other half — for a visitor who is not signed in. */
-export function whenGuest(render: () => string): string {
+export function whenGuest(render: () => string): JSX.Element {
   return user() === null ? render() : ''
 }
 

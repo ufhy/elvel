@@ -19,7 +19,7 @@ export function Maintenance({ retryAfter }: MaintenanceProps) {
       <body>
         <h1>Back shortly</h1>
         <p>The application is being updated.</p>
-        {retryAfter !== undefined && <p>{`Try again in about ${retryAfter} seconds.`}</p>}
+        {retryAfter !== undefined && <p>Try again in about {retryAfter} seconds.</p>}
       </body>
     </html>
   )

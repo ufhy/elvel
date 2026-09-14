@@ -141,6 +141,16 @@ jobs:
 
       - run: bun run lint
       - run: bun run typecheck
+
+      # `@kitajs/html` does not escape by default, so an unmarked interpolation
+      # in a view is a real hole — and one under `packages/create-elvel/` is
+      # copied into every scaffolded application.
+      #
+      # The scanner is `tools/xss-scan`, a workspace member with its own pinned
+      # TypeScript because the plugin's CLI runs on 5 while the build is on 7.
+      # The install above puts it in place; nothing extra is needed here.
+      - run: bun run xss:scan
+
       - run: bun test
       - run: bun run smoke
 

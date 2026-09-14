@@ -221,7 +221,7 @@ async function readOverride(
  * </form>
  * ```
  */
-export function methodField(method: string): string {
+export function methodField(method: string): JSX.Element {
   const value = method.toUpperCase().replace(/[^A-Z]/g, '')
 
   return `<input type="hidden" name="${METHOD_FIELD}" value="${value}" />`

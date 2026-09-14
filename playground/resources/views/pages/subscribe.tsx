@@ -23,7 +23,7 @@ export function Subscribe({ title, token }: SubscribeProps) {
 
       {bag.has() && (
         <div class="errors" role="alert">
-          <p>{`${bag.count()} problem(s):`}</p>
+          <p>{bag.count()} problem(s):</p>
           <ul>
             {bag.all().map((message) => (
               <li safe>{message}</li>

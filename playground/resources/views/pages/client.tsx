@@ -38,9 +38,7 @@ export function Client({ title }: { title: string }) {
       {CASES.map(([id, label, note]) => (
         <section class="panel">
           <h2>{label}</h2>
-          <p class="muted" safe>
-            {note}
-          </p>
+          <p class="muted">{note}</p>
 
           <button type="button" id={`run-${id}`}>
             Run

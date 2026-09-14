@@ -54,6 +54,16 @@ const paths: Record<string, string> = {
 
 export type IconName = keyof typeof paths
 
+/**
+ * The paths for one icon, as markup.
+ *
+ * Typed as an element rather than a string because that is what it is: these are
+ * literal SVG paths written above, and escaping them would draw nothing.
+ */
+function pathsFor(name: IconName): JSX.Element {
+  return paths[name] ?? ''
+}
+
 export function Icon({ name, class: extra }: { name: IconName; class?: string }) {
   return (
     <svg
@@ -66,7 +76,7 @@ export function Icon({ name, class: extra }: { name: IconName; class?: string })
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      {paths[name] ?? ''}
+      {pathsFor(name)}
     </svg>
   )
 }

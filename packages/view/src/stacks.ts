@@ -89,7 +89,7 @@ export function resolveStacks(markup: string): string {
  * </head>
  * ```
  */
-export function stack(name: string): string {
+export function stack(name: string): JSX.Element {
   const store = storage.getStore()
 
   // Rendered outside a render — in a test calling a component directly, say.
@@ -98,7 +98,7 @@ export function stack(name: string): string {
 }
 
 /** Add to a stack. The markup lands wherever the layout put `stack()`. */
-export function push(name: string, markup: string): string {
+export function push(name: string, markup: string): JSX.Element {
   const store = storage.getStore()
 
   if (store) {
@@ -113,7 +113,7 @@ export function push(name: string, markup: string): string {
 }
 
 /** Add to the front of a stack, ahead of anything pushed before it. */
-export function prepend(name: string, markup: string): string {
+export function prepend(name: string, markup: string): JSX.Element {
   const store = storage.getStore()
 
   if (store) {
@@ -144,6 +144,6 @@ export function once(id: string, markup: string): string {
 }
 
 /** `once` and `push` together, which is what a component usually wants. */
-export function pushOnce(name: string, id: string, markup: string): string {
+export function pushOnce(name: string, id: string, markup: string): JSX.Element {
   return push(name, once(`push:${name}:${id}`, markup))
 }

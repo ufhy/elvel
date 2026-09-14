@@ -7,7 +7,8 @@ import { Layout } from '../components/layout.tsx'
 export type ViewHelpersProps = {
   title: string
   /** Rendered by `whenCan`, so the ability has to be awaited before the tree. */
-  editable: string
+  /** Markup, produced by `editableMarkup()` below — not a value to escape. */
+  editable: JSX.Element
 }
 
 /**
@@ -107,7 +108,7 @@ export function ViewHelpers({ title, editable }: ViewHelpersProps) {
  * me are on the page"; `pushOnce` sends that one copy to the head instead of
  * leaving it inline.
  */
-function widget(): string {
+function widget(): JSX.Element {
   return (
     pushOnce('head', 'widget-style', '<style id="widget-style">.widget{}</style>') +
     once('widget-note', '<!-- widget note, once -->') +

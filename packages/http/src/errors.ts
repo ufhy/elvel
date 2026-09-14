@@ -184,7 +184,7 @@ export function whenError(
   field: string,
   render: (message: string) => string,
   bag: string = DEFAULT_BAG
-): string {
+): JSX.Element {
   const message = errors(bag).first(field)
 
   return message === undefined ? '' : render(message)
@@ -195,7 +195,7 @@ export function whenErrors(
   field: string,
   render: (messages: string[]) => string,
   bag: string = DEFAULT_BAG
-): string {
+): JSX.Element {
   const messages = errors(bag).get(field)
 
   return messages.length === 0 ? '' : render(messages)

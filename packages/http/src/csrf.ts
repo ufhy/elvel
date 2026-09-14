@@ -109,6 +109,6 @@ export function csrfToken(): string {
  * `<form>` without importing anything else. The value is the token itself, which
  * needs no escaping: it is generated as hex.
  */
-export function csrfField(): string {
+export function csrfField(): JSX.Element {
   return `<input type="hidden" name="_token" value="${csrfToken()}" />`
 }
