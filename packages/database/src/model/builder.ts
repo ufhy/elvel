@@ -14,7 +14,7 @@ import { QueryBuilder } from '../query/builder.ts'
 import { raw } from '../query/expression.ts'
 import type { VectorMetric } from '../query/types.ts'
 import { attributeEncrypter, formatDateTime } from './casts.ts'
-import type { Model, ModelClass } from './model.ts'
+import { Model, type ModelClass } from './model.ts'
 import type { EagerConstraint } from './relations.ts'
 
 /**
@@ -1380,6 +1380,10 @@ export class ModelBuilder<M extends Model> extends Macroable {
     const models = rows.all().map((row) => (this.model as typeof Model).hydrate(row) as M)
 
     await this.eagerLoadRelations(models)
+
+    // Marked after eager loading, so a relation that *was* loaded is not refused
+    // by the strict-mode guard that reads this.
+    Model.markFromCollection(models)
 
     return new Collection(models)
   }

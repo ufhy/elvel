@@ -23,7 +23,21 @@ export abstract class Relation<R extends Model> {
   constructor(
     protected readonly related: ModelClass<R>,
     protected readonly parent: Model
-  ) {}
+  ) {
+    /**
+     * Refused when the parent came out of a set — that is the N+1.
+     *
+     * Here rather than in `resolveRelation`, because a relation is a method and
+     * `writer.articles()` never goes through that. The parent is flagged only
+     * *after* eager loading has run, so `with('articles')` builds its relations
+     * while the flag is still off and is never caught by this.
+     */
+    if (Model.strictLazyLoading && parent.cameFromCollection()) {
+      throw new Error(
+        `A [${(related as typeof Model).name}] relation was queried for one ${parent.constructor.name} of a set — that is an N+1. Eager-load it with .with(...) and read it back with getRelation(), or turn off Model.preventLazyLoading().`
+      )
+    }
+  }
 
   /** The model on the other side, for callers that need to ask it something. */
   get relatedClass(): typeof Model {

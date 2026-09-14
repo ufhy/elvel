@@ -312,6 +312,31 @@ first and reads back when it loses, so the unique index is the arbiter rather
 than a read-then-write race. A violation with nothing to read back is rethrown —
 some *other* index was hit, and swallowing it would answer with the wrong row.
 
+Strict mode is here as three switches and `shouldBeStrict()`, off by default and
+documented with its one-line recipe. Not in the scaffold, and the repo's own
+guards are why: putting it in the template's `AppServiceProvider` imports
+`@elvel/database` into *every* scaffolded application, and four tests refused —
+a landing page ships ten config files and should not be made to carry the
+database package for a development-only check. Off in production too: a
+strictness check that throws in front of a user turns a cosmetic bug into an
+outage.
+
+**`preventLazyLoading` guards a different thing here, and that is deliberate.**
+A relation in Elvel is a method — `user.posts()` — so nothing queries by
+accident the way `$user->posts` does in PHP; there is no implicit load to
+prevent. What is still real is the N+1 it was written to catch, so the guard
+refuses a relation *built from a model that came out of a set*. It sits in the
+`Relation` constructor rather than in `resolveRelation`, because calling the
+method never goes through that, and the parent is flagged only after eager
+loading has run — so `with()` is never caught by it.
+
+Hydration is observable as a **counter** rather than an event, and GAPS said why
+before it was written: `fireEvent()` is async and `hydrate()` is not, so an
+event would make hydration async and every caller with it — `get()`, `first()`,
+the eager loader, pivots. The number is what the question was ever about;
+`takeHydratedCount()` reads and zeroes it, which is what a per-request recorder
+wants.
+
 The casts are complete. `decimal:2` reads as a **string**, because a money
 column read as a float is a rounding bug waiting for a large enough number.
 `immutable_date`/`immutable_datetime` freeze the `Date`: a mutable one is the
@@ -344,50 +369,6 @@ eager loader exists to prevent.
 
 **Done when** the model builder returns a collection that can load relations,
 and `@elvel/support`'s `Collection` stays what it is.
-
-### Eloquent has no strict mode
-
-Absent: `preventLazyLoading`, `preventSilentlyDiscardingAttributes`,
-`preventAccessingMissingAttributes`, and the `Model::shouldBeStrict()` that
-turns on all three.
-
-`preventLazyLoading` is the best N+1 defence there is: in development a relation
-accessed without being eager-loaded **throws**, naming the model and the
-relation, at the moment the mistake is made. Lens's `repeated` finding exists to
-report N+1 after the fact; this prevents it.
-
-`preventSilentlyDiscardingAttributes` catches the other everyday bug — a `fill()`
-with a key that is not fillable, which today is dropped without a word.
-
-**Done when** all three exist, are on by default outside production, and the
-Lens N+1 finding says which of the two you are relying on.
-
-### Nothing fires when a model is read
-
-`ModelLifecycleEvent` lists eight moments — `saving`, `saved`, `creating`,
-`created`, `updating`, `updated`, `deleting`, `deleted` — and no read. `hydrate()`
-sets the attributes and returns:
-
-```ts
-static hydrate<T extends typeof Model>(this: T, row: Row): InstanceType<T> {
-  const model = new this() as InstanceType<T>
-  model.attributes = { ...row }
-  model.syncOriginal()
-  model.exists = true
-  return model            // nothing dispatched
-}
-```
-
-Eloquent's `retrieved` is what Telescope counts to answer "this request
-hydrated 1,240 models", the number that exposes a query pulling a whole table.
-`ModelWatcher` says so in its own comment and cannot do it.
-
-Adding the event is not one line: `fireEvent()` is `async` and `hydrate()` is
-synchronous, so an event here makes `hydrate()` async and every caller with it —
-`get()`, `first()`, eager loading, pivots. PHP never had to decide this.
-
-**Done when** hydration is observable, whether by an event or by a counter the
-recorder reads at the end of the request, and Lens shows the count.
 
 ### Factories cannot build a graph
 

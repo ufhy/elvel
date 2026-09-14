@@ -52,6 +52,43 @@ in. Measured on a model with `hidden = ['secret']`:
 toJSON keys → ["id","title","views","meta","deleted_at","created_at","updated_at"]
 ```
 
+## Strict mode
+
+Three everyday mistakes, turned into errors:
+
+```ts
+// app/Providers/AppServiceProvider.ts
+import { Model } from '@elvel/database'
+
+override boot(): void {
+  Model.shouldBeStrict(!this.app.isProduction())
+}
+```
+
+- `preventSilentlyDiscardingAttributes` — a `fill()` with a key that is not
+  fillable is otherwise dropped without a word, so a rename that missed
+  `fillable` stops saving that column and the only symptom is a value that will
+  not change.
+- `preventAccessingMissingAttributes` — `user.emial` is `undefined`, and it
+  flows into a template or a JSON response and fails somewhere else entirely.
+  Only models read from a row are checked: a new one is still being filled.
+- `preventLazyLoading` — a relation built from a model that came out of a set.
+  That is the N+1. Note this guards a **different** thing from Laravel's: a
+  relation here is a method, `user.posts()`, so nothing queries by accident the
+  way `$user->posts` does — but asking for it once per row of a collection is
+  still an N+1, and this names it where the loop is written. Eager-load with
+  `.with('posts')` and read it back with `getRelation('posts')`.
+
+Not on by default, and not in the scaffold: the line imports `@elvel/database`,
+and an application without one — a landing page — should not be made to carry
+the package for a development-only check. Off in production deliberately, too:
+a strictness check that throws in front of a user turns a cosmetic bug into an
+outage.
+
+`Model.hydratedCount()` counts the models built. `takeHydratedCount()` reads and
+zeroes it, which is what a per-request recorder wants — "this request hydrated
+1,240 models" is the number that exposes a query pulling a whole table.
+
 ## Soft deletes
 
 ```ts

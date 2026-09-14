@@ -256,6 +256,20 @@ export class Model {
         // An accessor may back a key that has no column at all.
         if (target.hasAccessor(property)) return target.getAttribute(property)
 
+        /**
+         * A key the row does not have, on a model that came from one.
+         *
+         * `user.emial` is `undefined`, and it flows on into a template, a
+         * comparison or a JSON response and fails somewhere unrelated. Only for
+         * a model that `exists`: a new one is being filled, and half its
+         * attributes are legitimately absent while that happens.
+         */
+        if (Model.strictMissing && target.exists && !property.startsWith('_')) {
+          throw new Error(
+            `[${property}] is not an attribute of ${target.self.name}, and the row does not have it.`
+          )
+        }
+
         return undefined
       },
 
@@ -437,6 +451,102 @@ export class Model {
 
   /** Is the mass-assignment guard off right now? See `unguarded`. */
   private static guardsDisabled = false
+
+  // ------------------------------------------------------------ strict mode
+
+  /**
+   * Refuse a `fill()` with a key that is not fillable.
+   *
+   * Today it is dropped without a word, so a rename that missed `fillable`
+   * silently stops saving that column and the only symptom is a value that will
+   * not change.
+   */
+  static strictAttributes = false
+
+  /**
+   * Refuse a read of an attribute the row does not have.
+   *
+   * `user.emial` is `undefined`, which flows on into a template, a comparison or
+   * a JSON response and fails somewhere else entirely.
+   */
+  static strictMissing = false
+
+  /**
+   * Refuse a relation query built from a model that came out of a set.
+   *
+   * **Not upstream's `preventLazyLoading`, because the hazard is not the same
+   * here.** A relation in Elvel is a method — `user.posts()` — so nothing
+   * queries by accident the way `$user->posts` does in PHP. What is still real
+   * is the N+1 itself: a relation asked for once per model of a collection.
+   * That is what this catches, and it names the model and the relation at the
+   * moment the loop is written.
+   */
+  static strictLazyLoading = false
+
+  /** All three. On outside production is the intended setting. */
+  static shouldBeStrict(on = true): void {
+    Model.strictAttributes = on
+    Model.strictMissing = on
+    Model.strictLazyLoading = on
+  }
+
+  static preventSilentlyDiscardingAttributes(on = true): void {
+    Model.strictAttributes = on
+  }
+
+  static preventAccessingMissingAttributes(on = true): void {
+    Model.strictMissing = on
+  }
+
+  static preventLazyLoading(on = true): void {
+    Model.strictLazyLoading = on
+  }
+
+  /**
+   * How many models have been hydrated.
+   *
+   * A counter rather than a `retrieved` event, and the reason is structural:
+   * `fireEvent()` is async and `hydrate()` is not, so an event here would make
+   * hydration async and every caller with it — `get()`, `first()`, the eager
+   * loader, pivots. PHP never had to decide this.
+   *
+   * The number is what the question was ever about: "this request hydrated
+   * 1,240 models" is what exposes a query pulling a whole table, and a recorder
+   * reads it at the end of the request.
+   */
+  private static hydrated = 0
+
+  static hydratedCount(): number {
+    return Model.hydrated
+  }
+
+  /** Read and zero it, which is what a per-request recorder wants. */
+  static takeHydratedCount(): number {
+    const count = Model.hydrated
+    Model.hydrated = 0
+
+    return count
+  }
+
+  /** Set when this model came out of a multi-row result. See `strictLazyLoading`. */
+  protected fromCollection = false
+
+  /**
+   * Mark a batch, so a relation asked for per model can be refused.
+   *
+   * Called *after* eager loading, which is what keeps `with()` working: the
+   * loader builds its relations while the flag is still off.
+   */
+  static markFromCollection(models: Model[]): void {
+    if (models.length < 2) return
+
+    for (const model of models) model.fromCollection = true
+  }
+
+  /** Read by `Relation`, which is where a per-model query is actually built. */
+  cameFromCollection(): boolean {
+    return this.fromCollection
+  }
 
   /**
    * Run `body` with the mass-assignment guard off — `Model::unguarded`.
@@ -681,6 +791,8 @@ export class Model {
     model.syncOriginal()
     model.exists = true
 
+    Model.hydrated += 1
+
     return model
   }
 
@@ -818,7 +930,24 @@ export class Model {
   /** Mass assignment, honouring `fillable`/`guarded`. */
   fill(attributes: Row): this {
     for (const [key, value] of Object.entries(attributes)) {
-      if (this.isFillable(key)) this.setAttribute(key, value)
+      if (this.isFillable(key)) {
+        this.setAttribute(key, value)
+
+        continue
+      }
+
+      /**
+       * Dropped silently, unless strict mode is on.
+       *
+       * A rename that missed `fillable` stops saving that column and the only
+       * symptom is a value that will not change — which is found weeks later,
+       * in production, by a person.
+       */
+      if (Model.strictAttributes) {
+        throw new Error(
+          `[${key}] is not fillable on ${this.self.name}. Add it to fillable, or use forceFill.`
+        )
+      }
     }
 
     return this
