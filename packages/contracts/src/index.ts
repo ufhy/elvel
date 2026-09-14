@@ -288,6 +288,12 @@ export interface CommandConstructor {
   new (...args: any[]): CommandContract
   readonly signature: string
   readonly description: string
+  /** Other names it answers to, so a renamed command keeps working. */
+  readonly aliases?: string[]
+  /** Keep it out of `elvel list` — internal plumbing that must still be runnable. */
+  readonly hidden?: boolean
+  /** Refuse to run at all, `--force` included. */
+  readonly prohibited?: boolean
 }
 
 export interface ExceptionHandlerContract {

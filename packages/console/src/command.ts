@@ -43,6 +43,40 @@ export abstract class Command implements CommandContract {
   static isolatable = false
 
   /**
+   * Other names this command answers to.
+   *
+   * How a renamed command keeps working: the old name stays registered and the
+   * scripts that call it do not have to be found first.
+   */
+  static aliases: string[] = []
+
+  /**
+   * Keep it out of `elvel list`.
+   *
+   * For internal plumbing — the command a scheduler invokes for its own
+   * bookkeeping — which is noise in the list a person reads and still has to be
+   * runnable.
+   */
+  static hidden = false
+
+  /**
+   * Refuse to run in production without `--force`.
+   *
+   * The guard lived on `MigrationCommand` alone, so `queue:clear` and anything
+   * an application wrote had to reimplement it.
+   */
+  static destructive = false
+
+  /**
+   * Remove it from the application entirely.
+   *
+   * Stronger than `destructive`, and different in kind: a prohibited command
+   * cannot be run at all, `--force` included. What keeps `db:wipe` off a
+   * production host rather than one confirmation away from it.
+   */
+  static prohibited = false
+
+  /**
    * Does this command leave something running after `handle()` returns?
    *
    * `serve` does: the server holds the event loop, so the process must stay
@@ -140,6 +174,105 @@ export abstract class Command implements CommandContract {
     return this.runner(command, argv)
   }
 
+  /**
+   * The same, with its output suppressed.
+   *
+   * A command that runs three others should not print three banners, and before
+   * this the only choice was for the inner command to be quiet for everybody.
+   */
+  protected async callSilent(command: string, argv: string[] = []): Promise<number> {
+    return this.call(command, [...argv, '--quiet'])
+  }
+
+  // --------------------------------------------------------------- verbosity
+
+  protected isQuiet(): boolean {
+    return this.output.isQuiet()
+  }
+
+  protected isVerbose(): boolean {
+    return this.output.isVerbose()
+  }
+
+  protected isVeryVerbose(): boolean {
+    return this.output.isVeryVerbose()
+  }
+
+  protected isDebug(): boolean {
+    return this.output.isDebug()
+  }
+
+  // ----------------------------------------------------------------- signals
+
+  /** What `trap()` registered, so `untrap()` can take them off again. */
+  private trapped: Array<[NodeJS.Signals, () => void]> = []
+
+  /**
+   * Handle an interrupt.
+   *
+   * `SIGINT`/`SIGTERM` were wired with raw `process.on` in three commands, and
+   * nothing an application's own long-running command could reach. Getting
+   * shutdown right — finish the unit of work, stop taking new work, exit with
+   * the right code — is exactly the thing to write once.
+   *
+   * A **second** interrupt exits immediately with 130. Somebody pressing Ctrl-C
+   * twice means it now, and a graceful shutdown that cannot itself be
+   * interrupted is a process that has to be killed.
+   */
+  protected trap(handler: () => void, signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM']): this {
+    for (const signal of signals) {
+      let asked = false
+
+      const listener = (): void => {
+        if (asked) {
+          process.exit(130)
+        }
+
+        asked = true
+        handler()
+      }
+
+      process.on(signal, listener)
+      this.trapped.push([signal, listener])
+    }
+
+    return this
+  }
+
+  /** Take the handlers off — for a command that keeps running afterwards. */
+  protected untrap(): this {
+    for (const [signal, listener] of this.trapped) process.off(signal, listener)
+
+    this.trapped = []
+
+    return this
+  }
+
+  // -------------------------------------------------------------- production
+
+  /**
+   * Stop unless the operator meant it.
+   *
+   * `--force` is the opt-out, and it is the only one: a prompt that a CI job
+   * cannot answer would otherwise make every deploy hang instead of failing.
+   */
+  protected async confirmInProduction(warning?: string): Promise<boolean> {
+    if (!this.app.isProduction()) return true
+    if (this.flag('force')) return true
+
+    if (!process.stdout.isTTY) {
+      this.error(
+        `[${this.name}] refuses to run in production without --force. Nothing has been changed.`
+      )
+
+      return false
+    }
+
+    this.output.alert(warning ?? `${this.name} is about to run against production.`)
+
+    return this.confirm('Do you really wish to run this command?', false)
+  }
+
   // ------------------------------------------------------------------- output
 
   protected line(message = ''): void {
@@ -168,6 +301,37 @@ export abstract class Command implements CommandContract {
 
   protected table(headers: string[], rows: string[][]): void {
     this.output.table(headers, rows)
+  }
+
+  /** One step, with a tick and how long it took. */
+  protected task<T>(label: string, run: () => Promise<T> | T): Promise<T> {
+    return this.output.task(label, run)
+  }
+
+  protected bulletList(items: string[]): void {
+    this.output.bulletList(items)
+  }
+
+  /** The boxed warning, for the thing somebody must not miss. */
+  protected alert(message: string): void {
+    this.output.alert(message)
+  }
+
+  /** A bar with a known total — see `Output.withProgressBar`. */
+  protected withProgressBar<T>(
+    items: Iterable<T>,
+    run: (item: T) => Promise<unknown> | unknown,
+    options: { label?: string } = {}
+  ): Promise<void> {
+    return this.output.withProgressBar(items, run, options)
+  }
+
+  protected anticipate(
+    question: string,
+    suggestions: string[],
+    defaultValue?: string
+  ): Promise<string> {
+    return this.output.anticipate(question, suggestions, defaultValue)
   }
 
   protected ask(question: string, defaultValue?: string): Promise<string> {

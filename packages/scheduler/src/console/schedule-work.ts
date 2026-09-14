@@ -22,8 +22,7 @@ export class ScheduleWorkCommand extends Command {
       this.comment('Finishing the current minute, then stopping…')
     }
 
-    process.on('SIGINT', stop)
-    process.on('SIGTERM', stop)
+    this.trap(stop)
 
     /**
      * The signal as it stood at start-up, as `queue:work` reads its restart.

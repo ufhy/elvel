@@ -64,8 +64,9 @@ export class QueueWorkCommand extends Command {
       worker.stop()
     }
 
-    process.on('SIGINT', stop)
-    process.on('SIGTERM', stop)
+    // `trap` rather than `process.on`: a second interrupt exits 130 instead of
+    // being swallowed by a graceful shutdown that cannot be interrupted.
+    this.trap(stop)
 
     this.info(
       `Working ${connection ?? manager.defaultConnection()} [${queue ?? manager.connection(connection).defaultQueue}]`

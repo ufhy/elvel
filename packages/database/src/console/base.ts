@@ -20,18 +20,15 @@ export abstract class MigrationCommand extends Command {
     })
   }
 
+  /**
+   * The guard lives on `Command` now, so every command has it.
+   *
+   * Kept as a member here only because migration commands call it by this name;
+   * the behaviour — and the non-interactive refusal — is the base class's.
+   */
   protected paths(): string[] {
     const configured = this.app.config.get<string[]>('database.migrationPaths', [])
 
     return configured.length > 0 ? configured : [this.app.basePath('database', 'migrations')]
-  }
-
-  /** Refuse to run destructively in production unless forced, as Artisan does. */
-  protected async confirmInProduction(): Promise<boolean> {
-    if (!this.app.isProduction() || this.flag('force')) return true
-
-    this.warn('Application is in production.')
-
-    return this.confirm('Do you really wish to run this command?', false)
   }
 }

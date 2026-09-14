@@ -3,13 +3,16 @@ import { join } from 'node:path'
 import { type Application, enterDeferredScope, enterWorkContext, flushDeferred } from '@elvel/core'
 import pc from 'picocolors'
 import type { Command } from './command.ts'
-import { Output } from './output.ts'
+import { Output, type Verbosity } from './output.ts'
 import { formatUsage, InputParseError, missingArguments, parseSignature } from './signature.ts'
 
 export type CommandConstructor = (new () => Command) & {
   signature: string
   description: string
   holdsProcess?: boolean
+  aliases?: string[]
+  hidden?: boolean
+  prohibited?: boolean
 }
 
 /**
@@ -50,6 +53,10 @@ export class Kernel {
         throw new Error(`Command ${command.name} has an empty signature.`)
       }
       this.commands.set(name, command)
+
+      // An alias points at the same class, so a renamed command keeps working
+      // and the scripts that call it do not have to be found first.
+      for (const alias of command.aliases ?? []) this.commands.set(alias, command)
     }
     return this
   }
@@ -111,6 +118,23 @@ export class Kernel {
       this.suggest(name)
       return 1
     }
+
+    /**
+     * A prohibited command is not one confirmation away from running.
+     *
+     * That is the difference from `destructive`: this is how `db:wipe` is kept
+     * off a production host rather than guarded on it, and `--force` does not
+     * lift it.
+     */
+    if (command.prohibited === true) {
+      this.output.error(`Command "${name}" is prohibited in this application.`)
+
+      return 1
+    }
+
+    // Read before the command runs, so even a refusal above this point is quiet
+    // when the caller asked for quiet.
+    this.output.setVerbosity(verbosityOf(rest))
 
     if (rest.includes('--help') || rest.includes('-h')) {
       this.renderHelp(command)
@@ -365,7 +389,16 @@ export class Kernel {
     this.output.line()
 
     const groups = new Map<string, CommandConstructor[]>()
-    for (const command of this.all()) {
+
+    /**
+     * Hidden commands and alias entries are left out of the list.
+     *
+     * An alias registers a second key pointing at the same class, so listing the
+     * registry directly would print every renamed command twice.
+     */
+    const listable = [...new Set(this.all())].filter((command) => command.hidden !== true)
+
+    for (const command of listable) {
       const name = parseSignature(command.signature).name
       const group = name.includes(':') ? (name.split(':')[0] as string) : ''
       const bucket = groups.get(group) ?? []
@@ -375,7 +408,8 @@ export class Kernel {
 
     const sorted = [...groups.entries()].sort(([left], [right]) => left.localeCompare(right))
     const width = Math.max(
-      ...this.all().map((command) => parseSignature(command.signature).name.length)
+      1,
+      ...listable.map((command) => parseSignature(command.signature).name.length)
     )
 
     for (const [group, commands] of sorted) {
@@ -460,4 +494,20 @@ export class Kernel {
       typeof candidate.prototype?.handle === 'function'
     )
   }
+}
+
+/**
+ * `-v`, `-vv`, `-vvv`, `--quiet`.
+ *
+ * `--quiet` wins over `-v` when both are given: one of them is a mistake, and
+ * the safer reading of a mistake is the quieter one — a CI job that asked for
+ * silence and got debug output is a log nobody can use.
+ */
+export function verbosityOf(argv: string[]): Verbosity {
+  if (argv.includes('--quiet') || argv.includes('-q')) return 'quiet'
+  if (argv.includes('-vvv') || argv.includes('--verbose=3')) return 'debug'
+  if (argv.includes('-vv') || argv.includes('--verbose=2')) return 'very-verbose'
+  if (argv.includes('-v') || argv.includes('--verbose')) return 'verbose'
+
+  return 'normal'
 }

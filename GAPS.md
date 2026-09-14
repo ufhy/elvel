@@ -267,80 +267,36 @@ suggestion on a typo, `--isolated` with a per-command `isolatable` opt-in, and
 prompts through `@clack/prompts` are all present. `Output.pairs()` is
 `twoColumnDetail`, `tag()` is the `INFO`/`ERROR` label.
 
-### There are no verbosity levels
+`-v`/`-vv`/`-vvv`/`--quiet` are parsed, every write takes the level it needs, and
+`callSilent()` runs another command without its output. `--quiet` wins when both
+are given: one of them is a mistake, and a CI job that asked for silence and got
+debug output is a log nobody can use.
 
-No `-v`, `-vv`, `-vvv` anywhere in `packages/console`. `line()`, `info()` and
-the rest take a message and nothing else, there is no `isVerbose()`, and
-`call()` has no `callSilent()` counterpart — a command that runs another cannot
-suppress its output.
+`withProgressBar` shows position, total and an estimate. Off a terminal it
+degrades to a line every N items — a bar written into a log file is thousands of
+lines of control codes.
 
-Every command therefore has to choose once, for everybody: print the detail and
-be noisy in CI, or stay quiet and give a person debugging nothing to work with.
-Upstream's answer is one argument on every write.
+`trap()` and `untrap()` are on `Command`, and the three hand-written
+`process.on` pairs in `dev`, `queue:work` and `schedule:work` use them. A
+**second** interrupt exits 130: somebody pressing Ctrl-C twice means it now, and
+a graceful shutdown that cannot itself be interrupted is a process that has to
+be killed.
 
-**Done when** `-v/-vv/-vvv` are parsed, every output method takes a minimum
-verbosity, `isVerbose()` exists, and `call()` can run a command silently.
+`confirmInProduction()` moved from `MigrationCommand` to `Command`, so every
+command has it, and it refuses outright rather than prompting when stdout is not
+a terminal — a prompt a CI job cannot answer makes a deploy hang instead of
+fail. `prohibited` goes further and takes a command out of the application:
+`--force` does not lift it, which is the difference between guarding `db:wipe`
+on a production host and keeping it off one.
 
-### A spinner, but no progress bar
+`aliases` and `hidden` are statics and `elvel list` honours both. An alias
+registers a second key pointing at the same class, so the listing de-duplicates
+or every renamed command would print twice.
 
-`Output.spinner()` wraps Clack's, which is indeterminate. There is no
-`withProgressBar($items)` and no bar with a known total, so a command importing
-fifty thousand rows can say it is working and cannot say how far it has got.
-The only "progress" in the repository is `Batch.progress`, which is a percentage
-on a queue batch and nothing to do with the terminal.
-
-**Done when** a command can wrap an iterable in a bar that shows position,
-total, and estimated remaining, and degrades to a line per N items when the
-output is not a terminal.
-
-### Signals are handled three times, by hand, and not by commands
-
-Upstream puts `trap()` and `untrap()` on the command. Here, `SIGINT`/`SIGTERM`
-are wired with raw `process.on` in `commands/dev.ts`, `queue/console/queue-work.ts`
-and `scheduler/console/schedule-work.ts` — three copies, and nothing an
-application's own long-running command can reach.
-
-Getting shutdown right is exactly the thing that should be written once: finish
-the unit of work, stop accepting new work, exit with the right code.
-
-**Done when** `Command` exposes signal trapping, the three existing handlers use
-it, and a trapped command still exits non-zero on the second interrupt.
-
-### Only migrations are protected from production
-
-`confirmInProduction()` exists — on `MigrationCommand`, in
-`packages/database/src/console/base.ts`. Upstream's `ConfirmableTrait` is
-available to any command, and `Prohibitable` goes further: `Command::prohibit()`
-takes a destructive command out of the application entirely, which is how
-`db:wipe` and `migrate:fresh` are kept off production hosts.
-
-So today `queue:clear` and anything an application writes have to reimplement
-the guard, and nothing can be prohibited outright.
-
-**Done when** the confirmation lives on `Command` with the `--force` opt-out,
-and a command can be prohibited.
-
-### A command cannot be hidden or aliased
-
-`Command` declares `signature`, `description` and `isolatable`. Upstream carries
-`aliases`, `hidden`, `usage` and `help` as attributes.
-
-`hidden` is what keeps internal plumbing — the command a scheduler invokes for
-its own bookkeeping — out of the list a person reads. `aliases` is how a
-renamed command keeps working.
-
-**Done when** both are statics on `Command` and `elvel list` honours them.
-
-### Three output components are missing
-
-- `task('Migrating', fn)` — runs the callback and prints `✓`/`✗` with the time
-  taken. The single most-used one, and what makes a long command legible.
-- `bulletList`
-- `alert` — the boxed warning, distinct from the `tag` label
-- `anticipate` / `askWithCompletion` — a prompt that suggests as you type
-
-**Done when** each exists on `Output` and behaves when stdout is not a terminal.
-
+`task()`, `bulletList()`, `alert()` and `anticipate()` are on `Output`.
+`anticipate` is a select with a free-text escape rather than a completing input,
+because Clack has none — the answer still need not be one of the suggestions,
+which is the part that matters.
 ---
 
 ## Container

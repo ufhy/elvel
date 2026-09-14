@@ -18,8 +18,8 @@ export { ServeCommand } from './commands/serve.ts'
 export { StubPublishCommand } from './commands/stub-publish.ts'
 export { UpCommand } from './commands/up.ts'
 export { GeneratorCommand } from './generator.ts'
-export { type CommandConstructor, Kernel } from './kernel.ts'
-export { Output } from './output.ts'
+export { type CommandConstructor, Kernel, verbosityOf } from './kernel.ts'
+export { Output, ProgressBar, type Verbosity } from './output.ts'
 export { ConsoleServiceProvider } from './provider.ts'
 export {
   type ArgumentDefinition,

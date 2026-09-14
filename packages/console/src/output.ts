@@ -9,24 +9,85 @@ import pc from 'picocolors'
  * ~150KB + React, which matters because the CLI is meant to be shipped with
  * `bun build --compile`.
  */
+/**
+ * How much a command is allowed to say.
+ *
+ * `quiet` is what `--quiet` gives; the rest climb with `-v`, `-vv`, `-vvv`.
+ * Every write takes the level it needs, so one command can serve both CI and
+ * somebody debugging without choosing once for everybody.
+ */
+export type Verbosity = 'quiet' | 'normal' | 'verbose' | 'very-verbose' | 'debug'
+
+const LEVELS: Record<Verbosity, number> = {
+  quiet: 0,
+  normal: 1,
+  verbose: 2,
+  'very-verbose': 3,
+  debug: 4
+}
+
 export class Output {
-  line(message = ''): void {
+  private level: Verbosity = 'normal'
+
+  /** Set from `-v`/`-vv`/`-vvv`/`--quiet` by the kernel. */
+  setVerbosity(level: Verbosity): this {
+    this.level = level
+
+    return this
+  }
+
+  verbosity(): Verbosity {
+    return this.level
+  }
+
+  /** Would a write at this level be printed? */
+  writes(at: Verbosity = 'normal'): boolean {
+    return LEVELS[this.level] >= LEVELS[at]
+  }
+
+  isQuiet(): boolean {
+    return this.level === 'quiet'
+  }
+
+  isVerbose(): boolean {
+    return this.writes('verbose')
+  }
+
+  isVeryVerbose(): boolean {
+    return this.writes('very-verbose')
+  }
+
+  isDebug(): boolean {
+    return this.writes('debug')
+  }
+
+  line(message = '', at: Verbosity = 'normal'): void {
+    if (!this.writes(at)) return
+
     console.log(message)
   }
 
-  info(message: string): void {
+  info(message: string, at: Verbosity = 'normal'): void {
+    if (!this.writes(at)) return
+
     console.log(pc.cyan(message))
   }
 
-  success(message: string): void {
+  success(message: string, at: Verbosity = 'normal'): void {
+    if (!this.writes(at)) return
+
     console.log(`${pc.green('✔')} ${message}`)
   }
 
-  comment(message: string): void {
+  comment(message: string, at: Verbosity = 'normal'): void {
+    if (!this.writes(at)) return
+
     console.log(pc.dim(message))
   }
 
-  warn(message: string): void {
+  warn(message: string, at: Verbosity = 'normal'): void {
+    if (!this.writes(at)) return
+
     console.log(`${pc.yellow('⚠')} ${message}`)
   }
 
@@ -139,6 +200,123 @@ export class Output {
     return prompts.spinner()
   }
 
+  /**
+   * One step, with a tick and how long it took.
+   *
+   * The most-used component upstream has, and what makes a long command
+   * legible: a wall of `line()` says the same as nothing, and a spinner says
+   * only that something is happening.
+   */
+  async task<T>(label: string, run: () => Promise<T> | T): Promise<T> {
+    const started = Date.now()
+
+    try {
+      const answer = await run()
+
+      this.line(`${pc.green('✓')} ${label} ${pc.dim(`${Date.now() - started}ms`)}`)
+
+      return answer
+    } catch (error) {
+      // Printed before the rethrow, so the failing step is named even when the
+      // command dies on it.
+      this.line(`${pc.red('✗')} ${label} ${pc.dim(`${Date.now() - started}ms`)}`)
+
+      throw error
+    }
+  }
+
+  bulletList(items: string[], at: Verbosity = 'normal'): void {
+    for (const item of items) this.line(`  ${pc.dim('•')} ${item}`, at)
+  }
+
+  /**
+   * A boxed warning, for the thing somebody must not miss.
+   *
+   * Distinct from `tag()`, which labels a line. This is for "you are about to
+   * do X to production".
+   */
+  alert(message: string): void {
+    if (!this.writes()) return
+
+    const width = Math.min(78, Math.max(message.length + 4, 20))
+    const rule = '─'.repeat(width - 2)
+
+    this.line(pc.yellow(`┌${rule}┐`))
+    this.line(pc.yellow(`│ ${message.padEnd(width - 4)} │`))
+    this.line(pc.yellow(`└${rule}┘`))
+  }
+
+  /**
+   * Ask, suggesting from a list as they type.
+   *
+   * Unlike `choice`, the answer need not be one of them — which is the point: a
+   * class name, a table, a branch. Clack has no completing text input, so this
+   * is a select with the free-text answer as its own option.
+   */
+  async anticipate(
+    question: string,
+    suggestions: string[],
+    defaultValue?: string
+  ): Promise<string> {
+    if (suggestions.length === 0) return this.ask(question, defaultValue)
+
+    const other = '__other__'
+
+    const picked = await prompts.select({
+      message: question,
+      options: [
+        ...suggestions.map((suggestion) => ({ value: suggestion, label: suggestion })),
+        { value: other, label: 'Something else…' }
+      ] as never,
+      initialValue: defaultValue
+    })
+
+    const answer = this.unwrap(
+      picked as string | symbol,
+      defaultValue ?? (suggestions[0] as string)
+    )
+
+    return answer === other ? this.ask(question, defaultValue) : answer
+  }
+
+  /** The same, under the name upstream gives it. */
+  askWithCompletion(
+    question: string,
+    suggestions: string[],
+    defaultValue?: string
+  ): Promise<string> {
+    return this.anticipate(question, suggestions, defaultValue)
+  }
+
+  /**
+   * A bar with a known total.
+   *
+   * A spinner says a command is working; this says how far it has got, which is
+   * the difference between waiting and wondering. Not a terminal — CI, a log —
+   * and it degrades to a line every `every` items, because a progress bar
+   * written to a file is thousands of lines of control codes.
+   */
+  progress(total: number, options: { label?: string; every?: number } = {}): ProgressBar {
+    return new ProgressBar(this, total, options)
+  }
+
+  /** Wrap an iterable in a bar. The common case, and one call. */
+  async withProgressBar<T>(
+    items: Iterable<T>,
+    run: (item: T) => Promise<unknown> | unknown,
+    options: { label?: string } = {}
+  ): Promise<void> {
+    const all = [...items]
+    const bar = this.progress(all.length, options)
+
+    for (const item of all) {
+      await run(item)
+      bar.advance()
+    }
+
+    bar.finish()
+  }
+
   intro(message: string): void {
     prompts.intro(pc.bgCyan(pc.black(` ${message} `)))
   }
@@ -154,5 +332,68 @@ export class Output {
       process.exit(130)
     }
     return (value as T) ?? fallback
+  }
+}
+
+/**
+ * The bar itself.
+ *
+ * Redrawn in place with a carriage return where stdout is a terminal, and
+ * reduced to an occasional line where it is not — a bar written into a log file
+ * is thousands of lines of control codes nobody can read.
+ */
+export class ProgressBar {
+  private current = 0
+  private readonly startedAt = Date.now()
+  private readonly interactive = process.stdout.isTTY === true
+  private readonly every: number
+
+  constructor(
+    private readonly output: Output,
+    private readonly total: number,
+    private readonly options: { label?: string; every?: number } = {}
+  ) {
+    // One line per percent, at most, when nobody is watching it move.
+    this.every = options.every ?? Math.max(1, Math.floor(total / 100))
+  }
+
+  advance(by = 1): void {
+    this.current = Math.min(this.total, this.current + by)
+
+    if (this.output.isQuiet()) return
+
+    if (!this.interactive) {
+      if (this.current % this.every === 0 || this.current === this.total) {
+        this.output.line(`${this.label()} ${this.current}/${this.total}`)
+      }
+
+      return
+    }
+
+    process.stdout.write(`\r${this.render()}`)
+  }
+
+  finish(): void {
+    if (this.output.isQuiet()) return
+
+    if (this.interactive) process.stdout.write(`\r${this.render()}\n`)
+    else if (this.current % this.every !== 0) {
+      this.output.line(`${this.label()} ${this.current}/${this.total}`)
+    }
+  }
+
+  private label(): string {
+    return this.options.label ?? 'Progress'
+  }
+
+  private render(): string {
+    const share = this.total === 0 ? 1 : this.current / this.total
+    const width = 30
+    const filled = Math.round(share * width)
+
+    const elapsed = Date.now() - this.startedAt
+    const remaining = share === 0 ? 0 : Math.round((elapsed / share) * (1 - share))
+
+    return `${this.label()} [${'█'.repeat(filled)}${'░'.repeat(width - filled)}] ${this.current}/${this.total} ${pc.dim(`${Math.round(share * 100)}% · ~${Math.ceil(remaining / 1000)}s left`)}`
   }
 }

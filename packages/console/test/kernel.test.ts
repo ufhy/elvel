@@ -302,3 +302,69 @@ describe('commands that outlive themselves', () => {
     expect(kernel.holdsProcess).toBe(false)
   })
 })
+
+describe('command attributes', () => {
+  class Renamed extends Command {
+    static override signature = 'queue:listen'
+    static override description = 'The old name for queue:work'
+    static override aliases = ['queue:listen-old']
+
+    handle(): number {
+      return 0
+    }
+  }
+
+  class Internal extends Command {
+    static override signature = 'schedule:bookkeeping'
+    static override description = 'Internal plumbing'
+    static override hidden = true
+
+    handle(): number {
+      return 0
+    }
+  }
+
+  class Wipe extends Command {
+    static override signature = 'db:wipe'
+    static override description = 'Drop everything'
+    static override prohibited = true
+
+    handle(): number {
+      return 0
+    }
+  }
+
+  /** A renamed command keeps working without finding every script that calls it. */
+  test('an alias reaches the same command', async () => {
+    kernel.register(Renamed)
+
+    expect(kernel.has('queue:listen')).toBe(true)
+    expect(kernel.has('queue:listen-old')).toBe(true)
+    expect((await run(['queue:listen-old'])).status).toBe(0)
+  })
+
+  test('a hidden command runs but is not listed', async () => {
+    kernel.register(Internal)
+
+    expect((await run(['schedule:bookkeeping'])).status).toBe(0)
+    expect((await run(['list'])).output).not.toContain('schedule:bookkeeping')
+  })
+
+  /** Not one confirmation away — that is the difference from a destructive one. */
+  test('a prohibited command refuses, --force included', async () => {
+    kernel.register(Wipe)
+
+    const { status, output } = await run(['db:wipe', '--force'])
+
+    expect(status).toBe(1)
+    expect(output).toContain('prohibited')
+  })
+
+  test('and an alias is not listed twice', async () => {
+    kernel.register(Renamed)
+
+    const { output } = await run(['list'])
+
+    expect(output.split('queue:listen').length - 1).toBe(1)
+  })
+})

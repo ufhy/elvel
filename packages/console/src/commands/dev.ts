@@ -319,8 +319,7 @@ export class DevCommand extends Command {
       }
     }
 
-    process.on('SIGINT', stopAll)
-    process.on('SIGTERM', stopAll)
+    this.trap(stopAll)
 
     /**
      * Not awaited: the race below is what keeps this command alive.
