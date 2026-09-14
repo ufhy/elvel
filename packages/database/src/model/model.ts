@@ -178,6 +178,42 @@ export class Model {
   private static dispatcher?: EventDispatcher
 
   /** Wired by DatabaseServiceProvider; set by hand in tests. */
+  /**
+   * How `Model.factory()` finds a factory class.
+   *
+   * A resolver rather than an import, and for the reason every other seam here
+   * is one: a model importing its own factory would put test fixtures in the
+   * production bundle, and the factory already imports the model — so the two
+   * would be a cycle.
+   *
+   * An application registers its factories once, in a provider or a test setup.
+   */
+  private static factories = new Map<string, () => unknown>()
+
+  static registerFactory(model: string | typeof Model, build: () => unknown): void {
+    Model.factories.set(typeof model === 'string' ? model : model.name, build)
+  }
+
+  /**
+   * This model's factory.
+   *
+   * An error naming the model when none is registered, rather than `undefined`
+   * reaching a `.count()` and failing as a missing method.
+   */
+  static factory<T extends typeof Model>(this: T, times?: number): unknown {
+    const build = Model.factories.get(this.name)
+
+    if (build === undefined) {
+      throw new Error(
+        `No factory registered for ${this.name}. Call Model.registerFactory(${this.name}, () => new ${this.name}Factory()).`
+      )
+    }
+
+    const factory = build() as { count(times: number): unknown }
+
+    return times === undefined ? factory : factory.count(times)
+  }
+
   static setConnectionResolver(resolver: ConnectionResolver): void {
     Model.resolver = resolver
   }

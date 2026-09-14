@@ -312,6 +312,24 @@ first and reads back when it loses, so the unique index is the arbiter rather
 than a read-then-write race. A violation with nothing to read back is rethrown —
 some *other* index was hit, and swallowing it would answer with the wrong row.
 
+A factory can build a graph: `has()`, `for()`, `hasAttached()`, `recycle()`,
+`sequence()`, `crossJoinSequence()`, `afterMaking`/`afterCreating`,
+`createMany`, `makeOne` and `createQuietly`. `for()` creates one parent for the
+whole batch rather than one per child — five comments meant five users
+otherwise, where the fixture meant one — and `recycle()` is how a parent the
+caller already holds is shared instead.
+
+`Model.factory()` goes through a **resolver**, registered once, rather than an
+import: a model importing its own factory would put test fixtures in the
+production bundle, and the factory already imports the model, so the two would
+be a cycle.
+
+No `connection()` on a factory, and the reason is structural: a model's
+connection is a **static** on its class, so a per-factory override would have to
+mutate it globally — a race the moment two factories run at once. A model that
+belongs on another connection declares it, which is where the rest of the
+framework already reads it from.
+
 Strict mode is here as three switches and `shouldBeStrict()`, off by default and
 documented with its one-line recipe. Not in the scaffold, and the repo's own
 guards are why: putting it in the template's `AppServiceProvider` imports
@@ -369,25 +387,6 @@ eager loader exists to prevent.
 
 **Done when** the model builder returns a collection that can load relations,
 and `@elvel/support`'s `Collection` stays what it is.
-
-### Factories cannot build a graph
-
-`Factory` has `count`, `state`, `with`, `raw`, `make`, `create`, `createOne`.
-That is the whole class.
-
-Upstream's has `has()`, `for()`, `hasAttached()` and `withoutParents` — creating a
-user with three posts each with five comments in one expression — plus
-`sequence()` and `crossJoinSequence()` to cycle values across a batch,
-`afterMaking`/`afterCreating` hooks, `recycle()` to share one parent across a
-graph, `createMany`, `makeOne`, `createQuietly`, and `connection()`.
-
-There is also no `Model::factory()`; a factory is constructed by hand.
-
-Seeding anything with relations therefore means writing the loops, which is what
-factories are for.
-
-**Done when** a factory can declare its relations, sequences exist, the two
-hooks run, and `Model.factory()` resolves the class.
 
 ### The schema cannot be inspected
 
