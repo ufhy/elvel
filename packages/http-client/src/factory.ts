@@ -91,7 +91,7 @@ export class HttpClient {
     return new PendingRequest(
       {},
       this.faking ? (attempt) => this.answer(attempt) : undefined,
-      (attempt, response) => {
+      (attempt, response, durationMs) => {
         /**
          * Only while recording, which `fake()` and `record()` turn on.
          *
@@ -110,7 +110,7 @@ export class HttpClient {
          * — the same shape `QueryExecuted` uses.
          */
         if (this.events?.hasListeners?.('http.client.response') !== false) {
-          void this.events?.dispatch('http.client.response', { attempt, response })
+          void this.events?.dispatch('http.client.response', { attempt, response, durationMs })
         }
       },
       (attempt) => this.guardStray(attempt)

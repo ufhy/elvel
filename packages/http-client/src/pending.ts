@@ -79,7 +79,11 @@ export class PendingRequest {
   constructor(
     private readonly config: RequestOptions = {},
     private readonly responder?: Responder,
-    private readonly recorder?: (attempt: Attempt, response: HttpResponse) => void,
+    private readonly recorder?: (
+      attempt: Attempt,
+      response: HttpResponse,
+      durationMs: number
+    ) => void,
     private readonly onStray?: (attempt: Attempt) => void
   ) {}
 
@@ -383,8 +387,17 @@ export class PendingRequest {
 
     for (let round = 1; round <= Math.max(1, retry.times); round += 1) {
       try {
+        // Timed here rather than by the caller: this is the only place that
+        // knows where one attempt of a retry begins and ends, and an outbound
+        // call is usually the slowest thing in a request.
+        const started = Bun.nanoseconds()
         const response = await this.attempt(attempt)
-        this.recorder?.(attempt, response)
+
+        this.recorder?.(
+          attempt,
+          response,
+          Math.round((Bun.nanoseconds() - started) / 1_000) / 1_000
+        )
 
         if (!response.failed()) return response
 

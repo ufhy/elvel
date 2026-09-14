@@ -265,7 +265,9 @@ function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {
           ['Type', str(content.class)],
           ['Message', str(content.message)],
           ['Where', where(content)],
-          ['Seen', str(content.occurrences ?? 1)]
+          // Counted when the entry is stored, so the in-memory ring has no
+          // number at all — and "Seen 1" was a claim rather than a reading.
+          ['Seen', content.occurrences === undefined ? '' : str(content.occurrences)]
         ]),
         source(content.linePreview, Number(content.line ?? 0)),
         trace(content.trace)

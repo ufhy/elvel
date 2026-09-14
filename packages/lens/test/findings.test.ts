@@ -191,3 +191,107 @@ describe('order', () => {
     expect(found.map((one) => one.id.split(':')[0])).toEqual(['slow', 'swallowed'])
   })
 })
+
+/**
+ * The findings that read an entry type nothing read before.
+ *
+ * Each was a row on the checklist in issue #14: the data was recorded and
+ * nothing looked at it, which is a list of forty rows where an answer belongs.
+ */
+describe('what else the entries already say', () => {
+  const ids = (entries: BarEntry[]) => judge(entries).map((one) => one.id.split(':')[0])
+
+  test('a 4xx or 5xx is a finding of its own', () => {
+    expect(ids([entry('request', { responseStatus: 500 })])).toContain('status')
+    expect(ids([entry('request', { responseStatus: 302, location: '/next' })])).not.toContain(
+      'status'
+    )
+  })
+
+  test('a route that matched nothing, when the entry says so', () => {
+    expect(ids([entry('request', { responseStatus: 404, route: null })])).toContain('unrouted')
+    // Absent rather than empty: an entry that records no route at all.
+    expect(ids([entry('request', { responseStatus: 404 })])).not.toContain('unrouted')
+  })
+
+  test('a redirect with nowhere to go', () => {
+    expect(ids([entry('request', { responseStatus: 302, location: null })])).toContain(
+      'redirect-nowhere'
+    )
+    expect(ids([entry('request', { responseStatus: 302, location: '/next' })])).not.toContain(
+      'redirect-nowhere'
+    )
+  })
+
+  /** A GET is meant to be safe to repeat — a prefetch, a crawler, a retry. */
+  test('a write statement on a GET', () => {
+    const found = ids([
+      entry('request', { method: 'GET', responseStatus: 200 }),
+      query('update users set seen_at = ?')
+    ])
+
+    expect(found).toContain('write-on-get')
+
+    expect(
+      ids([
+        entry('request', { method: 'POST', responseStatus: 200 }),
+        query('update users set seen_at = ?')
+      ])
+    ).not.toContain('write-on-get')
+  })
+
+  test('the same exception class twice is a loop around it', () => {
+    const twice = [
+      entry('request', { responseStatus: 500 }),
+      entry('exception', { class: 'TypeError', message: 'a' }),
+      entry('exception', { class: 'TypeError', message: 'b' })
+    ]
+
+    expect(ids(twice)).toContain('repeated-exception')
+  })
+
+  test('a failed job, and one that needed a second attempt', () => {
+    expect(ids([entry('job', { status: 'failed', name: 'SendInvoice', error: 'nope' })])).toContain(
+      'failed-jobs'
+    )
+
+    expect(
+      ids([entry('job', { status: 'processed', name: 'SendInvoice', attempts: 3 })])
+    ).toContain('retried-jobs')
+  })
+
+  test('an outbound call that failed, and one made over and over', () => {
+    expect(
+      ids([entry('client_request', { uri: 'https://api/x', responseStatus: 503, failed: true })])
+    ).toContain('failed-calls')
+
+    const loop = Array.from({ length: 4 }, () =>
+      entry('client_request', { uri: 'https://api/user', responseStatus: 200, duration: 20 })
+    )
+
+    expect(ids(loop)).toContain('repeated-call')
+  })
+
+  test('a denied gate, a non-zero command, mail with no recipient, a dump', () => {
+    expect(ids([entry('gate', { ability: 'update', result: 'denied' })])).toContain('denied')
+    expect(ids([entry('command', { command: 'migrate', exitCode: 1 })])).toContain(
+      'failed-commands'
+    )
+    expect(ids([entry('mail', { subject: 'Hello', to: [], cc: [], bcc: [] })])).toContain(
+      'mail-unaddressed'
+    )
+    expect(ids([entry('dump', { values: [{ text: 'x' }] })])).toContain('dumps')
+  })
+
+  test('and none of them fires on a request that did none of it', () => {
+    expect(
+      judge([
+        entry('request', { method: 'GET', responseStatus: 200, route: '/articles' }),
+        query('select * from articles', 2),
+        entry('gate', { ability: 'view', result: 'allowed' }),
+        entry('client_request', { uri: 'https://api/x', responseStatus: 200, duration: 5 }),
+        entry('mail', { subject: 'Hi', to: ['ada@example.test'], cc: [], bcc: [] })
+      ])
+    ).toEqual([])
+  })
+})

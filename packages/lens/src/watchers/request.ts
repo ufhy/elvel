@@ -123,6 +123,14 @@ export class RequestWatcher extends Watcher {
             : this.headers(facts.responseHeaders, hidden.headers),
         responseStatus: facts.status,
         response: this.response(facts, hidden.responseParameters),
+        /**
+         * Where a redirect went, as a field rather than only inside a sentence.
+         *
+         * It was computed and then spent on `Redirected to …`, so nothing could
+         * read the target back — including a check for a 3xx that carries no
+         * location at all.
+         */
+        location: this.locationOf(facts) ?? null,
         duration: Math.floor(facts.duration)
       })
     )
@@ -158,8 +166,13 @@ export class RequestWatcher extends Watcher {
    * markup nobody reads in a list. Over `size_limit` kilobytes it is replaced
    * wholesale, because the point of the limit is not to store the thing.
    */
+  /** The redirect target, wherever the response carried it. */
+  private locationOf(facts: RequestFacts): string | undefined {
+    return facts.location ?? facts.responseHeaders?.get('location') ?? undefined
+  }
+
   private response(facts: RequestFacts, hiddenKeys: string[]): unknown {
-    const location = facts.location ?? facts.responseHeaders?.get('location') ?? undefined
+    const location = this.locationOf(facts)
 
     if (facts.status >= 300 && facts.status < 400 && location !== undefined) {
       return `Redirected to ${location}`

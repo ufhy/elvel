@@ -90,7 +90,20 @@ export function findings(
     ...slowViews(entries, thresholds),
     ...swallowed(entries),
     ...errorsLogged(entries),
-    ...missedTwice(entries)
+    ...missedTwice(entries),
+    ...answeredBadly(entries),
+    ...unrouted(entries),
+    ...redirectWithoutTarget(entries),
+    ...writesOnGet(entries),
+    ...repeatedFailures(entries),
+    ...failedJobs(entries),
+    ...retriedJobs(entries),
+    ...failedCalls(entries),
+    ...repeatedCalls(entries),
+    ...deniedGates(entries),
+    ...failedCommands(entries),
+    ...unaddressedMail(entries),
+    ...dumpsLeftBehind(entries)
   ]
 
   return found.sort((a, b) => (b.cost ?? -1) - (a.cost ?? -1))
@@ -293,6 +306,276 @@ function missedTwice(entries: BarEntry[]): Finding[] {
       detail: 'Looked up more than once and never found — nothing is writing it.',
       evidence: group.map((entry) => entry.uuid)
     }))
+}
+
+/** The request entry, which several of these read. */
+function requestOf(entries: BarEntry[]): BarEntry | undefined {
+  return entries.find((entry) => entry.type === 'request')
+}
+
+function of(entries: BarEntry[], type: string): BarEntry[] {
+  return entries.filter((entry) => entry.type === type)
+}
+
+function one(
+  id: string,
+  level: Level,
+  title: string,
+  detail: string,
+  evidence: BarEntry[]
+): Finding[] {
+  return [{ id, level, title, detail, evidence: evidence.map((entry) => entry.uuid) }]
+}
+
+/** The status the handler answered with, which is a finding on its own. */
+function answeredBadly(entries: BarEntry[]): Finding[] {
+  const request = requestOf(entries)
+  const status = Number(request?.content.responseStatus ?? 0)
+
+  if (request === undefined || status < 400) return []
+
+  return one(
+    'status',
+    'problem',
+    `The request answered ${status}`,
+    status >= 500
+      ? 'A server error: the handler did not finish what it was asked.'
+      : 'The request was refused. The exception list says why, when one was thrown.',
+    [request]
+  )
+}
+
+/**
+ * Nothing matched.
+ *
+ * A 404 from a missing route and a 404 the handler chose look identical in a log
+ * and are different problems — the route field is what separates them.
+ */
+function unrouted(entries: BarEntry[]): Finding[] {
+  const request = requestOf(entries)
+
+  if (request === undefined) return []
+
+  // Present and empty, not merely absent: the watcher always writes the key —
+  // `null` when nothing matched — so an absent one is an entry from somewhere
+  // that does not record routes at all, and says nothing either way.
+  if (!('route' in request.content)) return []
+  if (String(request.content.route ?? '') !== '') return []
+
+  return one(
+    'unrouted',
+    'note',
+    'No route matched this request',
+    `${String(request.content.method ?? '')} ${String(request.content.uri ?? '')} was answered without a named route.`,
+    [request]
+  )
+}
+
+/** A 3xx the browser cannot follow. */
+function redirectWithoutTarget(entries: BarEntry[]): Finding[] {
+  const request = requestOf(entries)
+  const status = Number(request?.content.responseStatus ?? 0)
+
+  if (request === undefined || status < 300 || status >= 400) return []
+  if (request.content.location !== null && request.content.location !== undefined) return []
+
+  return one(
+    'redirect-nowhere',
+    'problem',
+    `A ${status} with no location header`,
+    'The browser is told to go somewhere else and not where.',
+    [request]
+  )
+}
+
+/**
+ * A write on a GET.
+ *
+ * A GET is supposed to be safe to repeat — a prefetch, a crawler, a retry — and
+ * one that writes is the shape behind a surprising number of duplicated rows.
+ */
+function writesOnGet(entries: BarEntry[]): Finding[] {
+  const request = requestOf(entries)
+
+  if (String(request?.content.method ?? '').toUpperCase() !== 'GET') return []
+
+  const writes = of(entries, 'query').filter((entry) =>
+    /^\s*(insert|update|delete|replace|truncate|drop|alter|create)\b/i.test(
+      String(entry.content.sql ?? '')
+    )
+  )
+
+  if (writes.length === 0) return []
+
+  return one(
+    'write-on-get',
+    'problem',
+    `${writes.length} write statement${writes.length === 1 ? '' : 's'} on a GET`,
+    writes.map((entry) => shorten(String(entry.content.sql ?? ''))).join(' · '),
+    writes
+  )
+}
+
+/** The same failure twice in one request is a loop, not an incident. */
+function repeatedFailures(entries: BarEntry[]): Finding[] {
+  const byClass = new Map<string, BarEntry[]>()
+
+  for (const entry of of(entries, 'exception')) {
+    const name = String(entry.content.class ?? '')
+
+    byClass.set(name, [...(byClass.get(name) ?? []), entry])
+  }
+
+  return [...byClass.entries()]
+    .filter(([, group]) => group.length > 1)
+    .map(([name, group]) => ({
+      id: `repeated-exception:${name}`,
+      level: 'problem' as const,
+      title: `${name} thrown ${group.length} times in one request`,
+      detail: 'The same failure more than once is a loop around it, not one incident.',
+      evidence: group.map((entry) => entry.uuid)
+    }))
+}
+
+function failedJobs(entries: BarEntry[]): Finding[] {
+  const failed = of(entries, 'job').filter((entry) => entry.content.status === 'failed')
+
+  if (failed.length === 0) return []
+
+  return one(
+    'failed-jobs',
+    'problem',
+    `${failed.length} job${failed.length === 1 ? '' : 's'} failed`,
+    failed
+      .map((entry) => `${String(entry.content.name ?? '')}: ${String(entry.content.error ?? '')}`)
+      .join(' · '),
+    failed
+  )
+}
+
+/** A retry that succeeded still failed once, and nothing else would say so. */
+function retriedJobs(entries: BarEntry[]): Finding[] {
+  const retried = of(entries, 'job').filter(
+    (entry) => entry.content.status !== 'failed' && Number(entry.content.attempts ?? 1) > 1
+  )
+
+  if (retried.length === 0) return []
+
+  return one(
+    'retried-jobs',
+    'note',
+    `${retried.length} job${retried.length === 1 ? '' : 's'} needed more than one attempt`,
+    retried
+      .map((entry) => `${String(entry.content.name ?? '')} × ${String(entry.content.attempts)}`)
+      .join(' · '),
+    retried
+  )
+}
+
+function failedCalls(entries: BarEntry[]): Finding[] {
+  const failed = of(entries, 'client_request').filter(
+    (entry) => entry.content.failed === true || Number(entry.content.responseStatus ?? 0) >= 400
+  )
+
+  if (failed.length === 0) return []
+
+  return one(
+    'failed-calls',
+    'problem',
+    `${failed.length} outbound call${failed.length === 1 ? '' : 's'} failed`,
+    failed
+      .map((entry) => `${String(entry.content.responseStatus)} ${String(entry.content.uri ?? '')}`)
+      .join(' · '),
+    failed
+  )
+}
+
+/** The N+1 of the network, and the one a database trace cannot show. */
+function repeatedCalls(entries: BarEntry[]): Finding[] {
+  const byUri = new Map<string, BarEntry[]>()
+
+  for (const entry of of(entries, 'client_request')) {
+    const uri = String(entry.content.uri ?? '')
+
+    byUri.set(uri, [...(byUri.get(uri) ?? []), entry])
+  }
+
+  return [...byUri.entries()]
+    .filter(([, group]) => group.length > 2)
+    .map(([uri, group]) => ({
+      id: `repeated-call:${uri}`,
+      level: 'problem' as const,
+      title: `${uri} called ${group.length} times`,
+      detail: 'The same call in a loop — the N+1 of the network, and the slowest kind.',
+      evidence: group.map((entry) => entry.uuid),
+      cost: round(group.reduce((total, entry) => total + Number(entry.content.duration ?? 0), 0))
+    }))
+}
+
+function deniedGates(entries: BarEntry[]): Finding[] {
+  const denied = of(entries, 'gate').filter((entry) => entry.content.result === 'denied')
+
+  if (denied.length === 0) return []
+
+  return one(
+    'denied',
+    'note',
+    `${denied.length} authorisation check${denied.length === 1 ? '' : 's'} denied`,
+    denied.map((entry) => String(entry.content.ability ?? '')).join(' · '),
+    denied
+  )
+}
+
+function failedCommands(entries: BarEntry[]): Finding[] {
+  const failed = of(entries, 'command').filter((entry) => Number(entry.content.exitCode ?? 0) !== 0)
+
+  if (failed.length === 0) return []
+
+  return one(
+    'failed-commands',
+    'problem',
+    `${failed.length} command${failed.length === 1 ? '' : 's'} exited non-zero`,
+    failed
+      .map((entry) => `${String(entry.content.command ?? '')} → ${String(entry.content.exitCode)}`)
+      .join(' · '),
+    failed
+  )
+}
+
+/** Mail with nobody to send it to, which fails silently on most transports. */
+function unaddressedMail(entries: BarEntry[]): Finding[] {
+  const empty = of(entries, 'mail').filter((entry) => {
+    const to = entry.content.to
+    const cc = entry.content.cc
+    const bcc = entry.content.bcc
+
+    return [to, cc, bcc].every((list) => !Array.isArray(list) || list.length === 0)
+  })
+
+  if (empty.length === 0) return []
+
+  return one(
+    'mail-unaddressed',
+    'problem',
+    `${empty.length} mail${empty.length === 1 ? '' : 's'} with no recipient`,
+    empty.map((entry) => String(entry.content.subject ?? '(no subject)')).join(' · '),
+    empty
+  )
+}
+
+/** A dump is written to be read now. One in a recorded request was forgotten. */
+function dumpsLeftBehind(entries: BarEntry[]): Finding[] {
+  const dumps = of(entries, 'dump')
+
+  if (dumps.length === 0) return []
+
+  return one(
+    'dumps',
+    'note',
+    `${dumps.length} dump${dumps.length === 1 ? '' : 's'} in this request`,
+    'Debugging left in the code — a dump is written to be read once.',
+    dumps
+  )
 }
 
 function place(entry: BarEntry): string {

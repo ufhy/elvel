@@ -51,6 +51,14 @@ export class ClientRequestWatcher extends Watcher {
         responseStatus: status,
         /** Bytes, not the body — see the note on the class. */
         responseSize: typeof response?.body === 'string' ? response.body.length : 0,
+        /**
+         * Milliseconds for this attempt.
+         *
+         * The summary read a field nothing ever wrote, so the one entry type
+         * most worth timing showed no time at all — and it is the one a database
+         * trace cannot account for.
+         */
+        duration: Number(payload.durationMs ?? 0),
         failed: statusTone(status) === 'danger'
       }).withTags(host === '' ? [] : [host])
     )
