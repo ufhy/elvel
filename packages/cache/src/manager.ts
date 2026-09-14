@@ -7,7 +7,7 @@ import { FailoverStore } from './stores/failover.ts'
 import { FileStore } from './stores/file.ts'
 import { MemoStore } from './stores/memo.ts'
 import { NullStore } from './stores/null.ts'
-import { RedisStore } from './stores/redis.ts'
+import { RedisStore, type SharedRedisConnection } from './stores/redis.ts'
 
 export type StoreConfig = { driver: string } & Record<string, unknown>
 
@@ -152,6 +152,7 @@ export class CacheManager {
 
       case 'redis':
         return new RedisStore({
+          connection: this.sharedConnection(config.connection as string | undefined),
           url: config.url as string | undefined,
           client: config.client as never,
           prefix
@@ -162,6 +163,23 @@ export class CacheManager {
           `Cache driver [${config.driver}] for store [${name}] is not supported. Register it with cache().extend().`
         )
     }
+  }
+
+  /**
+   * The connection `@elvel/redis` holds, when the application registered it.
+   *
+   * Sharing it means one client for the cache, the queue and the broadcaster
+   * rather than one each; without that package the store opens its own and
+   * nothing changes.
+   */
+  private sharedConnection(name?: string): SharedRedisConnection | undefined {
+    if (!this.app.bound('redis' as never)) return undefined
+
+    const manager = this.app.make('redis' as never) as {
+      connection(name?: string): SharedRedisConnection
+    }
+
+    return manager.connection(name)
   }
 
   private dispatcher(): Dispatcher | undefined {

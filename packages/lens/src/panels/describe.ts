@@ -130,6 +130,13 @@ function summaryFor(type: EntryTypeName, content: EntryContent): Draft {
       return { title: str(content.message), sub: str(content.level) }
     case EntryType.CACHE:
       return { title: str(content.key), sub: str(content.type) }
+    case EntryType.REDIS:
+      return {
+        title: str(content.command),
+        sub: str(content.connection),
+        took: content.time,
+        slow: content.slow
+      }
     case EntryType.GATE:
       return {
         title: str(content.ability),
@@ -280,6 +287,17 @@ function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {
           ['Status', str(content.responseStatus)],
           ['Response size', content.responseSize === 0 ? '' : bytes(content.responseSize)]
         ])
+      ]
+
+    case EntryType.REDIS:
+      return [
+        facts([
+          ['Connection', str(content.connection)],
+          ['Duration', content.failed === true ? '' : ms(content.time)],
+          ['Failed', content.failed === true ? 'yes' : ''],
+          ['Error', str(content.error)]
+        ]),
+        code('Command', str(content.command))
       ]
 
     case EntryType.CACHE:

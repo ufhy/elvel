@@ -222,6 +222,18 @@ export default {
       slow: 100,
       /** Drop frames from these paths when locating the caller. */
       ignorePaths: [] as string[]
+    },
+
+    /**
+     * Redis commands, from the connections `@elvel/redis` manages.
+     *
+     * Off unless that package is installed: without it the events never fire and
+     * a watcher listening for them records nothing.
+     */
+    redis: {
+      enabled: env('LENS_REDIS_WATCHER', false),
+      /** Commands never recorded — a worker's poll, most usefully. */
+      ignore: [] as string[]
     }
   }
 }

@@ -219,7 +219,8 @@ describe('the providers a kit registers', () => {
       'concurrency',
       'http-client',
       'image',
-      'process'
+      'process',
+      'redis'
     ])
   })
 })

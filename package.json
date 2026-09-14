@@ -49,6 +49,7 @@
     "@elvel/notifications": "workspace:*",
     "@elvel/process": "workspace:*",
     "@elvel/queue": "workspace:*",
+    "@elvel/redis": "workspace:*",
     "@elvel/scheduler": "workspace:*",
     "@elvel/storage": "workspace:*",
     "@elvel/support": "workspace:*",

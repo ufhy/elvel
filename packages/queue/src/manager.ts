@@ -6,7 +6,7 @@ import type { FailedJobStore, JobPayload, QueueDriver } from './contracts.ts'
 import { DatabaseQueue } from './drivers/database.ts'
 import { FailoverQueue } from './drivers/failover.ts'
 import { NullQueue } from './drivers/null.ts'
-import { RedisQueue } from './drivers/redis.ts'
+import { RedisQueue, type SharedRedisConnection } from './drivers/redis.ts'
 import { SqsQueue } from './drivers/sqs.ts'
 import { SyncQueue } from './drivers/sync.ts'
 import {
@@ -664,6 +664,22 @@ export class QueueManager {
     this.connections.clear()
   }
 
+  /**
+   * The connection `@elvel/redis` holds, when the application registered it.
+   *
+   * One client for the cache, the queue and the broadcaster rather than one
+   * each; without that package the driver opens its own.
+   */
+  private sharedConnection(name?: string): SharedRedisConnection | undefined {
+    if (!this.app.bound('redis' as never)) return undefined
+
+    const manager = this.app.make('redis' as never) as {
+      connection(name?: string): SharedRedisConnection
+    }
+
+    return manager.connection(name)
+  }
+
   private resolve(name: string): QueueDriver {
     const config = this.app.config.get<ConnectionConfig | undefined>(`queue.connections.${name}`)
 
@@ -688,6 +704,7 @@ export class QueueManager {
 
       case 'redis':
         return new RedisQueue(name, {
+          connection: this.sharedConnection(config.redis as string | undefined),
           url: config.url as string | undefined,
           prefix: config.prefix as string | undefined,
           queue: config.queue as string | undefined,

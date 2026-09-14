@@ -31,6 +31,7 @@
         "@elvel/notifications": "workspace:*",
         "@elvel/process": "workspace:*",
         "@elvel/queue": "workspace:*",
+        "@elvel/redis": "workspace:*",
         "@elvel/scheduler": "workspace:*",
         "@elvel/storage": "workspace:*",
         "@elvel/support": "workspace:*",
@@ -325,6 +326,14 @@
         "@elvel/support": "workspace:*",
       },
     },
+    "packages/redis": {
+      "name": "@elvel/redis",
+      "version": "1.0.0-alpha.26",
+      "dependencies": {
+        "@elvel/contracts": "workspace:*",
+        "@elvel/core": "workspace:*",
+      },
+    },
     "packages/scheduler": {
       "name": "@elvel/scheduler",
       "version": "1.0.0-alpha.26",
@@ -565,6 +574,8 @@
     "@elvel/process": ["@elvel/process@workspace:packages/process"],
 
     "@elvel/queue": ["@elvel/queue@workspace:packages/queue"],
+
+    "@elvel/redis": ["@elvel/redis@workspace:packages/redis"],
 
     "@elvel/scheduler": ["@elvel/scheduler@workspace:packages/scheduler"],
 

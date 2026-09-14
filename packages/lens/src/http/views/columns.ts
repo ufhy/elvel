@@ -105,6 +105,21 @@ const DEFINITIONS: Partial<Record<EntryTypeName, Definition>> = {
     ]
   },
 
+  [EntryType.REDIS]: {
+    headings: [
+      { label: 'Command' },
+      { label: 'Connection' },
+      { label: 'Duration', align: 'right' }
+    ],
+    cells: (content) => [
+      clipped(content.command, 80),
+      { text: str(content.connection), muted: true },
+      content.failed === true
+        ? { text: 'failed', tone: 'danger', align: 'right' }
+        : ms(content.time)
+    ]
+  },
+
   [EntryType.CACHE]: {
     headings: [{ label: 'Event' }, { label: 'Key' }, { label: 'Store' }],
     cells: (content) => [

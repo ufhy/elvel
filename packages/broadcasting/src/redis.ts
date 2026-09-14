@@ -1,7 +1,22 @@
 import { RedisClient } from 'bun'
 import type { PublishedMessage, PubSub } from './broadcaster.ts'
 
+/**
+ * A connection somebody else opened, shared with this store.
+ *
+ * Structural on purpose: `@elvel/redis` supplies it when the application has
+ * that package, and this one keeps working with nothing but Bun when it does
+ * not.
+ */
+export type SharedRedisConnection = {
+  readonly client: RedisClient
+  subscriber(): RedisClient
+  prefix(): string
+}
+
 export type RedisPubSubOptions = {
+  /** Use this connection instead of opening two. */
+  connection?: SharedRedisConnection | undefined
   url?: string | undefined
   /** Namespaces the bus channel, so two applications on one Redis stay apart. */
   prefix?: string | undefined
@@ -35,9 +50,9 @@ export class RedisPubSub implements PubSub {
   constructor(options: RedisPubSubOptions = {}) {
     const url = options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379'
 
-    this.publisher = new RedisClient(url, options.client)
-    this.subscriber = new RedisClient(url, options.client)
-    this.channel = `${options.prefix ?? ''}broadcast`
+    this.publisher = options.connection?.client ?? new RedisClient(url, options.client)
+    this.subscriber = options.connection?.subscriber() ?? new RedisClient(url, options.client)
+    this.channel = `${options.connection?.prefix() ?? ''}${options.prefix ?? ''}broadcast`
   }
 
   /**

@@ -1,0 +1,39 @@
+{
+  "name": "@elvel/redis",
+  "version": "1.0.0-alpha.26",
+  "description": "One Redis manager for Elvel — named connections shared by cache, queue and broadcasting, with command timing",
+  "keywords": [
+    "bun",
+    "cache",
+    "elvel",
+    "queue",
+    "redis"
+  ],
+  "license": "MIT",
+  "author": "ufhy",
+  "homepage": "https://github.com/ufhy/elvel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufhy/elvel.git",
+    "directory": "packages/redis"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./config/*": "./config/*"
+  },
+  "files": [
+    "src",
+    "config",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@elvel/contracts": "workspace:*",
+    "@elvel/core": "workspace:*"
+  }
+}

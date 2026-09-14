@@ -5,7 +5,7 @@ import { ChannelRegistry } from './channels.ts'
 import { ChannelListCommand } from './console/channel-list.ts'
 import { MakeChannelCommand } from './console/make-channel.ts'
 import { LogPubSub, NullPubSub } from './drivers.ts'
-import { RedisPubSub } from './redis.ts'
+import { RedisPubSub, type SharedRedisConnection } from './redis.ts'
 import { currentSocket, enterSocket, SOCKET_HEADER } from './socket.ts'
 
 declare module '@elvel/contracts' {
@@ -49,6 +49,10 @@ export class BroadcastServiceProvider extends ServiceProvider {
           return new Broadcaster(
             app.make('channels'),
             new RedisPubSub({
+              connection: sharedConnection(
+                app,
+                app.config.get<string | undefined>('broadcasting.redis.connection', undefined)
+              ),
               url: app.config.get<string | undefined>('broadcasting.redis.url', undefined),
               prefix: app.config.get<string | undefined>('broadcasting.redis.prefix', undefined)
             })
@@ -344,4 +348,22 @@ function parse(raw: unknown): { subscribe?: string; unsubscribe?: string } | und
   } catch {
     return undefined
   }
+}
+
+/**
+ * The connection `@elvel/redis` holds, when the application registered it.
+ *
+ * The broadcaster needs two clients — one in subscribe mode may issue nothing
+ * else — and sharing means two on the configured connection rather than two on
+ * a URL repeated in this package's own config.
+ */
+function sharedConnection(
+  app: { bound(key: never): boolean; make(key: never): unknown },
+  name?: string
+): SharedRedisConnection | undefined {
+  if (!app.bound('redis' as never)) return undefined
+
+  const manager = app.make('redis' as never) as { connection(name?: string): SharedRedisConnection }
+
+  return manager.connection(name)
 }

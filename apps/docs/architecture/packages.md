@@ -24,6 +24,7 @@ A framework is usually one package. Elvel is thirty, and this page is why.
 | `@elvel/storage` | Disks (`local`, `s3` on Bun.S3Client), path guard, offline presigned URLs. |
 | `@elvel/notifications` | Channels (mail, database, log), per-recipient ids, on-demand recipients. |
 | `@elvel/encryption` | AES-256-GCM, HKDF-derived keys, context binding, key rotation, `key:generate`. |
+| `@elvel/redis` | Optional. One manager for every Redis connection, shared by cache, queue and broadcasting, with command timing. |
 | `@elvel/lens` | Optional. Records what a request did, and a dashboard to read it back. |
 | `create-elvel` | Application skeleton scaffolder. |
 

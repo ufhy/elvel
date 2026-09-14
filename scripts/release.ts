@@ -122,6 +122,7 @@ const PAGES: Record<string, string> = {
   '@elvel/encryption': 'security/encryption',
   '@elvel/queue': 'digging-deeper/queues',
   '@elvel/cache': 'digging-deeper/cache',
+  '@elvel/redis': 'digging-deeper/redis',
   '@elvel/testing': 'testing/getting-started',
   '@elvel/console': 'digging-deeper/console',
   '@elvel/mail': 'digging-deeper/mail',

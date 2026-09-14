@@ -26,17 +26,11 @@ group('every type has a detail', () => {
       client_request: { method: 'GET', uri: 'https://x/y' },
       view: { view: 'Landing', size: 12 },
       dump: { values: [{ text: 'hello' }] },
-      redis: {}
+      redis: { command: 'GET users:1', connection: 'default', time: 0.4 }
     }
 
     for (const type of entryTypes()) {
       const panels = describe(type, content[type] ?? {})
-
-      if (type === 'redis') {
-        expect(panels).toEqual([])
-
-        continue
-      }
 
       expect(panels.length).toBeGreaterThan(0)
     }

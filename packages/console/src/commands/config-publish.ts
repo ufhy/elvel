@@ -30,6 +30,7 @@ const OWNERS: Record<string, string> = {
   mail: 'mail',
   notifications: 'notifications',
   queue: 'queue',
+  redis: 'redis',
   security: 'http',
   session: 'http',
   view: 'view',

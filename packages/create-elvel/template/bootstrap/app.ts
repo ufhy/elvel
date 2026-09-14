@@ -40,6 +40,7 @@ export default await Application.configure(join(import.meta.dir, '..'))
     mail: () => import('../config/mail.ts'),
     notifications: () => import('../config/notifications.ts'),
     queue: () => import('../config/queue.ts'),
+    redis: () => import('../config/redis.ts'),
     services: () => import('../config/services.ts'),
     security: () => import('../config/security.ts'),
     session: () => import('../config/session.ts'),

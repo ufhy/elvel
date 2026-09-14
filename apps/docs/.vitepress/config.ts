@@ -107,6 +107,7 @@ export default defineConfig({
           { text: 'Notifications', link: '/digging-deeper/notifications' },
           { text: 'Processes', link: '/digging-deeper/processes' },
           { text: 'Queues', link: '/digging-deeper/queues' },
+          { text: 'Redis', link: '/digging-deeper/redis' },
           { text: 'Task scheduling', link: '/digging-deeper/scheduling' }
         ]
       },

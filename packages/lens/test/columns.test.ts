@@ -43,8 +43,8 @@ describe('columnsFor', () => {
     }
   })
 
-  test('a type nothing records yet falls back to one column', () => {
-    expect(headings(EntryType.REDIS)).toEqual(['Entry'])
+  test('and Redis names its command, connection and duration', () => {
+    expect(headings(EntryType.REDIS)).toEqual(['Command', 'Connection', 'Duration'])
   })
 
   test('no type is left without any column at all', () => {

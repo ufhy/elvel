@@ -2,7 +2,22 @@ import { RedisClient } from 'bun'
 import { decode, encode } from '../payload.ts'
 import { Lock, type LockProvider, type Store } from '../store.ts'
 
+/**
+ * A connection somebody else opened, shared with this store.
+ *
+ * Structural on purpose: `@elvel/redis` supplies it when the application has
+ * that package, and this one keeps working with nothing but Bun when it does
+ * not.
+ */
+export type SharedRedisConnection = {
+  readonly client: RedisClient
+  subscriber(): RedisClient
+  prefix(): string
+}
+
 export type RedisStoreOptions = {
+  /** Use this connection instead of opening one. */
+  connection?: SharedRedisConnection
   url?: string
   prefix?: string
   /** Passed through to Bun's client: timeouts, TLS, retries. */
@@ -42,11 +57,13 @@ export class RedisStore implements Store, LockProvider {
   private readonly client: RedisClient
 
   constructor(options: RedisStoreOptions = {}) {
-    this.prefix = options.prefix ?? ''
-    this.client = new RedisClient(
-      options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
-      options.client
-    )
+    this.prefix = `${options.connection?.prefix() ?? ''}${options.prefix ?? ''}`
+    this.client =
+      options.connection?.client ??
+      new RedisClient(
+        options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
+        options.client
+      )
   }
 
   async get<T = unknown>(key: string): Promise<T | null> {

@@ -751,53 +751,23 @@ always actually was.
 
 ## Redis
 
-There is no Redis package. Three packages each build their own client:
+`@elvel/redis` is one manager for every connection. The cache, the queue and the
+broadcaster resolve a named connection from it when it is registered and open
+their own client when it is not, so each package stays usable on its own. The
+seam is structural — a `{ client, subscriber(), prefix() }` — so none of the
+three depends on the package.
 
-```ts
-// packages/cache/src/stores/redis.ts
-// packages/queue/src/drivers/redis.ts
-// packages/broadcasting/src/redis.ts
-import { RedisClient } from 'bun'
-```
+`connection('cache')` reaches one by name, several nodes are a hash ring over
+clients (a key lands on the same node every time; it does not follow a `MOVED`
+redirect, and says so), and a connection's prefix sits in front of each
+package's, so two applications on one server stay apart with one setting.
 
-each from its own config key — `cache.stores.redis.url`,
-`queue.connections.redis.url`, `broadcasting.redis.url`.
-
-### Nothing shares a Redis connection
-
-An application using cache, queue and broadcasting opens **at least four**
-connections per process — broadcasting needs two, because a client in subscribe
-mode may issue nothing else — and every worker and every web process multiplies
-that. Upstream resolves one connection per *named* connection and hands the same
-one to every consumer.
-
-Pointing them all at one server also means saying so three times, in three
-config files, with three environment variables that can drift apart.
-
-And application code has nothing: a sorted set for a leaderboard, a Lua script,
-a `SCAN` over keys — there is no `Redis::connection()` to reach for, so the
-application constructs a fourth client of its own.
-
-Clusters are not reachable either; each site passes a single URL.
-
-**Done when** there is one Redis manager with named connections, the three
-packages resolve from it, an application can reach a connection by name, and a
-cluster can be configured once.
-
-### Redis commands are invisible
-
-Upstream dispatches `CommandExecuted` and `CommandFailed` for every command, and
-that is what a Redis watcher is built on. Nothing here dispatches anything —
-Lens has watchers for queries, cache operations, jobs, mail and thirteen more,
-and none for Redis.
-
-So on a page whose slowest part is a Redis call, the bar shows the request
-taking 400ms and cannot say where any of it went. Cache entries cover the
-operations that go through `@elvel/cache`; a broadcast publish, a queue pop, or
-anything the application runs directly is not recorded at all.
-
-**Done when** commands are dispatched as events with their timing, and Lens has
-a Redis watcher.
+Every command dispatches `CommandExecuted` with its timing and `CommandFailed`
+when it does not finish, built only when something is listening. The client the
+other packages issue commands on is timed too — they call `get` and `send` on it
+directly, so timing only the manager's own `send` would have left the commands an
+application actually issues invisible. Lens has a Redis watcher, off by default
+because without this package the events never fire.
 
 ---
 

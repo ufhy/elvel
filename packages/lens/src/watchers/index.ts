@@ -13,6 +13,7 @@ import { MailWatcher } from './mail.ts'
 import { ModelWatcher } from './model.ts'
 import { NotificationWatcher } from './notification.ts'
 import { QueryWatcher } from './query.ts'
+import { RedisWatcher } from './redis.ts'
 import { RequestWatcher } from './request.ts'
 import { ScheduleWatcher } from './schedule.ts'
 import { ViewWatcher } from './view.ts'
@@ -34,6 +35,7 @@ const WATCHERS: Record<string, new (options: WatcherOptions) => Watcher> = {
   model: ModelWatcher,
   notification: NotificationWatcher,
   query: QueryWatcher,
+  redis: RedisWatcher,
   request: RequestWatcher,
   schedule: ScheduleWatcher,
   view: ViewWatcher
@@ -97,6 +99,7 @@ export { MailWatcher } from './mail.ts'
 export { ModelWatcher } from './model.ts'
 export { NotificationWatcher } from './notification.ts'
 export { QueryWatcher } from './query.ts'
+export { RedisWatcher } from './redis.ts'
 export { type RequestFacts, RequestWatcher } from './request.ts'
 export { ScheduleWatcher } from './schedule.ts'
 export { ViewWatcher } from './view.ts'

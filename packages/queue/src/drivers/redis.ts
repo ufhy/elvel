@@ -1,7 +1,22 @@
 import { RedisClient } from 'bun'
 import type { JobPayload, QueueDriver, QueuedJob } from '../contracts.ts'
 
+/**
+ * A connection somebody else opened, shared with this store.
+ *
+ * Structural on purpose: `@elvel/redis` supplies it when the application has
+ * that package, and this one keeps working with nothing but Bun when it does
+ * not.
+ */
+export type SharedRedisConnection = {
+  readonly client: RedisClient
+  subscriber(): RedisClient
+  prefix(): string
+}
+
 export type RedisQueueOptions = {
+  /** Use this connection instead of opening one. */
+  connection?: SharedRedisConnection
   url?: string
   prefix?: string
   queue?: string
@@ -154,6 +169,7 @@ export class RedisQueue implements QueueDriver {
    */
   private readonly shas = new Map<string, string>()
 
+  private readonly shared: SharedRedisConnection | undefined
   private readonly url: string
   private readonly clientOptions: ConstructorParameters<typeof RedisClient>[1]
 
@@ -161,14 +177,15 @@ export class RedisQueue implements QueueDriver {
     readonly connectionName: string,
     options: RedisQueueOptions = {}
   ) {
-    this.prefix = options.prefix ?? 'queues:'
+    this.shared = options.connection
+    this.prefix = `${options.connection?.prefix() ?? ''}${options.prefix ?? 'queues:'}`
     this.defaultQueue = options.queue ?? 'default'
     this.retryAfter = options.retryAfter ?? 90
     this.migrateEvery = options.migrateEvery ?? 1
     this.blockFor = options.blockFor
     this.url = options.url ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379'
     this.clientOptions = options.client
-    this.client = new RedisClient(this.url, this.clientOptions)
+    this.client = options.connection?.client ?? new RedisClient(this.url, this.clientOptions)
   }
 
   /**
@@ -378,7 +395,8 @@ export class RedisQueue implements QueueDriver {
 
     const notify = `${this.key(queue)}:notify`
 
-    this.waiter ??= new RedisClient(this.url, this.clientOptions)
+    // A blocking read holds its connection, so the shared one is never it.
+    this.waiter ??= this.shared?.subscriber() ?? new RedisClient(this.url, this.clientOptions)
 
     const client = this.waiter
 
