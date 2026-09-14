@@ -42,7 +42,7 @@ describe('a supplied connection', () => {
 
     await new RedisQueue('redis', { connection: shared(seen, []) }).size()
 
-    expect<string[]>(seen.map(([, args]) => String((args[1] as string[])[0]))).toEqual([
+    expect<string[]>(seen.map(([, args]) => String((args[1] as string[])?.[0]))).toEqual([
       'queues:default',
       'queues:default:delayed',
       'queues:default:reserved'
@@ -54,6 +54,8 @@ describe('a supplied connection', () => {
 
     await new RedisQueue('redis', { connection: shared(seen, [], 'app:') }).size()
 
-    expect<string>(String((seen[0]?.[1]?.[1] as string[])[0])).toBe('app:queues:default')
+    const args = (seen[0]?.[1] ?? []) as [string, string[]]
+
+    expect<string>(String(args[1]?.[0])).toBe('app:queues:default')
   })
 })

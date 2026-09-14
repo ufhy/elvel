@@ -1904,7 +1904,6 @@ export class Model {
 
     if (channels === undefined) return
 
-    const model = this
     const payload = this.broadcastWith?.(name) ?? (this.toObject() as Record<string, unknown>)
     const announced = `${this.self.name}${name.charAt(0).toUpperCase()}${name.slice(1)}`
 
@@ -1912,7 +1911,7 @@ export class Model {
       broadcastOn: () => channels,
       broadcastAs: () => announced,
       broadcastWith: () => payload,
-      model
+      model: this
     })
   }
 }

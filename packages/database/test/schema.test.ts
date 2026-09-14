@@ -782,17 +782,11 @@ describe('table options', () => {
 })
 
 describe('a foreign key named after its model', () => {
-  class User {
-    static name = 'User'
-    static primaryKey = 'id'
-    static keyType = 'int' as const
-  }
-
-  class ApiToken {
-    static name = 'ApiToken'
-    static primaryKey = 'uuid'
-    static keyType = 'string' as const
-  }
+  // Only the four things `foreignIdFor` reads, which is the point of the
+  // structural type: a Blueprint that imported `Model` would pull the whole ORM
+  // into every migration.
+  const User = { name: 'User', primaryKey: 'id', keyType: 'int' as const }
+  const ApiToken = { name: 'ApiToken', primaryKey: 'uuid', keyType: 'string' as const }
 
   test('is the model in snake case, plus its key', () => {
     const plan = blueprint((table) => table.foreignIdFor(User), 'posts')

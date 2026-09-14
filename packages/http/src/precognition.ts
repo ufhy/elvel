@@ -45,7 +45,7 @@ export function narrowRules<T extends Record<string, unknown>>(rules: T, fields:
   const kept = Object.entries(rules).filter(([key]) => {
     if (wanted.has(key)) return true
 
-    const pattern = new RegExp(`^${key.split('*').map(escape).join('[^.]+')}$`)
+    const pattern = new RegExp(`^${key.split('*').map(quoted).join('[^.]+')}$`)
 
     return fields.some((field) => pattern.test(field))
   })
@@ -53,7 +53,7 @@ export function narrowRules<T extends Record<string, unknown>>(rules: T, fields:
   return Object.fromEntries(kept) as T
 }
 
-function escape(part: string): string {
+function quoted(part: string): string {
   return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 

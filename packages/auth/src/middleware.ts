@@ -1,5 +1,5 @@
 import { app, ForbiddenException, HttpException, UnauthorizedException } from '@elvel/core'
-import { redirect, sessionOf } from '@elvel/http'
+import { boundOrNothing, redirect, sessionOf } from '@elvel/http'
 import { gate } from './helpers.ts'
 import type { AuthManager } from './manager.ts'
 
@@ -133,13 +133,22 @@ export function ensureVerified(notice?: string) {
 /**
  * `can:ability,arg` — the Gate must allow it.
  *
- * Arguments after the ability are passed through as strings, which is what a
- * route can carry. Anything needing a loaded model authorises inside the handler,
- * where the model exists. Reading the resolved route binding here is issue #19.
+ * An argument naming a route binding is authorised against the **model**, not
+ * against its name: `can:update,article` on `/articles/:article` hands the
+ * policy the article. That is the only form a policy can do anything with — a
+ * policy asked about the string `'article'` either ignores it or denies
+ * everything, and both look like the rule working.
+ *
+ * Anything else is passed through as the string it was, which is what a route
+ * can carry and what a policy taking a plain argument expects. A name that
+ * *looks* like a binding but was never bound stays a string too: the route did
+ * not declare it, and guessing would be worse than the literal reading.
  */
 export function canAccess(ability: string, ...args: string[]) {
-  return async () => {
-    await gate().authorize(ability, args)
+  return async (context: Context) => {
+    const resolved = args.map((arg) => boundOrNothing(arg, context.request) ?? arg)
+
+    await gate().authorize(ability, resolved)
 
     return undefined
   }

@@ -2,6 +2,14 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 
 /**
+ * The escape codes, built rather than written.
+ *
+ * A literal escape character inside a regular expression is invisible in the
+ * source and lints as a control character; this says the same thing out loud.
+ */
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+
+/**
  * `better-auth` is built when an auth route is reached, not when the package is
  * imported.
  *
@@ -60,7 +68,7 @@ ${body}
      * then fails against a diff that renders as `false` on both sides, because
      * the terminal interprets the codes it is being shown.
      */
-    return out.replace(/\u001b\[[0-9;]*m/g, '').trim()
+    return out.replace(ANSI, '').trim()
   } finally {
     await Bun.file(file).delete()
   }

@@ -48,7 +48,7 @@ function compileSub(query: Subqueryable): { sql: string; bindings: unknown[] } {
 export class QueryBuilder<T extends Row = Row> extends Macroable {
   private query: QueryComponents
   private readonly beforeCallbacks: Array<(query: QueryBuilder<T>) => void> = []
-  private readonly afterCallbacks: Array<(rows: Collection<T>) => Collection<T> | void> = []
+  private readonly afterCallbacks: Array<(rows: Collection<T>) => Collection<T> | undefined> = []
 
   constructor(
     readonly connection: Connection,
@@ -1283,7 +1283,7 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
   }
 
   /** Run something over the rows before they are handed back. */
-  afterQuery(callback: (rows: Collection<T>) => Collection<T> | void): this {
+  afterQuery(callback: (rows: Collection<T>) => Collection<T> | undefined): this {
     this.afterCallbacks.push(callback)
 
     return this

@@ -84,7 +84,7 @@ export type MiddlewareConfigurator = {
 export type ExceptionRules = {
   dontReport(...types: Array<new (...args: any[]) => Error>): unknown
   stopIgnoring(...types: Array<new (...args: any[]) => Error>): unknown
-  reportable(callback: (error: unknown) => boolean | void): unknown
+  reportable(callback: (error: unknown) => boolean | undefined): unknown
   renderUsing(
     type: new (...args: any[]) => Error,
     render: (error: never, request: Request) => Response | undefined

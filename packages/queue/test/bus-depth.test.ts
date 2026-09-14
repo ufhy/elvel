@@ -149,8 +149,8 @@ describe('a batch can grow', () => {
   /** Its callbacks have already run: nothing is waiting for the new work. */
   test('a finished batch refuses', async () => {
     const repo = repository()
-    const batch = await stored(repo, 1)
 
+    await stored(repo, 1)
     await repo.recordSuccess('b1', 'job-1')
 
     const finished = await repo.find('b1')

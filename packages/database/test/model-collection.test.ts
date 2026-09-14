@@ -164,11 +164,13 @@ describe('serialisation', () => {
   test('makeVisible reaches a hidden column', async () => {
     const shops = await Shop.query().get()
 
-    expect((shops.first()?.toObject() as { secret?: string }).secret).toBeUndefined()
+    const before = shops.first()?.toObject() as { secret?: string } | undefined
+
+    expect(before?.secret).toBeUndefined()
 
     shops.makeVisible('secret')
 
-    expect((shops.first()?.toObject() as { secret?: string }).secret).toBe('a')
+    expect((shops.first()?.toObject() as { secret?: string } | undefined)?.secret).toBe('a')
   })
 
   test('append adds an accessor for these models only', async () => {
@@ -176,11 +178,11 @@ describe('serialisation', () => {
 
     shops.append('shouty')
 
-    expect((shops.first()?.toObject() as { shouty?: string }).shouty).toBe('ONE')
+    expect((shops.first()?.toObject() as { shouty?: string } | undefined)?.shouty).toBe('ONE')
 
     const others = await Shop.query().get()
 
-    expect((others.first()?.toObject() as { shouty?: string }).shouty).toBeUndefined()
+    expect((others.first()?.toObject() as { shouty?: string } | undefined)?.shouty).toBeUndefined()
   })
 })
 

@@ -75,7 +75,7 @@ export class ExceptionHandler implements ExceptionHandlerContract {
   private readonly watched = new Set<Function>()
 
   /** Callbacks asked first, in the order they were declared. */
-  private readonly reporters: Array<(error: unknown) => boolean | void> = []
+  private readonly reporters: Array<(error: unknown) => boolean | undefined> = []
   private readonly renderers: Array<(error: unknown, request: Request) => Response | undefined> = []
 
   /**
@@ -103,7 +103,7 @@ export class ExceptionHandler implements ExceptionHandlerContract {
    * Returning `false` stops it there; anything else lets the default run, so a
    * callback that only adds context does not have to remember to return.
    */
-  reportable(callback: (error: unknown) => boolean | void): this {
+  reportable(callback: (error: unknown) => boolean | undefined): this {
     this.reporters.push(callback)
 
     return this
