@@ -882,10 +882,11 @@ Latin one and `аdmin@company.com` reads identically to somebody else's address;
 it is a single-script check, which is what every such address violates and
 almost no real one does.
 
-One thing is still missing, and it is only visible from Translation:
-**validation messages cannot be translated**, because the catalogue is a
-hardcoded English `Record` and the package never imports the translator. That is
-recorded there.
+Messages resolve through the translator when one is registered, so an
+Indonesian application publishes `lang/id/validation.ts` rather than overriding
+every rule at every call site. The dependency does not go the other way: this
+package asks the container and falls back to its own English catalogue when
+nothing answers.
 
 ---
 
