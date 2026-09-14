@@ -64,84 +64,42 @@ channels gather members across processes over the Redis bus, `here`/`joined`/`le
 follow Echo's contract, a second tab is not a second arrival, and a channel
 nobody declared is refused. That is Reverb's design, built in.
 
-### `toOthers()` has nothing to feed it
+`toOthers()` closes at both ends now: the socket is told its id on connect, a
+request carrying `X-Socket-ID` puts it in the request scope, and a broadcast
+raised during that request skips it by default — so the tab that posted the
+message does not render its own event twice.
 
-`Broadcastable.broadcastExcept()` exists in `packages/broadcasting/src/provider.ts`
-and `Broadcaster.deliver()` honours it. Nothing can ever supply the value.
+`broadcastWhen()` decides at dispatch time, `log` and `null` are drivers, and an
+unknown driver name is an error at boot. `BROADCAST_DRIVER=null` used to give
+`memory` silently, so switching broadcasting off in CI quietly left it on.
 
-In upstream the loop closes in two places: the browser learns its socket id from
-the connection, sends it back as `X-Socket-ID` on every request, and
-`Broadcast::socket($request)` reads it into the event. Elvel closes neither end
-— the `open` hook registers the subscriber and sends **nothing**, so the client
-never learns its own id, and no code anywhere in the repository reads an
-`X-Socket-ID` header.
+A publish the bus refuses is reported rather than `void`ed, and becomes a failed
+job where a queue is registered. It stays on stderr where none is: requiring a
+queue to report a lost broadcast would be requiring it for nothing on a setup
+with no bus at all.
 
-The result is the first bug everybody writes: the client that posted the message
-receives its own broadcast and renders it twice.
+**The default stays inline, where upstream queues, and the difference is what
+the default broadcaster is.** Upstream's is an HTTP call to Pusher, which
+belongs off the request path; Elvel's is an in-process fan-out — a function
+call. Queuing that would make a worker a requirement of the simplest setup, and
+a broadcast with no worker running is a broadcast that never arrives.
+`broadcastAfterCommit()` is the opt-in that matters, and it is honoured: an
+event broadcast inside a transaction that rolled back has already gone out
+otherwise.
 
-**Done when** the socket is told its id on connect, a request carrying
-`X-Socket-ID` puts it where an event can reach it, and a broadcast raised during
-that request skips that socket by default.
+`@elvel/broadcasting/client` is the browser half — reconnect with jittered
+backoff, resubscribe of everything held, and presence as a **list** rather than
+three events to reduce by hand. A separate entry point, so importing the package
+on the server does not pull it in. The jitter is not decoration: every tab of a
+site reconnects when the server restarts, and without it they arrive together
+and knock it over again.
 
-### Every broadcast is sent inline
-
-Upstream queues a broadcast unless the event says otherwise: `ShouldBroadcast`
-goes through the `BroadcastEvent` job on `broadcastQueue`/`broadcastConnection`,
-`ShouldBroadcastNow` is the opt-out, and `afterCommit` holds it until the
-transaction lands.
-
-`wireBroadcastableEvents()` sends every one of them in the dispatching request.
-On the Redis driver the publish is `void`ed, so a bus that is down loses the
-broadcast and says nothing — no retry, no failed job, no log line. There is no
-way to move a broadcast off the request path or to hold one until its
-transaction commits, so an event broadcast inside a rolled-back transaction has
-already gone out.
-
-**Done when** a broadcastable event can name a queue, when the default is
-queued and the inline path is the opt-out, when `afterCommit` is honoured, and
-when a publish that fails is a failed job rather than silence.
-
-### `broadcastWhen()` is absent
-
-Upstream's event decides at dispatch time whether it broadcasts at all — the
-usual case being a state machine that only announces some transitions. The
-`Broadcastable` type has `broadcastOn`, `broadcastAs`, `broadcastWith` and
-`broadcastExcept`, and no condition.
-
-**Done when** an event that answers `broadcastWhen(): false` is dispatched and
-not broadcast.
-
-### There is no way to broadcast nowhere
-
-`broadcasting.driver` is `redis` or, for every other value, `memory`. There is
-no `log` driver to see what *would* have gone out without a socket in sight, and
-no `null` driver to switch broadcasting off in CI. `BROADCAST_DRIVER=null` today
-silently gives you `memory`.
-
-**Done when** `log` and `null` are drivers, and an unknown driver name is an
-error at boot rather than a silent fallback.
-
-### No managed broker
-
-Upstream ships Pusher and Ably drivers; Elvel holds the sockets itself. That is
-the right default and it is the whole story on a server you control — but it is
-not a story at all on a platform that will not let a process hold connections,
-which is where the managed brokers are the only option.
-
-**Done when** a broadcast can be handed to an external broker, or the
-documentation states plainly that Elvel requires a host that keeps processes
-alive.
-
-### Nothing on the client
-
-Upstream ships `laravel-echo`. Elvel documents the frame shapes —
-`{"subscribe":"orders.7"}` — and stops there, so every application writes the
-same reconnect loop, the same backoff, the same resubscribe-after-reconnect, and
-the same presence bookkeeping, and gets the third one wrong.
-
-**Done when** a browser client ships that reconnects, resubscribes what it held,
-and exposes presence as a list rather than as three events to reduce by hand.
-
+No managed broker, and this is the position rather than a gap left open. Elvel
+holds the sockets, which is the whole story on a host that lets a process keep
+connections and no story at all on one that does not. `PubSub` is the seam — an
+external broker is an implementation of it — but the subscribe and authorisation
+paths would have to move to the broker too, so it is a design decision an
+application makes, not a driver this package can ship honestly.
 ---
 
 ## Bus

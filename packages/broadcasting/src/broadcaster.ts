@@ -304,6 +304,19 @@ export class Broadcaster {
    * client that just posted a message receives its own broadcast and renders it
    * twice, which is the first bug everybody writes.
    */
+  /**
+   * Told about a publish the bus refused.
+   *
+   * Set by the provider to record a failed job. Defaults to stderr, because a
+   * broadcaster used without one still must not lose the failure — and
+   * reporting it through a broadcast is how a broken bus becomes a loop.
+   */
+  onPublishFailed: (message: BroadcastMessage, error: unknown) => void = (message, error) => {
+    process.stderr.write(
+      `[broadcast] publishing to [${message.channel}] failed: ${error instanceof Error ? error.message : String(error)}\n`
+    )
+  }
+
   broadcast(message: BroadcastMessage, except?: string): number {
     if (this.bus) {
       /**
@@ -315,7 +328,16 @@ export class Broadcaster {
        * knowable from here. A caller that needs to know something was received
        * needs a different mechanism anyway; that was true before the bus existed.
        */
-      void this.bus.publish({ kind: 'broadcast', message, except })
+      /**
+       * A publish that fails is reported, not swallowed.
+       *
+       * It was `void`ed: a bus that had stopped answering lost the broadcast
+       * with no retry, no failed job and no log line, and the only symptom was
+       * that clients quietly stopped receiving events.
+       */
+      this.bus.publish({ kind: 'broadcast', message, except }).catch((error: unknown) => {
+        this.onPublishFailed(message, error)
+      })
 
       return 0
     }

@@ -14,6 +14,15 @@
  * same channels, the same authorisation.
  */
 export default {
+  /**
+   * `memory`, `redis`, `log` or `null`.
+   *
+   * `log` prints what would have gone out, for a command or a staging box with
+   * no browser attached. `null` is the deliberate off switch — it used to give
+   * `memory` silently, so switching broadcasting off in CI left it on. An
+   * unknown name is now an error at boot rather than another way to reach
+   * `memory`.
+   */
   driver: process.env.BROADCAST_DRIVER ?? 'memory',
 
   /** Where the websocket endpoint is served. */

@@ -1,7 +1,7 @@
 {
   "name": "@elvel/broadcasting",
   "version": "1.0.0-alpha.26",
-  "description": "Real-time broadcasting for Elvel — Bun-native WebSocket pub/sub, no Pusher needed",
+  "description": "Real-time broadcasting for Elvel \u2014 Bun-native WebSocket pub/sub, no Pusher needed",
   "keywords": [
     "broadcasting",
     "bun",
@@ -21,6 +21,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./client": "./src/client.ts",
     "./config/*": "./config/*"
   },
   "files": [
