@@ -204,6 +204,12 @@
         "@elvel/contracts": "workspace:*",
         "@elvel/core": "workspace:*",
       },
+      "peerDependencies": {
+        "@elvel/database": "workspace:*",
+      },
+      "optionalPeers": [
+        "@elvel/database",
+      ],
     },
     "packages/http": {
       "name": "@elvel/http",

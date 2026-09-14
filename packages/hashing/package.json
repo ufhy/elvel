@@ -1,7 +1,7 @@
 {
   "name": "@elvel/hashing",
   "version": "1.0.0-alpha.26",
-  "description": "Password hashing for Elvel — bcrypt and argon2 through Bun, with rehash detection",
+  "description": "Password hashing for Elvel \u2014 bcrypt and argon2 through Bun, with rehash detection",
   "keywords": [
     "argon2",
     "bcrypt",
@@ -36,5 +36,13 @@
   "dependencies": {
     "@elvel/contracts": "workspace:*",
     "@elvel/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@elvel/database": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@elvel/database": {
+      "optional": true
+    }
   }
 }

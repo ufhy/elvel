@@ -1,5 +1,11 @@
 export { BunSqlConnection, type ConnectionConfig } from './connection/bun-sql.ts'
 export { type Connection, QueryExecuted, type Row } from './connection/connection.ts'
+export {
+  isUniqueViolation,
+  QueryException,
+  UniqueConstraintViolation,
+  wrapQueryError
+} from './connection/errors.ts'
 export { ConnectionManager } from './connection/manager.ts'
 export { ReadWriteConnection } from './connection/read-write.ts'
 export { TransactionManager } from './connection/transactions.ts'
@@ -31,12 +37,15 @@ export { type MigrationRecord, MigrationRepository } from './migrations/reposito
 export { ModelBuilder, ModelNotFoundError, type Paginated } from './model/builder.ts'
 export {
   type AttributeEncrypter,
+  asEnum,
+  attributeHasher,
   type CastsAttributes,
   type CastType,
   castFromDatabase,
   castToDatabase,
   formatDateTime,
-  setAttributeEncrypter
+  setAttributeEncrypter,
+  setAttributeHasher
 } from './model/casts.ts'
 export {
   type ConnectionResolver,

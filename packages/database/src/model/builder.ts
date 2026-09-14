@@ -8,6 +8,7 @@ import {
   SimplePaginator
 } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
+import { UniqueConstraintViolation } from '../connection/errors.ts'
 import type { DateArgs } from '../query/builder.ts'
 import { QueryBuilder } from '../query/builder.ts'
 import { raw } from '../query/expression.ts'
@@ -1429,6 +1430,42 @@ export class ModelBuilder<M extends Model> extends Macroable {
     if (existing) return existing
 
     return (this.model as typeof Model).create({ ...attributes, ...values }) as Promise<M>
+  }
+
+  /**
+   * Insert first, and fall back to reading when somebody else won the race.
+   *
+   * `firstOrCreate` reads then writes, and between those two statements another
+   * request can insert the same row — so under concurrency it throws a duplicate
+   * key at whichever caller was second. This inverts the order: the unique index
+   * is the arbiter, and losing the race is an expected outcome rather than an
+   * error.
+   *
+   * Which is why `UniqueConstraintViolation` had to exist first: without it the
+   * only way to tell "somebody beat me to it" from "the insert was wrong" is to
+   * match three dialects' error messages.
+   */
+  async createOrFirst(attributes: Row, values: Row = {}): Promise<M> {
+    try {
+      return (await (this.model as typeof Model).create({ ...attributes, ...values })) as M
+    } catch (error) {
+      if (!(error instanceof UniqueConstraintViolation)) throw error
+
+      const query = this.clone()
+      for (const [column, value] of Object.entries(attributes)) query.where(column, value)
+
+      const existing = await query.first()
+
+      /**
+       * A violation with nothing to read back is not this race.
+       *
+       * Some other unique index was hit — a duplicate email on a row keyed by
+       * id, say — and swallowing it would return the wrong row or none at all.
+       */
+      if (!existing) throw error
+
+      return existing
+    }
   }
 
   async updateOrCreate(attributes: Row, values: Row = {}): Promise<M> {

@@ -302,26 +302,26 @@ set is complete and then some (`make:cast`, `make:observer`, `make:scope`).
 key modifiers. Deadlocks are retried. Read/write splitting and sticky
 connections work.
 
-### A failed query throws the driver's error, naked
+A driver failure is wrapped in `QueryException` carrying the SQL and the
+bindings, so a log line and a Lens entry name the statement rather than a bare
+syntax error. `UniqueConstraintViolation` is its own type across SQLite, MySQL
+and Postgres — matched on the driver's code first and its message second,
+because a code is stable and a message is translated, but Bun's client does not
+surface a code for every driver. `createOrFirst()` is built on it: it inserts
+first and reads back when it loses, so the unique index is the arbiter rather
+than a read-then-write race. A violation with nothing to read back is rethrown —
+some *other* index was hit, and swallowing it would answer with the wrong row.
 
-`packages/database/src/connection/bun-sql.ts` catches only to retry a deadlock.
-Nothing wraps a driver error, and the only exception class the whole package
-exports is `ModelNotFoundError`.
-
-Upstream wraps every failure in `QueryException`, which carries the SQL and the
-bindings and puts the statement in the message. Here a bad column name arrives
-as whatever Bun's SQL client said, with no statement attached — so the log line,
-and the Lens exception entry, name a syntax error and not the query.
-
-Worse is what is missing beneath it: **`UniqueConstraintViolationException`**.
-Without it a duplicate key cannot be told from any other failure except by
-matching the driver's message, which differs across SQLite, MySQL and Postgres.
-That single class is what `createOrFirst()` is built on, and it is why every
-race between two requests inserting the same row has to be solved by hand here.
-
-**Done when** driver errors are wrapped with the SQL and bindings, a unique
-violation is its own type across all three dialects, and `createOrFirst()`
-exists on top of it.
+The casts are complete. `decimal:2` reads as a **string**, because a money
+column read as a float is a rounding bug waiting for a large enough number.
+`immutable_date`/`immutable_datetime` freeze the `Date`: a mutable one is the
+same object as its own original, so `setDate()` on an attribute edits the model
+and `isDirty()` never notices. `hashed` refuses to hash a hash, or a model saved
+twice would store the hash of its own hash and the password would stop matching
+with nothing failing. The enum cast is `asEnum(Status)` — a helper that builds a
+typed `CastsAttributes` rather than another name in the string union, because a
+string cast cannot narrow the attribute's type, which is the one thing
+TypeScript could have checked.
 
 ### `get()` returns a plain collection
 
@@ -407,23 +407,6 @@ factories are for.
 
 **Done when** a factory can declare its relations, sequences exist, the two
 hooks run, and `Model.factory()` resolves the class.
-
-### Six cast types are missing
-
-Present: `int`, `float`, `boolean`, `string`, `json`, `object`, `array`, `date`,
-`datetime`, `timestamp`, `encrypted`, `encrypted:json`, plus custom
-`CastsAttributes` classes and blind-index columns, which upstream has no
-equivalent of.
-
-Missing: **enum** (`'status' => Status`), **`decimal:2`**, `immutable_date`,
-`immutable_datetime`, `collection`, and `hashed`.
-
-The enum cast is the one felt daily — a status column read as a bare string
-throws away the one thing TypeScript could have checked. `decimal` is the one
-that costs money: a money column read as a float is a rounding bug waiting for
-a large enough number.
-
-**Done when** each exists, and the enum cast narrows the attribute's type.
 
 ### The schema cannot be inspected
 

@@ -6,6 +6,7 @@ import { MariaDbGrammar, MySqlGrammar } from '../query/grammars/mysql.ts'
 import { PostgresGrammar } from '../query/grammars/postgres.ts'
 import { SQLiteGrammar } from '../query/grammars/sqlite.ts'
 import { type Connection, QueryExecuted, type Row } from './connection.ts'
+import { wrapQueryError } from './errors.ts'
 import { TransactionManager } from './transactions.ts'
 
 export type ConnectionConfig = {
@@ -429,13 +430,26 @@ export class BunSqlConnection implements Connection {
       | undefined
 
     if (dispatcher === undefined || dispatcher.hasListeners?.(QueryExecuted) === false) {
-      return execute()
+      try {
+        return await execute()
+      } catch (error) {
+        throw wrapQueryError(error, sql, bindings, this.name)
+      }
     }
 
     const started = Bun.nanoseconds()
 
     try {
       return await execute()
+    } catch (error) {
+      /**
+       * Wrapped with the statement that caused it.
+       *
+       * The driver's message alone names a syntax error and not the query, so
+       * the log line and the Lens entry both said nothing useful about which
+       * statement failed.
+       */
+      throw wrapQueryError(error, sql, bindings, this.name)
     } finally {
       const elapsed = Math.round((Bun.nanoseconds() - started) / 1_000) / 1_000
 
