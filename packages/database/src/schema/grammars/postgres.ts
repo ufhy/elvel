@@ -82,6 +82,28 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
         return 'time(0) without time zone'
       case 'binary':
         return 'bytea'
+      case 'geometry':
+      case 'geography':
+        return spatialType(column)
+      case 'tsvector':
+        return 'tsvector'
+      case 'computed':
+        if (column.stored === false) {
+          throw new Error(
+            `[${column.name}] is a virtual generated column, which postgres does not have. Store it, or make it a view.`
+          )
+        }
+
+        return `${column.sqlType ?? 'text'} generated always as (${column.expression ?? ''}) stored`
+      case 'raw':
+        return column.expression ?? ''
+      case 'set':
+        // An enum of many values is what a set is, and Postgres has no such
+        // type: an array or a join table is the answer, and either is a
+        // different migration rather than a rename.
+        throw new Error(
+          `[${column.name}] is a set column, which is MySQL's. postgres has no equivalent — use an array or a pivot table.`
+        )
       default: {
         const exhaustive: never = column.type
         throw new Error(`Unsupported column type [${exhaustive}] for postgres.`)
@@ -102,6 +124,31 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
     if (typeof value === 'boolean') return value ? 'true' : 'false'
 
     return super.defaultValue(value)
+  }
+
+  /** A GiST index, which is what Postgres calls a spatial one. */
+  protected override compileSpatialIndex(
+    blueprint: Blueprint,
+    command: Extract<Command, { name: 'spatialIndex' }>
+  ): string {
+    return `create index ${this.wrap(command.index)} on ${this.wrapTable(blueprint.table)} using gist (${this.columnize(command.columns)})`
+  }
+
+  /**
+   * pgvector's index, which is the difference between a search and a table scan.
+   *
+   * The operator class has to match what the query orders by: an index built for
+   * cosine distance does nothing for an L2 search, and Postgres will not say so
+   * — it will simply read every row.
+   */
+  protected override compileVectorIndex(
+    blueprint: Blueprint,
+    command: Extract<Command, { name: 'vectorIndex' }>
+  ): string {
+    const method = command.method ?? 'hnsw'
+    const operator = command.operator ?? 'vector_cosine_ops'
+
+    return `create index ${this.wrap(command.index)} on ${this.wrapTable(blueprint.table)} using ${method} (${this.columnize(command.columns)} ${operator})`
   }
 
   protected modifyIncrement(blueprint: Blueprint, column: ColumnAttributes): string {
@@ -356,4 +403,21 @@ function referentialAction(code: string): string | null {
     default:
       return code === '' ? null : code
   }
+}
+
+/**
+ * `geometry(polygon,4326)`, or plain `geometry`.
+ *
+ * PostGIS takes the SRID only alongside a subtype — `geography(4326)` is not
+ * valid — so a column given one without the other is unconstrained rather than
+ * unrunnable.
+ */
+function spatialType(column: ColumnAttributes): string {
+  const base = column.type === 'geography' ? 'geography' : 'geometry'
+
+  if (column.subtype === undefined) return base
+
+  return column.srid === undefined
+    ? `${base}(${column.subtype})`
+    : `${base}(${column.subtype},${column.srid})`
 }

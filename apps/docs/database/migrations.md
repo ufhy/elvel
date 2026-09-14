@@ -117,6 +117,30 @@ Which morph variant a table needs is decided by the **related** tables' keys, no
 by this one: a project keyed on uuids wants `uuidMorphs`.
 :::
 
+Columns only one or two engines have:
+
+```ts
+table.geometry('area', 'polygon', 4326)   // PostGIS, or MySQL's spatial types
+table.geography('route', 'linestring')    // PostGIS only — metres on the earth
+table.set('roles', ['admin', 'editor'])   // MySQL
+table.tsvector('searchable')              // Postgres
+table.computed('full_name', "first || ' ' || last", { type: 'varchar(255)' })
+table.rawColumn('location', 'point not null')
+```
+
+::: warning These are refused by name where they do not exist
+A `geometry` column silently stored as text, or a `vector` column that was never
+indexed, is worse than a migration that will not run: the first is found by a
+query that returns nothing and the second by one that is slow. So SQLite throws
+for all four spatial and text types, MySQL says to use `geometry` with an SRID
+rather than `geography`, and Postgres — which has no `set` — says to use an array
+or a pivot table.
+
+`computed` is stored by default. Postgres has no virtual generated column at all,
+so `{ stored: false }` is refused there rather than quietly stored. Give it a
+`type` that matches the expression; no engine infers one.
+:::
+
 Modifiers chain: `.nullable()`, `.default(v)`, `.unsigned()`, `.comment('…')`,
 `.collation('…')`, `.useCurrent()`, `.useCurrentOnUpdate()`, `.after('column')`,
 `.first()`.
@@ -142,6 +166,12 @@ table.indexName('posts_status_idx')
 table.fullText(['title', 'body'])
 table.renameIndex('posts_status_index', 'posts_state_index')
 
+table.foreignIdFor(User)  // user_id, typed the way User's key is typed
+table.dropConstrainedForeignId('user_id')  // the constraint, then the column
+
+table.spatialIndex(['area'])  table.vectorIndex('embedding')
+table.rawIndex('lower(email)', 'users_email_lower')
+
 table.dropMorphs('taggable')  table.dropRememberToken()
 table.dropTimestampsTz()  table.dropSoftDeletesTz()  table.dropFullText(['title', 'body'])
 ```
@@ -157,6 +187,26 @@ rather than creating an index no search would use.
 `renameIndex` is `alter table … rename index` on MySQL, `alter index … rename to`
 on Postgres, and impossible on SQLite — drop it and create it under the new name.
 :::
+
+::: tip A vector column without an index is a table scan
+`vectorIndex('embedding')` builds an HNSW index for cosine distance, which is
+what `orderBy` on a cosine comparison needs. The operator has to match the query:
+an index built for cosine does nothing for an L2 search, and Postgres will not
+say so — it will read every row. `{ method: 'ivfflat', operator: 'vector_l2_ops' }`
+picks the others.
+
+MySQL requires every column of a spatial index to be `not null`, which is its
+rule rather than ours.
+:::
+
+Table options are MySQL's, and ignored elsewhere rather than refused, so one
+migration can be shared by three databases:
+
+```ts
+table.engine('InnoDB')
+table.charset('utf8mb4')
+table.collation('utf8mb4_unicode_ci')
+```
 
 `constrained()` guesses the table from the column name — `user_id` → `users` — and
 takes one when the guess is wrong.

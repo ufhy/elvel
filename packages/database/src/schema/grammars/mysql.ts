@@ -97,11 +97,68 @@ export class MySqlSchemaGrammar extends SchemaGrammar {
         throw new Error(
           `[${column.name}] is a vector column, which needs Postgres with pgvector. mysql has no equivalent.`
         )
+      case 'geometry':
+        // MySQL puts the coordinate system on the column rather than in the
+        // type, and a spatial index requires one.
+        return column.srid === undefined
+          ? (column.subtype ?? 'geometry')
+          : `${column.subtype ?? 'geometry'} srid ${column.srid}`
+      case 'geography':
+        // MySQL has one spatial type and an SRID on the column; there is no
+        // separate geography, and calling `geometry` one would change what a
+        // distance means without saying so.
+        throw new Error(
+          `[${column.name}] is a geography column, which is PostGIS's. mysql has geometry with an SRID instead.`
+        )
+      case 'set':
+        return `set(${(column.allowed ?? []).map((value) => `'${value.replaceAll("'", "''")}'`).join(', ')})`
+      case 'computed':
+        return `${column.sqlType ?? 'text'} generated always as (${column.expression ?? ''}) ${column.stored === false ? 'virtual' : 'stored'}`
+      case 'raw':
+        return column.expression ?? ''
+      case 'tsvector':
+        // MySQL's answer to full text is a FULLTEXT index on the text itself,
+        // which `fullText()` already compiles — there is no column to store.
+        throw new Error(
+          `[${column.name}] is a tsvector column, which is Postgres's. mysql indexes the text column itself with fullText().`
+        )
       default: {
         const exhaustive: never = column.type
         throw new Error(`Unsupported column type [${exhaustive}] for mysql.`)
       }
     }
+  }
+
+  /**
+   * MySQL's own keyword, and it requires the column to be `not null`.
+   *
+   * A nullable spatial column simply cannot be indexed, so the error is worth
+   * arriving at the migration rather than at the server.
+   */
+  protected override compileSpatialIndex(
+    blueprint: Blueprint,
+    command: Extract<Command, { name: 'spatialIndex' }>
+  ): string {
+    return `alter table ${this.wrapTable(blueprint.table)} add spatial index ${this.wrap(command.index)} (${this.columnize(command.columns)})`
+  }
+
+  /**
+   * The table options, which are MySQL's alone.
+   *
+   * Every other dialect has nowhere to put an engine or a charset, so they are
+   * ignored there rather than refused: one migration shared by three databases
+   * should not have to branch to say `InnoDB`.
+   */
+  protected override compileCreate(blueprint: Blueprint): string {
+    const options = [
+      blueprint.tableEngine === undefined ? '' : ` engine = ${blueprint.tableEngine}`,
+      blueprint.tableCharset === undefined
+        ? ''
+        : ` default character set ${blueprint.tableCharset}`,
+      blueprint.tableCollation === undefined ? '' : ` collate ${blueprint.tableCollation}`
+    ].join('')
+
+    return super.compileCreate(blueprint) + options
   }
 
   protected override modifyUnsigned(column: ColumnAttributes): string {

@@ -31,6 +31,12 @@ export type ColumnType =
   | 'dateTimeTz'
   | 'timeTz'
   | 'timestampTz'
+  | 'geometry'
+  | 'geography'
+  | 'set'
+  | 'tsvector'
+  | 'computed'
+  | 'raw'
 
 export type ColumnAttributes = {
   name: string
@@ -51,6 +57,16 @@ export type ColumnAttributes = {
   collation?: string
   /** Set by `change()`: alter this column rather than add it. */
   change?: boolean
+  /** `geometry('area', 'polygon')` — the shape a spatial column holds. */
+  subtype?: string
+  /** The coordinate system a spatial column is in. 4326 is WGS 84. */
+  srid?: number
+  /** The expression behind a generated column, or the body of a raw one. */
+  expression?: string
+  /** A generated column that is stored rather than computed on read. */
+  stored?: boolean
+  /** The declared type of a generated column: `text`, `varchar(255)`, `int`. */
+  sqlType?: string
 }
 
 export type ForeignKeyAction =
@@ -69,6 +85,9 @@ export type Command =
   | { name: 'index'; columns: string[]; index: string }
   | { name: 'fullText'; columns: string[]; index: string }
   | { name: 'dropFullText'; index: string }
+  | { name: 'spatialIndex'; columns: string[]; index: string }
+  | { name: 'vectorIndex'; columns: string[]; index: string; method?: string; operator?: string }
+  | { name: 'rawIndex'; expression: string; index: string }
   | { name: 'renameIndex'; from: string; to: string }
   | {
       name: 'foreign'
@@ -240,12 +259,36 @@ export class Blueprint {
   readonly columns: ColumnDefinition[] = []
   readonly commands: Command[] = []
   temporary = false
+  /** MySQL table options. Every other dialect has no place to put them. */
+  tableEngine: string | undefined
+  tableCharset: string | undefined
+  tableCollation: string | undefined
 
   constructor(readonly table: string) {}
 
   /** True when this blueprint creates the table rather than altering it. */
   get creating(): boolean {
     return this.commands.some((command) => command.name === 'create')
+  }
+
+  /** `engine('InnoDB')`. MySQL only; ignored where a table has no engine. */
+  engine(name: string): this {
+    this.tableEngine = name
+
+    return this
+  }
+
+  charset(name: string): this {
+    this.tableCharset = name
+
+    return this
+  }
+
+  /** The table's default collation — a column's own `collation()` still wins. */
+  collation(name: string): this {
+    this.tableCollation = name
+
+    return this
   }
 
   create(): this {
@@ -491,6 +534,80 @@ export class Blueprint {
     return this.addColumn('ulid', name)
   }
 
+  // ----------------------------------------------------------------- spatial
+
+  /**
+   * A spatial column — `geometry('area', 'polygon', 4326)`.
+   *
+   * The subtype narrows what it holds (`point`, `linestring`, `polygon`, and the
+   * multi- forms); left off, it takes any geometry. The SRID is the coordinate
+   * system: 4326 is WGS 84, which is what GPS reports and what almost every
+   * application means by latitude and longitude.
+   *
+   * Postgres needs PostGIS installed for either of these.
+   */
+  geometry(name: string, subtype?: string, srid?: number): ColumnDefinition {
+    return this.addColumn('geometry', name, { subtype, srid })
+  }
+
+  /**
+   * `geography` — coordinates on a sphere rather than a plane.
+   *
+   * The difference is what distance means: `geometry` measures in the units of
+   * the projection and `geography` in metres on the earth, so a radius search
+   * over a country's worth of points wants this one. Postgres with PostGIS only;
+   * MySQL has no such type.
+   */
+  geography(name: string, subtype?: string, srid = 4326): ColumnDefinition {
+    return this.addColumn('geography', name, { subtype, srid })
+  }
+
+  // ------------------------------------------------------------------- other
+
+  /** `set('roles', ['admin', 'editor'])`. MySQL only — a column of flags. */
+  set(name: string, allowed: string[]): ColumnDefinition {
+    return this.addColumn('set', name, { allowed })
+  }
+
+  /** A Postgres `tsvector` column, for a full-text index that is not recomputed. */
+  tsvector(name: string): ColumnDefinition {
+    return this.addColumn('tsvector', name)
+  }
+
+  /**
+   * A generated column — `computed('full_name', "first || ' ' || last")`.
+   *
+   * Stored by default. The alternative, computed on read, is cheaper to write
+   * and cannot be indexed on every engine — and Postgres has no such thing at
+   * all, so a virtual column is refused there rather than silently stored.
+   *
+   * The declared type defaults to `text`; give it one that matches the
+   * expression when the column is a number or a date, because an engine will not
+   * infer it for you.
+   */
+  computed(
+    name: string,
+    expression: string,
+    options: { type?: string; stored?: boolean } = {}
+  ): ColumnDefinition {
+    return this.addColumn('computed', name, {
+      expression,
+      sqlType: options.type ?? 'text',
+      stored: options.stored ?? true
+    })
+  }
+
+  /**
+   * A column this Blueprint has no word for — `rawColumn('point', 'point')`.
+   *
+   * The definition is emitted verbatim after the name, so it is the escape hatch
+   * for a type only one engine has. Nothing is quoted or checked: it is the
+   * caller's SQL.
+   */
+  rawColumn(name: string, definition: string): ColumnDefinition {
+    return this.addColumn('raw', name, { expression: definition })
+  }
+
   // ------------------------------------------------------------- timestamps
 
   nullableTimestamps(): void {
@@ -580,6 +697,32 @@ export class Blueprint {
     return this.unsignedBigInteger(name)
   }
 
+  /**
+   * The foreign key for a model, named and typed the way the model is.
+   *
+   * `foreignIdFor(User)` is `user_id`, and a UUID or ULID key gets a column of
+   * that type rather than a bigint — which is the mistake this exists to stop,
+   * because a `bigint user_id` pointing at a `uuid id` fails only when the first
+   * row is inserted.
+   */
+  foreignIdFor(model: ForeignKeyOwner, name?: string): ColumnDefinition {
+    const column = name ?? foreignKeyFor(model)
+
+    if (model.keyType === 'string') {
+      return model.usesUlids === true ? this.foreignUlid(column) : this.foreignUuid(column)
+    }
+
+    return this.foreignId(column)
+  }
+
+  foreignUuidFor(model: ForeignKeyOwner, name?: string): ColumnDefinition {
+    return this.foreignUuid(name ?? foreignKeyFor(model))
+  }
+
+  foreignUlidFor(model: ForeignKeyOwner, name?: string): ColumnDefinition {
+    return this.foreignUlid(name ?? foreignKeyFor(model))
+  }
+
   // ------------------------------------------------------------------ indexes
 
   primary(columns: string[], index?: string): this {
@@ -648,6 +791,75 @@ export class Blueprint {
     const name = Array.isArray(index) ? this.indexName('fulltext', index) : index
 
     this.commands.push({ name: 'dropFullText', index: name })
+
+    return this
+  }
+
+  /**
+   * A spatial index, which is what makes a geometry column worth having.
+   *
+   * MySQL spells it `spatial index` and requires the column to be `not null`;
+   * Postgres has no such keyword and wants a GiST index. SQLite has neither.
+   */
+  spatialIndex(columns: string[], index?: string): this {
+    this.commands.push({
+      name: 'spatialIndex',
+      columns,
+      index: index ?? this.indexName('spatial', columns)
+    })
+
+    return this
+  }
+
+  dropSpatialIndex(index: string | string[]): this {
+    const name = Array.isArray(index) ? this.indexName('spatial', index) : index
+
+    this.commands.push({ name: 'dropIndex', index: name })
+
+    return this
+  }
+
+  /**
+   * An index on a vector column — `vectorIndex('embedding')`.
+   *
+   * Without one, a similarity search reads every row: `vector` could be created
+   * and never indexed, which for a table of any size is the same as not having
+   * it. `hnsw` is the default because it is the one that answers quickly on a
+   * table that keeps growing; `ivfflat` builds faster but has to be rebuilt as
+   * the data shifts. The operator decides what "near" means, and it has to match
+   * the one the query uses — cosine distance by default.
+   */
+  vectorIndex(
+    column: string,
+    options: { name?: string; method?: string; operator?: string } = {}
+  ): this {
+    this.commands.push({
+      name: 'vectorIndex',
+      columns: [column],
+      index: options.name ?? this.indexName('vector', [column]),
+      method: options.method,
+      operator: options.operator
+    })
+
+    return this
+  }
+
+  dropVectorIndex(index: string | string[]): this {
+    const name = Array.isArray(index) ? this.indexName('vector', index) : index
+
+    this.commands.push({ name: 'dropIndex', index: name })
+
+    return this
+  }
+
+  /**
+   * An index over an expression — `rawIndex('lower(email)', 'users_email_lower')`.
+   *
+   * A partial index, a functional index, an operator class: all of them are one
+   * engine's syntax, and a Blueprint method for each is a method per engine.
+   */
+  rawIndex(expression: string, index: string): this {
+    this.commands.push({ name: 'rawIndex', expression, index })
 
     return this
   }
@@ -721,6 +933,20 @@ export class Blueprint {
     return this.dropColumn(name)
   }
 
+  /**
+   * Drop the constraint and then the column — what every `down()` wants.
+   *
+   * Dropping the column alone fails on MySQL and Postgres while a foreign key
+   * still points through it, and the error names the constraint rather than the
+   * column, which is the wrong end of the migration to be reading.
+   */
+  dropConstrainedForeignId(column: string): this {
+    this.dropForeign([column])
+    this.dropColumn(column)
+
+    return this
+  }
+
   renameColumn(from: string, to: string): this {
     this.commands.push({ name: 'renameColumn', from, to })
     return this
@@ -751,4 +977,29 @@ export class Blueprint {
 
     return column
   }
+}
+
+/**
+ * Enough of a model to name its foreign key.
+ *
+ * Structural rather than the class itself: a Blueprint that imported `Model`
+ * would pull the whole ORM into every migration, and all it needs is the name
+ * and the shape of the key.
+ */
+export type ForeignKeyOwner = {
+  name: string
+  primaryKey: string
+  keyType: 'int' | 'string'
+  usesUlids?: boolean
+}
+
+function foreignKeyFor(model: ForeignKeyOwner): string {
+  return `${snake(model.name)}_${model.primaryKey}`
+}
+
+function snake(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase()
 }

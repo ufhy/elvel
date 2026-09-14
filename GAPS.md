@@ -414,17 +414,24 @@ database, which for a Bun application is a container, a managed instance, or
 DBngin — not a migration that has already connected to the database it would be
 creating.
 
-### Blueprint cannot describe a spatial or an indexed vector column
+Blueprint describes the columns only one or two engines have: `geometry`,
+`geography`, `set`, `tsvector`, `computed`, `rawColumn`, with `spatialIndex`,
+`vectorIndex`, `rawIndex` and their drops, table-level `engine`/`charset`/
+`collation`, `foreignIdFor` and its UUID and ULID forms, and
+`dropConstrainedForeignId`. `temporary` was already there.
 
-Missing from `Blueprint`: `geometry`, `geography`, `spatialIndex`,
-`dropSpatialIndex`; `vectorIndex` and `dropVectorIndex` — `vector` exists, so a
-pgvector column can be created and never indexed, which is the same as not
-having it; `engine`, `charset` and table-level `collation`; `temporary`;
-`computed` (generated columns); `set`; `tsvector`; `rawColumn` and `rawIndex`;
-`foreignIdFor`/`foreignUuidFor`/`foreignUlidFor`; and
-`dropConstrainedForeignId`, which is the one every `down()` wants.
+Each is compiled or refused **by name** on the dialects that cannot: a spatial
+column silently stored as text, or a vector column that was never indexed, is
+worse than a migration that will not run — the first is found by a query that
+returns nothing and the second by one that is slow. `foreignIdFor` takes the type
+of the key it points at, because a `bigint user_id` against a `uuid id` fails
+only when the first row is inserted.
 
-**Done when** each exists or is struck off with a reason.
+Two decisions worth recording. A generated column carries a declared type
+(`computed(name, expr, { type })`): MySQL will infer one and Postgres will not,
+so the portable form is to say it. And `{ stored: false }` is refused on
+Postgres, which has no virtual generated column — storing it anyway would make
+the same migration mean two different things.
 
 ### Query builder: seven families missing
 

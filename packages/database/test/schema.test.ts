@@ -639,3 +639,181 @@ describe('renameIndex', () => {
     expect(() => sqlite.compile(plan)).toThrow('cannot rename an index')
   })
 })
+
+/**
+ * The columns and indexes only one or two of these engines have.
+ *
+ * Each is either compiled or refused by name: a spatial column silently stored
+ * as text, or a vector column that was never indexed, is worse than a migration
+ * that will not run — the first is found by a query that returns nothing and the
+ * second by one that is slow.
+ */
+describe('spatial columns', () => {
+  const plan = blueprint((table) => {
+    table.id()
+    table.geometry('area', 'polygon', 4326)
+    table.spatialIndex(['area'])
+  }, 'places')
+
+  test('Postgres names the subtype and the coordinate system', () => {
+    const statements = postgres.compile(plan)
+
+    expect(statements[0]).toContain('"area" geometry(polygon,4326)')
+    expect(statements[1]).toBe('create index "places_area_spatial" on "places" using gist ("area")')
+  })
+
+  test('MySQL has the subtype as the type, and its own index keyword', () => {
+    const statements = mysql.compile(plan)
+
+    expect(statements[0]).toContain('`area` polygon srid 4326')
+    expect(statements[1]).toBe(
+      'alter table `places` add spatial index `places_area_spatial` (`area`)'
+    )
+  })
+
+  test('SQLite refuses both, by name', () => {
+    expect(() => sqlite.compile(plan)).toThrow('[area] is a geometry column')
+  })
+
+  test('geography is PostGIS only', () => {
+    const plan = blueprint((table) => table.geography('point'), 'places')
+
+    expect(postgres.compile(plan)[0]).toContain('"point" geography')
+    expect(() => mysql.compile(plan)).toThrow('mysql has geometry with an SRID')
+  })
+})
+
+describe('vector indexes', () => {
+  const plan = blueprint((table) => {
+    table.id()
+    table.vector('embedding', 3)
+    table.vectorIndex('embedding')
+  }, 'documents')
+
+  /** Without one, a similarity search reads every row. */
+  test('Postgres builds an HNSW index for cosine distance by default', () => {
+    expect(postgres.compile(plan)[1]).toBe(
+      'create index "documents_embedding_vector" on "documents" using hnsw ("embedding" vector_cosine_ops)'
+    )
+  })
+
+  test('and the method and operator can be chosen', () => {
+    const chosen = blueprint((table) => {
+      table.vector('embedding', 3)
+      table.vectorIndex('embedding', { method: 'ivfflat', operator: 'vector_l2_ops' })
+    }, 'documents')
+
+    expect(postgres.compile(chosen)[1]).toContain('using ivfflat ("embedding" vector_l2_ops)')
+  })
+
+  test('the other two say what it needs', () => {
+    expect(() => mysql.compile(plan)).toThrow('needs Postgres with pgvector')
+  })
+})
+
+describe('generated, set and raw columns', () => {
+  test('a generated column is stored, with no modifiers after it', () => {
+    const plan = blueprint((table) => {
+      table.computed('full_name', "first_name || ' ' || last_name").nullable()
+    })
+
+    expect(postgres.compile(plan)[0]).toBe(
+      `create table "users" ("full_name" text generated always as (first_name || ' ' || last_name) stored)`
+    )
+  })
+
+  test('and a virtual one is refused on Postgres, which has no such thing', () => {
+    const plan = blueprint((table) => {
+      table.computed('total', 'price * quantity', { type: 'int', stored: false })
+    })
+
+    expect(mysql.compile(plan)[0]).toContain('generated always as (price * quantity) virtual')
+    expect(() => postgres.compile(plan)).toThrow('virtual generated column')
+  })
+
+  test("set is MySQL's, and the others name what to use instead", () => {
+    const plan = blueprint((table) => table.set('roles', ['admin', 'editor']))
+
+    expect(mysql.compile(plan)[0]).toContain("`roles` set('admin', 'editor')")
+    expect(() => postgres.compile(plan)).toThrow('use an array or a pivot table')
+  })
+
+  test("tsvector is Postgres's", () => {
+    const plan = blueprint((table) => table.tsvector('searchable'))
+
+    expect(postgres.compile(plan)[0]).toContain('"searchable" tsvector')
+    expect(() => mysql.compile(plan)).toThrow('fullText()')
+  })
+
+  test('a raw column is emitted verbatim', () => {
+    const plan = blueprint((table) => table.rawColumn('location', 'point not null'))
+
+    expect(postgres.compile(plan)[0]).toBe('create table "users" ("location" point not null)')
+  })
+
+  test("and a raw index is the caller's expression", () => {
+    const plan = new Blueprint('users')
+    plan.rawIndex('lower(email)', 'users_email_lower')
+
+    expect(postgres.compile(plan)[0]).toBe(
+      'create index "users_email_lower" on "users" (lower(email))'
+    )
+  })
+})
+
+describe('table options', () => {
+  const plan = blueprint((table) => {
+    table.engine('InnoDB')
+    table.charset('utf8mb4')
+    table.collation('utf8mb4_unicode_ci')
+    table.id()
+  })
+
+  test('MySQL puts them after the table', () => {
+    expect(mysql.compile(plan)[0]).toContain(
+      'engine = InnoDB default character set utf8mb4 collate utf8mb4_unicode_ci'
+    )
+  })
+
+  /** One migration shared by three databases should not branch to say InnoDB. */
+  test('and the others ignore them rather than refusing', () => {
+    expect(postgres.compile(plan)[0]).not.toContain('InnoDB')
+  })
+})
+
+describe('a foreign key named after its model', () => {
+  class User {
+    static name = 'User'
+    static primaryKey = 'id'
+    static keyType = 'int' as const
+  }
+
+  class ApiToken {
+    static name = 'ApiToken'
+    static primaryKey = 'uuid'
+    static keyType = 'string' as const
+  }
+
+  test('is the model in snake case, plus its key', () => {
+    const plan = blueprint((table) => table.foreignIdFor(User), 'posts')
+
+    expect(sqlite.compile(plan)[0]).toContain('"user_id" integer')
+  })
+
+  /** A bigint pointing at a uuid fails only when the first row is inserted. */
+  test('and takes the type of the key it points at', () => {
+    const plan = blueprint((table) => table.foreignIdFor(ApiToken), 'logs')
+
+    expect(sqlite.compile(plan)[0]).toContain('"api_token_uuid" varchar')
+  })
+
+  test('dropConstrainedForeignId drops the constraint before the column', () => {
+    const plan = new Blueprint('posts')
+    plan.dropConstrainedForeignId('user_id')
+
+    expect(postgres.compile(plan)).toEqual([
+      'alter table "posts" drop constraint "posts_user_id_foreign"',
+      'alter table "posts" drop column "user_id"'
+    ])
+  })
+})

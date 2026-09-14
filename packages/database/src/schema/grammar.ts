@@ -115,6 +115,17 @@ export abstract class SchemaGrammar {
         case 'dropFullText':
           statements.push(this.compileDropFullText(blueprint, command.index))
           break
+        case 'spatialIndex':
+          statements.push(this.compileSpatialIndex(blueprint, command))
+          break
+        case 'vectorIndex':
+          statements.push(this.compileVectorIndex(blueprint, command))
+          break
+        case 'rawIndex':
+          statements.push(
+            `create index ${this.wrap(command.index)} on ${this.wrapTable(blueprint.table)} (${command.expression})`
+          )
+          break
         case 'renameIndex':
           statements.push(this.compileRenameIndex(blueprint, command.from, command.to))
           break
@@ -222,6 +233,11 @@ export abstract class SchemaGrammar {
   protected columnSql(blueprint: Blueprint, column: ColumnAttributes): string {
     let sql = `${this.wrap(column.name)} ${this.typeFor(column)}`
 
+    // A generated column carries its own definition and a raw one is the
+    // caller's SQL verbatim: `not null` or a default after either is a syntax
+    // error, not a modifier.
+    if (column.type === 'computed' || column.type === 'raw') return sql
+
     for (const modifier of this.modifiers) {
       sql += this.applyModifier(modifier, blueprint, column)
     }
@@ -321,6 +337,29 @@ export abstract class SchemaGrammar {
     _command: Extract<Command, { name: 'fullText' }>
   ): string {
     throw new Error(`${this.constructor.name} does not support full-text indexes.`)
+  }
+
+  /**
+   * A spatial index, which only two of these three can do at all.
+   *
+   * MySQL has the `spatial` keyword and Postgres wants a GiST index; SQLite has
+   * neither, so the base refuses rather than emitting something plausible.
+   */
+  protected compileSpatialIndex(
+    _blueprint: Blueprint,
+    _command: Extract<Command, { name: 'spatialIndex' }>
+  ): string {
+    throw new Error(`${this.constructor.name} does not support spatial indexes.`)
+  }
+
+  /** A vector index, which is pgvector's and therefore Postgres's alone. */
+  protected compileVectorIndex(
+    _blueprint: Blueprint,
+    _command: Extract<Command, { name: 'vectorIndex' }>
+  ): string {
+    throw new Error(
+      `${this.constructor.name} does not support vector indexes, which need Postgres with pgvector.`
+    )
   }
 
   protected compileDropFullText(blueprint: Blueprint, index: string): string {

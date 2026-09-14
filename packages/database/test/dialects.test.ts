@@ -270,6 +270,39 @@ for (const { name, config } of available) {
         }
       })
 
+      /**
+       * A generated column, which each engine spells differently and one of
+       * them will not store virtually at all.
+       */
+      test('a generated column is computed by the server', async () => {
+        if (name === 'sqlite') return
+
+        const generated = `${PREFIX}_generated`
+        const quote = (column: string) => connection.grammar.wrap(column)
+        const expression =
+          name === 'postgres'
+            ? `${quote('first')} || ' ' || ${quote('last')}`
+            : `concat(${quote('first')}, ' ', ${quote('last')})`
+
+        await schema.dropIfExists(generated)
+        await schema.create(generated, (table) => {
+          table.id()
+          table.string('first')
+          table.string('last')
+          table.computed('full', expression, { type: 'varchar(255)' })
+        })
+
+        try {
+          await new QueryBuilder(connection, generated).insert({ first: 'Ada', last: 'Lovelace' })
+
+          const [row] = await new QueryBuilder<{ full: string }>(connection, generated).get()
+
+          expect(row?.full).toBe('Ada Lovelace')
+        } finally {
+          await schema.dropIfExists(generated)
+        }
+      })
+
       test('whenTableHasColumn runs only when it does', async () => {
         const ran: string[] = []
 

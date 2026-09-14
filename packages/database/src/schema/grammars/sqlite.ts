@@ -80,6 +80,19 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
         throw new Error(
           `[${column.name}] is a vector column, which needs Postgres with pgvector. sqlite has no equivalent.`
         )
+      case 'computed':
+        return `${column.sqlType ?? 'text'} generated always as (${column.expression ?? ''}) ${column.stored === false ? 'virtual' : 'stored'}`
+      case 'raw':
+        return column.expression ?? ''
+      case 'geometry':
+      case 'geography':
+      case 'set':
+      case 'tsvector':
+        // Named rather than silently mapped to text: a column nobody can search
+        // the way the migration meant is worse than a migration that refuses.
+        throw new Error(
+          `[${column.name}] is a ${column.type} column, which sqlite has no equivalent for.`
+        )
       default: {
         const exhaustive: never = column.type
         throw new Error(`Unsupported column type [${exhaustive}] for sqlite.`)
