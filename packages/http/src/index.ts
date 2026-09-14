@@ -217,6 +217,7 @@ export {
   type LimiterContext,
   LimiterRegistry,
   limiters,
+  RefusedException,
   type ThrottleOptions,
   TooManyRequestsError,
   throttle

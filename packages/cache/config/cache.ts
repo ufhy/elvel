@@ -44,6 +44,30 @@ export default {
     /** Run `elvel cache:table` and `elvel migrate` before selecting this. */
     database: { driver: 'database', table: 'cache', lockTable: 'cache_locks' },
 
-    redis: { driver: 'redis', url: env('REDIS_URL', 'redis://127.0.0.1:6379') }
+    redis: { driver: 'redis', url: env('REDIS_URL', 'redis://127.0.0.1:6379') },
+
+    /**
+     * Cache nothing.
+     *
+     * For proving a page still works with the cache off, without editing this
+     * file — which is the change nobody wants to make while diagnosing a cache
+     * that is lying to them.
+     */
+    null: { driver: 'null' },
+
+    /**
+     * A chain, tried in order.
+     *
+     * A cache is the one part of a system whose premise is that losing it costs
+     * latency and not correctness, and a Redis that stops answering was turning
+     * every read into an exception. A read falls through; a write goes to the
+     * first store that takes it, because two copies with different lifetimes
+     * would have the fallback serving a stale one long after the primary
+     * returned. Every fall-through is announced on stderr.
+     */
+    failover: {
+      driver: 'failover',
+      stores: ['redis', 'file']
+    }
   }
 }

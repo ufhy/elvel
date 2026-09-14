@@ -251,100 +251,41 @@ and both can be asserted on.
 carries the owner token, `block()` measures against the clock rather than
 counting attempts, and `flexible()` refreshes behind a lock after the response.
 
-### Four stores
+`null` and `failover` are stores now. `null` was a boot error, so proving a page
+works with the cache off meant editing the config — the change nobody wants to
+make while diagnosing a cache that is lying to them. Its `add()` still answers
+`false`, because `add` means "did I win the race" and two callers both told they
+won is how add-based locking stops locking.
 
-`array`, `file`, `database`, `redis`, plus the `memo` wrapper and `extend()`.
-Upstream also ships `null`, `memcached` and `dynamodb`.
+`failover` reads through the chain and writes to the **first store that takes
+it**: writing to both would leave two copies with different lifetimes, and the
+fallback would serve a stale one long after the primary came back. `forget` and
+`flush` do reach every store, for the same reason in reverse. Locks come from
+the first store that can provide them and never fail over — a lock that moved
+stores mid-hold is not a lock.
 
-`null` is the one that is missed daily: there is no way to say "cache nothing"
-in an environment, and `CACHE_STORE=null` today is a boot error. Proving a page
-still works with the cache off means editing the config.
+A refused write, forget or flush dispatches an event. It used to be a `false`
+almost nobody checks: Redis refusing a write meant the cache silently stopped
+caching and the only symptom was that the application got slower. The six
+"about to" events are there too, dispatched before the store is touched, which
+is the only place a listener can stand to observe a read.
 
-**Done when** `null` is a store, and memcached and DynamoDB are either drivers
-or a documented `extend()` recipe.
+`isLocked()`, `forceRelease()` and `flushLocks()` are the way out after a crash.
+`supportsFlushingLocks()` answers honestly: the Redis store keeps locks as
+ordinary keys under the cache prefix, so there is no way to flush them without
+flushing the cache, and it says so rather than pretending.
 
-### A store that is down takes the application with it
+`Limit` can shape its own refusal — a factory rather than a `Response`, because a
+body can be read once and one shared instance would answer the first refused
+caller and hand every one after it an empty body. `after()`, `fallback()` and
+`perMinutes()` are here as well.
 
-Upstream added `FailoverStore`: a list of stores tried in order, falling to
-the next when one throws, dispatching `CacheFailedOver` as it goes. Nothing
-equivalent exists here — `CacheManager.driverFor()` builds exactly one store per
-name, and a Redis that stops answering turns every cached read into an
-exception.
+`rememberWithWarmth()` returns the warm flag; `remember()` is one line on top of
+it. The other way to get that boolean was a `has()` before the read, racing the
+read it describes.
 
-For a cache — the one part of a system whose entire premise is that losing it
-should cost latency, not correctness — that is the wrong failure mode.
-
-**Done when** a store can be configured as a chain, a failure falls through to
-the next, and the fall-through is announced rather than silent.
-
-### A write that fails says nothing
-
-`Repository.put()` ends:
-
-```ts
-const stored = await this.store.put(key, value, seconds)
-if (stored) this.event('cache.written', { key, value, seconds })
-
-return stored
-```
-
-When the store returns `false` — Redis refusing the write, the file store out of
-disk — no event is emitted, nothing is logged, and the caller gets a boolean
-that almost nobody checks. The cache silently stops caching and the only symptom
-is that the application gets slower.
-
-Elvel emits five cache events: `hit`, `missed`, `written`, `forgotten`,
-`flushed`. Upstream emits eighteen, and the two families missing here are exactly
-the ones that are not decorative:
-
-- the failures — `KeyWriteFailed`, `KeyForgetFailed`, `CacheFlushFailed`,
-  `CacheLocksFlushFailed`
-- the "about to" — `RetrievingKey`, `RetrievingManyKeys`, `WritingKey`,
-  `WritingManyKeys`, `ForgettingKey`, `CacheFlushing` — which are what a
-  listener needs to observe or intercept a read before the store is touched
-
-**Done when** a failed write, forget or flush dispatches an event, Lens shows it
-as a finding, and the before-events exist for the six operations that have them
-in upstream.
-
-### Locks cannot be flushed or inspected
-
-Missing: `Cache::flushLocks()` and `supportsFlushingLocks()` on the repository,
-and `isLocked()` and `forceRelease()` on `Lock`. The abstract `Lock` has
-`acquire`, `release`, `get`, `block`, `refresh`, `owner`, `isOwnedBy`,
-`isOwnedByCurrentProcess` and `betweenBlockedAttemptsSleepFor`.
-
-The gap shows up after a crash: a worker killed mid-`block()` leaves a lock row
-behind, and the only ways out today are waiting for the TTL or deleting the key
-by hand. `isLocked()` is one line on top of `currentOwner()`.
-
-**Done when** a lock can be inspected and force-released, and every lock in a
-store can be flushed with the events upstream dispatches around it.
-
-### A named limiter cannot shape its own refusal
-
-`LimiterRegistry` in `packages/http/src/throttle.ts` covers
-`RateLimiter::for(...)`. What `Limit` cannot do is say what happens when it is
-hit: Upstream's `Limit::response(...)` gives the limiter its own 429 body,
-`Limit::after(...)` its own callback. Elvel throws a fixed
-`TooManyRequestsError('Too Many Attempts.')` for every limiter in the
-application.
-
-Also absent from `Limit`: `perMinutes(n)` and `fallbackKey`.
-
-**Done when** a limiter can supply the response its refusal renders, and
-`perMinutes` exists.
-
-### `rememberWithWarmth()` is absent
-
-Upstream's `remember()` is now one line on top of it, and it returns
-`[value, wasWarm]` — whether the value came from the store or was just computed.
-That boolean is what a caller logs, counts, or uses to decide whether to warm
-something else. Elvel's `remember()` throws it away.
-
-**Done when** the warm flag is available without a second `has()` call racing
-the read.
-
+Memcached and DynamoDB stay out: both are `extend()` recipes rather than
+drivers, and neither has a Bun-native client worth depending on.
 ---
 
 ## Collections

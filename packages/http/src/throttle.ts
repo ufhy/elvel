@@ -1,5 +1,5 @@
 import { isUnlimited, Limit, type RateLimiter } from '@elvel/cache'
-import { app, HttpException } from '@elvel/core'
+import { app, CARRIES_RESPONSE, HttpException } from '@elvel/core'
 import { Clock } from '@elvel/support'
 import { Elysia } from 'elysia'
 import { clientIp, type ProxyOptions, type SocketAddress } from './proxies.ts'
@@ -114,18 +114,46 @@ export async function enforceThrottle(
 
     const counter = rateLimiter()
 
-    if (await counter.tooManyAttempts(limit.key, limit.maxAttempts)) {
-      const retryAfter = await counter.availableIn(limit.key)
+    // The key a limit counts against, or what it said to count instead: a limit
+    // keyed on a user id would otherwise put every anonymous caller in one
+    // bucket, and one visitor would exhaust it for all of them.
+    const key = limit.keyOrFallback()
 
-      throw new TooManyRequestsError('Too Many Attempts.', {
+    if (await counter.tooManyAttempts(key, limit.maxAttempts)) {
+      const retryAfter = await counter.availableIn(key)
+      const refusal = { request: context.request, key, maxAttempts: limit.maxAttempts, retryAfter }
+
+      await limit.onExceeded?.(refusal)
+
+      const headers = {
         'X-RateLimit-Limit': String(limit.maxAttempts),
         'X-RateLimit-Remaining': '0',
         'Retry-After': String(retryAfter),
         'X-RateLimit-Reset': String(Math.floor(Clock.now() / 1000) + retryAfter)
-      })
+      }
+
+      /**
+       * The limiter's own answer, when it supplied one.
+       *
+       * Every limiter threw the same sentence before, which is the wrong answer
+       * for most of them: an API wants JSON naming the limit, a sign-in form
+       * wants a page. The rate-limit headers are added to whatever it built —
+       * they describe the refusal, not the body.
+       */
+      if (limit.refusal !== undefined) {
+        const response = await limit.refusal(refusal)
+
+        for (const [name, value] of Object.entries(headers)) {
+          if (!response.headers.has(name)) response.headers.set(name, value)
+        }
+
+        throw new RefusedException(response, limit.maxAttempts)
+      }
+
+      throw new TooManyRequestsError('Too Many Attempts.', headers)
     }
 
-    const hits = await counter.hit(limit.key, limit.decaySeconds)
+    const hits = await counter.hit(key, limit.decaySeconds)
 
     /**
      * The count is carried to the response hook, not read again there.
@@ -273,4 +301,25 @@ function addressFor(context: {
 /** The application's named limiters. */
 export function limiters(): LimiterRegistry {
   return app('limiters')
+}
+
+/**
+ * A limiter's own refusal, thrown so it can leave from where it was decided.
+ *
+ * Carries the response by symbol rather than a `toResponse` method, for the
+ * reason `ExceptionHandler.render` gives: duck-typing that shape once hijacked
+ * Elysia's own error classes.
+ */
+export class RefusedException extends Error {
+  constructor(
+    private readonly response: Response,
+    maxAttempts: number
+  ) {
+    super(`Rate limit of ${maxAttempts} exceeded.`)
+    this.name = 'RefusedException'
+  }
+
+  [CARRIES_RESPONSE](): Response {
+    return this.response
+  }
 }

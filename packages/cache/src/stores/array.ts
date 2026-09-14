@@ -145,6 +145,13 @@ export class ArrayStore implements Store, LockProvider {
     return this.lock(name, 0, owner)
   }
 
+  /** Every lock this store holds — see `Repository.flushLocks`. */
+  async flushLocks(): Promise<boolean> {
+    this.locks.clear()
+
+    return true
+  }
+
   private hasExpired(entry: Entry): boolean {
     return entry.expires !== FOREVER && entry.expires <= Math.floor(Clock.now() / 1000)
   }
@@ -181,6 +188,10 @@ class ArrayLock extends Lock {
     this.locks.delete(this.name)
 
     return true
+  }
+
+  protected override async releaseAnyOwner(): Promise<boolean> {
+    return this.locks.delete(this.name)
   }
 
   override async refresh(seconds?: number): Promise<boolean> {

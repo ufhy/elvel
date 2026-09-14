@@ -190,6 +190,13 @@ export class DatabaseStore implements Store, LockProvider {
     return this.lock(name, 0, owner)
   }
 
+  /** Every lock this store holds — see `Repository.flushLocks`. */
+  async flushLocks(): Promise<boolean> {
+    await (await this.lockQuery()).delete()
+
+    return true
+  }
+
   private async query(): Promise<QueryBuilder> {
     return this.db.table(this.table, this.options.connection)
   }
@@ -238,6 +245,12 @@ class DatabaseLock extends Lock {
       .where('key', '=', this.name)
       .where('owner', '=', this.owner())
       .delete()
+
+    return deleted > 0
+  }
+
+  protected override async releaseAnyOwner(): Promise<boolean> {
+    const deleted = await (await this.query()).where('key', '=', this.name).delete()
 
     return deleted > 0
   }

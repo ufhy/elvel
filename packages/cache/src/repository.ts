@@ -48,6 +48,10 @@ export class Repository {
   }
 
   async get<T = unknown>(key: string, fallback?: T | (() => T | Promise<T>)): Promise<T | null> {
+    // Before the store is touched: a listener that wants to observe or shape a
+    // read has nowhere else to stand.
+    this.event('cache.retrieving', { key })
+
     const value = await this.store.get<T>(key)
 
     if (value === null || value === undefined) {
@@ -63,6 +67,8 @@ export class Repository {
 
   /** One round trip for several keys, where the driver supports it. */
   async many<T = unknown>(keys: string[]): Promise<Record<string, T | null>> {
+    this.event('cache.retrieving-many', { keys })
+
     const values = await this.store.many<T>(keys)
 
     for (const key of keys) {
@@ -89,8 +95,19 @@ export class Repository {
     // A TTL already in the past is a delete, not a write that expires instantly.
     if (seconds <= 0) return this.forget(key)
 
+    this.event('cache.writing', { key, value, seconds })
+
     const stored = await this.store.put(key, value, seconds)
+
+    /**
+     * A refused write is an event now.
+     *
+     * It used to be a `false` almost nobody checks: Redis refusing the write or
+     * the file store out of disk meant the cache silently stopped caching, and
+     * the only symptom was that the application got slower.
+     */
     if (stored) this.event('cache.written', { key, value, seconds })
+    else this.event('cache.write-failed', { key, value, seconds })
 
     return stored
   }
@@ -166,13 +183,29 @@ export class Repository {
    * ```
    */
   async remember<T>(key: string, ttl: Ttl, callback: () => T | Promise<T>): Promise<T> {
+    return (await this.rememberWithWarmth(key, ttl, callback))[0]
+  }
+
+  /**
+   * `remember`, and whether the value was already there.
+   *
+   * The boolean is what a caller logs, counts, or uses to decide whether to warm
+   * something else — and the only other way to get it was a `has()` before the
+   * read, which races the read it is describing.
+   */
+  async rememberWithWarmth<T>(
+    key: string,
+    ttl: Ttl,
+    callback: () => T | Promise<T>
+  ): Promise<[T, boolean]> {
     const cached = await this.get<T>(key)
-    if (cached !== null) return cached
+
+    if (cached !== null) return [cached, true]
 
     const value = await callback()
     await this.put(key, value, ttl)
 
-    return value
+    return [value, false]
   }
 
   async rememberForever<T>(key: string, callback: () => T | Promise<T>): Promise<T> {
@@ -247,8 +280,12 @@ export class Repository {
   }
 
   async forget(key: string): Promise<boolean> {
+    this.event('cache.forgetting', { key })
+
     const forgotten = await this.store.forget(key)
-    this.event('cache.forgotten', { key })
+
+    if (forgotten) this.event('cache.forgotten', { key })
+    else this.event('cache.forget-failed', { key })
 
     return forgotten
   }
@@ -259,10 +296,43 @@ export class Repository {
   }
 
   async flush(): Promise<boolean> {
+    this.event('cache.flushing', { store: this.options.name })
+
     const flushed = await this.store.flush()
-    this.event('cache.flushed', { store: this.options.name })
+
+    if (flushed) this.event('cache.flushed', { store: this.options.name })
+    else this.event('cache.flush-failed', { store: this.options.name })
 
     return flushed
+  }
+
+  /**
+   * Drop every lock this store holds.
+   *
+   * The way out after a crash: a worker killed mid-`block()` leaves the lock
+   * behind, and waiting for the TTL or deleting the key by hand were the only
+   * other options. Destructive by nature — it releases locks other processes may
+   * still believe they hold — so it is a deliberate call and never automatic.
+   */
+  async flushLocks(): Promise<boolean> {
+    if (!this.supportsFlushingLocks()) {
+      throw new Error(
+        `The [${this.options.name ?? 'cache'}] store cannot flush locks. Release them by name, or wait for the TTL.`
+      )
+    }
+
+    this.event('cache.locks-flushing', { store: this.options.name })
+
+    const flushed = await (this.store as unknown as { flushLocks(): Promise<boolean> }).flushLocks()
+
+    if (flushed) this.event('cache.locks-flushed', { store: this.options.name })
+    else this.event('cache.locks-flush-failed', { store: this.options.name })
+
+    return flushed
+  }
+
+  supportsFlushingLocks(): boolean {
+    return typeof (this.store as { flushLocks?: unknown }).flushLocks === 'function'
   }
 
   // --------------------------------------------------------------- typed reads

@@ -134,6 +134,13 @@ export class FileStore implements Store, LockProvider {
     return this.lock(name, 0, owner)
   }
 
+  /** Every lock this store holds — see `Repository.flushLocks`. */
+  async flushLocks(): Promise<boolean> {
+    await rm(join(this.directory, 'locks'), { recursive: true, force: true })
+
+    return true
+  }
+
   /** The path an entry lives at. Public because tests and tooling want it. */
   path(key: string): string {
     const hash = new Bun.CryptoHasher('sha1').update(this.prefix + key).digest('hex')
@@ -209,6 +216,10 @@ class FileLock extends Lock {
   async release(): Promise<boolean> {
     if (!(await this.isOwnedByCurrentProcess())) return false
 
+    return this.forget()
+  }
+
+  protected override async releaseAnyOwner(): Promise<boolean> {
     return this.forget()
   }
 

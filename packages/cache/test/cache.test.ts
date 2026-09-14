@@ -860,10 +860,18 @@ for (const candidate of candidates) {
       await watched.get('present')
       await watched.forget('present')
 
+      /**
+       * Each operation announces itself before it touches the store, which is
+       * the only place a listener can stand to observe or shape a read.
+       */
       expect(seen.map((entry) => entry.event)).toEqual([
+        'cache.retrieving',
         'cache.missed',
+        'cache.writing',
         'cache.written',
+        'cache.retrieving',
         'cache.hit',
+        'cache.forgetting',
         'cache.forgotten'
       ])
     })
@@ -894,7 +902,12 @@ for (const candidate of candidates) {
       await quiet.put('k', 1, 60)
       await quiet.get('k')
 
-      expect<string[]>(asked).toEqual(['cache.written', 'cache.hit'])
+      expect<string[]>(asked).toEqual([
+        'cache.writing',
+        'cache.written',
+        'cache.retrieving',
+        'cache.hit'
+      ])
       expect<number>(dispatched).toBe(0)
     })
 
@@ -914,7 +927,8 @@ for (const candidate of candidates) {
 
       await unsure.get('nothing-here')
 
-      expect<number>(dispatched).toBe(1)
+      // `cache.retrieving`, then `cache.missed`.
+      expect<number>(dispatched).toBe(2)
     })
   })
 }

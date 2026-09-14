@@ -3,8 +3,10 @@ import { type Dispatcher, Repository } from './repository.ts'
 import type { Store } from './store.ts'
 import { ArrayStore } from './stores/array.ts'
 import { DatabaseStore } from './stores/database.ts'
+import { FailoverStore } from './stores/failover.ts'
 import { FileStore } from './stores/file.ts'
 import { MemoStore } from './stores/memo.ts'
+import { NullStore } from './stores/null.ts'
 import { RedisStore } from './stores/redis.ts'
 
 export type StoreConfig = { driver: string } & Record<string, unknown>
@@ -115,6 +117,38 @@ export class CacheManager {
           lockConnection: config.lockConnection as string | undefined,
           prefix
         })
+
+      case 'null':
+        return new NullStore()
+
+      /**
+       * A chain, tried in order.
+       *
+       * The members are ordinary stores resolved by name, so `redis` then `file`
+       * is configuration rather than a second implementation.
+       */
+      case 'failover': {
+        const members = (config.stores ?? []) as string[]
+
+        if (members.length === 0) {
+          throw new Error(`Failover store [${name}] needs a [stores] list to try.`)
+        }
+
+        if (members.includes(name)) {
+          throw new Error(`Failover store [${name}] cannot fail over to itself.`)
+        }
+
+        return new FailoverStore(
+          members.map((member) => this.store(member).store),
+          (index, operation, error) => {
+            // Announced, not silent: a cache that quietly degrades to the file
+            // store is one whose Redis has been down a week and nobody knows.
+            process.stderr.write(
+              `[cache] store [${members[index]}] failed on ${operation}, trying the next: ${error instanceof Error ? error.message : String(error)}\n`
+            )
+          }
+        )
+      }
 
       case 'redis':
         return new RedisStore({

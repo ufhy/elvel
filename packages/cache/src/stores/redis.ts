@@ -239,6 +239,10 @@ class RedisLock extends Lock {
     return Number(released) > 0
   }
 
+  protected override async releaseAnyOwner(): Promise<boolean> {
+    return Number(await this.client.send('DEL', [this.name])) > 0
+  }
+
   override async refresh(seconds?: number): Promise<boolean> {
     const extend = seconds ?? this.seconds
     if (extend <= 0) return false

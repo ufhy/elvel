@@ -146,6 +146,38 @@ export abstract class Lock {
     return this.isOwnedBy(this.ownerToken)
   }
 
+  /**
+   * Is anybody holding it?
+   *
+   * The question after a crash: a worker killed mid-`block()` leaves the row
+   * behind, and without this the only ways to find out were waiting for the TTL
+   * or reading the key by hand.
+   */
+  async isLocked(): Promise<boolean> {
+    return (await this.currentOwner()) !== null
+  }
+
+  /**
+   * Release it whoever holds it.
+   *
+   * The owner token exists so nobody can release a lock they never took, and
+   * that is exactly what makes an abandoned lock unreleasable — so this is the
+   * deliberate way round it, named so it cannot be reached for by accident.
+   */
+  async forceRelease(): Promise<boolean> {
+    return this.releaseAnyOwner()
+  }
+
+  /**
+   * How a driver drops a lock without checking the owner.
+   *
+   * Defaults to `release()`, which is right for a driver whose release is
+   * already unconditional; one that compares the token overrides it.
+   */
+  protected releaseAnyOwner(): Promise<boolean> {
+    return this.release()
+  }
+
   async isOwnedBy(owner: string | null): Promise<boolean> {
     return (await this.currentOwner()) === owner
   }
