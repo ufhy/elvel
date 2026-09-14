@@ -312,6 +312,25 @@ first and reads back when it loses, so the unique index is the arbiter rather
 than a read-then-write race. A violation with nothing to read back is rethrown —
 some *other* index was hit, and swallowing it would answer with the wrong row.
 
+`firstOrNew`, `withOnly`, `without`, `loadCount` and a model-level `upsert` are
+here. The upsert fills the timestamps, because a bulk write that skips them is
+the commonest way a table ends up with half its rows undated — and it does not
+fire model events, because there is no model, and inventing one per row to
+announce it would make a bulk write as slow as the loop it replaces.
+
+A model can declare `uniqueIds = 'ulid'` or `'uuid'`. The key is generated
+**before** the insert, since there is nothing to read back when the database is
+not the one making it. ULID rather than UUID as the one to reach for: it sorts
+by time, and a random UUID scatters inserts across the index — the page splits
+that causes are why people go back to integers.
+
+`BroadcastsEvents` is a model declaring `broadcastOn(event)`, and it needs no
+dependency on `@elvel/broadcasting`: the change is dispatched as an event
+carrying `broadcastOn`, which that package already listens for. Only `created`,
+`updated` and `deleted` — `saving` and `creating` are decisions still being
+made, and a client told about one would be told about a row that may never
+exist.
+
 `get()` returns a `ModelCollection` — `load()`, `loadMissing()`, `modelKeys()`,
 `fresh()`, `toQuery()`, `makeVisible`/`makeHidden`/`append`, and `onlyKeys`,
 `exceptKeys` and `diffKeys` that compare by **key**. Comparing by identity was
@@ -448,23 +467,6 @@ Upstream's vector search (`whereVectorSimilarTo`, `orderByVectorDistance`,
 `vectorIndex` above.
 
 **Done when** each family exists or is struck off with a reason.
-
-### Model: eight methods, and no UUID keys
-
-`firstOrNew`, `createOrFirst`, `loadMissing`, `loadCount`, `withOnly`,
-`without`, and model-level `upsert` (the query builder has it) are absent.
-
-So is `HasUuids`/`HasUlids` — a model whose primary key is a UUID generated on
-create, with the string key type set correctly for the route binding and the
-`where` clause. `Blueprint.uuid()` and `.ulid()` exist, so the column can be
-made and the model cannot use it as its key without doing the generation by
-hand.
-
-`BroadcastsEvents` is missing as well: a model whose changes broadcast to a
-channel, which with the websocket server already built is a short bridge.
-
-**Done when** the seven methods exist, a model can declare a UUID or ULID key,
-and a model can broadcast its own events.
 
 ---
 

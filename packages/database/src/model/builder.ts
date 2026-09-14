@@ -1256,6 +1256,40 @@ export class ModelBuilder<M extends Model> extends Macroable {
    * The constraint reaches the child query itself, so `orderBy` and `limit` inside
    * it apply per parent for the relations where that is meaningful.
    */
+  /**
+   * These relations and no others.
+   *
+   * The difference from `with`: a scope or a global default may already have
+   * added some, and this is how a query says it wants only what it named.
+   */
+  withOnly(...relations: Array<string | Record<string, EagerConstraint>>): this {
+    this.eagerLoad.clear()
+    this.eagerConstraints.clear()
+
+    return this.with(...relations)
+  }
+
+  /** What this query would eager-load. For `without()`, and for a test. */
+  eagerLoaded(): string[] {
+    return [...this.eagerLoad]
+  }
+
+  /** Drop relations something else added — the inverse of `with`. */
+  without(...relations: string[]): this {
+    for (const relation of relations.flat()) {
+      this.eagerLoad.delete(relation)
+      this.eagerConstraints.delete(relation)
+
+      // A nested name goes with its head: `without('posts')` should not leave
+      // `posts.comments` behind to load a relation nobody asked for.
+      for (const loaded of [...this.eagerLoad]) {
+        if (loaded.startsWith(`${relation}.`)) this.eagerLoad.delete(loaded)
+      }
+    }
+
+    return this
+  }
+
   with(...relations: Array<string | Record<string, EagerConstraint>>): this {
     for (const relation of relations.flat()) {
       if (typeof relation === 'string') {
@@ -1427,6 +1461,26 @@ export class ModelBuilder<M extends Model> extends Macroable {
   }
 
   /** Find the first match, or create it. */
+  /**
+   * The matching row, or an **unsaved** model carrying what was searched for.
+   *
+   * The half of `firstOrCreate` that writes nothing: a form that needs a model
+   * to render, whether or not one exists yet.
+   */
+  async firstOrNew(attributes: Row, values: Row = {}): Promise<M> {
+    const query = this.clone()
+    for (const [column, value] of Object.entries(attributes)) query.where(column, value)
+
+    const existing = await query.first()
+
+    if (existing) return existing
+
+    const model = new (this.model as unknown as new () => M)()
+    model.forceFill({ ...attributes, ...values })
+
+    return model
+  }
+
   async firstOrCreate(attributes: Row, values: Row = {}): Promise<M> {
     const query = this.clone()
     for (const [column, value] of Object.entries(attributes)) query.where(column, value)

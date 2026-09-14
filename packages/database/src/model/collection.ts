@@ -41,6 +41,43 @@ export class ModelCollection<M extends Model> extends Collection<M> {
     return this.load(...missing)
   }
 
+  /**
+   * Count a relation for models already fetched.
+   *
+   * One query for the whole set, writing `<relation>_count` onto each model —
+   * the same column `withCount()` would have added had the caller known to ask
+   * for it before the rows came back.
+   */
+  async loadCount(...relations: string[]): Promise<this> {
+    const first = this.first()
+
+    if (first === undefined || relations.length === 0) return this
+
+    const model = first.constructor as typeof Model
+
+    const counted = await model
+      .query()
+      .withCount(...relations)
+      .whereIn(model.primaryKey, this.modelKeys() as never[])
+      .get()
+
+    const byKey = new Map(counted.all().map((one) => [String(one.getKey()), one]))
+
+    for (const one of this) {
+      const source = byKey.get(String(one.getKey()))
+
+      if (source === undefined) continue
+
+      for (const relation of relations) {
+        const key = `${relation}_count`
+
+        one.setAttribute(key, (source as unknown as Record<string, unknown>)[key])
+      }
+    }
+
+    return this
+  }
+
   /** The primary keys, which is what an `whereIn` on the next query wants. */
   modelKeys(): unknown[] {
     return this.all().map((model) => model.getKey())

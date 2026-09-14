@@ -84,6 +84,20 @@ export class Model {
   static primaryKey = 'id'
   static incrementing = true
   static keyType: 'int' | 'string' = 'int'
+
+  /**
+   * Generate the primary key here rather than letting the database do it.
+   *
+   * `uuid` and `ulid` both set `incrementing` to false and `keyType` to string
+   * on the class that declares them — a UUID key with `incrementing` left on
+   * would have the insert ask for a generated id that never comes, and the
+   * route binding would compare a string against an integer column.
+   *
+   * A ULID sorts by time, which is what makes it the better default for a
+   * primary key: a random UUID scatters inserts across the index, and the page
+   * splits that causes are the reason people go back to integers.
+   */
+  static uniqueIds: 'uuid' | 'ulid' | undefined
   static timestamps = true
   static connection?: string
 
@@ -820,6 +834,36 @@ export class Model {
     return model
   }
 
+  /**
+   * Insert or update many rows in one statement.
+   *
+   * The query builder has had this; the model did not, so a caller reaching for
+   * it dropped out of the model layer and lost the timestamps with it. Those
+   * are filled here, because a bulk write skipping them is the commonest way a
+   * table ends up with half its rows undated.
+   *
+   * Model events do **not** fire: there is no model, and inventing one per row
+   * to announce it would make a bulk write as slow as the loop it replaces.
+   */
+  static async upsert<T extends typeof Model>(
+    this: T,
+    rows: Row[],
+    uniqueBy: string[],
+    update?: string[]
+  ): Promise<number> {
+    if (rows.length === 0) return 0
+
+    const stamped = this.timestamps
+      ? rows.map((row) => {
+          const now = formatDateTime(new Date())
+
+          return { [this.CREATED_AT]: now, [this.UPDATED_AT]: now, ...row }
+        })
+      : rows
+
+    return (await this.query().base()).upsert(stamped, uniqueBy, update)
+  }
+
   /** Build an instance from a database row, without marking it dirty. */
   static hydrate<T extends typeof Model>(this: T, row: Row): InstanceType<T> {
     const model = new this() as InstanceType<T>
@@ -1191,7 +1235,13 @@ export class Model {
       this.attributes[this.self.UPDATED_AT] ??= now
     }
 
-    if (this.self.incrementing) {
+    // Generated before the insert, because the row carries it — there is no id
+    // to read back when the database is not the one making it.
+    if (this.self.uniqueIds !== undefined) {
+      this.attributes[this.self.primaryKey] ??= newUniqueId(this.self.uniqueIds)
+    }
+
+    if (this.self.incrementing && this.self.uniqueIds === undefined) {
       const id = await query.clone().insertGetId(this.attributes, this.self.primaryKey)
       this.attributes[this.self.primaryKey] = id
     } else {
@@ -1818,6 +1868,52 @@ export class Model {
     const event = `${Model.snake(this.self.name)}.${name}`
 
     await Model.dispatcher?.dispatch(event, new ModelEvent(event, this))
+
+    await this.broadcastChange(name)
+  }
+
+  /**
+   * Channels this model's changes are announced on — `BroadcastsEvents`.
+   *
+   * Declared by the model; absent means it broadcasts nothing, which is the
+   * default. The lifecycle name is passed so a model can announce a creation
+   * publicly and a deletion only to its owner.
+   */
+  broadcastOn?(event: string): string | string[] | undefined
+
+  /** What travels. Defaults to the model's serialised form. */
+  broadcastWith?(event: string): Record<string, unknown>
+
+  /**
+   * Announce a change to the websocket layer, if this model asked for it.
+   *
+   * Dispatched as an **event carrying `broadcastOn`** rather than reached
+   * through the broadcaster: `@elvel/broadcasting` already listens for anything
+   * with that method, so this needs no dependency on it and works unchanged in
+   * an application that has no websocket server at all.
+   *
+   * Only the three that mean something to a client. `saving`, `creating` and
+   * the rest are decisions still being made, and a client told about one would
+   * be told about a row that may never exist.
+   */
+  private async broadcastChange(name: string): Promise<void> {
+    if (this.broadcastOn === undefined) return
+    if (!['created', 'updated', 'deleted'].includes(name)) return
+
+    const channels = this.broadcastOn(name)
+
+    if (channels === undefined) return
+
+    const model = this
+    const payload = this.broadcastWith?.(name) ?? (this.toObject() as Record<string, unknown>)
+    const announced = `${this.self.name}${name.charAt(0).toUpperCase()}${name.slice(1)}`
+
+    await Model.dispatcher?.dispatch(`model.broadcast.${name}`, {
+      broadcastOn: () => channels,
+      broadcastAs: () => announced,
+      broadcastWith: () => payload,
+      model
+    })
   }
 }
 
@@ -1897,4 +1993,33 @@ export class Pivot extends Model {
   get relatedKey(): string | undefined {
     return this.pivotRelatedKey
   }
+}
+
+/**
+ * A fresh key of the declared kind.
+ *
+ * A ULID is Crockford base32 of a 48-bit millisecond timestamp and 80 random
+ * bits — so two generated in the same process sort by when they were made,
+ * which is what keeps an index from fragmenting the way a random UUID does.
+ */
+export function newUniqueId(kind: 'uuid' | 'ulid'): string {
+  if (kind === 'uuid') return crypto.randomUUID()
+
+  const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+  let time = Date.now()
+  let stamp = ''
+
+  for (let index = 0; index < 10; index += 1) {
+    stamp = alphabet[time % 32] + stamp
+    time = Math.floor(time / 32)
+  }
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  let random = ''
+
+  for (let index = 0; index < 16; index += 1) {
+    random += alphabet[(bytes[index] as number) % 32]
+  }
+
+  return stamp + random
 }
