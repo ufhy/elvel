@@ -101,4 +101,11 @@ export { type Modifier, SchemaGrammar } from './schema/grammar.ts'
 export { MySqlSchemaGrammar } from './schema/grammars/mysql.ts'
 export { PostgresSchemaGrammar } from './schema/grammars/postgres.ts'
 export { SQLiteSchemaGrammar } from './schema/grammars/sqlite.ts'
+export type {
+  ColumnInfo,
+  ForeignKeyInfo,
+  IndexInfo,
+  TableInfo,
+  ViewInfo
+} from './schema/introspection.ts'
 export { Seeder, type SeederContext, SeederRunner } from './seeder.ts'

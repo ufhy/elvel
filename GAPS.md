@@ -396,32 +396,23 @@ typed `CastsAttributes` rather than another name in the string union, because a
 string cast cannot narrow the attribute's type, which is the one thing
 TypeScript could have checked.
 
-### The schema cannot be inspected
+The schema can be inspected. `getTables`, `getViews`, `getColumns`, `getColumnType`, `getIndexes`,
+`getForeignKeys`, `hasView`, `hasColumns`, `hasForeignKey`, `dropAllTables`,
+`dropAllViews`, `whenTableHasColumn` and `whenTableDoesntHaveColumn` live on the
+schema builder; each grammar compiles the query and maps the answer, so what
+comes back is one shape on three servers — down to the referential action, which
+was `NO ACTION`, `CASCADE` and a single letter `c` depending on who was asked.
 
-`Schema` has 15 methods against upstream's 44. Missing: `getTables`, `getViews`,
-`getColumns` (only `getColumnListing`, which is names), `getIndexes`,
-`getForeignKeys`, `getColumnType`, `getTypes`, `getSchemas`, `hasView`,
-`hasColumns`, `hasForeignKey`, `dropAllTables`, `dropAllViews`, `createDatabase`,
-`dropDatabaseIfExists`, `whenTableHasColumn` and its three siblings,
-`ensureExtensionExists`.
+`db:show`, `db:table`, `model:show` and the migrator's `wipe` were four copies of
+the same three dialects of introspection SQL, inline. They read the builder now,
+and `db:table` shows types, indexes and foreign keys rather than a list of names.
 
-It is not that nobody needs them — `db:show` writes the query itself:
-
-```ts
-const sql =
-  dialect === 'sqlite'
-    ? "select name from sqlite_master where type = 'table' ..."
-    : dialect === 'postgres'
-      ? 'select tablename as name from pg_catalog.pg_tables ...'
-      : 'select table_name as name from information_schema.tables ...'
-```
-
-Three dialects of introspection SQL, inline, in a console command, where no
-application and no other command can reach it. `db:table` and `model:show` each
-carry their own.
-
-**Done when** the introspection lives on the schema builder per grammar, and the
-commands read it from there.
+`getSchemas`, `getTypes`, `createDatabase`, `dropDatabaseIfExists` and
+`ensureExtensionExists` are not built: the first two are a Postgres answer to a
+Postgres question, and the last three are the work of whoever provisions the
+database, which for a Bun application is a container, a managed instance, or
+DBngin — not a migration that has already connected to the database it would be
+creating.
 
 ### Blueprint cannot describe a spatial or an indexed vector column
 

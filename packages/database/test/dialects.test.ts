@@ -192,6 +192,95 @@ for (const { name, config } of available) {
       })
     })
 
+    /**
+     * Three servers keep their schema in three places — pragmas, `pg_catalog`,
+     * `information_schema` — and answer in three shapes. What the grammar maps
+     * them to has to be the same shape on all three, and only a server can say
+     * whether the query behind it is even valid.
+     */
+    describe('introspection', () => {
+      test('every table it created is listed', async () => {
+        const listed = await schema.getTableListing()
+
+        expect(listed).toContain(users)
+        expect(listed).toContain(posts)
+      })
+
+      test('a column carries its type, nullability and default', async () => {
+        const columns = await schema.getColumns(users)
+        const by = (column: string) => columns.find((found) => found.name === column)
+
+        expect(by('name')?.nullable).toBe(false)
+        expect(by('email')?.nullable).toBe(true)
+        expect(String(by('name')?.typeName)).toMatch(/char|text/)
+        expect(String(by('votes')?.default ?? '')).toContain('0')
+      })
+
+      test('the key column says it increments itself', async () => {
+        const columns = await schema.getColumns(users)
+
+        expect(columns.find((column) => column.name === 'id')?.autoIncrement).toBe(true)
+      })
+
+      test('getColumnType names one column', async () => {
+        expect(String(await schema.getColumnType(users, 'name')).toLowerCase()).toMatch(/char|text/)
+        expect(await schema.getColumnType(users, 'nope')).toBeUndefined()
+      })
+
+      test('hasColumns wants all of them', async () => {
+        expect(await schema.hasColumns(users, ['name', 'email'])).toBe(true)
+        expect(await schema.hasColumns(users, ['name', 'nope'])).toBe(false)
+      })
+
+      test('the unique index is reported as unique', async () => {
+        const indexes = await schema.getIndexes(users)
+        const unique = indexes.find((index) => index.columns.join(',') === 'email')
+
+        expect(unique?.unique).toBe(true)
+      })
+
+      test('a foreign key names its columns and what they reference', async () => {
+        const keys = await schema.getForeignKeys(posts)
+
+        expect(keys).toHaveLength(1)
+        expect(keys[0]?.columns).toEqual(['user_id'])
+        expect(keys[0]?.foreignTable).toBe(users)
+        expect(keys[0]?.foreignColumns).toEqual(['id'])
+        expect(keys[0]?.onDelete).toBe('cascade')
+      })
+
+      test('hasForeignKey finds it by its columns', async () => {
+        expect(await schema.hasForeignKey(posts, ['user_id'])).toBe(true)
+        expect(await schema.hasForeignKey(posts, ['title'])).toBe(false)
+      })
+
+      test('a view is listed and a table is not', async () => {
+        const view = `${PREFIX}_recent`
+
+        await connection.statement(
+          `create view ${connection.grammar.wrapTable(view)} as select * from ${connection.grammar.wrapTable(users)}`
+        )
+
+        try {
+          expect(await schema.hasView(view)).toBe(true)
+          expect(await schema.hasView(users)).toBe(false)
+          expect(await schema.getTableListing()).not.toContain(view)
+        } finally {
+          await connection.statement(`drop view ${connection.grammar.wrapTable(view)}`)
+        }
+      })
+
+      test('whenTableHasColumn runs only when it does', async () => {
+        const ran: string[] = []
+
+        await schema.whenTableHasColumn(users, 'name', () => ran.push('has'))
+        await schema.whenTableHasColumn(users, 'nope', () => ran.push('missing'))
+        await schema.whenTableDoesntHaveColumn(users, 'nope', () => ran.push('doesnt'))
+
+        expect(ran).toEqual(['has', 'doesnt'])
+      })
+    })
+
     describe('writes', () => {
       test('insertGetId returns a usable key', async () => {
         await truncate()

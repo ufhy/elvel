@@ -1,5 +1,16 @@
 import type { Blueprint, ColumnAttributes, Command } from '../blueprint.ts'
 import { type Modifier, SchemaGrammar } from '../grammar.ts'
+import {
+  baseType,
+  type ColumnInfo,
+  type ForeignKeyInfo,
+  flag,
+  groupBy,
+  type IndexInfo,
+  nullableText,
+  type SchemaRow,
+  text
+} from '../introspection.ts'
 
 export class PostgresSchemaGrammar extends SchemaGrammar {
   /** The order Postgres accepts. */
@@ -194,5 +205,155 @@ export class PostgresSchemaGrammar extends SchemaGrammar {
     // Postgres renames the index itself, not through the table it belongs to —
     // which is why the blueprint goes unread here and is read everywhere else.
     return `alter index ${this.wrap(from)} rename to ${this.wrap(to)}`
+  }
+
+  // ------------------------------------------------------------- inspection
+
+  compileTables() {
+    return {
+      sql: `select tablename as name, schemaname as schema
+            from pg_catalog.pg_tables
+            where schemaname = current_schema()
+            order by tablename`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileViews() {
+    return {
+      sql: `select viewname as name, schemaname as schema, definition
+            from pg_catalog.pg_views
+            where schemaname = current_schema()
+            order by viewname`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  /**
+   * `pg_attribute` rather than `information_schema.columns`.
+   *
+   * `format_type` gives the type as the server itself would write it —
+   * `character varying(255)`, `numeric(8,2)` — which `information_schema`
+   * spreads across four columns that have to be reassembled.
+   */
+  compileColumns(_table: string) {
+    return {
+      sql: `select a.attname as name,
+                   format_type(a.atttypid, a.atttypmod) as type,
+                   not a.attnotnull as nullable,
+                   pg_get_expr(d.adbin, d.adrelid) as "default",
+                   (a.attidentity <> '' or coalesce(pg_get_expr(d.adbin, d.adrelid), '') like 'nextval%')
+                     as auto_increment,
+                   col_description(c.oid, a.attnum) as comment
+            from pg_attribute a
+            join pg_class c on c.oid = a.attrelid
+            left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.attnum
+            where c.relname = $1
+              and c.relnamespace = current_schema()::regnamespace
+              and a.attnum > 0 and not a.attisdropped
+            order by a.attnum`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileIndexes(_table: string) {
+    return {
+      sql: `select i.relname as name, ix.indisunique as "unique", ix.indisprimary as "primary",
+                   a.attname as column_name, k.ord
+            from pg_class c
+            join pg_index ix on ix.indrelid = c.oid
+            join pg_class i on i.oid = ix.indexrelid
+            join lateral unnest(ix.indkey) with ordinality as k(attnum, ord) on true
+            join pg_attribute a on a.attrelid = c.oid and a.attnum = k.attnum
+            where c.relname = $1 and c.relnamespace = current_schema()::regnamespace
+            order by i.relname, k.ord`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileForeignKeys(_table: string) {
+    return {
+      sql: `select con.conname as name, a.attname as column_name, k.ord,
+                   ft.relname as foreign_table, fa.attname as foreign_column,
+                   con.confupdtype as on_update, con.confdeltype as on_delete
+            from pg_constraint con
+            join pg_class c on c.oid = con.conrelid
+            join pg_class ft on ft.oid = con.confrelid
+            join lateral unnest(con.conkey, con.confkey) with ordinality as k(att, fatt, ord) on true
+            join pg_attribute a on a.attrelid = c.oid and a.attnum = k.att
+            join pg_attribute fa on fa.attrelid = ft.oid and fa.attnum = k.fatt
+            where con.contype = 'f'
+              and c.relname = $1
+              and c.relnamespace = current_schema()::regnamespace
+            order by con.conname, k.ord`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  mapColumns(rows: SchemaRow[]): ColumnInfo[] {
+    return rows.map((row) => {
+      const type = text(row.type)
+
+      return {
+        name: text(row.name),
+        type,
+        typeName: baseType(type),
+        nullable: flag(row.nullable),
+        default: nullableText(row.default),
+        autoIncrement: flag(row.auto_increment),
+        comment: nullableText(row.comment)
+      }
+    })
+  }
+
+  mapIndexes(rows: SchemaRow[]): IndexInfo[] {
+    return groupBy(
+      rows,
+      (row) => text(row.name),
+      (name, group) => ({
+        name,
+        columns: group.map((row) => text(row.column_name)),
+        unique: flag(group[0]?.unique),
+        primary: flag(group[0]?.primary)
+      })
+    )
+  }
+
+  mapForeignKeys(rows: SchemaRow[], _table: string): ForeignKeyInfo[] {
+    return groupBy(
+      rows,
+      (row) => text(row.name),
+      (name, group) => ({
+        name,
+        columns: group.map((row) => text(row.column_name)),
+        foreignTable: text(group[0]?.foreign_table),
+        foreignColumns: group.map((row) => text(row.foreign_column)),
+        onUpdate: referentialAction(text(group[0]?.on_update)),
+        onDelete: referentialAction(text(group[0]?.on_delete))
+      })
+    )
+  }
+}
+
+/**
+ * Postgres stores a referential action as one letter.
+ *
+ * `a` is the default and means no action, which is not the same as `restrict`:
+ * one defers to the end of the statement and the other does not.
+ */
+function referentialAction(code: string): string | null {
+  switch (code) {
+    case 'a':
+      return 'no action'
+    case 'r':
+      return 'restrict'
+    case 'c':
+      return 'cascade'
+    case 'n':
+      return 'set null'
+    case 'd':
+      return 'set default'
+    default:
+      return code === '' ? null : code
   }
 }

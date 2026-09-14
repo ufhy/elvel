@@ -182,7 +182,51 @@ await schema.dropIfExists('legacy')
 ```ts
 await schema.hasTable('posts')
 await schema.hasColumn('posts', 'title')
+await schema.hasColumns('posts', ['title', 'slug'])
 await schema.getColumnListing('posts')
+```
+
+The listing is names. The rest is what the server knows:
+
+```ts
+await schema.getTables() // [{ name, schema }]
+await schema.getViews() // [{ name, schema, definition }]
+await schema.hasView('recent_posts')
+
+await schema.getColumns('posts')
+// [{ name, type, typeName, nullable, default, autoIncrement, comment }]
+await schema.getColumnType('posts', 'title') // 'varchar(255)'
+
+await schema.getIndexes('posts') // [{ name, columns, unique, primary }]
+await schema.getForeignKeys('posts')
+// [{ name, columns, foreignTable, foreignColumns, onUpdate, onDelete }]
+await schema.hasForeignKey('posts', ['user_id'])
+```
+
+Every dialect keeps its schema somewhere else — SQLite in pragmas, MySQL in
+`information_schema`, Postgres in `pg_catalog` — and answers in a different
+shape. What comes back here is the same shape on all three, down to the
+referential action: `cascade`, not `CASCADE` on one server and `c` on another.
+
+A migration that has to run against two databases in different states can ask
+before it alters:
+
+```ts
+await schema.whenTableHasColumn('posts', 'legacy_id', (table) => {
+  table.dropColumn('legacy_id')
+})
+
+await schema.whenTableDoesntHaveColumn('posts', 'slug', (table) => {
+  table.string('slug').nullable()
+})
+```
+
+And when everything has to go — with foreign keys off, because there is no drop
+order that satisfies a cycle:
+
+```ts
+await schema.dropAllTables()
+await schema.dropAllViews()
 ```
 
 ```bash

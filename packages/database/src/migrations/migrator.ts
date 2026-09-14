@@ -288,18 +288,7 @@ export class Migrator {
 
   /** Table names in the current database, used only by `fresh`. */
   private async tables(): Promise<string[]> {
-    const dialect = this.connection.grammar.dialect
-
-    const sql =
-      dialect === 'sqlite'
-        ? "select name from sqlite_master where type = 'table' and name not like 'sqlite_%'"
-        : dialect === 'postgres'
-          ? 'select tablename as name from pg_catalog.pg_tables where schemaname = current_schema()'
-          : 'select table_name as name from information_schema.tables where table_schema = database()'
-
-    const rows = await this.connection.select<{ name: string }>(sql)
-
-    return rows.map((row) => row.name)
+    return await this.schema.getTableListing()
   }
 
   private async runOne(

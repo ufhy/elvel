@@ -1,5 +1,17 @@
 import type { Blueprint, ColumnAttributes } from '../blueprint.ts'
 import { type Modifier, SchemaGrammar } from '../grammar.ts'
+import {
+  action,
+  baseType,
+  type ColumnInfo,
+  type ForeignKeyInfo,
+  flag,
+  groupBy,
+  type IndexInfo,
+  nullableText,
+  type SchemaRow,
+  text
+} from '../introspection.ts'
 
 /**
  * SQLite schema grammar.
@@ -149,5 +161,110 @@ export class SQLiteSchemaGrammar extends SchemaGrammar {
 
   protected override compileRenameIndex(): string {
     throw new Error('SQLite cannot rename an index. Drop it and create it under the new name.')
+  }
+
+  // ------------------------------------------------------------- inspection
+
+  compileTables() {
+    return {
+      sql: "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name",
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileViews() {
+    return {
+      sql: "select name, sql as definition from sqlite_master where type = 'view' order by name",
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileColumns(_table: string) {
+    return {
+      sql: 'select name, type, "notnull", dflt_value, pk from pragma_table_info(?)',
+      bindings: [] as unknown[]
+    }
+  }
+
+  /**
+   * Two pragmas, joined.
+   *
+   * `pragma_index_list` names the indexes and `pragma_index_info` names their
+   * columns, so a two-column index is two rows and the builder folds them. The
+   * correlated argument — `pragma_index_info(l.name)` — is what makes it one
+   * query rather than one per index.
+   */
+  compileIndexes(_table: string) {
+    return {
+      sql: `select l.name, l."unique", l.origin, i.name as column_name, i.seqno
+            from pragma_index_list(?) l
+            join pragma_index_info(l.name) i
+            order by l.name, i.seqno`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileForeignKeys(_table: string) {
+    return {
+      sql: `select id, seq, "table" as foreign_table, "from" as column_name,
+                   "to" as foreign_column, on_update, on_delete
+            from pragma_foreign_key_list(?)
+            order by id, seq`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  mapColumns(rows: SchemaRow[]): ColumnInfo[] {
+    return rows.map((row) => {
+      const type = text(row.type) || 'text'
+
+      return {
+        name: text(row.name),
+        type,
+        typeName: baseType(type),
+        nullable: !flag(row.notnull),
+        default: nullableText(row.dflt_value),
+        /**
+         * SQLite's rowid alias, which is what `id()` produces.
+         *
+         * A single-column integer primary key *is* the rowid and increments on
+         * its own, whether or not the table says `autoincrement`. Reporting the
+         * keyword instead would call the ordinary case not auto-incrementing.
+         */
+        autoIncrement: flag(row.pk) && baseType(type) === 'integer',
+        comment: null
+      }
+    })
+  }
+
+  mapIndexes(rows: SchemaRow[]): IndexInfo[] {
+    return groupBy(
+      rows,
+      (row) => text(row.name),
+      (name, group) => ({
+        name,
+        columns: group.map((row) => text(row.column_name)),
+        unique: flag(group[0]?.unique),
+        // `pk` is the origin SQLite gives an index it made for a primary key.
+        primary: text(group[0]?.origin) === 'pk'
+      })
+    )
+  }
+
+  mapForeignKeys(rows: SchemaRow[], table: string): ForeignKeyInfo[] {
+    return groupBy(
+      rows,
+      // SQLite gives a foreign key an id rather than a name, so the id is the
+      // grouping and the name is built the way a migration would have named it.
+      (row) => text(row.id),
+      (_id, group) => ({
+        name: `${table}_${group.map((row) => text(row.column_name)).join('_')}_foreign`,
+        columns: group.map((row) => text(row.column_name)),
+        foreignTable: text(group[0]?.foreign_table),
+        foreignColumns: group.map((row) => text(row.foreign_column)),
+        onUpdate: action(group[0]?.on_update),
+        onDelete: action(group[0]?.on_delete)
+      })
+    )
   }
 }

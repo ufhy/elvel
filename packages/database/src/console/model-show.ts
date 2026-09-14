@@ -33,7 +33,8 @@ export class ModelShowCommand extends MigrationCommand {
     const schema = new SchemaBuilder(connection)
     const table = found.getTable()
 
-    const columns = (await schema.hasTable(table)) ? await schema.getColumnListing(table) : []
+    const described = (await schema.hasTable(table)) ? await schema.getColumns(table) : []
+    const columns = described.map((column) => column.name)
 
     const summary = {
       model: found.name,
@@ -82,9 +83,10 @@ export class ModelShowCommand extends MigrationCommand {
      * together.
      */
     this.table(
-      ['COLUMN', 'NOTES'],
-      columns.map((column) => [
+      ['COLUMN', 'TYPE', 'NOTES'],
+      described.map(({ name: column, type, nullable }) => [
         column,
+        nullable ? `${type} null` : type,
         [
           summary.casts.includes(column) ? `cast:${String(found.casts[column])}` : '',
           summary.hidden.includes(column) ? 'hidden' : '',

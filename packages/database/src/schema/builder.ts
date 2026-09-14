@@ -4,6 +4,14 @@ import type { SchemaGrammar } from './grammar.ts'
 import { MySqlSchemaGrammar } from './grammars/mysql.ts'
 import { PostgresSchemaGrammar } from './grammars/postgres.ts'
 import { SQLiteSchemaGrammar } from './grammars/sqlite.ts'
+import type {
+  ColumnInfo,
+  ForeignKeyInfo,
+  IndexInfo,
+  SchemaRow,
+  TableInfo,
+  ViewInfo
+} from './introspection.ts'
 
 export function schemaGrammarFor(dialect: string): SchemaGrammar {
   switch (dialect) {
@@ -97,6 +105,133 @@ export class SchemaBuilder {
     const rows = await this.connection.select<Record<string, unknown>>(sql, [table])
 
     return rows.map((row) => String(row[this.grammar.columnListingKey] ?? '').toLowerCase())
+  }
+
+  // ------------------------------------------------------------- inspection
+
+  /** Every table in the current schema. */
+  async getTables(): Promise<TableInfo[]> {
+    return this.grammar.mapTables(await this.inspect(this.grammar.compileTables()))
+  }
+
+  async getTableListing(): Promise<string[]> {
+    return (await this.getTables()).map((table) => table.name)
+  }
+
+  async getViews(): Promise<ViewInfo[]> {
+    return this.grammar.mapViews(await this.inspect(this.grammar.compileViews()))
+  }
+
+  async hasView(view: string): Promise<boolean> {
+    const wanted = view.toLowerCase()
+
+    return (await this.getViews()).some((found) => found.name.toLowerCase() === wanted)
+  }
+
+  /**
+   * Every column of a table, with its type, nullability and default.
+   *
+   * `getColumnListing` is the names alone, which is all it ever gave — and the
+   * reason three console commands wrote their own introspection SQL instead.
+   */
+  async getColumns(table: string): Promise<ColumnInfo[]> {
+    return this.grammar.mapColumns(await this.inspect(this.grammar.compileColumns(table), table))
+  }
+
+  /** The type of one column, as the server spells it, or `undefined`. */
+  async getColumnType(table: string, column: string): Promise<string | undefined> {
+    const wanted = column.toLowerCase()
+
+    return (await this.getColumns(table)).find((found) => found.name.toLowerCase() === wanted)?.type
+  }
+
+  async hasColumns(table: string, columns: string[]): Promise<boolean> {
+    const found = new Set((await this.getColumns(table)).map((column) => column.name.toLowerCase()))
+
+    return columns.every((column) => found.has(column.toLowerCase()))
+  }
+
+  async getIndexes(table: string): Promise<IndexInfo[]> {
+    return this.grammar.mapIndexes(await this.inspect(this.grammar.compileIndexes(table), table))
+  }
+
+  async getForeignKeys(table: string): Promise<ForeignKeyInfo[]> {
+    return this.grammar.mapForeignKeys(
+      await this.inspect(this.grammar.compileForeignKeys(table), table),
+      table
+    )
+  }
+
+  /** Is there a foreign key by this name, or on these columns? */
+  async hasForeignKey(table: string, key: string | string[]): Promise<boolean> {
+    const keys = await this.getForeignKeys(table)
+
+    if (!Array.isArray(key)) {
+      const wanted = key.toLowerCase()
+
+      return keys.some((found) => found.name.toLowerCase() === wanted)
+    }
+
+    const wanted = key.map((column) => column.toLowerCase()).join(',')
+
+    return keys.some(
+      (found) => found.columns.map((column) => column.toLowerCase()).join(',') === wanted
+    )
+  }
+
+  /**
+   * Alter a table only if the column is there.
+   *
+   * What a migration that has to run against two databases in different states
+   * needs — a column added by hand on one of them, most often — and the
+   * alternative is an `if` around a `Schema.table` in every such migration.
+   */
+  async whenTableHasColumn(
+    table: string,
+    column: string,
+    callback: (table: Blueprint) => void
+  ): Promise<void> {
+    if (await this.hasColumn(table, column)) await this.table(table, callback)
+  }
+
+  async whenTableDoesntHaveColumn(
+    table: string,
+    column: string,
+    callback: (table: Blueprint) => void
+  ): Promise<void> {
+    if (!(await this.hasColumn(table, column))) await this.table(table, callback)
+  }
+
+  /**
+   * Drop every table in the schema.
+   *
+   * With foreign keys off, because there is no order that satisfies a cycle and
+   * a schema with one is not a broken schema.
+   */
+  async dropAllTables(): Promise<void> {
+    const tables = await this.getTableListing()
+
+    if (tables.length === 0) return
+
+    await this.withoutForeignKeyConstraints(async () => {
+      for (const table of tables) await this.drop(table)
+    })
+  }
+
+  async dropAllViews(): Promise<void> {
+    for (const view of await this.getViews()) {
+      await this.connection.statement(`drop view ${this.grammar.wrapTable(view.name)}`)
+    }
+  }
+
+  private async inspect(
+    query: { sql: string; bindings: unknown[] },
+    table?: string
+  ): Promise<SchemaRow[]> {
+    return await this.connection.select<SchemaRow>(
+      query.sql,
+      table === undefined ? query.bindings : [table]
+    )
   }
 
   async enableForeignKeyConstraints(): Promise<void> {

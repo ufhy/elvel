@@ -19,7 +19,9 @@ export class DbTableCommand extends MigrationCommand {
       return 1
     }
 
-    const columns = await schema.getColumnListing(table)
+    const columns = await schema.getColumns(table)
+    const indexes = await schema.getIndexes(table)
+    const keys = await schema.getForeignKeys(table)
 
     this.line()
     this.output.pairs([
@@ -29,9 +31,40 @@ export class DbTableCommand extends MigrationCommand {
     ])
     this.line()
     this.table(
-      ['COLUMN'],
-      columns.map((column) => [column])
+      ['COLUMN', 'TYPE', 'NULLABLE', 'DEFAULT'],
+      columns.map((column) => [
+        column.autoIncrement ? `${column.name} (auto)` : column.name,
+        column.type,
+        column.nullable ? 'yes' : 'no',
+        column.default ?? ''
+      ])
     )
+
+    if (indexes.length > 0) {
+      this.line()
+      this.table(
+        ['INDEX', 'COLUMNS', 'KIND'],
+        indexes.map((index) => [
+          index.name,
+          index.columns.join(', '),
+          index.primary ? 'primary' : index.unique ? 'unique' : 'index'
+        ])
+      )
+    }
+
+    if (keys.length > 0) {
+      this.line()
+      this.table(
+        ['FOREIGN KEY', 'COLUMNS', 'REFERENCES', 'ON DELETE'],
+        keys.map((key) => [
+          key.name,
+          key.columns.join(', '),
+          `${key.foreignTable} (${key.foreignColumns.join(', ')})`,
+          key.onDelete ?? ''
+        ])
+      )
+    }
+
     this.line()
 
     return 0

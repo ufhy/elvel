@@ -5,6 +5,16 @@ import {
   type Command,
   type ForeignKeyAction
 } from './blueprint.ts'
+import {
+  type ColumnInfo,
+  type ForeignKeyInfo,
+  type IndexInfo,
+  nullableText,
+  type SchemaRow,
+  type TableInfo,
+  text,
+  type ViewInfo
+} from './introspection.ts'
 
 /** Modifier names, applied in the order each dialect declares. */
 export type Modifier =
@@ -399,6 +409,42 @@ export abstract class SchemaGrammar {
 
   /** Column name in the result of `compileColumnListing`. */
   columnListingKey = 'name'
+
+  /**
+   * Every table, every view, and everything about one table.
+   *
+   * There is no portable query for any of these — SQLite keeps its schema in
+   * pragmas, MySQL in `information_schema`, Postgres in `pg_catalog` — so each
+   * grammar compiles the query and maps the answer, and the builder is the same
+   * on all three.
+   */
+  abstract compileTables(): { sql: string; bindings: unknown[] }
+
+  abstract compileViews(): { sql: string; bindings: unknown[] }
+
+  abstract compileColumns(table: string): { sql: string; bindings: unknown[] }
+
+  abstract compileIndexes(table: string): { sql: string; bindings: unknown[] }
+
+  abstract compileForeignKeys(table: string): { sql: string; bindings: unknown[] }
+
+  mapTables(rows: SchemaRow[]): TableInfo[] {
+    return rows.map((row) => ({ name: text(row.name), schema: nullableText(row.schema) }))
+  }
+
+  mapViews(rows: SchemaRow[]): ViewInfo[] {
+    return rows.map((row) => ({
+      name: text(row.name),
+      schema: nullableText(row.schema),
+      definition: text(row.definition)
+    }))
+  }
+
+  abstract mapColumns(rows: SchemaRow[]): ColumnInfo[]
+
+  abstract mapIndexes(rows: SchemaRow[]): IndexInfo[]
+
+  abstract mapForeignKeys(rows: SchemaRow[], table: string): ForeignKeyInfo[]
 
   abstract compileEnableForeignKeys(): string
 

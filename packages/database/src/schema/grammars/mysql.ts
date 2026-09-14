@@ -1,5 +1,16 @@
 import type { Blueprint, ColumnAttributes, Command } from '../blueprint.ts'
 import { type Modifier, SchemaGrammar } from '../grammar.ts'
+import {
+  action,
+  type ColumnInfo,
+  type ForeignKeyInfo,
+  flag,
+  groupBy,
+  type IndexInfo,
+  nullableText,
+  type SchemaRow,
+  text
+} from '../introspection.ts'
 
 export class MySqlSchemaGrammar extends SchemaGrammar {
   protected override quote = '`'
@@ -163,5 +174,110 @@ export class MySqlSchemaGrammar extends SchemaGrammar {
     command: Extract<Command, { name: 'fullText' }>
   ): string {
     return `alter table ${this.wrapTable(blueprint.table)} add fulltext ${this.wrap(command.index)} (${this.columnize(command.columns)})`
+  }
+
+  // ------------------------------------------------------------- inspection
+
+  compileTables() {
+    return {
+      sql: `select table_name as name, table_schema as \`schema\`
+            from information_schema.tables
+            where table_schema = database() and table_type = 'BASE TABLE'
+            order by table_name`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileViews() {
+    return {
+      sql: `select table_name as name, table_schema as \`schema\`, view_definition as definition
+            from information_schema.views
+            where table_schema = database()
+            order by table_name`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileColumns(_table: string) {
+    return {
+      sql: `select column_name as name, column_type as type, data_type as type_name,
+                   is_nullable as nullable, column_default as \`default\`,
+                   extra as extra, column_comment as comment
+            from information_schema.columns
+            where table_schema = database() and table_name = ?
+            order by ordinal_position`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileIndexes(_table: string) {
+    return {
+      sql: `select index_name as name, non_unique as non_unique, seq_in_index as seq,
+                   column_name as column_name
+            from information_schema.statistics
+            where table_schema = database() and table_name = ?
+            order by index_name, seq_in_index`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  compileForeignKeys(_table: string) {
+    return {
+      sql: `select k.constraint_name as name, k.column_name as column_name,
+                   k.ordinal_position as ord,
+                   k.referenced_table_name as foreign_table,
+                   k.referenced_column_name as foreign_column,
+                   r.update_rule as on_update, r.delete_rule as on_delete
+            from information_schema.key_column_usage k
+            join information_schema.referential_constraints r
+              on r.constraint_schema = k.constraint_schema
+             and r.constraint_name = k.constraint_name
+            where k.table_schema = database() and k.table_name = ?
+              and k.referenced_table_name is not null
+            order by k.constraint_name, k.ordinal_position`,
+      bindings: [] as unknown[]
+    }
+  }
+
+  mapColumns(rows: SchemaRow[]): ColumnInfo[] {
+    return rows.map((row) => ({
+      name: text(row.name),
+      type: text(row.type),
+      typeName: text(row.type_name).toLowerCase(),
+      nullable: text(row.nullable).toLowerCase() === 'yes',
+      default: nullableText(row.default),
+      autoIncrement: text(row.extra).toLowerCase().includes('auto_increment'),
+      comment: nullableText(row.comment)
+    }))
+  }
+
+  mapIndexes(rows: SchemaRow[]): IndexInfo[] {
+    return groupBy(
+      rows,
+      (row) => text(row.name),
+      (name, group) => ({
+        name,
+        columns: group.map((row) => text(row.column_name)),
+        unique: !flag(group[0]?.non_unique),
+        // MySQL has no separate notion of a primary key index: it is the index
+        // it always calls PRIMARY.
+        primary: name === 'PRIMARY'
+      })
+    )
+  }
+
+  mapForeignKeys(rows: SchemaRow[], _table: string): ForeignKeyInfo[] {
+    return groupBy(
+      rows,
+      (row) => text(row.name),
+      (name, group) => ({
+        name,
+        columns: group.map((row) => text(row.column_name)),
+        foreignTable: text(group[0]?.foreign_table),
+        foreignColumns: group.map((row) => text(row.foreign_column)),
+        onUpdate: action(group[0]?.on_update),
+        onDelete: action(group[0]?.on_delete)
+      })
+    )
   }
 }
