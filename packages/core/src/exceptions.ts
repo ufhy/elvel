@@ -551,8 +551,14 @@ function sayViolation(field: string, violation: Record<string, unknown>): string
    * length rule, so the email field said "is not valid" while the name and
    * password beside it said "is required" — three empty inputs, two different
    * explanations.
+   *
+   * **And `null`**, which is what an empty field in a URL-encoded form actually
+   * arrives as. Measured against a scaffolded application: a blank sign-up form
+   * printed `Expected property 'name' to be string but found: null` under two
+   * of its three inputs — the sentence about the program this branch exists to
+   * replace, reached because only `undefined` and `''` were being called blank.
    */
-  if (violation.value === undefined || violation.value === '') {
+  if (violation.value === undefined || violation.value === null || violation.value === '') {
     return `The ${name} field is required.`
   }
 

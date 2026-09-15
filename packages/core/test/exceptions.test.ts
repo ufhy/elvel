@@ -422,6 +422,39 @@ describe('an Elysia validation failure', () => {
     expect<string[]>(body.errors.password as string[]).toEqual(['The password field is too short.'])
   })
 
+  /**
+   * What an empty field in a URL-encoded form actually arrives as.
+   *
+   * Found by driving a scaffolded application: a blank sign-up form printed
+   * `Expected property 'name' to be string but found: null` under two of its
+   * three inputs, because only `undefined` and `''` were being called blank —
+   * and the third said "required" only because its rule failed differently.
+   */
+  test('a null value is a blank field, whatever the rule was going to say', async () => {
+    const response = await handler().render(
+      failure([
+        {
+          path: '/name',
+          message: "Expected property 'name' to be string but found: null",
+          summary: "Expected property 'name' to be string but found: null",
+          schema: { minLength: 1 },
+          value: null
+        },
+        {
+          path: '/email',
+          message: 'Expected string to match format "email"',
+          schema: { format: 'email' },
+          value: null
+        }
+      ]),
+      { request: asked }
+    )
+    const body = (await response.json()) as { errors: Record<string, string[]> }
+
+    expect<string[]>(body.errors.name as string[]).toEqual(['The name field is required.'])
+    expect<string[]>(body.errors.email as string[]).toEqual(['The email field is required.'])
+  })
+
   test('a nested path becomes a dotted field name', async () => {
     const response = await handler().render(
       failure([{ path: '/address/city', message: 'Expected required property' }]),
