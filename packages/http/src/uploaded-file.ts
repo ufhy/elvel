@@ -162,5 +162,20 @@ export class UploadedFile {
 
 /** No leading or trailing slash, so joining is unambiguous. */
 function trim(directory: string): string {
-  return directory.replace(/^\/+|\/+$/g, '')
+  let start = 0
+  let end = directory.length
+
+  /**
+   * Two loops rather than `/^\/+|\/+$/`.
+   *
+   * The pattern measures linear on JavaScriptCore — 0.1ms against two hundred
+   * thousand slashes — so this is not a fix for a slow path. It takes whatever
+   * directory an application passes, which may have come from a request, and
+   * this way the cost is linear by construction rather than by the engine's
+   * good judgement.
+   */
+  while (start < end && directory[start] === '/') start += 1
+  while (end > start && directory[end - 1] === '/') end -= 1
+
+  return directory.slice(start, end)
 }

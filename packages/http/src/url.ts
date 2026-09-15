@@ -20,7 +20,9 @@ export const Url = {
    * Pass nothing to stop forcing.
    */
   forceScheme(scheme?: string): void {
-    forced = scheme === undefined ? undefined : scheme.replace(/:?\/*$/, '')
+    // Trimmed by hand rather than with `/:?\/*$/`, which measures linear here
+    // but is the shape a static analyser calls polynomial. Nothing is lost.
+    forced = scheme === undefined ? undefined : trimSchemeTail(scheme)
   },
 
   /** The scheme being forced, if any. */
@@ -107,4 +109,14 @@ function scheme(at: string, to: string | undefined): string {
   if (to === undefined) return at
 
   return at.replace(/^[a-z][a-z0-9+.-]*:/i, `${to}:`)
+}
+
+/** `https://` and `https:` both become `https`. */
+function trimSchemeTail(scheme: string): string {
+  let end = scheme.length
+
+  while (end > 0 && scheme[end - 1] === '/') end -= 1
+  if (end > 0 && scheme[end - 1] === ':') end -= 1
+
+  return scheme.slice(0, end)
 }

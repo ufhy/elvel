@@ -279,6 +279,39 @@ describe('the file failed-job store', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  /**
+   * A job's data is whatever the request carried, and it is written to a file.
+   *
+   * That is the feature — a failure is only retryable if its payload was kept —
+   * but it means untrusted text reaches a format where one record is one line.
+   * `JSON.stringify` escapes the newline, so a payload cannot forge a second
+   * record; asserted here rather than assumed, because the day somebody
+   * replaces the serialiser is the day it stops being true.
+   */
+  test('a payload cannot forge a second record', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'elvel-failed-'))
+    const path = join(root, 'failed.jsonl')
+    const store = new FileFailedJobStore(path)
+
+    const forged = {
+      ...payload('honest'),
+      data: {
+        note: `x\n${JSON.stringify({ id: 'forged', uuid: 'forged', connection: 'redis' })}\n`
+      }
+    }
+
+    await store.log('redis', 'default', forged, new Error('boom'))
+
+    const records = await store.all()
+
+    expect(records).toHaveLength(1)
+    expect(records[0]?.uuid).toBe('honest')
+    // One line on disk, whatever the payload tried to put in it.
+    expect((await Bun.file(path).text()).trimEnd().split('\n')).toHaveLength(1)
+
+    await rm(root, { recursive: true, force: true })
+  })
+
   /** A killed process leaves one torn line; every earlier failure is still readable. */
   test('a half-written line is skipped, not fatal', async () => {
     const root = await mkdtemp(join(tmpdir(), 'elvel-failed-'))

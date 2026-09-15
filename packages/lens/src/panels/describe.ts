@@ -225,9 +225,10 @@ function firstDump(content: EntryContent): string {
 
   if (first === undefined) return ''
 
-  return str(first.text)
-    .replace(/\s*\n\s*/g, ' ')
-    .trim()
+  // `\s+` rather than `\s*\n\s*`: the second backtracks across a long run of
+  // spaces looking for a newline that is not there, which is quadratic on a
+  // dumped value — and a dumped value is whatever the application handed over.
+  return str(first.text).replace(/\s+/g, ' ').trim()
 }
 
 function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {

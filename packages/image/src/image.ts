@@ -283,7 +283,7 @@ export class Image {
       throw new ImageError(`[${name}] is not a filename. Pass the directory separately.`)
     }
 
-    const folder = directory.replace(/^\/+|\/+$/g, '')
+    const folder = trimSlashes(directory)
     const path = folder === '' ? name : `${folder}/${name}`
 
     await this.disks()
@@ -433,4 +433,22 @@ function chunkOf(png: Uint8Array, type: string): Uint8Array | undefined {
   }
 
   return undefined
+}
+
+/**
+ * Slashes off both ends, without a regular expression.
+ *
+ * Measured linear on JavaScriptCore — 0.1ms against two hundred thousand
+ * slashes — so this is not a fix for a slow path. Written as two loops so the
+ * cost is linear by construction rather than by the engine's good judgement,
+ * and this takes whatever directory an application passes it.
+ */
+function trimSlashes(value: string): string {
+  let start = 0
+  let end = value.length
+
+  while (start < end && value[start] === '/') start += 1
+  while (end > start && value[end - 1] === '/') end -= 1
+
+  return value.slice(start, end)
 }
