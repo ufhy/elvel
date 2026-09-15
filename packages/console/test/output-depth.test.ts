@@ -114,11 +114,19 @@ describe('bulletList and alert', () => {
   })
 })
 
-/** A bar written into a log file is thousands of lines of control codes. */
+/**
+ * A bar written into a log file is thousands of lines of control codes.
+ *
+ * `interactive: false` rather than whatever the terminal happens to be: read
+ * from `process.stdout.isTTY`, this passed when the suite was piped — CI, and
+ * `bun test | cat` — and failed in the terminal somebody actually runs it in,
+ * where the bar redraws with `\r` and writes no lines at all. Reported by a
+ * developer whose run was the honest one.
+ */
 describe('the progress bar off a terminal', () => {
   test('writes a line every N items instead of redrawing', () => {
     const { output, lines } = captured()
-    const bar = new ProgressBar(output, 4, { every: 2 })
+    const bar = new ProgressBar(output, 4, { every: 2, interactive: false })
 
     for (let done = 0; done < 4; done += 1) bar.advance()
     bar.finish()
@@ -131,12 +139,38 @@ describe('the progress bar off a terminal', () => {
 
     output.setVerbosity('quiet')
 
-    const bar = new ProgressBar(output, 2, { every: 1 })
+    const bar = new ProgressBar(output, 2, { every: 1, interactive: false })
 
     bar.advance()
     bar.finish()
 
     expect(lines).toEqual([])
+  })
+
+  /** And the other branch, which no test reached while it was read off a global. */
+  test('on a terminal it redraws instead, writing no lines', () => {
+    const { output, lines } = captured()
+    const written: string[] = []
+    const was = process.stdout.write
+
+    process.stdout.write = ((chunk: string) => {
+      written.push(String(chunk))
+
+      return true
+    }) as typeof process.stdout.write
+
+    try {
+      const bar = new ProgressBar(output, 4, { every: 2, interactive: true })
+
+      bar.advance()
+      bar.finish()
+    } finally {
+      process.stdout.write = was
+    }
+
+    expect(lines).toEqual([])
+    expect(written.every((one) => one.startsWith('\r'))).toBe(true)
+    expect(written.at(-1)).toContain('1/4')
   })
 
   test('withProgressBar walks every item', async () => {

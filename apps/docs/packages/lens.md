@@ -254,9 +254,10 @@ it. Clicking a bar opens that entry.
 ```
 
 The process is long-lived, so it remembers what each **route** usually costs and
-says how this request compares — beside the timing rather than as a tab of its
-own, because a multiple is only known once a route has been seen a few times and
-a tab that comes and goes reads as the bar rearranging itself. PHP-FPM forgets everything between requests, so
+says how this request compares — beside the timing rather than as a menu entry of
+its own, because a multiple is only known once a route has been seen a few times
+and a row that comes and goes reads as the bar rearranging itself. PHP-FPM
+forgets everything between requests, so
 no debug bar in that world can answer "is this slow, or is this page always like
 this". The Route cost view lists every route seen this session, slowest first.
 
@@ -275,8 +276,8 @@ evidence in place —
 ```
 
 — rather than repeating eight identical statements, which is a list of the same
-thing eight times. **Show in query** hands off to the tab that owns those rows,
-filtered to them.
+thing eight times. **Show in query** hands off to the menu entry that owns those
+rows, filtered to them.
 
 Every count in the strip opens the entries behind it — filterable — and every
 entry opens the same detail the dashboard shows: a request's headers, payload, session and response; an

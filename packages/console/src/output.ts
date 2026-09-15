@@ -345,14 +345,25 @@ export class Output {
 export class ProgressBar {
   private current = 0
   private readonly startedAt = Date.now()
-  private readonly interactive = process.stdout.isTTY === true
+  /**
+   * Whether to redraw in place, decided once and overridable.
+   *
+   * Read from the terminal by default, and settable because two callers need to
+   * say it rather than inherit it: a command running under a supervisor that
+   * allocates a pty but writes to a log, and a test — which is how this came up.
+   * A test named "off a terminal" that reads `process.stdout.isTTY` passes when
+   * the suite is piped and fails in the terminal somebody actually runs it in.
+   */
+  private readonly interactive: boolean
   private readonly every: number
 
   constructor(
     private readonly output: Output,
     private readonly total: number,
-    private readonly options: { label?: string; every?: number } = {}
+    private readonly options: { label?: string; every?: number; interactive?: boolean } = {}
   ) {
+    this.interactive = options.interactive ?? process.stdout.isTTY === true
+
     // One line per percent, at most, when nobody is watching it move.
     this.every = options.every ?? Math.max(1, Math.floor(total / 100))
   }
