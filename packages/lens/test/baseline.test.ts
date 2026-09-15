@@ -69,10 +69,22 @@ describe('the CPU profile', () => {
 
     expect(profile).toBeDefined()
     expect(profile?.samples).toBeGreaterThan(0)
-    expect(profile?.hot[0]?.name).toBe('burn')
-    expect(profile?.hot[0]?.selfMs).toBeGreaterThan(0)
+
+    /**
+     * Named in the profile — not pinned to the top of it.
+     *
+     * A sampling profiler reports where the samples landed, and which function
+     * holds first place is a race with whatever else the runtime was doing.
+     * Measured: on Windows CI `arm` came first and `burn` second, which is the
+     * profiler working rather than failing. What the feature claims is that time
+     * reaches the function that spent it, and that is what is asserted.
+     */
+    const burnt = profile?.hot.find((frame) => frame.name === 'burn')
+
+    expect(burnt).toBeDefined()
+    expect(burnt?.selfMs).toBeGreaterThan(0)
     // The profile's own clock, not a wall-clock guess spread across samples.
-    expect(profile?.hot[0]?.selfMs).toBeLessThan((profile?.durationMs ?? 0) + 1)
+    expect(burnt?.selfMs).toBeLessThan((profile?.durationMs ?? 0) + 1)
   })
 
   test('only the batch that claimed it may end it', async () => {
