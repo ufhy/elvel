@@ -160,6 +160,7 @@ export function findings(
     ...unrouted(entries),
     ...redirectWithoutTarget(entries),
     ...writesOnGet(entries),
+    ...writesAcrossConnections(entries),
     ...repeatedFailures(entries),
     ...failedJobs(entries),
     ...retriedJobs(entries),
@@ -390,6 +391,9 @@ function missedTwice(entries: BarEntry[]): Finding[] {
     }))
 }
 
+/** A statement that changes something, however it is spelled. */
+const WRITES = /^\s*(insert|update|delete|replace|truncate|drop|alter|create)\b/i
+
 /** The request entry, which several of these read. */
 function requestOf(entries: BarEntry[]): BarEntry | undefined {
   return entries.find((entry) => entry.type === 'request')
@@ -482,9 +486,7 @@ function writesOnGet(entries: BarEntry[]): Finding[] {
   if (String(request?.content.method ?? '').toUpperCase() !== 'GET') return []
 
   const writes = of(entries, 'query').filter((entry) =>
-    /^\s*(insert|update|delete|replace|truncate|drop|alter|create)\b/i.test(
-      String(entry.content.sql ?? '')
-    )
+    WRITES.test(String(entry.content.sql ?? ''))
   )
 
   if (writes.length === 0) return []
@@ -494,6 +496,35 @@ function writesOnGet(entries: BarEntry[]): Finding[] {
     'problem',
     `${writes.length} write statement${writes.length === 1 ? '' : 's'} on a GET`,
     writes.map((entry) => shorten(String(entry.content.sql ?? ''))).join(' · '),
+    writes
+  )
+}
+
+/**
+ * Writes to two databases in one request.
+ *
+ * Nothing here records whether a transaction was open, and it would not help if
+ * it did: a transaction spans one connection, so two connections written in one
+ * request cannot be rolled back together whatever either of them was inside.
+ * Half the work surviving a failure is the outcome, and it is worth knowing
+ * before it happens rather than after.
+ */
+function writesAcrossConnections(entries: BarEntry[]): Finding[] {
+  const writes = of(entries, 'query').filter((entry) =>
+    WRITES.test(String(entry.content.sql ?? ''))
+  )
+
+  const connections = new Set(
+    writes.map((entry) => String(entry.content.connection ?? '')).filter((name) => name !== '')
+  )
+
+  if (connections.size < 2) return []
+
+  return one(
+    'two-connections',
+    'problem',
+    `This request wrote to ${connections.size} connections`,
+    `${[...connections].join(', ')} — a transaction covers one of them, so a failure part way leaves the rest written.`,
     writes
   )
 }

@@ -509,3 +509,39 @@ describe('thresholds', () => {
     expect(ring.get('b1')?.found.map((one) => one.id)).toContain('log-noise')
   })
 })
+
+/**
+ * A transaction covers one connection, so two written in one request cannot be
+ * rolled back together — whatever either of them was inside.
+ */
+describe('writes across connections', () => {
+  const ids = (entries: BarEntry[]) =>
+    findings(entries, split(entries, 100), DEFAULTS).map((one) => one.id.split(':')[0])
+
+  test('two connections written is a finding', () => {
+    expect(
+      ids([
+        query('insert into orders (id) values (?)', 2, { connection: 'mysql' }),
+        query('insert into audit (id) values (?)', 2, { connection: 'reporting' })
+      ])
+    ).toContain('two-connections')
+  })
+
+  test('two connections merely read is not', () => {
+    expect(
+      ids([
+        query('select * from orders', 2, { connection: 'mysql' }),
+        query('select * from audit', 2, { connection: 'reporting' })
+      ])
+    ).not.toContain('two-connections')
+  })
+
+  test('and many writes to one connection is not either', () => {
+    expect(
+      ids([
+        query('insert into orders (id) values (?)', 2, { connection: 'mysql' }),
+        query('update orders set paid = ?', 2, { connection: 'mysql' })
+      ])
+    ).not.toContain('two-connections')
+  })
+})
