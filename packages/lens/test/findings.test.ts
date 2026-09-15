@@ -591,6 +591,17 @@ describe('what needed recording first', () => {
   const judgeWith = (entries: BarEntry[], batch = {}) =>
     findings(entries, split(entries, 100), DEFAULTS, batch).map((one) => one.id)
 
+  /**
+   * Memory is not here, and that is the measurement rather than an omission.
+   *
+   * It was, for a day. `process.memoryUsage().heapUsed` reported the *same*
+   * number across four consecutive playground requests — Bun's reading is far
+   * coarser than one request — so the growth was 0 almost always. And a shared
+   * heap cannot be attributed to a request anyway: a page that calls its own
+   * server allocates in both windows at once. Hydration survived the same audit
+   * because a request *causes* its hydrations and they can be counted per
+   * context; bytes cannot.
+   */
   test('a request that built a great many models', () => {
     const found = findings([query('select * from rows')], split([], 100), DEFAULTS, {
       hydrated: 4000
@@ -599,15 +610,6 @@ describe('what needed recording first', () => {
     expect(found.map((one) => one.id)).toContain('many-models')
     expect(found.find((one) => one.id === 'many-models')?.title).toContain('4000 models')
     expect(judgeWith([], { hydrated: 12 })).not.toContain('many-models')
-  })
-
-  test('a heap that grew, and one that did not', () => {
-    expect(judgeWith([], { memory: { heapUsed: 90e6, grewBy: 64 * 1024 * 1024 } })).toContain(
-      'heap-growth'
-    )
-    expect(judgeWith([], { memory: { heapUsed: 90e6, grewBy: 1024 } })).not.toContain('heap-growth')
-    // The collector runs when it likes: smaller than it started is not a finding.
-    expect(judgeWith([], { memory: { heapUsed: 10e6, grewBy: -5e6 } })).not.toContain('heap-growth')
   })
 
   test('a job one failure from being dropped', () => {

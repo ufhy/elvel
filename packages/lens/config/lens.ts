@@ -67,7 +67,7 @@ export default {
      * `logLines`, `events`, `viewBytes`, `callBytes`, `cacheBytes`,
      * `cacheSeconds`, `slowerThanUsual`, `middlewareShare`, `frameworkShare`,
      * `payloadBytes`, `attachments`, `cacheLookups`, `missShare`, `hydrated`,
-     * `attemptsLeft`, `memoryBytes`.
+     * `attemptsLeft`.
      */
     thresholds: {} as Record<string, number>
   },

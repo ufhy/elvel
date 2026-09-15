@@ -72,8 +72,6 @@ export type Thresholds = {
    * being dropped, and that is the moment somebody would want to know.
    */
   attemptsLeft: number
-  /** Bytes the heap may grow during one request before it is worth saying. */
-  memoryBytes: number
 }
 
 /**
@@ -104,8 +102,7 @@ export const DEFAULTS: Thresholds = {
   cacheLookups: 5,
   missShare: 0.8,
   hydrated: 500,
-  attemptsLeft: 1,
-  memoryBytes: 32 * 1024 * 1024
+  attemptsLeft: 1
 }
 
 /**
@@ -118,8 +115,6 @@ export const DEFAULTS: Thresholds = {
 export type BatchFacts = {
   /** Models built from rows, counted by the ORM rather than recorded per row. */
   hydrated?: number
-  /** The heap at the end, and how much it grew getting there. */
-  memory?: { heapUsed: number; grewBy: number }
   verdict?: { route: string; medianMs: number; samples: number; times?: number }
   marks?: Array<{ name: string; atMs: number }>
   profile?: {
@@ -205,7 +200,6 @@ export function findings(
     ...mailInTheRequest(entries, thresholds),
     ...failedBatches(entries),
     ...manyModels(batch, entries, thresholds),
-    ...heapGrowth(batch, thresholds),
     ...slowerThanUsual(batch, thresholds),
     ...timeBeforeTheHandler(batch, shape, thresholds),
     ...frameworkBound(batch, thresholds)
@@ -1050,31 +1044,6 @@ function manyModels(batch: BatchFacts, entries: BarEntry[], thresholds: Threshol
           ? 'Something read a great many rows and turned every one of them into an object.'
           : `From ${queries.length} quer${queries.length === 1 ? 'y' : 'ies'} — usually one of them has no limit.`,
       evidence: queries.map((entry) => entry.uuid)
-    }
-  ]
-}
-
-/**
- * The heap grew, and by how much.
- *
- * Only the growth, never the total: a process's heap says more about how long
- * it has been up than about this request. A negative growth is not reported and
- * is not an error either — the collector runs when it likes, and a request that
- * allocated heavily can end smaller than it started.
- */
-function heapGrowth(batch: BatchFacts, thresholds: Thresholds): Finding[] {
-  const grewBy = batch.memory?.grewBy ?? 0
-
-  if (grewBy < thresholds.memoryBytes) return []
-
-  return [
-    {
-      id: 'heap-growth',
-      level: 'note',
-      title: `The heap grew by ${kb(grewBy)} during this request`,
-      detail:
-        'Held for the whole request, whatever it was. The collector may have run as well, so this is the floor rather than the total allocated.',
-      evidence: []
     }
   ]
 }
