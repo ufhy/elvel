@@ -295,6 +295,15 @@ for (const { name, config } of available) {
      * that the schema it generates actually runs, rather than only that it can
      * be generated.
      */
+    /**
+     * Thirty seconds, not bun's five.
+     *
+     * These create and alter tables on a live server, and CI's MySQL container
+     * is an order slower than a local one: measured, this whole file takes
+     * 1,337ms against DBngin and this one test alone hit the 5,000ms default on
+     * a GitHub runner. The number is headroom for a slow container, not a
+     * budget — a real regression will still be nowhere near it.
+     */
     test('a plugin brings its own tables and columns, and they run', async () => {
       connection = await BunSqlConnection.make(`auth-plugin-${name}`, config)
 
@@ -430,7 +439,7 @@ for (const { name, config } of available) {
       } finally {
         await connection.disconnect()
       }
-    })
+    }, 30_000)
 
     /**
      * `auth:schema --diff`, which is what adding a plugin to a *running*
@@ -545,7 +554,7 @@ for (const { name, config } of available) {
 
         await connection.disconnect()
       }
-    })
+    }, 30_000)
 
     /**
      * The upgrade a version bump asks for, which is not a column.
@@ -674,6 +683,6 @@ for (const { name, config } of available) {
 
         await connection.disconnect()
       }
-    })
+    }, 30_000)
   })
 }
