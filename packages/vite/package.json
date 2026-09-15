@@ -47,7 +47,7 @@
     "@elvel/core": "1.0.0-alpha.26",
     "@elvel/http": "1.0.0-alpha.26",
     "vite": ">=6.0.0",
-    "elysia": ">=1.4.0"
+    "elysia": ">=1.4.27"
   },
   "peerDependenciesMeta": {
     "@elvel/core": {

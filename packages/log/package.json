@@ -46,6 +46,6 @@
     "picocolors": "^1.1.1"
   },
   "peerDependencies": {
-    "elysia": ">=1.4.0"
+    "elysia": ">=1.4.27"
   }
 }

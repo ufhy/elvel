@@ -43,6 +43,6 @@
     "@elvel/support": "workspace:*"
   },
   "peerDependencies": {
-    "elysia": ">=1.4.0"
+    "elysia": ">=1.4.27"
   }
 }
