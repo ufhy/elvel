@@ -1,6 +1,7 @@
 import { ServiceProvider } from '@elvel/core'
 import { Baselines } from './bar/baseline.ts'
 import { type BarState, barState } from './bar/enabled.ts'
+import { DEFAULTS, type Thresholds } from './bar/findings.ts'
 import { RequestProfiler } from './bar/profiler.ts'
 import { BatchRing } from './bar/ring.ts'
 import { LensClearCommand } from './console/lens-clear.ts'
@@ -75,7 +76,13 @@ export class LensServiceProvider extends ServiceProvider {
       () =>
         new BatchRing(
           Math.max(1, this.app.config.integer('lens.bar.requests', 20)),
-          Math.max(1, this.app.config.integer('lens.bar.budget', 8 * 1024 * 1024))
+          Math.max(1, this.app.config.integer('lens.bar.budget', 8 * 1024 * 1024)),
+          // Merged over the defaults, so an application argues with one number
+          // rather than restating all of them.
+          {
+            ...DEFAULTS,
+            ...this.config<Partial<Thresholds>>('lens.bar.thresholds', {})
+          }
         )
     )
 

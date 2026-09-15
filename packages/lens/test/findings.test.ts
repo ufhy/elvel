@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { findings, split } from '../src/bar/findings.ts'
-import type { BarEntry } from '../src/bar/ring.ts'
+import { DEFAULTS, findings, split } from '../src/bar/findings.ts'
+import { type BarEntry, BatchRing } from '../src/bar/ring.ts'
 import { CACHE_MISSED } from '../src/watchers/cache.ts'
 
 function entry(
@@ -293,5 +293,219 @@ describe('what else the entries already say', () => {
         entry('mail', { subject: 'Hi', to: ['ada@example.test'], cc: [], bcc: [] })
       ])
     ).toEqual([])
+  })
+})
+
+/**
+ * The second batch from issue #14, and the three that read the batch itself.
+ *
+ * Every threshold here is a judgement rather than a measurement, which is why
+ * they all live in `Thresholds` — these tests pin the behaviour, not the number.
+ */
+describe('the rest of what a batch says', () => {
+  const ids = (entries: BarEntry[], batch = {}) =>
+    findings(entries, split(entries, 100), DEFAULTS, batch).map((one) => one.id.split(':')[0])
+
+  test('a notification that failed, a task that failed, and one that overlapped', () => {
+    expect(
+      ids([entry('notification', { notification: 'Welcome', channel: 'mail', outcome: 'failed' })])
+    ).toContain('failed-notifications')
+
+    expect(ids([entry('schedule', { task: 'prune', outcome: 'failed' })])).toContain('failed-tasks')
+    expect(ids([entry('schedule', { task: 'prune', outcome: 'overlapping' })])).toContain(
+      'overlapping-tasks'
+    )
+    expect(ids([entry('schedule', { task: 'prune', outcome: 'ran' })])).toEqual([])
+  })
+
+  test('a log nobody could read, and a request full of events', () => {
+    const lines = Array.from({ length: 20 }, () => entry('log', { level: 'info', message: 'x' }))
+    const events = Array.from({ length: 30 }, () => entry('event', { name: 'order.placed' }))
+
+    expect(ids(lines)).toContain('log-noise')
+    expect(ids(events)).toContain('many-events')
+    expect(ids(lines.slice(0, 5))).toEqual([])
+  })
+
+  test('a view that is huge, and one rendered in a loop', () => {
+    expect(ids([entry('view', { view: 'Report', size: 600 * 1024, time: 5 })])).toContain(
+      'heavy-view'
+    )
+
+    const loop = Array.from({ length: 15 }, () =>
+      entry('view', { view: 'Row', size: 200, time: 1 })
+    )
+
+    expect(ids(loop)).toContain('repeated-view')
+  })
+
+  test('the same ability asked over and over', () => {
+    const loop = Array.from({ length: 15 }, () =>
+      entry('gate', { ability: 'view', result: 'allowed' })
+    )
+
+    expect(ids(loop)).toContain('repeated-gate')
+  })
+
+  test('a large outbound response, a large cached value, a cache that expires at once', () => {
+    expect(
+      ids([
+        entry('client_request', {
+          uri: 'https://api/x',
+          responseStatus: 200,
+          responseSize: 2 * 1024 * 1024
+        })
+      ])
+    ).toContain('heavy-call')
+
+    expect(
+      ids([entry('cache', { type: 'set', key: 'report', value: 'x'.repeat(200 * 1024) })])
+    ).toContain('heavy-cache')
+
+    expect(ids([entry('cache', { type: 'set', key: 'token', expiration: 1 })])).toContain(
+      'brief-cache'
+    )
+    // Forever is not brief.
+    expect(ids([entry('cache', { type: 'set', key: 'token', expiration: 0 })])).toEqual([])
+  })
+
+  /** 400ms is fine for a report and alarming for a redirect. */
+  test('slow for this route, which a fixed threshold cannot tell', () => {
+    const verdict = { route: 'GET /articles', medianMs: 40, samples: 20, times: 3.2 }
+
+    expect(ids([], { verdict })).toContain('slower-than-usual')
+    expect(ids([], { verdict: { ...verdict, times: 1.1 } })).toEqual([])
+    // No median yet, so nothing to be slower than.
+    expect(ids([], { verdict: { route: 'GET /x', medianMs: 0, samples: 1 } })).toEqual([])
+  })
+
+  test('the time that went before the handler ever ran', () => {
+    const entries = [entry('request', { responseStatus: 200, route: '/x', method: 'GET' })]
+    const found = findings(entries, split(entries, 100), DEFAULTS, {
+      marks: [
+        { name: 'middleware', atMs: 5 },
+        { name: 'handler', atMs: 80 }
+      ]
+    })
+
+    expect(found.map((one) => one.id)).toContain('before-the-handler')
+    expect(found.find((one) => one.id === 'before-the-handler')?.cost).toBe(80)
+  })
+
+  test('and a profile that is mostly not your code', () => {
+    const profile = {
+      durationMs: 100,
+      outsideMs: 10,
+      origins: [
+        { name: 'elysia', selfMs: 60, mine: false },
+        { name: 'better-auth', selfMs: 20, mine: false },
+        { name: 'app/Http', selfMs: 20, mine: true }
+      ]
+    }
+
+    expect(ids([], { profile })).toContain('framework-bound')
+
+    expect(
+      ids([], {
+        profile: { ...profile, origins: [{ name: 'app/Http', selfMs: 90, mine: true }] }
+      })
+    ).toEqual([])
+  })
+})
+
+describe('and the last of them', () => {
+  const ids = (entries: BarEntry[]) =>
+    findings(entries, split(entries, 100), DEFAULTS).map((one) => one.id.split(':')[0])
+
+  test('a request body big enough to be worth saying', () => {
+    expect(
+      ids([entry('request', { responseStatus: 200, payload: { blob: 'x'.repeat(300 * 1024) } })])
+    ).toContain('heavy-payload')
+  })
+
+  /** One key nothing writes is `missedTwice`; this is a store that is cold. */
+  test('a cache that mostly misses', () => {
+    const cold = Array.from({ length: 6 }, (_, index) =>
+      entry('cache', { type: CACHE_MISSED, key: `k${index}` })
+    )
+
+    expect(ids(cold)).toContain('cache-cold')
+
+    const warm = [
+      ...Array.from({ length: 5 }, (_, index) => entry('cache', { type: 'hit', key: `k${index}` })),
+      entry('cache', { type: CACHE_MISSED, key: 'k9' })
+    ]
+
+    expect(ids(warm)).not.toContain('cache-cold')
+  })
+
+  /** One transactional mail is ordinary; two is a loop or a fan-out. */
+  test('mail sent while the caller waited, from two', () => {
+    const request = entry('request', { responseStatus: 200, method: 'POST' })
+    const mail = () => entry('mail', { subject: 'Hi', to: ['a@b.test'], attachments: 0 })
+
+    expect(ids([request, mail()])).not.toContain('mail-in-request')
+    expect(ids([request, mail(), mail()])).toContain('mail-in-request')
+  })
+
+  test('and a mail carrying a pile of attachments', () => {
+    expect(
+      ids([
+        entry('request', { responseStatus: 200 }),
+        entry('mail', { subject: 'Report', to: ['a@b.test'], attachments: 6 }),
+        entry('mail', { subject: 'Report', to: ['c@d.test'], attachments: 6 })
+      ])
+    ).toContain('mail-attachments')
+  })
+
+  test('a batch whose jobs did not all arrive', () => {
+    expect(
+      ids([
+        entry('batch', { batch: 'b1', name: 'Import', totalJobs: 40 }),
+        entry('job', { status: 'failed', name: 'ImportRow', error: 'bad row' })
+      ])
+    ).toContain('failed-batch')
+  })
+})
+
+/**
+ * The numbers are arguable, so an application must be able to argue.
+ *
+ * A hundred milliseconds is a slow query in a request and an ordinary one in a
+ * nightly report; the finding is the product, the number is a setting.
+ */
+describe('thresholds', () => {
+  test('a raised bar stops a finding, a lowered one starts it', () => {
+    const entries = [entry('request', { responseStatus: 200 }), query('select 1', 150)]
+    const shape = split(entries, 400)
+
+    const loud = findings(entries, shape, DEFAULTS).map((one) => one.id.split(':')[0])
+    const quiet = findings(entries, shape, { ...DEFAULTS, slowQuery: 500 }).map(
+      (one) => one.id.split(':')[0]
+    )
+
+    expect(loud).toContain('slow')
+    expect(quiet).not.toContain('slow')
+  })
+
+  test('and the ring hands its own down to the analysis', () => {
+    const ring = new BatchRing(5, 1024 * 1024, { ...DEFAULTS, logLines: 2 })
+
+    ring.push({
+      batchId: 'b1',
+      at: Date.now(),
+      method: 'GET',
+      path: '/x',
+      status: 200,
+      durationMs: 10,
+      kind: 'page',
+      marks: [],
+      entries: [
+        entry('log', { level: 'info', message: 'one' }),
+        entry('log', { level: 'info', message: 'two' })
+      ]
+    })
+
+    expect(ring.get('b1')?.found.map((one) => one.id)).toContain('log-noise')
   })
 })

@@ -2,7 +2,7 @@ import type { IncomingEntry } from '../entry.ts'
 import type { EntryUpdate } from '../entry-update.ts'
 import { type Summary, summarise } from '../panels/describe.ts'
 import type { Verdict } from './baseline.ts'
-import { type Finding, findings, type Split, split } from './findings.ts'
+import { DEFAULTS, type Finding, findings, type Split, split, type Thresholds } from './findings.ts'
 import type { Profile } from './profiler.ts'
 
 /** A boundary in the request's own progress — see `lensPlugin`. */
@@ -120,7 +120,15 @@ export class BatchRing {
 
   constructor(
     private readonly limit: number,
-    private readonly budget = 8 * 1024 * 1024
+    private readonly budget = 8 * 1024 * 1024,
+    /**
+     * The numbers the analysis argues from.
+     *
+     * Every one of them is a judgement, so an application that disagrees says so
+     * in `lens.bar.thresholds` rather than living with ours — a hundred
+     * milliseconds is a slow query in a request and an ordinary one in a report.
+     */
+    private readonly thresholds: Thresholds = DEFAULTS
   ) {}
 
   /** Adds the batch and returns the sequence it was given. */
@@ -134,7 +142,15 @@ export class BatchRing {
   push(batch: Omit<BarBatch, 'seq' | 'found' | 'shape'>): number {
     const seq = this.next++
     const shape = split(batch.entries, batch.durationMs)
-    const stored: BarBatch = { ...batch, seq, shape, found: findings(batch.entries, shape) }
+    const stored: BarBatch = {
+      ...batch,
+      seq,
+      shape,
+      // The batch's own facts as well as its entries: whether this was slow for
+      // *this* route, where the time went before the handler, and whose code the
+      // profiler caught are questions no single entry can answer.
+      found: findings(batch.entries, shape, this.thresholds, batch)
+    }
 
     this.batches.unshift(stored)
     this.sizes.set(stored.batchId, weigh(stored))
@@ -210,7 +226,7 @@ export class BatchRing {
     for (const batch of this.batches) {
       if (!batch.entries.some((entry) => touched.has(entry.uuid))) continue
 
-      batch.found = findings(batch.entries, batch.shape)
+      batch.found = findings(batch.entries, batch.shape, this.thresholds, batch)
     }
   }
 

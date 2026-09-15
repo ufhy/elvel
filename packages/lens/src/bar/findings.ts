@@ -37,14 +37,78 @@ export type Thresholds = {
   viewMs: number
   /** Share of the request spent in the database before it is the story. */
   databaseShare: number
+  /** Log lines in one request before the log is noise rather than a record. */
+  logLines: number
+  /** Events in one request before the list is a haystack. */
+  events: number
+  /** Bytes of markup one view may produce. */
+  viewBytes: number
+  /** Bytes an outbound response may carry before it is worth saying. */
+  callBytes: number
+  /** Bytes a single cached value may hold. */
+  cacheBytes: number
+  /** Seconds below which a cache entry expires too soon to have been read. */
+  cacheSeconds: number
+  /** How many times a route's own median before the request is slow *for it*. */
+  slowerThanUsual: number
+  /** Share of a request that may go to middleware before the handler. */
+  middlewareShare: number
+  /** Share of a profile that may be the framework's own code. */
+  frameworkShare: number
+  /** Bytes of request body worth mentioning. */
+  payloadBytes: number
+  /** Attachments on one mail before it is worth saying. */
+  attachments: number
+  /** Cache lookups before a miss rate is a verdict rather than a coincidence. */
+  cacheLookups: number
+  /** Share of cache lookups that may miss before the cache is not caching. */
+  missShare: number
 }
 
+/**
+ * The numbers, in one place and all arguable.
+ *
+ * Each is a judgement rather than a measurement, so each is here to be changed
+ * rather than buried in the check that reads it. What they have in common: they
+ * are set where a developer would already have raised an eyebrow, not where
+ * something is formally wrong.
+ */
 export const DEFAULTS: Thresholds = {
   slowQuery: 100,
   repeats: 3,
   responseBytes: 256 * 1024,
   viewMs: 100,
-  databaseShare: 0.5
+  databaseShare: 0.5,
+  logLines: 20,
+  events: 30,
+  viewBytes: 512 * 1024,
+  callBytes: 1024 * 1024,
+  cacheBytes: 128 * 1024,
+  cacheSeconds: 2,
+  slowerThanUsual: 2,
+  middlewareShare: 0.5,
+  frameworkShare: 0.7,
+  payloadBytes: 256 * 1024,
+  attachments: 5,
+  cacheLookups: 5,
+  missShare: 0.8
+}
+
+/**
+ * What the batch knows about itself, beyond its entries.
+ *
+ * Three of these answer questions no entry can: whether the request was slow
+ * *for this route*, whether the time went somewhere before the handler, and
+ * whose code the profiler actually caught.
+ */
+export type BatchFacts = {
+  verdict?: { route: string; medianMs: number; samples: number; times?: number }
+  marks?: Array<{ name: string; atMs: number }>
+  profile?: {
+    durationMs: number
+    outsideMs: number
+    origins: Array<{ name: string; selfMs: number; mine: boolean }>
+  }
 }
 
 /** Where a request's time went, as three numbers rather than one. */
@@ -80,7 +144,8 @@ export function split(entries: BarEntry[], totalMs: number): Split {
 export function findings(
   entries: BarEntry[],
   shape: Split,
-  thresholds: Thresholds = DEFAULTS
+  thresholds: Thresholds = DEFAULTS,
+  batch: BatchFacts = {}
 ): Finding[] {
   const found = [
     ...repeated(entries, thresholds),
@@ -103,7 +168,24 @@ export function findings(
     ...deniedGates(entries),
     ...failedCommands(entries),
     ...unaddressedMail(entries),
-    ...dumpsLeftBehind(entries)
+    ...dumpsLeftBehind(entries),
+    ...failedNotifications(entries),
+    ...failedTasks(entries),
+    ...noisyLog(entries, thresholds),
+    ...manyEvents(entries, thresholds),
+    ...heavyViews(entries, thresholds),
+    ...repeatedViews(entries, thresholds),
+    ...repeatedAbilities(entries, thresholds),
+    ...heavyCalls(entries, thresholds),
+    ...heavyCacheValues(entries, thresholds),
+    ...shortCacheLives(entries, thresholds),
+    ...heavyPayload(entries, thresholds),
+    ...mostlyMisses(entries, thresholds),
+    ...mailInTheRequest(entries, thresholds),
+    ...failedBatches(entries),
+    ...slowerThanUsual(batch, thresholds),
+    ...timeBeforeTheHandler(batch, shape, thresholds),
+    ...frameworkBound(batch, thresholds)
   ]
 
   return found.sort((a, b) => (b.cost ?? -1) - (a.cost ?? -1))
@@ -576,6 +658,434 @@ function dumpsLeftBehind(entries: BarEntry[]): Finding[] {
     'Debugging left in the code — a dump is written to be read once.',
     dumps
   )
+}
+
+/** A notification that did not arrive is a support question nobody can answer. */
+function failedNotifications(entries: BarEntry[]): Finding[] {
+  const failed = of(entries, 'notification').filter((entry) => entry.content.outcome === 'failed')
+
+  if (failed.length === 0) return []
+
+  return one(
+    'failed-notifications',
+    'problem',
+    `${failed.length} notification${failed.length === 1 ? '' : 's'} failed`,
+    failed
+      .map(
+        (entry) =>
+          `${String(entry.content.notification ?? '')} over ${String(entry.content.channel ?? '')}: ${String(entry.content.error ?? '')}`
+      )
+      .join(' · '),
+    failed
+  )
+}
+
+/**
+ * A task that failed, and one that never ran because the last had not finished.
+ *
+ * Kept apart on purpose: "it ran and failed" and "it did not run" send people
+ * looking in different places, and a recorder that shows only the first sends
+ * them to the wrong one.
+ */
+function failedTasks(entries: BarEntry[]): Finding[] {
+  const tasks = of(entries, 'schedule')
+  const failed = tasks.filter((entry) => entry.content.outcome === 'failed')
+  const overlapping = tasks.filter((entry) => entry.content.outcome === 'overlapping')
+
+  return [
+    ...(failed.length === 0
+      ? []
+      : one(
+          'failed-tasks',
+          'problem',
+          `${failed.length} scheduled task${failed.length === 1 ? '' : 's'} failed`,
+          failed
+            .map(
+              (entry) => `${String(entry.content.task ?? '')}: ${String(entry.content.error ?? '')}`
+            )
+            .join(' · '),
+          failed
+        )),
+    ...(overlapping.length === 0
+      ? []
+      : one(
+          'overlapping-tasks',
+          'note',
+          `${overlapping.length} scheduled task${overlapping.length === 1 ? '' : 's'} skipped, still running from last time`,
+          'The previous run had not finished. Either it is slower than its schedule, or it is stuck.',
+          overlapping
+        ))
+  ]
+}
+
+/** A log nobody can read is a log nobody reads. */
+function noisyLog(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const lines = of(entries, 'log')
+
+  if (lines.length < thresholds.logLines) return []
+
+  return one(
+    'log-noise',
+    'note',
+    `${lines.length} log lines in one request`,
+    'A record this long is read by nobody. Raise the level, or drop the ones that say nothing.',
+    lines
+  )
+}
+
+function manyEvents(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const fired = of(entries, 'event')
+
+  if (fired.length < thresholds.events) return []
+
+  return one(
+    'many-events',
+    'note',
+    `${fired.length} events in one request`,
+    'Every listener runs inside the request, so this is work the caller waited for.',
+    fired
+  )
+}
+
+function heavyViews(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const heavy = of(entries, 'view').filter(
+    (entry) => Number(entry.content.size ?? 0) >= thresholds.viewBytes
+  )
+
+  if (heavy.length === 0) return []
+
+  return one(
+    'heavy-view',
+    'note',
+    `${heavy.length} view${heavy.length === 1 ? '' : 's'} produced more than ${kb(thresholds.viewBytes)}`,
+    heavy
+      .map(
+        (entry) => `${String(entry.content.view ?? '')} · ${kb(Number(entry.content.size ?? 0))}`
+      )
+      .join(' · '),
+    heavy
+  )
+}
+
+/** One component rendered in a loop, which a render count makes obvious. */
+function repeatedViews(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const byName = new Map<string, BarEntry[]>()
+
+  for (const entry of of(entries, 'view')) {
+    const view = String(entry.content.view ?? '')
+
+    byName.set(view, [...(byName.get(view) ?? []), entry])
+  }
+
+  return [...byName.entries()]
+    .filter(([, group]) => group.length >= thresholds.repeats * 5)
+    .map(([view, group]) => ({
+      id: `repeated-view:${view}`,
+      level: 'note' as const,
+      title: `${view} rendered ${group.length} times`,
+      detail: 'A component in a loop. Cheap each time is not cheap this many times.',
+      evidence: group.map((entry) => entry.uuid),
+      cost: round(group.reduce((total, entry) => total + Number(entry.content.time ?? 0), 0))
+    }))
+}
+
+/** The same question asked of the gate over and over, usually inside a list. */
+function repeatedAbilities(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const byAbility = new Map<string, BarEntry[]>()
+
+  for (const entry of of(entries, 'gate')) {
+    const ability = String(entry.content.ability ?? '')
+
+    byAbility.set(ability, [...(byAbility.get(ability) ?? []), entry])
+  }
+
+  return [...byAbility.entries()]
+    .filter(([, group]) => group.length >= thresholds.repeats * 5)
+    .map(([ability, group]) => ({
+      id: `repeated-gate:${ability}`,
+      level: 'note' as const,
+      title: `${ability} checked ${group.length} times`,
+      detail: 'A policy inside a loop. One check before the loop is usually the same answer.',
+      evidence: group.map((entry) => entry.uuid)
+    }))
+}
+
+function heavyCalls(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const heavy = of(entries, 'client_request').filter(
+    (entry) => Number(entry.content.responseSize ?? 0) >= thresholds.callBytes
+  )
+
+  if (heavy.length === 0) return []
+
+  return one(
+    'heavy-call',
+    'note',
+    `${heavy.length} outbound response${heavy.length === 1 ? '' : 's'} over ${kb(thresholds.callBytes)}`,
+    heavy
+      .map(
+        (entry) =>
+          `${String(entry.content.uri ?? '')} · ${kb(Number(entry.content.responseSize ?? 0))}`
+      )
+      .join(' · '),
+    heavy
+  )
+}
+
+function heavyCacheValues(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const heavy = of(entries, 'cache').filter(
+    (entry) => entry.content.type === 'set' && sizeOf(entry.content.value) >= thresholds.cacheBytes
+  )
+
+  if (heavy.length === 0) return []
+
+  return one(
+    'heavy-cache',
+    'note',
+    `${heavy.length} cached value${heavy.length === 1 ? '' : 's'} over ${kb(thresholds.cacheBytes)}`,
+    heavy
+      .map((entry) => `${String(entry.content.key ?? '')} · ${kb(sizeOf(entry.content.value))}`)
+      .join(' · '),
+    heavy
+  )
+}
+
+/**
+ * A cache that expires before anybody could have used it.
+ *
+ * A second or two is a write, a read and nothing else: the entry costs the round
+ * trip to store it and is gone before the next request asks.
+ */
+function shortCacheLives(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const brief = of(entries, 'cache').filter((entry) => {
+    if (entry.content.type !== 'set') return false
+
+    const seconds = Number(entry.content.expiration ?? 0)
+
+    return seconds > 0 && seconds <= thresholds.cacheSeconds
+  })
+
+  if (brief.length === 0) return []
+
+  return one(
+    'brief-cache',
+    'note',
+    `${brief.length} cache entr${brief.length === 1 ? 'y' : 'ies'} expire within ${thresholds.cacheSeconds}s`,
+    brief
+      .map((entry) => `${String(entry.content.key ?? '')} · ${String(entry.content.expiration)}s`)
+      .join(' · '),
+    brief
+  )
+}
+
+/**
+ * Slow for *this route*, which is the only kind of slow worth interrupting for.
+ *
+ * 400ms is fine for a report and alarming for a redirect, and a fixed threshold
+ * cannot tell them apart. The median of this route's own recent history can.
+ */
+function slowerThanUsual(batch: BatchFacts, thresholds: Thresholds): Finding[] {
+  const verdict = batch.verdict
+
+  if (verdict?.times === undefined || verdict.times < thresholds.slowerThanUsual) return []
+
+  return [
+    {
+      id: 'slower-than-usual',
+      level: 'problem',
+      title: `${verdict.times.toFixed(1)}× slower than this route usually is`,
+      detail: `${verdict.route} normally takes about ${round(verdict.medianMs)}ms, over ${verdict.samples} recent requests.`,
+      evidence: []
+    }
+  ]
+}
+
+/**
+ * The time went before the handler ever ran.
+ *
+ * `marks` is what the framework was doing between the things a watcher records,
+ * and a request that spent most of itself in middleware is a different problem
+ * from a slow handler — usually a session store, an authentication round trip,
+ * or a rate limiter reaching for a cache that is not there.
+ */
+function timeBeforeTheHandler(batch: BatchFacts, shape: Split, thresholds: Thresholds): Finding[] {
+  const marks = batch.marks ?? []
+  const handler = marks.find((mark) => mark.name === 'handler')
+
+  if (handler === undefined || shape.totalMs <= 0) return []
+
+  const share = handler.atMs / shape.totalMs
+
+  if (share < thresholds.middlewareShare) return []
+
+  return [
+    {
+      id: 'before-the-handler',
+      level: 'problem',
+      title: `${Math.round(share * 100)}% of the request was over before the handler ran`,
+      detail: `${round(handler.atMs)}ms of ${round(shape.totalMs)}ms went to middleware — the session, authentication, or a limiter.`,
+      evidence: [],
+      cost: round(handler.atMs)
+    }
+  ]
+}
+
+/**
+ * The profiler caught the framework rather than the application.
+ *
+ * Read only when a profile was armed, and reported as a note: it is the one
+ * finding here that is as likely to be about this framework as about the code
+ * using it.
+ */
+function frameworkBound(batch: BatchFacts, thresholds: Thresholds): Finding[] {
+  const profile = batch.profile
+
+  if (profile === undefined) return []
+
+  const measured = profile.origins.reduce((total, origin) => total + origin.selfMs, 0)
+
+  if (measured <= 0) return []
+
+  const theirs = profile.origins
+    .filter((origin) => !origin.mine)
+    .reduce((total, origin) => total + origin.selfMs, 0)
+
+  const share = theirs / measured
+
+  if (share < thresholds.frameworkShare) return []
+
+  const worst = [...profile.origins]
+    .filter((origin) => !origin.mine)
+    .sort((a, b) => b.selfMs - a.selfMs)
+    .slice(0, 3)
+    .map((origin) => `${origin.name} ${round(origin.selfMs)}ms`)
+    .join(' · ')
+
+  return [
+    {
+      id: 'framework-bound',
+      level: 'note',
+      title: `${Math.round(share * 100)}% of the profile was not your code`,
+      detail: worst === '' ? 'The time is in the framework, not in the application.' : worst,
+      evidence: [],
+      cost: round(theirs)
+    }
+  ]
+}
+
+function heavyPayload(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const request = requestOf(entries)
+  const size = sizeOf(request?.content.payload)
+
+  if (request === undefined || size < thresholds.payloadBytes) return []
+
+  return one(
+    'heavy-payload',
+    'note',
+    `The request body was ${kb(size)}`,
+    'Recorded in full, which is also what the application parsed before the handler ran.',
+    [request]
+  )
+}
+
+/**
+ * A cache that mostly misses is not caching.
+ *
+ * Counted rather than per-key: `missedTwice` catches one key nothing writes,
+ * and this catches the store that is cold for everything — a cache pointed at
+ * the wrong connection, or one whose entries expire before they are read.
+ */
+function mostlyMisses(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const lookups = of(entries, 'cache').filter(
+    (entry) => entry.content.type === 'hit' || entry.content.type === CACHE_MISSED
+  )
+
+  if (lookups.length < thresholds.cacheLookups) return []
+
+  const missed = lookups.filter((entry) => entry.content.type === CACHE_MISSED)
+  const share = missed.length / lookups.length
+
+  if (share < thresholds.missShare) return []
+
+  return one(
+    'cache-cold',
+    'problem',
+    `${missed.length} of ${lookups.length} cache lookups missed`,
+    'A cache this cold is costing a round trip and saving nothing.',
+    missed
+  )
+}
+
+/**
+ * Several mails sent while somebody waited for the page.
+ *
+ * The transport is somebody else's server, and a request that waits for it has
+ * given its own latency away. **From two**, because one transactional mail — a
+ * password reset, a receipt — is ordinary and flagging every one of them would
+ * make this list noise. Two in one request is a loop or a fan-out, and both
+ * belong on the queue.
+ */
+function mailInTheRequest(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const request = requestOf(entries)
+  const sent = of(entries, 'mail')
+
+  if (request === undefined || sent.length < 2) return []
+
+  const heavy = sent.filter(
+    (entry) => Number(entry.content.attachments ?? 0) >= thresholds.attachments
+  )
+
+  return [
+    ...one(
+      'mail-in-request',
+      'note',
+      `${sent.length} mails sent while the request was open`,
+      "The caller waited for somebody else's SMTP server. Queue it and they will not.",
+      sent
+    ),
+    ...(heavy.length === 0
+      ? []
+      : one(
+          'mail-attachments',
+          'note',
+          `${heavy.length} mail${heavy.length === 1 ? '' : 's'} carried ${thresholds.attachments} attachments or more`,
+          heavy
+            .map(
+              (entry) =>
+                `${String(entry.content.subject ?? '(no subject)')} · ${String(entry.content.attachments)}`
+            )
+            .join(' · '),
+          heavy
+        ))
+  ]
+}
+
+/** A batch whose jobs did not all arrive, read from the jobs beside it. */
+function failedBatches(entries: BarEntry[]): Finding[] {
+  const batches = of(entries, 'batch')
+  const failed = of(entries, 'job').filter((entry) => entry.content.status === 'failed')
+
+  if (batches.length === 0 || failed.length === 0) return []
+
+  return one(
+    'failed-batch',
+    'problem',
+    `${failed.length} job${failed.length === 1 ? '' : 's'} failed in a batch of ${batches.map((entry) => String(entry.content.totalJobs ?? 0)).join(', ')}`,
+    'A batch reports its own success; the jobs inside it are where the failure is.',
+    [...batches, ...failed]
+  )
+}
+
+/** Bytes a recorded value takes as JSON, which is how it was stored. */
+function sizeOf(value: unknown): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value === 'string') return value.length
+
+  try {
+    return JSON.stringify(value)?.length ?? 0
+  } catch {
+    // A cycle, which the watcher would have summarised anyway.
+    return 0
+  }
 }
 
 function place(entry: BarEntry): string {

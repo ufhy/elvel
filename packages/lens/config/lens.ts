@@ -49,7 +49,26 @@ export default {
      * it to your editor's scheme and every query, exception and dump on the bar
      * becomes one click from the line that caused it.
      */
-    editor: env('LENS_BAR_EDITOR', '')
+    editor: env('LENS_BAR_EDITOR', ''),
+
+    /**
+     * The numbers the bar's analysis argues from.
+     *
+     * Every finding is a judgement about what is worth interrupting for, and
+     * every judgement here is arguable: a hundred milliseconds is a slow query
+     * in a request and an ordinary one in a nightly report. Name the one you
+     * disagree with; the rest keep their defaults.
+     *
+     * ```ts
+     * thresholds: { slowQuery: 250, logLines: 50 }
+     * ```
+     *
+     * `slowQuery`, `repeats`, `responseBytes`, `viewMs`, `databaseShare`,
+     * `logLines`, `events`, `viewBytes`, `callBytes`, `cacheBytes`,
+     * `cacheSeconds`, `slowerThanUsual`, `middlewareShare`, `frameworkShare`,
+     * `payloadBytes`, `attachments`, `cacheLookups`, `missShare`.
+     */
+    thresholds: {} as Record<string, number>
   },
 
   /** Only `database` today. An unknown driver binds nothing and says so. */
