@@ -150,9 +150,55 @@ on the findings:
 | **Cache key `user:1` missed 2 times** | A cache that is not caching |
 | **1 error-level log message** | Logged and forgotten |
 | **The response was 293 KB** | Large enough that the browser feels it first |
+| **3.2× slower than this route usually is** | Against the route's own median. 400ms is fine for a report and alarming for a redirect |
+| **62% of the request was over before the handler ran** | The session, authentication, or a limiter |
+| **4,000 models built from rows** | One query with no limit behind it, which the query list cannot show |
+| **2 jobs nearly out of attempts** | The next failure drops the work |
+| **This request wrote to 2 connections** | A transaction covers one of them |
+
+Forty-odd of them, and each number behind them is a judgement rather than a
+measurement — so they all live in one place:
+
+```ts
+// config/lens.ts
+bar: {
+  thresholds: { slowQuery: 250, logLines: 50 }
+}
+```
+
+Name the one you disagree with; the rest keep their defaults.
 
 A request with nothing wrong says so, in one line. That matters as much as the
 rest: a bar that always has something to complain about is a bar nobody reads.
+
+#### Asking the database why
+
+One finding is off by default, because it is the only thing in Lens that *acts*
+rather than watches:
+
+```ts
+// config/lens.ts
+watchers: {
+  query: { explain: true }
+}
+```
+
+With it on, a `select` slow enough to be tagged `slow` is followed by an
+`EXPLAIN` on the same connection, and a plan that reads a whole table becomes:
+
+> **1 query reads a whole table** — `users` — the database found no index it
+> could use.
+
+The plan itself is in the entry's panel. What it costs is one extra round trip
+per slow select. What it never does: `EXPLAIN ANALYZE`, which would execute the
+statement a second time; anything but a single `select` — a write, or a second
+statement after a semicolon, is refused rather than reasoned about; or an
+`EXPLAIN` of its own `EXPLAIN`, which is guarded on the statement rather than on
+a flag because that recursion has to be impossible rather than unlikely.
+
+The answer is not waited for. A request is not made to pause for an inspection
+of itself, and a plan that arrives after the batch was flushed is dropped — the
+entry simply carries no plan, which is the honest outcome of asking too late.
 
 ### It profiles
 

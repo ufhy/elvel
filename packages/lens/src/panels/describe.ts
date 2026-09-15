@@ -256,7 +256,9 @@ function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {
           ['Bindings', str(content.bindings)],
           ['Called from', where(content)]
         ]),
-        code('Statement', str(content.sql))
+        code('Statement', str(content.sql)),
+        // Only when the plan was asked for, which is off by default.
+        ...(content.plan === undefined ? [] : [code('Query plan', str(content.plan))])
       ]
 
     case EntryType.EXCEPTION:

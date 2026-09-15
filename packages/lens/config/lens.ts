@@ -248,6 +248,21 @@ export default {
       enabled: env('LENS_QUERY_WATCHER', true),
       /** Milliseconds at or above which a query is tagged `slow`. */
       slow: 100,
+
+      /**
+       * Ask the database how it answered a slow query.
+       *
+       * **Off, and the only setting here that makes Lens act rather than
+       * watch.** With it on, a `select` that reached `slow` above is followed by
+       * an `EXPLAIN` on the same connection, and a plan that reads a whole table
+       * becomes a finding naming the table rather than the symptom.
+       *
+       * What it costs: one extra round trip per slow select. What it never
+       * does: `EXPLAIN ANALYZE`, which executes the statement a second time;
+       * anything but a single `select`; or a statement of its own on a
+       * connection the query did not use.
+       */
+      explain: env('LENS_QUERY_EXPLAIN', false),
       /** Drop frames from these paths when locating the caller. */
       ignorePaths: [] as string[]
     },

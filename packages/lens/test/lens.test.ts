@@ -588,6 +588,71 @@ describe('query watcher', () => {
     expect(recorded[0]?.content.sql).toContain('?')
   })
 
+  /**
+   * `explain` is a statement like any other, so the connection dispatches it and
+   * this watcher would record it — and then explain *that*.
+   */
+  test('never records its own instrument', () => {
+    const watcher = new QueryWatcher({ slow: 0, explain: true })
+    const recorded: IncomingEntry[] = []
+
+    const lens = {
+      recording: () => true,
+      record: (_type: EntryTypeName, candidate: IncomingEntry) => recorded.push(candidate)
+    } as unknown as Recorder
+
+    const reach = watcher as unknown as { record(lens: Recorder, event: unknown): void }
+
+    for (const sql of [
+      'explain query plan select 1',
+      'EXPLAIN (format json) select 1',
+      '  explain format=json select 1'
+    ]) {
+      reach.record(lens, { sql, bindings: [], time: 1, connectionName: 'main' })
+    }
+
+    expect(recorded).toEqual([])
+  })
+
+  /** Off unless asked for: it is the one thing here that issues a statement. */
+  test('and asks the database nothing unless explain is on', async () => {
+    let asked = 0
+
+    const watcher = new QueryWatcher({ slow: 0 })
+    const lens = {
+      recording: () => true,
+      record: () => undefined,
+      recordUpdate: () => undefined
+    } as unknown as Recorder
+
+    const reach = watcher as unknown as {
+      app: unknown
+      record(lens: Recorder, event: unknown): void
+    }
+
+    reach.app = {
+      bound: () => true,
+      make: () => ({
+        connection: async () => {
+          asked += 1
+
+          return { grammar: { dialect: 'sqlite' }, select: async () => [] }
+        }
+      })
+    }
+
+    reach.record(lens, {
+      sql: 'select * from users',
+      bindings: [],
+      time: 500,
+      connectionName: 'main'
+    })
+
+    await Bun.sleep(5)
+
+    expect(asked).toBe(0)
+  })
+
   test('the family hash ignores bindings so repeats collapse', () => {
     expect(QueryWatcher.familyHash('select * from users where id = ?')).toBe(
       QueryWatcher.familyHash('select * from users where id = ?')

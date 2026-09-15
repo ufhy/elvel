@@ -625,3 +625,33 @@ describe('what needed recording first', () => {
     ).not.toContain('jobs-nearly-given-up')
   })
 })
+
+/**
+ * The finding the plan exists for.
+ *
+ * Present only when `lens.watchers.query.explain` is on, because asking costs a
+ * statement. A slow query is a fact; a full scan is a cause.
+ */
+describe('a query that read the whole table', () => {
+  const ids = (entries: BarEntry[]) =>
+    findings(entries, split(entries, 100), DEFAULTS).map((one) => one.id)
+
+  test('names the tables, not the symptom', () => {
+    const found = findings(
+      [query('select * from users where note = ?', 40, { scans: ['users'] })],
+      split([], 100),
+      DEFAULTS
+    )
+
+    const scan = found.find((one) => one.id === 'full-scan')
+
+    expect(scan?.title).toContain('1 query reads a whole table')
+    expect(scan?.detail).toContain('users')
+    expect(scan?.cost).toBe(40)
+  })
+
+  test('and says nothing when nothing asked', () => {
+    expect(ids([query('select * from users where note = ?', 40)])).not.toContain('full-scan')
+    expect(ids([query('select * from users', 40, { scans: [] })])).not.toContain('full-scan')
+  })
+})

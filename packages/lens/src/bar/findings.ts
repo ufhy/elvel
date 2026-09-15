@@ -177,6 +177,7 @@ export function findings(
     ...answeredBadly(entries),
     ...unrouted(entries),
     ...redirectWithoutTarget(entries),
+    ...fullScans(entries),
     ...writesOnGet(entries),
     ...writesAcrossConnections(entries),
     ...repeatedFailures(entries),
@@ -548,6 +549,37 @@ function writesOnGet(entries: BarEntry[]): Finding[] {
     writes.map((entry) => shorten(String(entry.content.sql ?? ''))).join(' · '),
     writes
   )
+}
+
+/**
+ * The database said it read the whole table.
+ *
+ * Only present when `lens.watchers.query.explain` is on, because asking costs a
+ * statement of its own. When it is on, this is the finding that names the index
+ * that is missing rather than the symptom — a slow query is a fact, a full scan
+ * is a cause.
+ */
+function fullScans(entries: BarEntry[]): Finding[] {
+  const scanned = of(entries, 'query').filter(
+    (entry) => Array.isArray(entry.content.scans) && entry.content.scans.length > 0
+  )
+
+  if (scanned.length === 0) return []
+
+  const tables = [
+    ...new Set(scanned.flatMap((entry) => (entry.content.scans as string[]).map(String)))
+  ]
+
+  return [
+    {
+      id: 'full-scan',
+      level: 'problem',
+      title: `${scanned.length} quer${scanned.length === 1 ? 'y reads' : 'ies read'} a whole table`,
+      detail: `${tables.join(', ')} — the database found no index it could use.`,
+      evidence: scanned.map((entry) => entry.uuid),
+      cost: round(scanned.reduce((total, entry) => total + Number(entry.content.time ?? 0), 0))
+    }
+  ]
 }
 
 /**
