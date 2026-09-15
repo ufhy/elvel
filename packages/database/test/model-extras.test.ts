@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { enterRequestContext, withoutRequestContext } from '@elvel/core'
 import { BunSqlConnection } from '../src/connection/bun-sql.ts'
 import { Model, newUniqueId } from '../src/model/model.ts'
 import { SchemaBuilder } from '../src/schema/builder.ts'
@@ -184,5 +185,56 @@ describe('BroadcastsEvents', () => {
 
     // `deleted` is refused by this model's own broadcastOn, which returns nothing.
     expect(names).toEqual(['model.broadcast.created', 'model.broadcast.updated'])
+  })
+})
+
+/**
+ * Hydrations belong to the unit of work that caused them.
+ *
+ * A single counter on the class was read by whichever request finished first:
+ * measured on a playground page that calls its own server, the eight models the
+ * page hydrated were reported against the inner call, because that one flushed
+ * first. A process serving two requests at once scrambles them the same way.
+ */
+describe('counting hydrations', () => {
+  test('two units of work do not take each other counts', async () => {
+    await Note.create({ title: 'a' })
+    await Note.create({ title: 'b' })
+
+    enterRequestContext()
+
+    const outer = await Note.query().get()
+
+    expect(outer.count()).toBe(2)
+
+    /**
+     * A second unit of work, in a context of its own.
+     *
+     * `withoutRequestContext` is how a separate one is modelled here:
+     * `enterWorkContext` uses `enterWith`, so a nested call in the *same* async
+     * branch replaces the surrounding store rather than sitting beside it —
+     * which is not what two requests off the event loop do.
+     */
+    const inner = await withoutRequestContext(async () => {
+      enterRequestContext()
+
+      await Note.query().get()
+
+      return Model.takeHydratedCount()
+    })
+
+    expect(inner).toBeGreaterThan(0)
+    // The outer count is still its own, not zeroed by the inner one.
+    expect(Model.takeHydratedCount()).toBeGreaterThan(0)
+  })
+
+  test('and with no context at all it still counts', async () => {
+    await Note.create({ title: 'a' })
+
+    Model.takeHydratedCount()
+
+    await Note.query().get()
+
+    expect(Model.takeHydratedCount()).toBeGreaterThan(0)
   })
 })

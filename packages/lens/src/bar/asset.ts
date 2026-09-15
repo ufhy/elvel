@@ -414,6 +414,18 @@ export const BAR_SCRIPT = String.raw`
     timing.appendChild(node('b', '', ms(shape.totalMs)))
     timing.appendChild(meter(shape))
     timing.appendChild(node('span', '', 'db ' + ms(shape.databaseMs)))
+    /**
+     * What the queries turned into, which the query list cannot show.
+     *
+     * A model list records writes — created, updated, deleted — so a page that
+     * only reads files no model entry at all, and a read was invisible on the
+     * bar. Hydration is counted rather than evented, because an event per row
+     * would make reading a thousand rows a thousand dispatches; this is where
+     * that number is finally read.
+     */
+    if (batch.hydrated > 0) {
+      timing.appendChild(node('span', '', batch.hydrated + ' models'))
+    }
     timing.appendChild(node('span', '', 'view ' + ms(shape.renderMs)))
     timing.appendChild(node('span', '', 'app ' + ms(shape.otherMs)))
     if (batch.verdict && batch.verdict.times !== undefined && batch.verdict.samples > 3) {

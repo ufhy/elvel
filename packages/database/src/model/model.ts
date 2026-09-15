@@ -1,4 +1,5 @@
 import type { ApplicationContract, EventDispatcher } from '@elvel/contracts'
+import { inRequestContext, requestSlot } from '@elvel/core'
 import { Collection } from '@elvel/support'
 import type { Connection, Row } from '../connection/connection.ts'
 import { QueryBuilder } from '../query/builder.ts'
@@ -78,6 +79,14 @@ export class ModelEvent {
  */
 /** `full_name` → `FullName`, once per distinct column name. See `Model.studly`. */
 const STUDLY = new Map<string, string>()
+
+/**
+ * Hydrations counted against the unit of work that caused them.
+ *
+ * Module scope rather than a class field: one slot shared by every model, which
+ * is what "this request built 1,240 models" means.
+ */
+const hydratedSlot = requestSlot<number>('database.hydrated')
 
 export class Model {
   static table?: string
@@ -554,29 +563,53 @@ export class Model {
   }
 
   /**
-   * How many models have been hydrated.
+   * How many models have been hydrated, per unit of work.
    *
    * A counter rather than a `retrieved` event, and the reason is structural:
    * `fireEvent()` is async and `hydrate()` is not, so an event here would make
    * hydration async and every caller with it — `get()`, `first()`, the eager
    * loader, pivots. PHP never had to decide this.
    *
-   * The number is what the question was ever about: "this request hydrated
-   * 1,240 models" is what exposes a query pulling a whole table, and a recorder
-   * reads it at the end of the request.
+   * **Kept in the request's own slot, not on the class.** A single number on a
+   * static was read by whichever request finished first: measured on a page that
+   * calls its own server, the eight models the page hydrated were reported
+   * against the inner call, because that one flushed first. A process serving
+   * two requests at once would scramble them the same way.
+   *
+   * The fallback is the static, for everything with no context around it — a
+   * console command, a worker, a test.
    */
   private static hydrated = 0
 
   static hydratedCount(): number {
-    return Model.hydrated
+    return inRequestContext() ? (hydratedSlot.get() ?? 0) : Model.hydrated
   }
 
   /** Read and zero it, which is what a per-request recorder wants. */
   static takeHydratedCount(): number {
+    if (inRequestContext()) {
+      const scoped = hydratedSlot.get() ?? 0
+
+      hydratedSlot.set(0)
+
+      return scoped
+    }
+
     const count = Model.hydrated
     Model.hydrated = 0
 
     return count
+  }
+
+  /** Counted where the work is, so two requests cannot take each other's. */
+  private static countHydration(): void {
+    if (!inRequestContext()) {
+      Model.hydrated += 1
+
+      return
+    }
+
+    hydratedSlot.set((hydratedSlot.get() ?? 0) + 1)
   }
 
   /** Set when this model came out of a multi-row result. See `strictLazyLoading`. */
@@ -872,7 +905,7 @@ export class Model {
     model.syncOriginal()
     model.exists = true
 
-    Model.hydrated += 1
+    Model.countHydration()
 
     return model
   }

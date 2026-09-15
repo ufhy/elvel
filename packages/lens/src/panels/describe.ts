@@ -240,10 +240,22 @@ function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {
           ['URI', str(content.uri)],
           ['Route', str(content.route)],
           ['Status', str(content.responseStatus)],
+          // Recorded since the 3xx check needed it, and shown since a reader
+          // wants it for the same reason: a redirect's whole content is where
+          // it went.
+          ['Redirected to', str(content.location)],
           ['Duration', ms(content.duration)],
           ['Client', str(content.ipAddress)]
         ]),
         mapping('Headers', content.headers),
+        /**
+         * The answer's headers, which were recorded and never shown.
+         *
+         * This is the half a cache header, a `set-cookie` or a CORS refusal
+         * lives in — the request's own headers cannot answer any of those, and
+         * the entry has carried these the whole time.
+         */
+        mapping('Response headers', content.responseHeaders),
         mapping('Payload', content.payload),
         mapping('Session', content.session),
         block('Response', content.response)
