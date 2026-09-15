@@ -1,5 +1,6 @@
 import type { ApplicationContract } from '@elvel/contracts'
 import { enterRequestContext } from '@elvel/core'
+import { Model } from '@elvel/database'
 import { currentScope } from '@elvel/http'
 import { Elysia } from 'elysia'
 import type { Baselines } from '../bar/baseline.ts'
@@ -60,6 +61,15 @@ export type LensPluginOptions = {
 export function lensPlugin(app: ApplicationContract, options: LensPluginOptions) {
   const batches = new WeakMap<Request, Batch>()
   const started = new WeakMap<Request, number>()
+  /**
+   * The heap as the request arrived, so the flush can say how much it grew.
+   *
+   * `process.memoryUsage()` rather than `bun:jsc`'s `heapStats()`: measured on
+   * Bun 1.4.0, `heapStats()` costs 0.56ms a call because it builds a map of
+   * every object type, and two of those per request is a real tax on a 20ms
+   * one. This costs 0.0017ms and answers the question being asked.
+   */
+  const heapAtStart = new WeakMap<Request, number>()
 
   /**
    * When each stage of the request finished, in milliseconds from its arrival.
@@ -71,6 +81,23 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
    * reading a clock.
    */
   const marks = new WeakMap<Request, Array<{ name: string; atMs: number }>>()
+
+  /**
+   * What the heap did during this request.
+   *
+   * `grewBy` can be negative and that is not an error: the collector runs when
+   * it likes, so a request that allocated a great deal and was collected part
+   * way through ends smaller than it started. Reported as it was measured.
+   */
+  function memoryOf(request: Request): { heapUsed: number; grewBy: number } | undefined {
+    const before = heapAtStart.get(request)
+
+    if (before === undefined) return undefined
+
+    const heapUsed = process.memoryUsage().heapUsed
+
+    return { heapUsed, grewBy: heapUsed - before }
+  }
 
   function mark(request: Request, name: string): void {
     const begun = started.get(request)
@@ -135,6 +162,7 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
 
         batches.set(request, batch)
         started.set(request, performance.now())
+        heapAtStart.set(request, process.memoryUsage().heapUsed)
         marks.set(request, [])
 
         /**
@@ -260,7 +288,14 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
             marks: marks.get(request) ?? [],
             kind: kindOf(request),
             verdict: options.baselines?.record(route, duration),
-            profile: await options.profiler?.end(batch.batchId, duration)
+            profile: await options.profiler?.end(batch.batchId, duration),
+            /**
+             * Read and zeroed here, which is the only place that knows where one
+             * unit of work ends. A request that reads no models takes the
+             * counter to zero and says nothing.
+             */
+            hydrated: Model.takeHydratedCount(),
+            memory: memoryOf(request)
           })
 
           /**

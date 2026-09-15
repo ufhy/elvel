@@ -66,7 +66,8 @@ export default {
      * `slowQuery`, `repeats`, `responseBytes`, `viewMs`, `databaseShare`,
      * `logLines`, `events`, `viewBytes`, `callBytes`, `cacheBytes`,
      * `cacheSeconds`, `slowerThanUsual`, `middlewareShare`, `frameworkShare`,
-     * `payloadBytes`, `attachments`, `cacheLookups`, `missShare`.
+     * `payloadBytes`, `attachments`, `cacheLookups`, `missShare`, `hydrated`,
+     * `attemptsLeft`, `memoryBytes`.
      */
     thresholds: {} as Record<string, number>
   },

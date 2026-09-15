@@ -69,12 +69,46 @@ describe('the N+1, named rather than badged', () => {
     expect(judge([query('select 1'), query('select 1')])).toEqual([])
   })
 
-  /**
-   * The key is the statement with its placeholders still in it, which is the
-   * recorder's own family hash made visible. Differing ids are the same query.
-   */
+  /** Different tables are a different query, and usually a different problem. */
   test('different statements are not grouped', () => {
-    expect(judge([query('select 1'), query('select 2'), query('select 3')])).toEqual([])
+    expect(
+      judge([
+        query('select * from posts'),
+        query('select * from users'),
+        query('select * from tags')
+      ])
+    ).toEqual([])
+  })
+
+  /**
+   * The same loop, written without bindings.
+   *
+   * The builder binds its values, so a loop over ids is already one statement.
+   * Raw SQL is not: `where id = 1` and `where id = 2` were filed as unrelated
+   * queries, which is the N+1 nobody was told about.
+   */
+  test('statements differing only in a literal are one loop', () => {
+    const found = judge([
+      query('select * from comments where post_id = 1'),
+      query('select * from comments where post_id = 2'),
+      query('select * from comments where post_id = 3')
+    ])
+
+    expect(found).toHaveLength(1)
+    expect(found[0]?.title).toBe('The same query ran 3 times')
+    // The statement as it was written, not as it was grouped.
+    expect(found[0]?.detail).toContain('post_id = 1')
+  })
+
+  /** A number inside a string is part of the string, not a literal of its own. */
+  test('and a quoted value is replaced whole', () => {
+    expect(
+      judge([
+        query("select * from users where name = 'user 1'"),
+        query("select * from users where name = 'user 2'"),
+        query("select * from users where name = 'user 3'")
+      ])
+    ).toHaveLength(1)
   })
 })
 
@@ -543,5 +577,51 @@ describe('writes across connections', () => {
         query('update orders set paid = ?', 2, { connection: 'mysql' })
       ])
     ).not.toContain('two-connections')
+  })
+})
+
+/**
+ * The four from the checklist that needed something recorded first.
+ *
+ * Each had been struck off as "needs data nothing records"; three of them
+ * needed the recording, and the fourth needed a number somebody was willing to
+ * argue for.
+ */
+describe('what needed recording first', () => {
+  const judgeWith = (entries: BarEntry[], batch = {}) =>
+    findings(entries, split(entries, 100), DEFAULTS, batch).map((one) => one.id)
+
+  test('a request that built a great many models', () => {
+    const found = findings([query('select * from rows')], split([], 100), DEFAULTS, {
+      hydrated: 4000
+    })
+
+    expect(found.map((one) => one.id)).toContain('many-models')
+    expect(found.find((one) => one.id === 'many-models')?.title).toContain('4000 models')
+    expect(judgeWith([], { hydrated: 12 })).not.toContain('many-models')
+  })
+
+  test('a heap that grew, and one that did not', () => {
+    expect(judgeWith([], { memory: { heapUsed: 90e6, grewBy: 64 * 1024 * 1024 } })).toContain(
+      'heap-growth'
+    )
+    expect(judgeWith([], { memory: { heapUsed: 90e6, grewBy: 1024 } })).not.toContain('heap-growth')
+    // The collector runs when it likes: smaller than it started is not a finding.
+    expect(judgeWith([], { memory: { heapUsed: 10e6, grewBy: -5e6 } })).not.toContain('heap-growth')
+  })
+
+  test('a job one failure from being dropped', () => {
+    expect(
+      judgeWith([entry('job', { name: 'Import', status: 'processed', attempts: 3, tries: 3 })])
+    ).toContain('jobs-nearly-given-up')
+
+    expect(
+      judgeWith([entry('job', { name: 'Import', status: 'processed', attempts: 1, tries: 5 })])
+    ).not.toContain('jobs-nearly-given-up')
+
+    // A queue with no limit never runs out of attempts.
+    expect(
+      judgeWith([entry('job', { name: 'Import', status: 'processed', attempts: 9, tries: 0 })])
+    ).not.toContain('jobs-nearly-given-up')
   })
 })

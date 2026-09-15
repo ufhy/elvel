@@ -63,6 +63,17 @@ export type Thresholds = {
   cacheLookups: number
   /** Share of cache lookups that may miss before the cache is not caching. */
   missShare: number
+  /** Models built from rows in one request before it is worth saying. */
+  hydrated: number
+  /**
+   * Attempts left before a job is given up on, at or below which it is said.
+   *
+   * One is the useful number: a job on its last attempt is one failure from
+   * being dropped, and that is the moment somebody would want to know.
+   */
+  attemptsLeft: number
+  /** Bytes the heap may grow during one request before it is worth saying. */
+  memoryBytes: number
 }
 
 /**
@@ -91,7 +102,10 @@ export const DEFAULTS: Thresholds = {
   payloadBytes: 256 * 1024,
   attachments: 5,
   cacheLookups: 5,
-  missShare: 0.8
+  missShare: 0.8,
+  hydrated: 500,
+  attemptsLeft: 1,
+  memoryBytes: 32 * 1024 * 1024
 }
 
 /**
@@ -102,6 +116,10 @@ export const DEFAULTS: Thresholds = {
  * whose code the profiler actually caught.
  */
 export type BatchFacts = {
+  /** Models built from rows, counted by the ORM rather than recorded per row. */
+  hydrated?: number
+  /** The heap at the end, and how much it grew getting there. */
+  memory?: { heapUsed: number; grewBy: number }
   verdict?: { route: string; medianMs: number; samples: number; times?: number }
   marks?: Array<{ name: string; atMs: number }>
   profile?: {
@@ -164,6 +182,7 @@ export function findings(
     ...repeatedFailures(entries),
     ...failedJobs(entries),
     ...retriedJobs(entries),
+    ...jobsNearlyGivenUp(entries, thresholds),
     ...failedCalls(entries),
     ...repeatedCalls(entries),
     ...deniedGates(entries),
@@ -184,6 +203,8 @@ export function findings(
     ...mostlyMisses(entries, thresholds),
     ...mailInTheRequest(entries, thresholds),
     ...failedBatches(entries),
+    ...manyModels(batch, entries, thresholds),
+    ...heapGrowth(batch, thresholds),
     ...slowerThanUsual(batch, thresholds),
     ...timeBeforeTheHandler(batch, shape, thresholds),
     ...frameworkBound(batch, thresholds)
@@ -210,23 +231,38 @@ function repeated(entries: BarEntry[], thresholds: Thresholds): Finding[] {
 
     if (sql === '') continue
 
-    groups.set(sql, [...(groups.get(sql) ?? []), entry])
+    /**
+     * Grouped by shape, not by text.
+     *
+     * The builder binds its values, so a loop over ids produces one statement
+     * and this was already the N+1. Raw SQL does not: `where id = 1` and
+     * `where id = 2` are the same loop written differently, and grouping by the
+     * exact string filed them as twenty unrelated queries.
+     *
+     * Literals only. Normalising identifiers as well would fold `from posts`
+     * and `from comments` together, which is a different query and usually a
+     * different problem — that would need a parser rather than this.
+     */
+    groups.set(shapeOf(sql), [...(groups.get(shapeOf(sql)) ?? []), entry])
   }
 
   const found: Finding[] = []
 
-  for (const [sql, group] of groups) {
+  for (const [shape, group] of groups) {
     if (group.length < thresholds.repeats) continue
 
     const first = group[0]
 
     if (first === undefined) continue
 
+    // The statement as it was written, not as it was grouped: a reader looking
+    // for this in their code is looking for the text they typed.
+    const sql = String(first.content.sql ?? '')
     const where = place(first)
     const cost = round(group.reduce((total, entry) => total + Number(entry.content.time ?? 0), 0))
 
     found.push({
-      id: `repeat:${sql}`,
+      id: `repeat:${shape}`,
       level: 'problem',
       title: `The same query ran ${group.length} times`,
       detail: where === '' ? shorten(sql) : `${shorten(sql)} — from ${where}`,
@@ -389,6 +425,20 @@ function missedTwice(entries: BarEntry[]): Finding[] {
       detail: 'Looked up more than once and never found — nothing is writing it.',
       evidence: group.map((entry) => entry.uuid)
     }))
+}
+
+/**
+ * One statement's shape: its literals replaced, its identifiers left alone.
+ *
+ * Quoted strings first, so a number *inside* a string — `'user 2'` — is not
+ * mistaken for a literal of its own and left behind as a difference.
+ */
+function shapeOf(sql: string): string {
+  return sql
+    .replace(/'(?:[^']|'')*'/g, '?')
+    .replace(/\b\d+(?:\.\d+)?\b/g, '?')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** A statement that changes something, however it is spelled. */
@@ -582,6 +632,40 @@ function retriedJobs(entries: BarEntry[]): Finding[] {
       .map((entry) => `${String(entry.content.name ?? '')} × ${String(entry.content.attempts)}`)
       .join(' · '),
     retried
+  )
+}
+
+/**
+ * A job that survived, one attempt from being dropped.
+ *
+ * `retriedJobs` says it needed more than one go; this says it is nearly out of
+ * them. The difference matters: the first is a flaky dependency, the second is
+ * the run where the work is about to be lost.
+ */
+function jobsNearlyGivenUp(entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const nearly = of(entries, 'job').filter((entry) => {
+    const tries = Number(entry.content.tries ?? 0)
+    const attempts = Number(entry.content.attempts ?? 0)
+
+    // Both have to be known: a queue with no limit never runs out of attempts.
+    if (tries <= 1 || attempts <= 0) return false
+
+    return tries - attempts <= thresholds.attemptsLeft
+  })
+
+  if (nearly.length === 0) return []
+
+  return one(
+    'jobs-nearly-given-up',
+    'problem',
+    `${nearly.length} job${nearly.length === 1 ? '' : 's'} nearly out of attempts`,
+    nearly
+      .map(
+        (entry) =>
+          `${String(entry.content.name ?? '')} — attempt ${String(entry.content.attempts)} of ${String(entry.content.tries)}`
+      )
+      .join(' · '),
+    nearly
   )
 }
 
@@ -906,6 +990,61 @@ function shortCacheLives(entries: BarEntry[], thresholds: Thresholds): Finding[]
       .join(' · '),
     brief
   )
+}
+
+/**
+ * A request that built a great many models.
+ *
+ * Usually one query with no `limit` behind it, and the number is the only way to
+ * see it: the query list shows one statement that took 12ms, and says nothing
+ * about the four thousand objects built from what it returned. Counted by the
+ * ORM rather than recorded per row, because an event per hydration would make
+ * reading a thousand rows a thousand dispatches.
+ */
+function manyModels(batch: BatchFacts, entries: BarEntry[], thresholds: Thresholds): Finding[] {
+  const built = batch.hydrated ?? 0
+
+  if (built < thresholds.hydrated) return []
+
+  const queries = of(entries, 'query')
+
+  return [
+    {
+      id: 'many-models',
+      level: 'problem',
+      title: `${built} models built from rows in one request`,
+      detail:
+        queries.length === 0
+          ? 'Something read a great many rows and turned every one of them into an object.'
+          : `From ${queries.length} quer${queries.length === 1 ? 'y' : 'ies'} — usually one of them has no limit.`,
+      evidence: queries.map((entry) => entry.uuid)
+    }
+  ]
+}
+
+/**
+ * The heap grew, and by how much.
+ *
+ * Only the growth, never the total: a process's heap says more about how long
+ * it has been up than about this request. A negative growth is not reported and
+ * is not an error either — the collector runs when it likes, and a request that
+ * allocated heavily can end smaller than it started.
+ */
+function heapGrowth(batch: BatchFacts, thresholds: Thresholds): Finding[] {
+  const grewBy = batch.memory?.grewBy ?? 0
+
+  if (grewBy < thresholds.memoryBytes) return []
+
+  return [
+    {
+      id: 'heap-growth',
+      level: 'note',
+      title: `The heap grew by ${kb(grewBy)} during this request`,
+      detail:
+        'Held for the whole request, whatever it was. The collector may have run as well, so this is the floor rather than the total allocated.',
+      evidence: []
+    }
+  ]
 }
 
 /**

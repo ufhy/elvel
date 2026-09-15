@@ -52,6 +52,22 @@ export type BarBatch = {
   verdict?: Verdict
   /** A CPU profile, when one was armed for this request. */
   profile?: Profile
+  /**
+   * Models built from rows during this unit of work.
+   *
+   * A counter rather than an entry per model: hydration is synchronous and
+   * firing an event per row would make reading a thousand rows a thousand
+   * dispatches. The number is what the question was ever about — "this request
+   * built 1,240 models" is what exposes a query pulling a whole table.
+   */
+  hydrated?: number
+  /**
+   * The heap at the end of this unit of work, and how much it grew.
+   *
+   * Read with `process.memoryUsage()` rather than `bun:jsc`'s `heapStats()`,
+   * which costs 0.56ms a call because it counts every object by type.
+   */
+  memory?: { heapUsed: number; grewBy: number }
 }
 
 /** The list form: everything but the entries. */
