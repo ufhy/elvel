@@ -29,6 +29,44 @@ await Article.query().where('status', 'published').get()
 `get()` resolves to a **`Collection`**, not an array — `.all()`, `.count()`,
 `.first()`. See [collections](/digging-deeper/collections).
 
+## Finding and writing
+
+```ts
+await Article.query().firstOrNew({ slug })                 // not saved
+await Article.query().firstOrCreate({ slug }, { title })   // saved
+await Article.query().updateOrCreate({ slug }, { title })
+
+await Article.upsert(rows, ['slug'], ['title', 'views'])   // a static: one statement
+```
+
+`firstOrNew` hands back an unsaved model when nothing matched, which is what a
+form wants: the page can render it and decide later whether to save.
+
+`upsert` writes many rows in one statement — the second argument is what makes a
+row the same row, the third is what to overwrite when it already exists. **The
+columns it matches on need a unique index**, or the database refuses the
+statement: `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE
+constraint` on SQLite, and its equivalents elsewhere. It
+fills `created_at`/`updated_at` itself and **fires no model events**: a
+thousand-row import is not a thousand observers, and pretending otherwise would
+make the statement pointless. Reach for `create()` in a loop when the events are
+the point.
+
+## Keys a model makes itself
+
+```ts
+class ApiToken extends Model {
+  static override uniqueIds = 'ulid'
+  static override incrementing = false
+  static override keyType = 'string'
+}
+```
+
+`'uuid'` or `'ulid'`, and the key is generated before the insert rather than by
+the database. A ULID sorts by the time it was made, so rows arrive in insertion
+order without a sequence — which is the reason to prefer it over a UUID for
+anything a person will page through.
+
 ## Casts
 
 ```ts
@@ -216,7 +254,41 @@ class Article extends Model {
 await Article.query().with('author', 'comments').get()   // eager, no N+1
 await article.comments().where('approved', true).get()
 await article.load('author')
+
+await Article.query().withOnly('author').get()   // only this one, nothing default
+await Article.query().without('author').get()    // drop one the model loads always
+await Article.query().withCount('comments').get()
+await article.loadCount('comments')
 ```
+
+`withOnly` and `without` are for a model whose `with` static loads relations by
+default: one page needs none of them, and saying so beats reading why they are
+there.
+
+### What comes back is a collection of models
+
+`get()` on a model query answers a **`ModelCollection`** — everything a
+`Collection` does, plus the things that only make sense when the items are rows:
+
+```ts
+const articles = await Article.query().get()
+
+await articles.load('author')          // one query for the whole set
+await articles.loadMissing('comments') // only where it is not already loaded
+await articles.loadCount('comments')   // comments_count on each
+
+articles.modelKeys()                   // [1, 2, 3]
+articles.makeVisible('internal_notes') // for this set only
+articles.append('summary')             // an accessor, for this set only
+
+await articles.fresh()                 // re-read them, in one query
+articles.toQuery().update({ pinned: 1 }) // a query matching exactly these rows
+```
+
+`load` after the fact is the escape hatch for a set you did not know you would
+need a relation on — one query for the whole collection, not one per model.
+`diffKeys`, `onlyKeys` and `exceptKeys` compare two sets by key rather than by
+identity, which is what "the same row" usually means.
 
 ### Constraining an eager load
 
@@ -339,6 +411,32 @@ is right for one parent and **wrong for an eager load**, where it answers the wh
 set once and ten users would share one post between them. The key is aggregated
 alongside the column, so a tie on `created_at` cannot make a "one" relation return
 two rows.
+
+## Announcing a change
+
+```ts
+class Article extends Model {
+  broadcastOn(event: string) {
+    return event === 'deleted' ? [] : [`articles.${this.id}`]
+  }
+
+  broadcastWith() {
+    return { id: this.id, title: this.title }
+  }
+}
+```
+
+A model that declares `broadcastOn` publishes `created`, `updated` and `deleted`
+to the channels it names. Returning an empty array for an event is how one is
+skipped, and `broadcastWith` decides what goes out — without it the whole model
+does, hidden attributes excluded.
+
+::: tip It is dispatched inline, unlike upstream
+Laravel queues the broadcast, because its broadcaster is an HTTP call to Pusher
+and a request should not wait for one. Elvel's is in-process: the event reaches
+the sockets this process holds, or goes onto Redis pub/sub, and neither is worth
+a job. `ShouldBroadcastNow` is the shape this matches.
+:::
 
 ## Walking a large table
 

@@ -273,6 +273,61 @@ unique values are derived from it rather than from a random source that collides
 with a unique index roughly one run in fifty. Factories bypass `fillable`, as
 the fillable list does.
 
+**A fixture is usually a graph, not a row.** Writing the loops by hand is what
+these replace:
+
+```ts
+// An author with three books each
+await new AuthorFactory().count(2).has(new BookFactory().count(3)).create()
+
+// Fifteen comments belonging to one user, not to fifteen users
+await new CommentFactory().count(15).for(new UserFactory()).create()
+
+// Through a pivot
+await new BookFactory().hasAttached(new GenreFactory().count(2), 'genres').create()
+```
+
+`for` shares **one** parent across the batch, which is almost always what the
+fixture meant — fifteen comments by fifteen different people is a different test.
+`recycle(model)` hands an instance you already have to every relation that wants
+one, so a graph several levels deep does not create a new tenant at each level.
+
+Values that differ per row come from a sequence:
+
+```ts
+await new UserFactory().count(4).sequence({ plan: 'free' }, { plan: 'paid' }).create()
+await new UserFactory().count(4).crossJoinSequence(
+  [{ plan: 'free' }, { plan: 'paid' }],
+  [{ active: true }, { active: false }]
+)
+```
+
+`sequence` cycles; `crossJoinSequence` is every combination, which is how a test
+covers a matrix without naming each case.
+
+And the rest:
+
+```ts
+await new UserFactory().makeOne({ name: 'Ada' })        // unsaved, one
+await new UserFactory().createMany([{ name: 'A' }, { name: 'B' }])
+await new UserFactory().createQuietly()                  // no model events
+
+new UserFactory()
+  .afterMaking((user) => { /* before it is saved */ })
+  .afterCreating((user) => { /* after, with a key */ })
+```
+
+`Model.factory()` resolves one registered with
+`Model.registerFactory(User, () => new UserFactory())` — the model does not
+import its own factory, because that would put fixtures in the application
+bundle.
+
+::: tip There is no `connection()` on a factory
+Upstream has one. Here a model's connection is a static on the class, so a
+factory cannot change it for one call without changing it for everybody — the
+honest way to seed a second connection is a model bound to it.
+:::
+
 Seeders are composed explicitly with `call()` — there is no auto-discovery,
 because seed order matters and a directory listing is a poor way to express it. A
 seeder pulled in by two others still runs once.
