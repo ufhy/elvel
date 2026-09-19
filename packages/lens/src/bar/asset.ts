@@ -1108,6 +1108,46 @@ export const BAR_SCRIPT = String.raw`
     }
   }
 
+  /** Single quotes, the way a POSIX shell wants them. */
+  function shellQuote(value) {
+    return "'" + String(value).split("'").join("'\\''") + "'"
+  }
+
+  /**
+   * One request as a curl command.
+   *
+   * The origin comes from the page, because the entry records a path: the bar is
+   * on the server it is describing, which is the only server this can mean.
+   *
+   * A body is sent only for the methods that carry one. On a GET the payload is
+   * the query string, and the query string is already in the URL — sending it
+   * again would replay something the application never received.
+   */
+  function curlFor(content) {
+    const method = String(content.method || 'GET').toUpperCase()
+    const parts = ['curl -i -X ' + method + ' ' + shellQuote(location.origin + (content.uri || '/'))]
+    const headers = content.headers || {}
+
+    for (const name of Object.keys(headers)) {
+      parts.push('-H ' + shellQuote(name + ': ' + headers[name]))
+    }
+
+    const payload = content.payload
+    const sends = method !== 'GET' && method !== 'HEAD'
+
+    if (sends && payload !== undefined && payload !== null && payload !== '') {
+      const body = typeof payload === 'string' ? payload : JSON.stringify(payload)
+
+      if (typeof payload !== 'string' && headers['content-type'] === undefined) {
+        parts.push('-H ' + shellQuote('content-type: application/json'))
+      }
+
+      parts.push('--data ' + shellQuote(body))
+    }
+
+    return parts.join(' \\\n  ')
+  }
+
   function drawDetail() {
     detailPane.textContent = ''
     detailPane.style.display = view === null || entry === null ? 'none' : ''
@@ -1129,6 +1169,30 @@ export const BAR_SCRIPT = String.raw`
         }
       }
       head.appendChild(copy)
+    }
+
+    /**
+     * The request, as a command you can paste into a terminal.
+     *
+     * Replaying by hand means reading the panel and retyping it, which is where
+     * a wrong header comes from. A hidden header keeps its mask rather than
+     * being dropped: the command then carries a visible blank to fill in, which
+     * is honest about needing your own cookie and cannot silently send a
+     * different request than the one recorded.
+     */
+    if (entry.type === 'request' && entry.content) {
+      const asCurl = node('button', 'act', 'Copy cURL')
+      asCurl.type = 'button'
+      asCurl.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(curlFor(entry.content))
+          asCurl.textContent = 'Copied'
+          setTimeout(() => { asCurl.textContent = 'Copy cURL' }, 1200)
+        } catch {
+          asCurl.textContent = 'Blocked'
+        }
+      }
+      head.appendChild(asCurl)
     }
 
     if (entry.dashboard) {

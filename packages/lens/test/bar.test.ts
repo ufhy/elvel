@@ -1132,3 +1132,87 @@ describe('the panel keeps its own state straight', () => {
     expect(BAR_SCRIPT).toContain('if (!crossProcess)')
   })
 })
+
+/**
+ * The cURL builder, evaluated out of the script that ships.
+ *
+ * Not a copy of the logic: the two functions are sliced from `BAR_SCRIPT` and
+ * run, so a change to the shipped string is a change to what is asserted here.
+ * They are pure apart from `location.origin`, which is passed in.
+ */
+describe('copying a request as cURL', () => {
+  const build = (content: Record<string, unknown>, origin = 'http://localhost:3000') => {
+    const from = BAR_SCRIPT.indexOf('function shellQuote')
+    const to = BAR_SCRIPT.indexOf('function drawDetail')
+
+    expect(from).toBeGreaterThan(-1)
+    expect(to).toBeGreaterThan(from)
+
+    const source = BAR_SCRIPT.slice(from, to)
+    const make = new Function('location', 'content', source + '\nreturn curlFor(content)')
+
+    return make({ origin }, content) as string
+  }
+
+  test('method, absolute URL and headers', () => {
+    const command = build({
+      method: 'GET',
+      uri: '/articles?page=2',
+      headers: { accept: 'text/html', 'x-trace': 'abc' }
+    })
+
+    expect(command).toContain("curl -i -X GET 'http://localhost:3000/articles?page=2'")
+    expect(command).toContain("-H 'accept: text/html'")
+    expect(command).toContain("-H 'x-trace: abc'")
+  })
+
+  /** The query is already in the URL; sending it again is a different request. */
+  test('a GET carries no body', () => {
+    const command = build({ method: 'GET', uri: '/articles?page=2', payload: { page: '2' } })
+
+    expect(command).not.toContain('--data')
+  })
+
+  test('a POST sends its payload as JSON, and says so', () => {
+    const command = build({
+      method: 'POST',
+      uri: '/articles',
+      headers: {},
+      payload: { title: 'Hi' }
+    })
+
+    expect(command).toContain('--data \'{"title":"Hi"}\'')
+    expect(command).toContain("-H 'content-type: application/json'")
+  })
+
+  test('and does not add a content type the request already had', () => {
+    const command = build({
+      method: 'POST',
+      uri: '/x',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'a=1'
+    })
+
+    expect(command).toContain("--data 'a=1'")
+    expect(command.match(/content-type/g)).toHaveLength(1)
+  })
+
+  /**
+   * A hidden header keeps its mask rather than being dropped: the command then
+   * carries a visible blank to fill in, instead of quietly being a different
+   * request from the one recorded.
+   */
+  test('a masked header stays masked, visibly', () => {
+    const command = build({ method: 'GET', uri: '/', headers: { cookie: '********' } })
+
+    expect(command).toContain("-H 'cookie: ********'")
+  })
+
+  test("a quote in a value cannot end the shell's quoting", () => {
+    const command = build({ method: 'GET', uri: "/search?q=it's", headers: {} })
+
+    // The apostrophe closes the quoting, escapes itself, and reopens it.
+    expect(command).toContain("it'\\''s")
+    expect(command.endsWith("'")).toBe(true)
+  })
+})
