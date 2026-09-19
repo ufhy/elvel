@@ -183,6 +183,7 @@ export class LensServiceProvider extends ServiceProvider {
           path: this.config<string>('lens.path', 'lens'),
           editor: this.config<string>('lens.bar.editor', ''),
           root: this.app.basePath(),
+          config: this.config<string[]>('lens.config', []),
           stored: this.config<boolean>('lens.enabled', false),
           watchers: this.config<WatcherConfig>('lens.watchers', {})
         })

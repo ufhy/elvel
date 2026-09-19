@@ -72,6 +72,23 @@ export default {
     thresholds: {} as Record<string, number>
   },
 
+  /**
+   * Settings the bar may show, named one by one.
+   *
+   * Empty, and there is no switch that fills it. Configuration holds the
+   * application key, the mail password and every database credential, and the
+   * bar draws into a page — so a setting nobody wrote down here is not shown.
+   *
+   * ```ts
+   * config: ['app.name', 'app.env', 'app.timezone', 'cache.default']
+   * ```
+   *
+   * A named key still cannot become a dump: `database.connections` is one key,
+   * and a value that is not a scalar is described by its shape rather than
+   * printed.
+   */
+  config: [] as string[],
+
   /** Only `database` today. An unknown driver binds nothing and says so. */
   driver: env('LENS_DRIVER', 'database'),
 

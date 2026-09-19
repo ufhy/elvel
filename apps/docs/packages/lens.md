@@ -476,6 +476,22 @@ Worth knowing beyond that — **the cache watcher records values**, and the mail
 watcher records bodies. `watchers.cache.hidden` and `watchers.cache.ignore` take
 a name or a `prefix*` glob.
 
+### Showing configuration
+
+Debugbar ships a config collector and keeps it off, for a reason that has not
+changed: configuration holds the application key, the mail password and every
+database credential. So there is no switch here, only a list of keys:
+
+```ts
+// config/lens.ts
+config: ['app.name', 'app.env', 'app.timezone', 'cache.default']
+```
+
+The bar then has a **Config** entry showing those and nothing else. Empty by
+default, and with nothing named there is no entry at all. A named key cannot
+become a dump either: `database.connections` is one key, so a value that is not
+a scalar is described by its shape — `2 keys` — rather than printed.
+
 ## Configuration
 
 `config/lens.ts`, and every watcher is either `false` or its options:

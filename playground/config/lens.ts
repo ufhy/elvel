@@ -14,6 +14,9 @@ export default {
   /** Where the dashboard is served from. */
   path: env('LENS_PATH', 'lens'),
 
+  /** Settings the bar may show, named one by one. Nothing else is shown. */
+  config: ['app.name', 'app.env', 'app.timezone', 'database.connections'],
+
   /** Only `database` today. An unknown driver binds nothing and says so. */
   driver: env('LENS_DRIVER', 'database'),
 

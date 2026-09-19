@@ -252,6 +252,8 @@ export const BAR_SCRIPT = String.raw`
   let cursor = 0
   let crossProcess = false
   let menu = []
+  /** The settings the application allowlisted. Empty unless it named some. */
+  let settings = []
   let stale = false
   let view = null
   let picked = null
@@ -485,6 +487,8 @@ export const BAR_SCRIPT = String.raw`
     menuPane.appendChild(item('request', 'Request', counts.get('request') || 0))
     menuPane.appendChild(item('profile', 'Profile'))
     menuPane.appendChild(item('costs', 'Routes'))
+    // Only when an application named settings to show; there is no default set.
+    if (settings.length > 0) menuPane.appendChild(item('config', 'Config', settings.length))
     menuPane.appendChild(node('div', 'rule'))
 
     for (const one of menu) {
@@ -748,6 +752,7 @@ export const BAR_SCRIPT = String.raw`
     if (view === 'timeline') return drawTimeline()
     if (view === 'profile') return drawProfile()
     if (view === 'costs') return drawCosts()
+    if (view === 'config') return drawConfig()
     if (view === 'request') return drawEntries('request')
     drawEntries(view)
   }
@@ -1137,6 +1142,28 @@ export const BAR_SCRIPT = String.raw`
     middle.appendChild(grid)
   }
 
+  /**
+   * The allowlist, as the server resolved it.
+   *
+   * Drawn from what arrived and never from anything the page asks for by key:
+   * the client cannot widen the list, so a setting nobody named cannot be shown
+   * by poking at the bar.
+   */
+  function drawConfig() {
+    const head = node('div', 'head')
+    head.appendChild(node('span', 'who', 'Config'))
+    middle.appendChild(head)
+
+    const list = node('dl', 'kv')
+
+    for (const line of settings) {
+      list.appendChild(node('dt', '', line.key))
+      list.appendChild(node('dd', '', line.value))
+    }
+
+    middle.appendChild(list)
+  }
+
   // ----------------------------------------------------------------- detail
 
   async function open(uuid) {
@@ -1499,6 +1526,7 @@ export const BAR_SCRIPT = String.raw`
       cursor = payload.cursor || 0
       crossProcess = payload.crossProcess === true
       menu = payload.menu || menu
+      settings = payload.config || []
       const mine = tag.dataset.build || ''
       if (payload.build && mine && payload.build !== mine) stale = true
       drawHeader()

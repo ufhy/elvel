@@ -250,6 +250,47 @@ describe('the endpoint', () => {
   })
 
   /**
+   * The panel exists only for what an application named, so the list endpoint is
+   * where that has to be true — a client cannot ask for a key.
+   */
+  test('the list carries the settings that were allowlisted, and no others', async () => {
+    const { app, ring } = harness()
+
+    app.config.set('app.name', 'Playground')
+    app.config.set('app.key', 'base64:sekrit')
+
+    const router = new Elysia().use(
+      lensBar(app, {
+        state: barState(app),
+        ring,
+        path: 'lens',
+        editor: '',
+        root: '',
+        stored: false,
+        baselines: new Baselines(),
+        profiler: new RequestProfiler(),
+        watchers: {},
+        config: ['app.name']
+      })
+    )
+
+    const answer = await router.handle(new Request('http://localhost/lens-api/bar'))
+    const payload = (await answer.json()) as { config: { key: string; value: string }[] }
+
+    expect(payload.config).toEqual([{ key: 'app.name', value: 'Playground' }])
+    expect(JSON.stringify(payload)).not.toContain('sekrit')
+  })
+
+  /** No allowlist, no panel: the client draws the entry only when this is full. */
+  test('and nothing at all when none were', async () => {
+    const { router } = harness()
+    const answer = await router.handle(new Request('http://localhost/lens-api/bar'))
+    const payload = (await answer.json()) as { config: unknown[] }
+
+    expect(payload.config).toEqual([])
+  })
+
+  /**
    * The ring keeps the last few requests, so reading one is a race against the
    * application still serving. Pinning is how a request is read at leisure.
    */

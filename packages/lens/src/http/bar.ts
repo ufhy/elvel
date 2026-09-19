@@ -3,6 +3,7 @@ import { currentScope } from '@elvel/http'
 import { Elysia } from 'elysia'
 import { BAR_SCRIPT, BAR_STYLE } from '../bar/asset.ts'
 import type { Baselines } from '../bar/baseline.ts'
+import { configLines } from '../bar/config.ts'
 import { type BarState, barAllows } from '../bar/enabled.ts'
 import type { RequestProfiler } from '../bar/profiler.ts'
 import { type BarSummary, type BatchRing, listed } from '../bar/ring.ts'
@@ -33,6 +34,13 @@ export type LensBarOptions = {
   editor: string
   /** Stripped from the front of a path before it is shown. */
   root: string
+  /**
+   * Settings the bar may show, by dotted key. Empty means no config panel.
+   *
+   * An allowlist and never a switch: configuration holds the application key
+   * and every database password, so what is shown is what somebody wrote down.
+   */
+  config?: string[]
   /**
    * Whether storage is real, and so whether other processes can be seen.
    *
@@ -168,6 +176,8 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
            */
           build: BUILD,
           menu: menuOf(app, options),
+          /** Only what `lens.config` named, and empty unless it named something. */
+          config: configLines(app, options.config ?? []),
           cursor: options.ring.cursor(),
           /**
            * Whether anything outside this process can be seen at all. The bar
