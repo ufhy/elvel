@@ -200,6 +200,30 @@ The answer is not waited for. A request is not made to pause for an inspection
 of itself, and a plan that arrives after the batch was flushed is dropped — the
 entry simply carries no plan, which is the honest outcome of asking too late.
 
+#### Running the query yourself
+
+A query entry records how many bindings a statement had, never what they were,
+so the panel shows the statement with its placeholders still in it. That is
+enough to understand a query and not enough to run one. When running it is the
+point:
+
+```ts
+// config/lens.ts
+watchers: {
+  query: { bindings: true }
+}
+```
+
+The entry then also carries the statement with the values written in, the panel
+shows it as **Runnable statement**, and the bar offers **Copy SQL**.
+
+Off by default, and worth a moment's thought before turning on: the values are
+what the application queried by — the address in a `where`, the token being
+looked up, the column being written — and they are then stored in a row anyone
+who can reach the dashboard can read, and drawn into the page by the bar. On
+your own machine that is the whole point. Somewhere other people's data passes
+through, it is a decision.
+
 ### It profiles
 
 Press **Profile**, reload, and the bar shows a real CPU profile of that request:
@@ -438,6 +462,7 @@ watchers: {
   query: {
     enabled: env('LENS_QUERY_WATCHER', true),
     slow: 100,               // ms at or above which a query is tagged `slow`
+    bindings: false,         // keep the values, so the statement can be run
     ignorePaths: []
   },
   log: { enabled: true, level: env('LENS_LOG_LEVEL', 'error') },

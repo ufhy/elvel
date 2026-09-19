@@ -263,6 +263,22 @@ export default {
        * connection the query did not use.
        */
       explain: env('LENS_QUERY_EXPLAIN', false),
+
+      /**
+       * Keep the values, so a query can be pasted into a database client.
+       *
+       * **Off.** Without it an entry records how many bindings a statement had,
+       * never what they were, and the panel shows the statement with its
+       * placeholders. With it on the entry also carries the statement with the
+       * values written in — which means every value the application queried by
+       * is stored: the address in a `where`, the token being looked up, the
+       * column being written. Those rows are readable by anyone who can reach
+       * the dashboard, and the bar draws them into the page.
+       *
+       * Worth it on your own machine, where reproducing a query is the point.
+       * Think twice anywhere someone else's data passes through.
+       */
+      bindings: env('LENS_QUERY_BINDINGS', false),
       /** Drop frames from these paths when locating the caller. */
       ignorePaths: [] as string[]
     },

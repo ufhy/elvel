@@ -274,6 +274,12 @@ function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {
           ['Called from', where(content)]
         ]),
         code('Statement', str(content.sql)),
+        /**
+         * The same statement, runnable — only when the values were recorded.
+         *
+         * Absent by default, and the placeholders above are then all there is.
+         */
+        ...(content.raw === undefined ? [] : [code('Runnable statement', str(content.raw))]),
         // Only when the plan was asked for, which is off by default.
         ...(content.plan === undefined ? [] : [code('Query plan', str(content.plan))])
       ]

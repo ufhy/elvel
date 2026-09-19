@@ -62,6 +62,19 @@ group('every type has a detail', () => {
       ['Duration', '4ms']
     ])
   })
+
+  /** The runnable statement is a second panel, and only when one was recorded. */
+  test('the values, when they were kept, are shown beside the placeholders', () => {
+    const panels = describe(EntryType.QUERY, {
+      sql: 'select * from users where id = ?',
+      raw: 'select * from users where id = 7'
+    })
+
+    expect(panels.map((panel) => panel.kind === 'code' && panel.title)).toEqual([
+      'Statement',
+      'Runnable statement'
+    ])
+  })
 })
 
 group('the mail preview never reaches a page we do not own', () => {

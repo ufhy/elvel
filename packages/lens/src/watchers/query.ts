@@ -1,5 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
-import { QueryExecuted } from '@elvel/database'
+import { inlineBindings, QueryExecuted } from '@elvel/database'
 import { callerFrom } from '../caller.ts'
 import { IncomingEntry } from '../entry.ts'
 import { EntryType } from '../entry-type.ts'
@@ -55,15 +55,25 @@ export class QueryWatcher extends Watcher {
       /**
        * The number of bindings, not the bindings.
        *
-       * Telescope interpolates them into the SQL so a query can be copied into
-       * a client, and accepts that the entry then holds every value the
-       * statement carried — email addresses, tokens, whatever was in the where
-       * clause. A recorder whose rows are readable by anyone who can reach the
-       * dashboard should not make that trade by default, so the shape is
-       * recorded and the values are not. Reproducing a query needs the
-       * parameters; understanding one does not.
+       * Interpolating them into the SQL lets a query be copied into a client,
+       * and the entry then holds every value the statement carried — email
+       * addresses, tokens, whatever was in the where clause. A recorder whose
+       * rows are readable by anyone who can reach the dashboard should not make
+       * that trade by default, so the shape is recorded and the values are not.
+       * Reproducing a query needs the parameters; understanding one does not.
        */
       bindings: event.bindings.length,
+      /**
+       * The same statement with its values written in — only when asked for.
+       *
+       * The deliberate exception to the line above, and the whole of it: turning
+       * `bindings` on stores the values, and nothing else changes. Absent by
+       * default, so a dashboard that was never configured for it holds no
+       * parameter anywhere.
+       */
+      ...(this.option<boolean>('bindings', false) === true
+        ? { raw: inlineBindings(event.sql, event.bindings) }
+        : {}),
       time: Number(event.time.toFixed(2)),
       slow,
       file: caller.file,

@@ -72,7 +72,7 @@ export {
   Relation
 } from './model/relations.ts'
 export { DatabaseServiceProvider } from './provider.ts'
-export { QueryBuilder } from './query/builder.ts'
+export { inlineBindings, QueryBuilder } from './query/builder.ts'
 export { Expression, isExpression, raw } from './query/expression.ts'
 export { Grammar } from './query/grammar.ts'
 export { MariaDbGrammar, MySqlGrammar } from './query/grammars/mysql.ts'

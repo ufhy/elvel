@@ -1246,14 +1246,8 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
    */
   toRawSql(): string {
     const { sql, bindings } = this.compile()
-    const values = [...bindings]
 
-    return sql.replace(/\?|\$\d+/g, (token) => {
-      const index = token.startsWith('$') ? Number(token.slice(1)) - 1 : 0
-      const value = token.startsWith('$') ? bindings[index] : values.shift()
-
-      return literal(value)
-    })
+    return inlineBindings(sql, bindings)
   }
 
   /** Print the statement with its bindings written in, and carry on. */
@@ -1943,7 +1937,30 @@ export class QueryBuilder<T extends Row = Row> extends Macroable {
 export { isExpression }
 
 /**
- * A value inlined into SQL, for the `case` that `inOrderOf` builds.
+ * A statement with its bindings written in, for reading.
+ *
+ * Every placeholder is filled in order, which is also how a mispaired binding
+ * becomes visible. Both placeholder styles are handled, because the grammar
+ * that produced the statement decides which one it used: `$1` names its value,
+ * `?` takes the next one.
+ *
+ * For reading, never for running against untrusted input: the values are quoted
+ * for display and this is not an escaping routine.
+ */
+export function inlineBindings(sql: string, bindings: readonly unknown[]): string {
+  const values = [...bindings]
+
+  return sql.replace(/\?|\$\d+/g, (token) => {
+    const numbered = token.startsWith('$')
+    const value = numbered ? bindings[Number(token.slice(1)) - 1] : values.shift()
+
+    return literal(value)
+  })
+}
+
+/**
+ * A value inlined into SQL, for `inOrderOf`'s `case` and for reading a statement
+ * back.
  *
  * Ordinarily everything is bound, and this is the exception: an `order by` cannot
  * carry bindings in every dialect, and the values here are ids the caller already

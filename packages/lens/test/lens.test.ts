@@ -556,7 +556,8 @@ describe('query watcher', () => {
    * security review found exactly this leak, where a docstring warned about
    * objects and then let every primitive through. A test is what keeps the
    * decision from being undone by a well-meaning "the dashboard would be more
-   * useful if you could see the parameters".
+   * useful if you could see the parameters" — which is now a setting, and the
+   * test below says what turning it on costs.
    */
   test('records how many bindings there were, never what they held', () => {
     const watcher = new QueryWatcher({ slow: 100 })
@@ -585,6 +586,41 @@ describe('query watcher', () => {
     expect(serialised).not.toContain('ada@example.test')
     expect(serialised).not.toContain('sekrit-token')
     expect(recorded[0]?.content.bindings).toBe(2)
+    expect(recorded[0]?.content.sql).toContain('?')
+    expect(recorded[0]?.content.raw).toBeUndefined()
+  })
+
+  /**
+   * The opt-in, and the whole of what it changes.
+   *
+   * Asserting the values are *there* is the point: the setting exists so a
+   * statement can be pasted into a client, and a version of this that quietly
+   * kept masking would be a switch that lies. The count stays, so nothing that
+   * read `bindings` has to change.
+   */
+  test('writes the values in when the option asks for them', () => {
+    const watcher = new QueryWatcher({ slow: 100, bindings: true })
+    const recorded: IncomingEntry[] = []
+
+    const lens = {
+      recording: () => true,
+      record: (_type: EntryTypeName, candidate: IncomingEntry) => recorded.push(candidate)
+    } as unknown as Recorder
+
+    const reach = watcher as unknown as { record(lens: Recorder, event: unknown): void }
+
+    reach.record(lens, {
+      sql: 'select * from users where email = ? and spend > ?',
+      bindings: ["o'hara@example.test", 5],
+      time: 1.5,
+      connectionName: 'main'
+    })
+
+    expect(recorded[0]?.content.raw).toBe(
+      "select * from users where email = 'o''hara@example.test' and spend > 5"
+    )
+    expect(recorded[0]?.content.bindings).toBe(2)
+    // The statement with placeholders is still what groups the family.
     expect(recorded[0]?.content.sql).toContain('?')
   })
 

@@ -1195,6 +1195,28 @@ export const BAR_SCRIPT = String.raw`
       head.appendChild(asCurl)
     }
 
+    /**
+     * The statement, ready for a database client.
+     *
+     * Only there when the values were recorded, which is off by default — so the
+     * button appears exactly when it would produce something that runs, and not
+     * as a promise the entry cannot keep.
+     */
+    if (entry.type === 'query' && entry.content && entry.content.raw) {
+      const asSql = node('button', 'act', 'Copy SQL')
+      asSql.type = 'button'
+      asSql.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(String(entry.content.raw))
+          asSql.textContent = 'Copied'
+          setTimeout(() => { asSql.textContent = 'Copy SQL' }, 1200)
+        } catch {
+          asSql.textContent = 'Blocked'
+        }
+      }
+      head.appendChild(asSql)
+    }
+
     if (entry.dashboard) {
       const link = node('a', 'out', 'Open in Lens')
       link.href = entry.dashboard
