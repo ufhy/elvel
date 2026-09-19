@@ -66,6 +66,20 @@ export class QueryExecuted {
     readonly bindings: unknown[],
     /** Milliseconds, with microsecond resolution. */
     readonly time: number,
-    readonly connectionName: string
+    readonly connectionName: string,
+    /**
+     * The stack as it stood where the query was issued.
+     *
+     * A listener cannot capture this for itself: the event is dispatched after
+     * the query was awaited, and by then the stack is the dispatcher and
+     * nothing above it. Measured on Bun 1.4.0 — three frames, none of them the
+     * application's — which is why a query log could say how long a statement
+     * took and never which line ran it.
+     *
+     * Captured only once a listener is known to exist, which is the same guard
+     * that decides whether to read the clock. Measured at 2.6µs beside a round
+     * trip that costs hundreds, so there is no second switch for it.
+     */
+    readonly stack?: string
   ) {}
 }

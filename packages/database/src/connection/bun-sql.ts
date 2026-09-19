@@ -457,6 +457,12 @@ export class BunSqlConnection implements Connection {
       }
     }
 
+    /**
+     * Where the query came from, taken here because here is the last place it
+     * exists: the event below is dispatched after the await, and a listener
+     * that looks then sees the dispatcher and nothing above it.
+     */
+    const stack = new Error().stack
     const started = Bun.nanoseconds()
 
     try {
@@ -473,7 +479,7 @@ export class BunSqlConnection implements Connection {
     } finally {
       const elapsed = Math.round((Bun.nanoseconds() - started) / 1_000) / 1_000
 
-      void this.dispatcher?.dispatch(new QueryExecuted(sql, bindings, elapsed, this.name))
+      void this.dispatcher?.dispatch(new QueryExecuted(sql, bindings, elapsed, this.name, stack))
     }
   }
 }

@@ -181,6 +181,13 @@ export default {
       enabled: env('LENS_QUERY_WATCHER', true),
       /** Milliseconds at or above which a query is tagged `slow`. */
       slow: 100,
+      /**
+       * Keep the values, so a statement can be pasted into a client.
+       *
+       * Off unless asked for: with it on the entry holds every value the query
+       * carried, and the bar draws them into the page.
+       */
+      bindings: env('LENS_QUERY_BINDINGS', false),
       /** Drop frames from these paths when locating the caller. */
       ignorePaths: [] as string[]
     }

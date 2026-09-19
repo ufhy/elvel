@@ -137,3 +137,44 @@ describe('what a sqlite connection is opened with', () => {
     }
   })
 })
+
+/**
+ * A query log is only useful if it can say which line ran the statement, and by
+ * the time a listener is called that line is gone: the event is dispatched
+ * after the query was awaited, leaving the dispatcher and a tick. So the stack
+ * travels on the event, taken where the query was issued.
+ */
+describe('the frame a query came from', () => {
+  const dispatched: { sql: string; stack?: string }[] = []
+
+  const dispatcher = {
+    hasListeners: () => true,
+    dispatch: (event: { sql: string; stack?: string }) => {
+      dispatched.push(event)
+
+      return Promise.resolve([])
+    }
+  }
+
+  test('rides along with the event, naming the caller', async () => {
+    const connection = await BunSqlConnection.make(
+      'probe',
+      { driver: 'sqlite', database: ':memory:' } as never,
+      dispatcher as never
+    )
+
+    async function readsTheDatabase(): Promise<unknown> {
+      return await connection.select('select 1 as one')
+    }
+
+    try {
+      await readsTheDatabase()
+    } finally {
+      await connection.disconnect()
+    }
+
+    const found = dispatched.find((event) => event.sql === 'select 1 as one')
+
+    expect(found?.stack).toContain('readsTheDatabase')
+  })
+})

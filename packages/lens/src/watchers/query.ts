@@ -42,7 +42,18 @@ export class QueryWatcher extends Watcher {
      */
     if (/^\s*explain\b/i.test(event.sql)) return
 
-    const caller = callerFrom(new Error().stack, this.option<string[]>('ignorePaths', []))
+    /**
+     * The stack the connection took, not one taken here.
+     *
+     * Taken here it is three frames — this listener, the dispatcher, the tick —
+     * because the event is dispatched after the query was awaited. Every query
+     * then looked like it came from inside a package and every entry was
+     * dropped, which is how a watcher can be enabled, correct and silent.
+     */
+    const caller = callerFrom(
+      event.stack ?? new Error().stack,
+      this.option<string[]>('ignorePaths', [])
+    )
 
     // No application frame means the query came from inside a package.
     if (caller === undefined) return

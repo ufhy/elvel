@@ -591,6 +591,37 @@ describe('query watcher', () => {
   })
 
   /**
+   * The caller comes from the connection, not from here.
+   *
+   * By the time this listener runs the query has been awaited, so a stack taken
+   * here is the dispatcher and a tick — no application frame, and the entry was
+   * dropped. Every query in a real application went that way while the watcher
+   * reported itself enabled.
+   */
+  test('the frame the connection recorded is the one reported', () => {
+    const watcher = new QueryWatcher({ slow: 100 })
+    const recorded: IncomingEntry[] = []
+
+    const lens = {
+      recording: () => true,
+      record: (_type: EntryTypeName, candidate: IncomingEntry) => recorded.push(candidate)
+    } as unknown as Recorder
+
+    const reach = watcher as unknown as { record(lens: Recorder, event: unknown): void }
+
+    reach.record(lens, {
+      sql: 'select 1',
+      bindings: [],
+      time: 0.2,
+      connectionName: 'main',
+      stack: ['Error', '    at show (/app/Http/Controllers/ArticleController.ts:38:12)'].join('\n')
+    })
+
+    expect(recorded[0]?.content.file).toBe('/app/Http/Controllers/ArticleController.ts')
+    expect(recorded[0]?.content.line).toBe(38)
+  })
+
+  /**
    * The opt-in, and the whole of what it changes.
    *
    * Asserting the values are *there* is the point: the setting exists so a
