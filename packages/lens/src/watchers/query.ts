@@ -1,4 +1,5 @@
 import type { ApplicationContract } from '@elvel/contracts'
+import { inRequestContext } from '@elvel/core'
 import { inlineBindings, QueryExecuted } from '@elvel/database'
 import { callerFrom } from '../caller.ts'
 import { IncomingEntry } from '../entry.ts'
@@ -55,8 +56,22 @@ export class QueryWatcher extends Watcher {
       this.option<string[]>('ignorePaths', [])
     )
 
-    // No application frame means the query came from inside a package.
-    if (caller === undefined) return
+    /**
+     * No application frame, but still the application's query.
+     *
+     * A frame survives an `await` and not a bare `return promise`, so a method
+     * that hands its promise straight back — `Model.find` does — arrives with a
+     * stack ending inside the framework, indistinguishable from a statement the
+     * framework issued for itself. Dropping those lost `find()` entirely.
+     *
+     * Being inside a unit of work is the difference — a request, a job, a
+     * command. What the application does there is the application's whether or
+     * not its line can be named, and the entry says so by leaving `Called from`
+     * empty rather than by not existing. Outside one — a provider booting, an
+     * interval refreshing — the old rule stands, which is what keeps the
+     * recorder from recording itself.
+     */
+    if (caller === undefined && !inRequestContext()) return
 
     const slow = event.time >= this.option('slow', Number.POSITIVE_INFINITY)
 
@@ -87,8 +102,8 @@ export class QueryWatcher extends Watcher {
         : {}),
       time: Number(event.time.toFixed(2)),
       slow,
-      file: caller.file,
-      line: caller.line
+      file: caller?.file ?? null,
+      line: caller?.line ?? null
     })
       .withFamilyHash(QueryWatcher.familyHash(event.sql))
       .withTags(slow ? ['slow'] : [])

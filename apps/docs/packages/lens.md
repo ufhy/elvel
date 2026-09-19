@@ -200,6 +200,19 @@ The answer is not waited for. A request is not made to pause for an inspection
 of itself, and a plan that arrives after the batch was flushed is dropped — the
 entry simply carries no plan, which is the honest outcome of asking too late.
 
+#### Where a query came from
+
+Every query entry carries the line that ran it, taken in the connection rather
+than in the recorder: by the time a listener hears about a query it has been
+awaited, and the stack is the event dispatcher and nothing above it.
+
+Sometimes there is no line to take. A frame survives an `await` and not a bare
+`return promise`, so a method that hands its promise straight back — `Model.find`
+is one — reaches the connection with its caller already gone. The entry is still
+recorded while a request, job or command is being served, with **Called from**
+simply empty. Outside one, a query nobody can attribute is the framework asking
+something for itself, and it is dropped.
+
 #### Running the query yourself
 
 A query entry records how many bindings a statement had, never what they were,
