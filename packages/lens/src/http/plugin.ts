@@ -1,7 +1,7 @@
 import type { ApplicationContract } from '@elvel/contracts'
 import { enterRequestContext } from '@elvel/core'
 import { Model } from '@elvel/database'
-import { currentScope } from '@elvel/http'
+import { currentScope, middlewareNamesOf } from '@elvel/http'
 import { Elysia } from 'elysia'
 import type { Baselines } from '../bar/baseline.ts'
 import type { RequestProfiler } from '../bar/profiler.ts'
@@ -80,6 +80,53 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
     if (begun === undefined || held === undefined) return
 
     held.push({ name, atMs: Math.round((performance.now() - begun) * 100) / 100 })
+  }
+
+  /**
+   * The middleware a route runs, looked up once per route.
+   *
+   * Read off the compiled route rather than guessed: `middlewareNamesOf` is what
+   * `route:list` prints its column from. Memoised because the lookup is a scan
+   * of the router's table and a route's chain does not change while the process
+   * is up.
+   */
+  const chains = new Map<string, string[]>()
+
+  function middlewareFor(method: string, route: string): string[] {
+    const key = `${method} ${route}`
+    const known = chains.get(key)
+
+    if (known !== undefined) return known
+
+    const found = app.router.routes.find(
+      (one) => one.path === route && one.method.toUpperCase() === method.toUpperCase()
+    )
+
+    const names = found === undefined ? [] : middlewareNamesOf(found)
+
+    chains.set(key, names)
+
+    return names
+  }
+
+  /**
+   * Whoever is signed in, when an application has authentication at all.
+   *
+   * Asked of the container rather than imported: this package must not depend on
+   * `@elvel/auth`, and an application without it should still be recorded.
+   */
+  function signedInId(): unknown {
+    if (!app.bound('auth' as never)) return undefined
+
+    try {
+      const manager = app.make('auth' as never) as { user(): { id?: unknown } | null }
+
+      return manager.user()?.id
+    } catch {
+      // A guard that cannot answer outside its own scope. A request with no user
+      // is the ordinary case, not an error.
+      return undefined
+    }
   }
 
   /**
@@ -232,7 +279,12 @@ export function lensPlugin(app: ApplicationContract, options: LensPluginOptions)
             body: bag.body,
             duration,
             ip: addresses.get(request),
-            session: sessionData()
+            session: sessionData(),
+            middleware:
+              typeof bag.route === 'string' && bag.route !== ''
+                ? middlewareFor(request.method, bag.route)
+                : [],
+            userId: signedInId()
           })
         }
 

@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import { Application } from '@elvel/core'
 import { ConnectionManager } from '@elvel/database'
 import { Elysia } from 'elysia'
-import { EntryType } from '../src/entry-type.ts'
+import type { IncomingEntry } from '../src/entry.ts'
+import { EntryType, type EntryTypeName } from '../src/entry-type.ts'
 import { lensPlugin, pathMatches } from '../src/http/plugin.ts'
+import { describe as describe_ } from '../src/panels/describe.ts'
 import { Recorder } from '../src/recorder.ts'
 import { DatabaseEntriesRepository } from '../src/storage/database-repository.ts'
 import { EntryQueryOptions } from '../src/storage/query-options.ts'
@@ -315,5 +317,82 @@ describe('pathMatches', () => {
     expect(pathMatches('/lens', ['lens'])).toBe(true)
     expect(pathMatches('/lensing', ['lens'])).toBe(false)
     expect(pathMatches('/plain', [])).toBe(false)
+  })
+})
+
+/**
+ * Two things a request entry did not say, and both answer the question that
+ * brings somebody to the bar: what ran before my handler, and who for.
+ */
+describe('what ran before the handler, and who for', () => {
+  const facts = (over: Record<string, unknown> = {}) => ({
+    request: new Request('http://localhost/articles/7'),
+    status: 302,
+    duration: 4,
+    route: '/articles/:id',
+    ...over
+  })
+
+  const recorded = (over: Record<string, unknown> = {}) => {
+    const kept: IncomingEntry[] = []
+    const lens = {
+      recording: () => true,
+      hidden: () => ({ headers: [], parameters: [], responseParameters: [] }),
+      record: (_type: EntryTypeName, entry: IncomingEntry) => kept.push(entry)
+    } as unknown as Recorder
+
+    new RequestWatcher({ sizeLimit: 64 }).record(lens, facts(over) as never)
+
+    return kept[0] as IncomingEntry
+  }
+
+  test('the middleware chain is recorded in declaration order', () => {
+    const entry = recorded({ middleware: ['auth', 'verified', 'can:update,article'] })
+
+    expect(entry.content.middleware).toEqual(['auth', 'verified', 'can:update,article'])
+  })
+
+  /** A route with none is an empty list, not a missing field. */
+  test('and a route with none says so', () => {
+    expect(recorded().content.middleware).toEqual([])
+  })
+
+  test('the signed-in user is recorded by id, and tagged', () => {
+    const entry = recorded({ userId: 7 })
+
+    expect(entry.content.user).toBe(7)
+    expect(entry.tags).toContain('user:7')
+  })
+
+  /**
+   * Only the id. A name or an address is the page's contents, and this entry
+   * hides those everywhere else.
+   */
+  test('a guest carries neither', () => {
+    const entry = recorded()
+
+    expect(entry.content.user).toBeNull()
+    expect(entry.tags.some((tag) => tag.startsWith('user:'))).toBe(false)
+  })
+
+  test('the panel shows both, and drops them when there are none', () => {
+    const shown = describe_(EntryType.REQUEST, {
+      method: 'GET',
+      uri: '/x',
+      middleware: ['auth', 'verified'],
+      user: 7
+    })
+    const rows = (shown[0] as { rows: Array<[string, string]> }).rows
+    const labels = rows.map(([label]) => label)
+
+    expect(rows).toContainEqual(['Middleware', 'auth → verified'])
+    expect(rows).toContainEqual(['Signed in as', '7'])
+
+    const guest = describe_(EntryType.REQUEST, { method: 'GET', uri: '/x', middleware: [] })
+    const quiet = (guest[0] as { rows: Array<[string, string]> }).rows.map(([label]) => label)
+
+    expect(labels).toContain('Middleware')
+    expect(quiet).not.toContain('Middleware')
+    expect(quiet).not.toContain('Signed in as')
   })
 })

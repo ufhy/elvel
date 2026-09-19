@@ -70,6 +70,10 @@ export type RequestFacts = {
   duration: number
   ip?: string
   session?: Record<string, unknown>
+  /** The middleware the route ran, in declaration order. */
+  middleware?: string[]
+  /** Whoever was signed in, or nothing for a guest. */
+  userId?: unknown
 }
 
 /**
@@ -81,14 +85,11 @@ export type RequestFacts = {
  * rather than by a subscription. The fields, the hiding and the response
  * treatment follow Telescope.
  *
- * Two of Telescope's fields are absent, both because the runtime cannot supply
- * them rather than by choice:
- *
- * - `memory`. `memory_get_peak_usage()` is per-request under PHP-FPM because the
- *   process *is* the request. Bun serves many at once, so a peak figure would
- *   describe the server while being labelled as this request's.
- * - `middleware`. Elysia's hook chain is not enumerable per matched route the
- *   way `$route->gatherMiddleware()` is.
+ * One of Telescope's fields is absent, because the runtime cannot supply it
+ * rather than by choice: `memory`. `memory_get_peak_usage()` is per-request
+ * under PHP-FPM because the process *is* the request. Bun serves many at once,
+ * so a peak figure would describe the server while being labelled as this
+ * request's.
  */
 export class RequestWatcher extends Watcher {
   register(_app: ApplicationContract): void {
@@ -114,6 +115,22 @@ export class RequestWatcher extends Watcher {
         uri: `${url.pathname}${url.search}` || '/',
         method,
         route: facts.route ?? null,
+        /**
+         * What ran before the handler, in order.
+         *
+         * The question behind most surprising answers: a 302 nobody wrote, a 419,
+         * a 403. The list is the route's own declaration order, so it reads the
+         * way the route does.
+         */
+        middleware: facts.middleware ?? [],
+        /**
+         * Whoever was signed in, by id.
+         *
+         * Only the id: a name or an address is the page's contents, and this
+         * entry already hides those everywhere else. The id is also a tag, so
+         * every request by one person can be pulled up together.
+         */
+        user: facts.userId ?? null,
         headers: this.headers(facts.request.headers, hidden.headers),
         payload: this.payload(url, facts.body, hidden.parameters),
         session: this.hide(facts.session ?? {}, hidden.parameters),
@@ -132,7 +149,9 @@ export class RequestWatcher extends Watcher {
          */
         location: this.locationOf(facts) ?? null,
         duration: Math.floor(facts.duration)
-      })
+      }).withTags(
+        facts.userId === undefined || facts.userId === null ? [] : [`user:${String(facts.userId)}`]
+      )
     )
   }
 

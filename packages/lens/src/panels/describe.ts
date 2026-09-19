@@ -239,6 +239,10 @@ function panelsFor(type: EntryTypeName, content: EntryContent): Panel[] {
           ['Method', str(content.method)],
           ['URI', str(content.uri)],
           ['Route', str(content.route)],
+          // What ran before the handler, and who it ran for: the two questions
+          // behind most surprising answers.
+          ['Middleware', Array.isArray(content.middleware) ? content.middleware.join(' → ') : ''],
+          ['Signed in as', str(content.user)],
           ['Status', str(content.responseStatus)],
           // Recorded since the 3xx check needed it, and shown since a reader
           // wants it for the same reason: a redirect's whole content is where
