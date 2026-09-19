@@ -63,7 +63,7 @@ describe('the CPU profile', () => {
     expect(profiler.claim('batch-1')).toBe(true)
     expect(profiler.isArmed()).toBe(false)
 
-    burn(4_000_000)
+    burnFor(200)
 
     const profile = await profiler.end('batch-1')
 
@@ -74,12 +74,12 @@ describe('the CPU profile', () => {
      * Named in the profile — not pinned to the top of it.
      *
      * A sampling profiler reports where the samples landed, and which function
-     * holds first place is a race with whatever else the runtime was doing.
-     * Measured: on Windows CI `arm` came first and `burn` second, which is the
-     * profiler working rather than failing. What the feature claims is that time
-     * reaches the function that spent it, and that is what is asserted.
+     * holds first place is a race with whatever else the runtime was doing:
+     * `arm` came first on Windows CI, which is the profiler working rather than
+     * failing. What the feature claims is that time reaches the function that
+     * spent it, and that is what is asserted.
      */
-    const burnt = profile?.hot.find((frame) => frame.name === 'burn')
+    const burnt = profile?.hot.find((frame) => frame.name === 'burnFor')
 
     expect(burnt).toBeDefined()
     expect(burnt?.selfMs).toBeGreaterThan(0)
@@ -212,10 +212,30 @@ describe('the CPU profile', () => {
   })
 })
 
-function burn(n: number): number {
+/**
+ * Busy work measured by the clock, not by an iteration count.
+ *
+ * A sampling profiler catches whatever it wakes up inside, and four million
+ * square roots is a few milliseconds on a fast runner — few enough samples that
+ * whether this frame appears at all was a coin flip. It came up both ways in
+ * CI: on Windows another frame took first place, on macOS this one was missing
+ * entirely. Two hundred milliseconds is hundreds of samples at any interval the
+ * engine picks for itself.
+ *
+ * The clock is read once per block rather than per iteration, or reading it
+ * would be the hot function instead of this one.
+ */
+function burnFor(ms: number): number {
+  const until = Bun.nanoseconds() + ms * 1_000_000
   let total = 0
+  let i = 0
 
-  for (let i = 0; i < n; i++) total += Math.sqrt(i)
+  while (Bun.nanoseconds() < until) {
+    for (let n = 0; n < 200_000; n += 1) {
+      total += Math.sqrt(i)
+      i += 1
+    }
+  }
 
   return total
 }
