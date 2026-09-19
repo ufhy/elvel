@@ -250,6 +250,51 @@ describe('the endpoint', () => {
   })
 
   /**
+   * The ring keeps the last few requests, so reading one is a race against the
+   * application still serving. Pinning is how a request is read at leisure.
+   */
+  test('a pinned batch survives what would have evicted it', async () => {
+    const { router, recorder, ring } = harness()
+    const page = await (await router.handle(new Request('http://localhost/page'))).text()
+    const id = /data-batch="([^"]+)"/.exec(page)?.[1]
+
+    await drained(recorder, 1)
+
+    const held = await router.handle(new Request(`http://localhost/lens-api/bar/${id}/pin`))
+
+    expect(await held.json()).toEqual({ pinned: true })
+
+    // The ring holds three, so four more pushes would have taken the first.
+    for (let index = 0; index < 4; index++) {
+      await router.handle(new Request(`http://localhost/page?n=${index}`))
+      await drained(recorder, index + 2)
+    }
+
+    expect(ring.get(String(id))).toBeDefined()
+
+    const detail = await router.handle(new Request(`http://localhost/lens-api/bar/${id}`))
+    const payload = (await detail.json()) as { batch: { pinned: boolean } }
+
+    expect(payload.batch.pinned).toBe(true)
+  })
+
+  test('and is let go again on the next press', async () => {
+    const { router, recorder, ring } = harness()
+    const page = await (await router.handle(new Request('http://localhost/page'))).text()
+    const id = /data-batch="([^"]+)"/.exec(page)?.[1]
+
+    await drained(recorder, 1)
+    await router.handle(new Request(`http://localhost/lens-api/bar/${id}/pin`))
+
+    const released = await router.handle(
+      new Request(`http://localhost/lens-api/bar/${id}/pin?on=0`)
+    )
+
+    expect(await released.json()).toEqual({ pinned: false })
+    expect(ring.pinned(String(id))).toBe(false)
+  })
+
+  /**
    * A 404 here is a race, not a mistake: the ring is filled after the response
    * has been sent. The client retries on exactly this status, so it must not be
    * a 500 and must not be a 200 with an empty batch.
@@ -633,6 +678,35 @@ describe('the ring holds a bounded amount', () => {
     expect(ring.size).toBe(1)
     expect(ring.get('c')).toBeDefined()
     expect(ring.get('a')).toBeUndefined()
+  })
+
+  /**
+   * Half the ring, and not one more.
+   *
+   * A pin that pushed out an older pin would lose the one set first and
+   * forgotten about; a ring that could be pinned solid would have nowhere to
+   * put the newest request, which is the one almost always being read.
+   */
+  test('no more than half the ring can be held at once', () => {
+    const ring = new BatchRing(4)
+
+    ring.push(batch('a'))
+    ring.push(batch('b'))
+    ring.push(batch('c'))
+
+    expect(ring.pin('a', true)).toBe(true)
+    expect(ring.pin('b', true)).toBe(true)
+    expect(ring.pin('c', true)).toBe(false)
+
+    // Releasing one makes room again, and pinning what is already pinned is not
+    // a second pin.
+    expect(ring.pin('b', true)).toBe(true)
+    ring.pin('a', false)
+    expect(ring.pin('c', true)).toBe(true)
+  })
+
+  test('a batch the ring never had cannot be held', () => {
+    expect(new BatchRing(4).pin('nothing', true)).toBe(false)
   })
 
   /**

@@ -106,6 +106,12 @@ select.sets, .follow { flex: 0 0 auto;
 select.sets:hover { color: #e2e8f0; }
 .follow { display: flex; align-items: center; gap: 5px; }
 .follow input { accent-color: #FF2D20; }
+button.hold {
+  flex: 0 0 auto; background: none; border: 0; border-left: 1px solid #22293a;
+  color: #4a5568; font-family: inherit; font-size: 12px; padding: 0 10px; cursor: pointer;
+}
+button.hold:hover { color: #a0aec0; }
+button.hold[aria-pressed="true"] { color: #FF2D20; }
 .shut {
   flex: 0 0 auto; width: 34px; display: flex; align-items: center; justify-content: center;
   background: #1a202c; color: #718096; border: 0; border-left: 1px solid #22293a;
@@ -437,6 +443,7 @@ export const BAR_SCRIPT = String.raw`
     header.appendChild(timing)
 
     header.appendChild(switcher())
+    header.appendChild(hold())
     header.appendChild(follow())
     header.appendChild(node('div', 'ind build', tag.dataset.build || ''))
 
@@ -596,6 +603,7 @@ export const BAR_SCRIPT = String.raw`
       const option = document.createElement('option')
       option.value = item.batchId
       option.textContent =
+        (item.pinned ? '◉ ' : '') +
         item.method +
         ' ' +
         item.path +
@@ -618,6 +626,45 @@ export const BAR_SCRIPT = String.raw`
     }
 
     return select
+  }
+
+  /**
+   * Keep this request while you read it.
+   *
+   * The ring holds the last few, so a page that polls can push the thing you
+   * opened off the end mid-read — and the detail you were looking at answers
+   * 404. Pinning is refused once half the ring is held, which the button says
+   * rather than failing silently.
+   */
+  function hold() {
+    const button = node('button', 'hold')
+    button.type = 'button'
+    button.textContent = '◉'
+    button.setAttribute('aria-pressed', String(batch.pinned === true))
+    button.title = batch.pinned === true ? 'Held — click to release' : 'Hold against eviction'
+    button.onclick = async (event) => {
+      event.stopPropagation()
+
+      try {
+        const answer = await ask('/' + current + '/pin?on=' + (batch.pinned === true ? '0' : '1'))
+        if (!answer.ok) return
+        const said = await answer.json()
+
+        if (said.pinned === false && batch.pinned !== true) {
+          button.title = 'Too many held already'
+
+          return
+        }
+
+        batch.pinned = said.pinned
+        button.setAttribute('aria-pressed', String(said.pinned))
+        button.title = said.pinned ? 'Held — click to release' : 'Hold against eviction'
+      } catch {
+        //
+      }
+    }
+
+    return button
   }
 
   /**

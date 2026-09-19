@@ -216,6 +216,25 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
 
         return { costs: options.baselines.costs() }
       })
+      /**
+       * Hold a batch, or let it go.
+       *
+       * A GET for the same reason arming the profiler is one: the bar cannot
+       * honestly obtain a CSRF token, and this changes the inspector rather
+       * than the application. Nothing is written anywhere, and it still has to
+       * pass `authorise()`.
+       */
+      .get(`${prefix}/:id/pin`, async ({ params, query, request, set }) => {
+        const lens: Recorder = app.make('lens')
+
+        if (!(await barAllows(options.state, lens, request))) {
+          set.status = 403
+
+          return { message: 'Forbidden' }
+        }
+
+        return { pinned: options.ring.pin(params.id, query.on !== '0') }
+      })
       .get(`${prefix}/:id`, async ({ params, request, set }) => {
         const lens: Recorder = app.make('lens')
 
@@ -246,7 +265,11 @@ export function lensBar(app: ApplicationContract, options: LensBarOptions) {
          * one more request, and only for the entry somebody opened.
          */
         return {
-          batch: { ...batch, entries: batch.entries.map(listed) },
+          batch: {
+            ...batch,
+            pinned: options.ring.pinned(params.id),
+            entries: batch.entries.map(listed)
+          },
           cursor: options.ring.cursor()
         }
       })

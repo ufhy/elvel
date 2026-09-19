@@ -337,6 +337,16 @@ reload.
 `Ctrl` + `` ` `` opens and closes the panel. Drag its top edge to resize it; the
 height and the open view are remembered per browser.
 
+Which is also the problem: the ring holds `lens.bar.requests` of them, so a page
+that polls can push the request you opened off the end while you are reading it,
+and its detail answers 404. The **◉** button beside the request menu holds that
+one against eviction, and holds it until you press it again. A held request is
+marked in the menu.
+
+At most half the ring can be held at once. A pin that quietly pushed out an
+older pin would lose the one you set first and forgot about, and a ring pinned
+solid would have nowhere to put the request you are about to make.
+
 ### Work in other processes
 
 `bun elvel dev` runs the queue worker and the scheduler beside the server, each

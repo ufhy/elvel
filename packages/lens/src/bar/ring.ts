@@ -66,6 +66,8 @@ export type BarBatch = {
 /** The list form: everything but the entries. */
 export type BarSummary = Omit<BarBatch, 'entries' | 'found' | 'profile' | 'marks'> & {
   count: number
+  /** Held against eviction. Absent for work from another process. */
+  pinned?: boolean
   /** Which process this came from, so the bar can say what it cannot show. */
   source: 'ring' | 'storage'
   /** How many problems, so a list can mark a bad request without its detail. */
@@ -123,6 +125,15 @@ export class BatchRing {
   /** Bytes per batch, measured once at push. */
   private readonly sizes = new Map<string, number>()
 
+  /**
+   * Batches eviction may not take.
+   *
+   * The ring keeps the last few requests, so reading one carefully is a race
+   * against the application still serving: open a batch, reload twice, and the
+   * thing being read is gone. A pin is how you say "not this one".
+   */
+  private readonly pins = new Set<string>()
+
   private held = 0
 
   private next = 1
@@ -174,6 +185,37 @@ export class BatchRing {
     return this.batches.find((batch) => batch.batchId === batchId)
   }
 
+  /**
+   * Hold a batch against eviction, or let it go again.
+   *
+   * Answers with what is now true rather than with success, so a refused pin
+   * and a released one read the same way at the call site.
+   *
+   * Refused once half the ring is pinned. A pin that silently pushed out an
+   * older pin would lose the one you set first and forgot about, and a ring
+   * that could be pinned solid would stop being a ring — the newest request,
+   * the one you are almost always looking at, would have nowhere to land.
+   */
+  pin(batchId: string, on: boolean): boolean {
+    if (!on) {
+      this.pins.delete(batchId)
+
+      return false
+    }
+
+    if (this.get(batchId) === undefined) return false
+    if (!this.pins.has(batchId) && this.pins.size >= Math.floor(this.limit / 2)) return false
+
+    this.pins.add(batchId)
+
+    return true
+  }
+
+  /** Whether this batch is being held. */
+  pinned(batchId: string): boolean {
+    return this.pins.has(batchId)
+  }
+
   /** One entry by uuid, across every batch still held. */
   entry(uuid: string): BarEntry | undefined {
     for (const batch of this.batches) {
@@ -187,7 +229,7 @@ export class BatchRing {
 
   /** Newest first, without their entries. */
   recent(): BarSummary[] {
-    return this.batches.map(summaryOf)
+    return this.batches.map((batch) => summaryOf(batch, this.pins.has(batch.batchId)))
   }
 
   /**
@@ -196,7 +238,9 @@ export class BatchRing {
    * `since(0)` is the whole ring, which is what a page asks for on load.
    */
   since(seq: number): BarSummary[] {
-    return this.batches.filter((batch) => batch.seq > seq).map(summaryOf)
+    return this.batches
+      .filter((batch) => batch.seq > seq)
+      .map((batch) => summaryOf(batch, this.pins.has(batch.batchId)))
   }
 
   /** The highest sequence handed out, so a client knows where it stands. */
@@ -242,6 +286,7 @@ export class BatchRing {
   clear(): void {
     this.batches.length = 0
     this.sizes.clear()
+    this.pins.clear()
     this.held = 0
   }
 
@@ -259,13 +304,35 @@ export class BatchRing {
       this.batches.length > this.limit ||
       (this.held > this.budget && this.batches.length > 1)
     ) {
-      const dropped = this.batches.pop()
+      /**
+       * The oldest batch nobody is holding — not simply the oldest.
+       *
+       * Returning when every remaining batch is pinned is what keeps this from
+       * spinning, and it is also the honest outcome: the ring is over its
+       * bounds because somebody asked it to be.
+       */
+      const index = this.oldestUnpinned()
+
+      if (index === -1) return
+
+      const [dropped] = this.batches.splice(index, 1)
 
       if (dropped === undefined) return
 
       this.held -= this.sizes.get(dropped.batchId) ?? 0
       this.sizes.delete(dropped.batchId)
     }
+  }
+
+  /** Oldest is last: the list is newest first. */
+  private oldestUnpinned(): number {
+    for (let index = this.batches.length - 1; index >= 0; index--) {
+      const batch = this.batches[index]
+
+      if (batch !== undefined && !this.pins.has(batch.batchId)) return index
+    }
+
+    return -1
   }
 }
 
@@ -286,11 +353,12 @@ function weigh(batch: BarBatch): number {
   }
 }
 
-function summaryOf(batch: BarBatch): BarSummary {
+function summaryOf(batch: BarBatch, pinned: boolean): BarSummary {
   const { entries, found, profile, marks, ...rest } = batch
 
   return {
     ...rest,
+    pinned,
     count: entries.length,
     source: 'ring',
     problems: found.filter((one) => one.level === 'problem').length,
